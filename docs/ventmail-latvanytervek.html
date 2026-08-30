@@ -1,0 +1,830 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>ventMail — Látványtervek v2.0</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;450;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg-0:#070A10; --bg-1:#0A0D13; --bg-2:#0E121B;
+    --panel:rgba(20,26,38,.62); --panel-2:rgba(28,35,50,.55);
+    --stroke:rgba(120,140,190,.14); --stroke-2:rgba(120,140,190,.24);
+    --ink:#EAF0FF; --ink-2:#A9B4CC; --ink-3:#6C7791;
+    --accent:#5B7CFF; --accent-2:#8AA0FF;
+    --ok:#3FD6A0; --warn:#F5B851; --danger:#FF6B7A;
+    --mkt:#B98BFF; --txn:#5BE1FF; --inb:#4FD1B5;
+    --r-lg:20px; --r-md:14px;
+    --disp:"Space Grotesk",system-ui,sans-serif;
+    --body:"Inter",system-ui,sans-serif;
+    --mono:"JetBrains Mono",ui-monospace,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{font-family:var(--body);color:var(--ink);background:var(--bg-0);-webkit-font-smoothing:antialiased;overflow:hidden}
+  .amb{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+  .amb::before,.amb::after{content:"";position:absolute;border-radius:50%;filter:blur(90px);opacity:.5}
+  .amb::before{width:640px;height:640px;left:-160px;top:-220px;background:radial-gradient(circle,#28407f,transparent 62%)}
+  .amb::after{width:560px;height:560px;right:-160px;bottom:-200px;background:radial-gradient(circle,#2f5e6e,transparent 62%)}
+  .grid-lines{position:fixed;inset:0;z-index:0;pointer-events:none;
+    background-image:linear-gradient(rgba(120,140,190,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(120,140,190,.05) 1px,transparent 1px);
+    background-size:48px 48px;mask-image:radial-gradient(circle at 50% 30%,#000,transparent 80%)}
+  .app{position:relative;z-index:1;height:100%;display:flex;flex-direction:column}
+
+  .topbar{display:flex;align-items:center;gap:14px;padding:13px 20px;border-bottom:1px solid var(--stroke);
+    background:linear-gradient(180deg,rgba(10,13,19,.85),rgba(10,13,19,.4));backdrop-filter:blur(14px)}
+  .brand{display:flex;align-items:center;gap:11px;font-family:var(--disp);font-weight:600}
+  .logo{width:30px;height:30px;border-radius:9px;position:relative;background:conic-gradient(from 210deg,var(--accent),var(--accent-2),var(--inb),var(--accent));
+    box-shadow:0 0 0 1px rgba(255,255,255,.08),0 8px 24px rgba(91,124,255,.35)}
+  .logo::after{content:"";position:absolute;inset:6px;border-radius:5px;background:var(--bg-1)}
+  .logo::before{content:"";position:absolute;z-index:2;inset:0;margin:auto;width:13px;height:9px;border:1.6px solid var(--accent-2);border-radius:2px}
+  .brand b{font-weight:700}.brand span{color:var(--ink-3);font-weight:500}
+  .pillar{display:flex;gap:3px;background:rgba(0,0,0,.3);border:1px solid var(--stroke);border-radius:10px;padding:3px;margin-left:8px}
+  .pillar button{border:none;background:transparent;color:var(--ink-3);padding:6px 14px;border-radius:8px;cursor:pointer;font:550 12.5px var(--body)}
+  .pillar button.on{background:rgba(91,124,255,.18);color:var(--accent-2)}
+  .ws{display:flex;align-items:center;gap:8px;padding:6px 12px;border:1px solid var(--stroke);border-radius:999px;background:var(--panel);font-size:13px;color:var(--ink-2)}
+  .ws .dot{width:7px;height:7px;border-radius:50%;background:var(--ok);box-shadow:0 0 8px var(--ok)}
+  .spacer{flex:1}
+  .kbd{font-family:var(--mono);font-size:11px;color:var(--ink-3);border:1px solid var(--stroke);border-radius:6px;padding:3px 7px;background:rgba(0,0,0,.25)}
+  .avatar{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--mkt));display:grid;place-items:center;font-weight:600;font-size:13px;color:#fff}
+
+  .body{flex:1;display:flex;min-height:0}
+  .dock{width:70px;padding:12px 0;display:flex;flex-direction:column;align-items:center;gap:3px;border-right:1px solid var(--stroke);
+    background:linear-gradient(180deg,rgba(10,13,19,.5),rgba(7,10,16,.2));overflow-y:auto}
+  .dock .sep{width:26px;height:1px;background:var(--stroke);margin:7px 0}
+  .navbtn{width:44px;height:44px;border-radius:12px;border:1px solid transparent;background:transparent;color:var(--ink-3);
+    display:grid;place-items:center;cursor:pointer;position:relative;transition:.18s;flex:none}
+  .navbtn svg{width:20px;height:20px}
+  .navbtn:hover{color:var(--ink);background:var(--panel-2);border-color:var(--stroke)}
+  .navbtn.active{color:var(--accent-2);background:rgba(91,124,255,.12);border-color:rgba(91,124,255,.35)}
+  .navbtn.active::before{content:"";position:absolute;left:-14px;top:11px;bottom:11px;width:3px;border-radius:3px;background:var(--accent);box-shadow:0 0 10px var(--accent)}
+  .navbtn .tip{position:absolute;left:54px;white-space:nowrap;background:var(--bg-2);border:1px solid var(--stroke-2);color:var(--ink);
+    font-size:12px;padding:5px 9px;border-radius:8px;opacity:0;transform:translateX(-4px);pointer-events:none;transition:.16s;z-index:20}
+  .navbtn:hover .tip{opacity:1;transform:translateX(0)}
+
+  .stage{flex:1;position:relative;min-width:0}
+  .screen{position:absolute;inset:0;overflow:auto;padding:24px 28px 40px;opacity:0;visibility:hidden;transform:translateY(8px);
+    transition:opacity .35s ease,transform .35s ease,visibility .35s}
+  .screen.active{opacity:1;visibility:visible;transform:none}
+  .screen::-webkit-scrollbar{width:10px}.screen::-webkit-scrollbar-thumb{background:rgba(120,140,190,.18);border-radius:8px;border:3px solid transparent;background-clip:padding-box}
+
+  .head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:20px;flex-wrap:wrap}
+  h1{font-family:var(--disp);font-weight:600;font-size:25px;margin:0 0 4px;letter-spacing:-.3px}
+  .sub{color:var(--ink-2);font-size:13.5px;margin:0}
+  .tagline{display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--accent-2);border:1px solid rgba(91,124,255,.28);
+    background:rgba(91,124,255,.08);padding:3px 9px;border-radius:7px;margin-bottom:7px}
+  .actions{display:flex;gap:9px;flex-wrap:wrap}
+  .btn{font:550 13px var(--body);padding:9px 15px;border-radius:11px;cursor:pointer;border:1px solid var(--stroke-2);
+    background:var(--panel);color:var(--ink);transition:.16s;display:inline-flex;align-items:center;gap:7px}
+  .btn:hover{border-color:var(--accent);color:#fff}
+  .btn.primary{background:linear-gradient(180deg,var(--accent),#4a6bf0);border-color:transparent;color:#fff;box-shadow:0 8px 22px rgba(91,124,255,.35)}
+  .btn.ghost{background:transparent}
+  .btn svg{width:15px;height:15px}
+
+  .panel{background:var(--panel);border:1px solid var(--stroke);border-radius:var(--r-lg);backdrop-filter:blur(16px);box-shadow:0 20px 50px rgba(0,0,0,.35)}
+  .pad{padding:18px}
+  .grid{display:grid;gap:15px}
+  .c4{grid-template-columns:repeat(4,1fr)}.c3{grid-template-columns:repeat(3,1fr)}
+  .c2{grid-template-columns:1.5fr 1fr}.c2e{grid-template-columns:1fr 1fr}
+  @media(max-width:1150px){.c4{grid-template-columns:repeat(2,1fr)}.c3,.c2,.c2e{grid-template-columns:1fr}}
+
+  .kpi{padding:16px}
+  .kpi .lbl{color:var(--ink-2);font-size:12.5px;font-weight:500}
+  .kpi .val{font-family:var(--disp);font-size:27px;font-weight:600;margin-top:7px;letter-spacing:-.5px}
+  .kpi .chg{font-size:11.5px;margin-top:5px;font-weight:550}
+  .up{color:var(--ok)}.down{color:var(--danger)}.neu{color:var(--ink-3)}
+
+  .rail{position:relative;height:60px;margin:6px 4px}
+  .rail-line{position:absolute;top:29px;left:0;right:0;height:2px;border-radius:2px;background:linear-gradient(90deg,var(--txn),var(--accent) 45%,var(--mkt));opacity:.85}
+  .rail-line::after{content:"";position:absolute;inset:0;filter:blur(6px);background:inherit;opacity:.7}
+  .rail-glow{position:absolute;top:24px;height:12px;width:60px;border-radius:12px;background:radial-gradient(closest-side,rgba(138,160,255,.9),transparent);animation:flow 3.4s linear infinite}
+  @keyframes flow{from{left:-8%}to{left:100%}}
+  .stop{position:absolute;top:0;transform:translateX(-50%);text-align:center;width:110px}
+  .stop .node{width:13px;height:13px;border-radius:50%;margin:23px auto 0;background:var(--bg-1);border:2px solid var(--accent);box-shadow:0 0 0 4px rgba(91,124,255,.12)}
+  .stop.done .node{background:var(--accent)}
+  .stop .n{font-family:var(--disp);font-weight:600;font-size:14px;margin-top:8px}
+  .stop .t{color:var(--ink-3);font-size:10.5px}
+  @media(prefers-reduced-motion:reduce){.rail-glow{animation:none;left:44%}}
+
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{text-align:left;color:var(--ink-3);font-weight:500;font-size:11.5px;padding:10px 13px;border-bottom:1px solid var(--stroke)}
+  td{padding:11px 13px;border-bottom:1px solid rgba(120,140,190,.08);color:var(--ink-2)}
+  tr:last-child td{border-bottom:none}
+  tr:hover td{background:rgba(120,140,190,.04)}
+  td b{color:var(--ink);font-weight:550}
+  code{font-family:var(--mono);font-size:12px}
+  .pill{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:550;padding:3px 9px;border-radius:999px;border:1px solid;white-space:nowrap}
+  .pill.ok{color:var(--ok);border-color:rgba(63,214,160,.3);background:rgba(63,214,160,.08)}
+  .pill.warn{color:var(--warn);border-color:rgba(245,184,81,.3);background:rgba(245,184,81,.08)}
+  .pill.bad{color:var(--danger);border-color:rgba(255,107,122,.3);background:rgba(255,107,122,.08)}
+  .pill.mut{color:var(--ink-3);border-color:var(--stroke);background:rgba(0,0,0,.2)}
+  .pill.mkt{color:var(--mkt);border-color:rgba(185,139,255,.32);background:rgba(185,139,255,.08)}
+  .pill.txn{color:var(--txn);border-color:rgba(91,225,255,.3);background:rgba(91,225,255,.08)}
+  .pill.inb{color:var(--inb);border-color:rgba(79,209,181,.3);background:rgba(79,209,181,.08)}
+  .pill.acc{color:var(--accent-2);border-color:rgba(91,124,255,.3);background:rgba(91,124,255,.08)}
+  .pdot{width:5px;height:5px;border-radius:50%;background:currentColor}
+
+  .sect-h{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:15px 18px;border-bottom:1px solid var(--stroke);flex-wrap:wrap}
+  .sect-title{font-family:var(--disp);font-weight:600;font-size:14.5px;margin:0}
+  .muted{color:var(--ink-3);font-size:12px}
+
+  .input{width:100%;background:rgba(0,0,0,.28);border:1px solid var(--stroke-2);border-radius:10px;padding:9px 12px;color:var(--ink);font:inherit;font-size:13px}
+  .input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(91,124,255,.18)}
+  .setrow{margin-bottom:14px}
+  .setrow label{display:block;font-size:11.5px;color:var(--ink-3);margin-bottom:5px}
+  .seg{display:flex;background:rgba(0,0,0,.28);border:1px solid var(--stroke-2);border-radius:10px;padding:3px}
+  .seg button{flex:1;border:none;background:transparent;color:var(--ink-3);padding:7px;border-radius:8px;cursor:pointer;font:550 12px var(--body)}
+  .seg button.on{background:var(--accent);color:#fff}
+  .seg button.on.mkt{background:var(--mkt)}
+  .filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .chip{font-size:11.5px;color:var(--ink-2);border:1px solid var(--stroke-2);background:rgba(0,0,0,.22);padding:6px 11px;border-radius:9px;cursor:pointer}
+  .chip.on{border-color:var(--accent);color:var(--accent-2);background:rgba(91,124,255,.1)}
+
+  pre{margin:0;font-family:var(--mono);font-size:12px;line-height:1.65;color:#c7d2f0;background:rgba(0,0,0,.32);
+    border:1px solid var(--stroke);border-radius:12px;padding:14px 16px;overflow:auto}
+  .tok-k{color:var(--mkt)}.tok-s{color:var(--ok)}.tok-c{color:var(--ink-3)}.tok-f{color:var(--accent-2)}.tok-w{color:var(--warn)}
+
+  /* trace timeline */
+  .trace{position:relative;padding-left:26px}
+  .trace::before{content:"";position:absolute;left:7px;top:6px;bottom:6px;width:2px;background:linear-gradient(180deg,var(--accent),rgba(91,124,255,.15))}
+  .tstep{position:relative;padding:9px 0}
+  .tstep::before{content:"";position:absolute;left:-23px;top:14px;width:10px;height:10px;border-radius:50%;background:var(--bg-1);border:2px solid var(--accent)}
+  .tstep.ok::before{background:var(--ok);border-color:var(--ok)}
+  .tstep.bad::before{background:var(--danger);border-color:var(--danger)}
+  .tstep .tt{font-size:13px;font-weight:550;color:var(--ink)}
+  .tstep .td{font-size:11.5px;color:var(--ink-3);font-family:var(--mono);margin-top:2px}
+
+  .kv{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid rgba(120,140,190,.08);font-size:13px}
+  .kv:last-child{border-bottom:none}
+  .kv .k{color:var(--ink-3);width:150px;flex:none;font-size:12px}
+  .kv .v{color:var(--ink-2);flex:1}
+  .bar{flex:1;height:6px;border-radius:6px;background:rgba(120,140,190,.14);overflow:hidden}
+  .bar i{display:block;height:100%;border-radius:6px;background:linear-gradient(90deg,var(--accent),var(--accent-2))}
+  .bar i.g{background:linear-gradient(90deg,var(--ok),#7ce8c4)}
+  .bar i.w{background:linear-gradient(90deg,var(--warn),#ffd68a)}
+
+  /* route rule cards */
+  .rule{border:1px solid var(--stroke-2);border-radius:13px;padding:13px 15px;margin-bottom:11px;background:var(--panel-2)}
+  .rule .rh{display:flex;align-items:center;gap:10px;margin-bottom:9px}
+  .rule .prio{font-family:var(--mono);font-size:11px;color:var(--ink-3);border:1px solid var(--stroke);border-radius:6px;padding:2px 7px}
+  .rule .expr{font-family:var(--mono);font-size:12px;color:var(--inb);background:rgba(79,209,181,.07);border:1px solid rgba(79,209,181,.18);
+    border-radius:8px;padding:8px 11px;margin-bottom:8px;overflow:auto}
+  .rule .acts{display:flex;gap:7px;flex-wrap:wrap}
+
+  /* mail canvas */
+  .editor{display:grid;grid-template-columns:190px 1fr 250px;gap:15px}
+  @media(max-width:1180px){.editor{grid-template-columns:1fr}}
+  .palette .blk{display:flex;align-items:center;gap:9px;padding:10px 11px;border:1px solid var(--stroke);border-radius:11px;margin-bottom:8px;
+    background:var(--panel-2);cursor:grab;font-size:12.5px;color:var(--ink-2);transition:.14s}
+  .palette .blk:hover{border-color:var(--accent);color:#fff;transform:translateX(2px)}
+  .palette .blk svg{width:15px;height:15px;color:var(--accent-2)}
+  .canvas{background:var(--panel);border:1px solid var(--stroke);border-radius:var(--r-lg);padding:18px}
+  .mail{max-width:480px;margin:0 auto;background:#0c1017;border:1px solid var(--stroke-2);border-radius:14px;overflow:hidden}
+  .mail .mhead{padding:20px 24px;background:linear-gradient(135deg,rgba(91,124,255,.16),rgba(185,139,255,.1));border-bottom:1px solid var(--stroke);font-family:var(--disp);font-weight:600}
+  .mblock{padding:16px 24px;border:1.5px dashed transparent;transition:.14s}
+  .mblock:hover{border-color:rgba(91,124,255,.4);background:rgba(91,124,255,.04)}
+  .mblock.sel{border-color:var(--accent);background:rgba(91,124,255,.06)}
+  .mblock h2{font-family:var(--disp);font-size:19px;margin:0 0 7px}
+  .mblock p{color:var(--ink-2);font-size:13.5px;line-height:1.6;margin:0}
+  .mbtn{display:inline-block;background:var(--accent);color:#fff;font-weight:600;font-size:12.5px;padding:10px 18px;border-radius:9px}
+  .mfoot{padding:14px 24px;border-top:1px solid var(--stroke);color:var(--ink-3);font-size:10.5px;text-align:center}
+  .mfoot a{color:var(--accent-2)}
+
+  /* journey */
+  .flow{position:relative;min-height:400px}
+  .node2{position:absolute;width:176px;background:var(--panel);border:1px solid var(--stroke-2);border-radius:14px;padding:13px;backdrop-filter:blur(12px)}
+  .node2 .ico{width:28px;height:28px;border-radius:9px;display:grid;place-items:center;margin-bottom:8px}
+  .node2 .ico svg{width:15px;height:15px}
+  .node2 .ttl{font-weight:600;font-size:13px}
+  .node2 .desc{color:var(--ink-3);font-size:11px;margin-top:3px}
+  .n-trig .ico{background:rgba(79,209,181,.14);color:var(--inb)}
+  .n-cond .ico{background:rgba(245,184,81,.14);color:var(--warn)}
+  .n-act .ico{background:rgba(91,124,255,.14);color:var(--accent-2)}
+  .n-wait .ico{background:rgba(108,119,145,.16);color:var(--ink-2)}
+  .n-exit .ico{background:rgba(63,214,160,.14);color:var(--ok)}
+  .wire{position:absolute;height:2px;background:linear-gradient(90deg,var(--accent),transparent);opacity:.5}
+  .wireV{position:absolute;width:2px;background:linear-gradient(180deg,var(--accent),transparent);opacity:.5}
+
+  .score{display:flex;align-items:baseline;gap:8px}
+  .score .big{font-family:var(--disp);font-size:34px;font-weight:600}
+  .keyrow{display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid rgba(120,140,190,.08);flex-wrap:wrap}
+  .keyrow:last-child{border-bottom:none}
+  .scope{font-size:10px;color:var(--accent-2);border:1px solid rgba(91,124,255,.3);border-radius:6px;padding:2px 6px;background:rgba(91,124,255,.08)}
+</style>
+</head>
+<body>
+<div class="amb"></div><div class="grid-lines"></div>
+
+<div class="app">
+  <div class="topbar">
+    <div class="brand"><span class="logo"></span><span>vent</span><b>Mail</b></div>
+    <div class="pillar">
+      <button class="on" onclick="go('overview')">Platform</button>
+      <button onclick="go('audience')">Studio</button>
+    </div>
+    <div class="ws"><span class="dot"></span> Venture Co</div>
+    <div class="spacer"></div>
+    <span class="muted">Képernyők: <span class="kbd">1</span>–<span class="kbd">9</span> <span class="kbd">0</span></span>
+    <div class="avatar">TK</div>
+  </div>
+
+  <div class="body">
+    <nav class="dock">
+      <button class="navbtn active" data-go="overview" onclick="go('overview')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg><span class="tip">1 · Áttekintés</span></button>
+      <span class="sep"></span>
+      <button class="navbtn" data-go="logs" onclick="go('logs')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h16M4 10h16M4 15h10"/><circle cx="17.5" cy="17.5" r="3.5"/><path d="M20 20l2 2"/></svg><span class="tip">2 · Napló & üzenet-trace</span></button>
+      <button class="navbtn" data-go="infra" onclick="go('infra')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="6" rx="2"/><rect x="3" y="14" width="18" height="6" rx="2"/><path d="M7 7h.01M7 17h.01"/></svg><span class="tip">3 · Küldő infra & SMTP</span></button>
+      <button class="navbtn" data-go="inbound" onclick="go('inbound')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 5h18v14H3z"/><path d="M3 9h6l2 3h2l2-3h6"/></svg><span class="tip">4 · Bejövő útvonalak</span></button>
+      <button class="navbtn" data-go="validate" onclick="go('validate')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="M8 11l2.2 2.2L14.5 9"/><path d="M20 20l-3.5-3.5"/></svg><span class="tip">5 · Címellenőrzés</span></button>
+      <button class="navbtn" data-go="deliver" onclick="go('deliver')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l7 4v5c0 4.4-3 7.4-7 9-4-1.6-7-4.6-7-9V7z"/><path d="M9.5 12l1.8 1.8L15 10"/></svg><span class="tip">6 · Kézbesíthetőség</span></button>
+      <span class="sep"></span>
+      <button class="navbtn" data-go="audience" onclick="go('audience')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c0-3 2.5-5 5.5-5s5.5 2 5.5 5"/><path d="M16 6.2A3 3 0 0 1 16 12M20.5 19c0-2.4-1.4-4-3.4-4.6"/></svg><span class="tip">7 · Közönség</span></button>
+      <button class="navbtn" data-go="campaign" onclick="go('campaign')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg><span class="tip">8 · Kampány-szerkesztő</span></button>
+      <button class="navbtn" data-go="journey" onclick="go('journey')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="6" cy="6" r="2.4"/><circle cx="18" cy="12" r="2.4"/><circle cx="6" cy="18" r="2.4"/><path d="M8.2 7.2 15.8 11M8 16.6 15.8 13"/></svg><span class="tip">9 · Journey</span></button>
+      <span class="sep"></span>
+      <button class="navbtn" data-go="devs" onclick="go('devs')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 8l-4 4 4 4M16 8l4 4-4 4M13 6l-2 12"/></svg><span class="tip">0 · Fejlesztők / API</span></button>
+    </nav>
+
+    <div class="stage">
+
+      <!-- 1 · ÁTTEKINTÉS -->
+      <section id="overview" class="screen active">
+        <div class="head">
+          <div><span class="tagline">Platform + Studio · egy motor</span><h1>Áttekintés</h1><p class="sub">Kimenő és bejövő forgalom, kézbesíthetőség, kampányok — egy helyen</p></div>
+          <div class="actions"><button class="btn ghost">Napló</button><button class="btn primary">Új kampány</button></div>
+        </div>
+
+        <div class="grid c4" style="margin-bottom:15px">
+          <div class="panel kpi"><div class="lbl">Kimenő (hónap)</div><div class="val">1 284 902</div><div class="chg up">▲ 12,4%</div></div>
+          <div class="panel kpi"><div class="lbl">Bejövő (route-olt)</div><div class="val">38 411</div><div class="chg neu">4 aktív útvonal</div></div>
+          <div class="panel kpi"><div class="lbl">Kézbesítési arány</div><div class="val">99,98%</div><div class="chg up">▲ küszöb felett</div></div>
+          <div class="panel kpi"><div class="lbl">Ellenőrzött cím</div><div class="val">92 300</div><div class="chg neu">bulk + valós idejű</div></div>
+        </div>
+
+        <div class="panel pad" style="margin-bottom:15px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px">
+            <h3 class="sect-title">Kézbesítési sín — élő üzenet-életút</h3>
+            <div style="display:flex;gap:6px"><span class="pill txn"><span class="pdot"></span>transactional</span><span class="pill mkt"><span class="pdot"></span>marketing</span><span class="pill inb"><span class="pdot"></span>inbound</span></div>
+          </div>
+          <div class="rail">
+            <div class="rail-line"></div><div class="rail-glow"></div>
+            <div class="stop done" style="left:7%"><div class="node"></div><div class="n">1 284 902</div><div class="t">Elfogadva</div></div>
+            <div class="stop done" style="left:28%"><div class="node"></div><div class="n">1 284 640</div><div class="t">Elküldve</div></div>
+            <div class="stop done" style="left:50%"><div class="node"></div><div class="n">1 284 402</div><div class="t">Kézbesítve</div></div>
+            <div class="stop" style="left:72%"><div class="node"></div><div class="n">512 118</div><div class="t">Megnyitva</div></div>
+            <div class="stop" style="left:93%"><div class="node"></div><div class="n">98 204</div><div class="t">Klikk</div></div>
+          </div>
+          <p class="muted" style="margin:12px 4px 0">238 bounce (194 hard / 44 soft) · 12 panasz · panasz-arány <b style="color:var(--ok)">0,0009%</b> · 96 deferral újrapróbálás alatt</p>
+        </div>
+
+        <div class="grid c3">
+          <div class="panel"><div class="sect-h"><div class="sect-title">Sorok</div><span class="muted">prioritás szerint</span></div>
+            <div class="pad" style="padding-top:10px">
+              <div class="kv"><span class="k">transactional</span><div class="bar"><i class="g" style="width:22%"></i></div><span class="pill ok">412</span></div>
+              <div class="kv"><span class="k">journey</span><div class="bar"><i style="width:38%"></i></div><span class="pill acc">1 208</span></div>
+              <div class="kv"><span class="k">campaign</span><div class="bar"><i class="w" style="width:74%"></i></div><span class="pill warn">18 940</span></div>
+              <div class="kv"><span class="k">inbound feldolgozás</span><div class="bar"><i class="g" style="width:9%"></i></div><span class="pill ok">14</span></div>
+            </div>
+          </div>
+          <div class="panel"><div class="sect-h"><div class="sect-title">IP-poolok</div><span class="pill warn">1 warmup</span></div>
+            <table><tbody>
+              <tr><td><b>txn-01</b></td><td><span class="pill txn">transactional</span></td><td><span class="pill ok">rep 98</span></td></tr>
+              <tr><td><b>mkt-01</b></td><td><span class="pill mkt">marketing</span></td><td><span class="pill ok">rep 95</span></td></tr>
+              <tr><td><b>mkt-02</b></td><td><span class="pill mkt">marketing</span></td><td><span class="pill warn">warmup 7/30</span></td></tr>
+            </tbody></table>
+          </div>
+          <div class="panel"><div class="sect-h"><div class="sect-title">Riasztások</div><span class="pill warn">2 nyitott</span></div>
+            <table><tbody>
+              <tr><td><span class="pill warn">blocklist</span></td><td>203.0.113.21 — SORBS figyelés</td></tr>
+              <tr><td><span class="pill warn">DMARC</span></td><td>partner-domain még p=none</td></tr>
+              <tr><td><span class="pill ok">rendezve</span></td><td>Yahoo deferral-tüske</td></tr>
+            </tbody></table>
+          </div>
+        </div>
+      </section>
+
+      <!-- 2 · NAPLÓ & TRACE -->
+      <section id="logs" class="screen">
+        <div class="head">
+          <div><span class="tagline">Platform</span><h1>Napló & üzenet-trace</h1><p class="sub">„Miért nem érkezett meg?" — teljes életút az SMTP-párbeszédig</p></div>
+          <div class="actions"><button class="btn ghost">Export CSV</button><button class="btn ghost">Retenció: 30 nap</button></div>
+        </div>
+
+        <div class="panel pad" style="margin-bottom:15px">
+          <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+            <input class="input" style="flex:1;min-width:240px" value="to:anna@example.com tag:orders">
+            <div class="filters">
+              <span class="chip on">Mind</span><span class="chip">delivered</span><span class="chip">bounced</span>
+              <span class="chip">deferred</span><span class="chip">complained</span><span class="chip">stored</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid c2">
+          <div class="panel">
+            <div class="sect-h"><div class="sect-title">Üzenetek</div><span class="muted">utolsó 24 óra · 1 284 902 találat</span></div>
+            <table>
+              <thead><tr><th>Idő</th><th>Címzett</th><th>Tárgy</th><th>Tag</th><th>Állapot</th></tr></thead>
+              <tbody>
+                <tr style="background:rgba(91,124,255,.06)"><td>12:04:31</td><td><b>anna@example.com</b></td><td>Rendelés #9183</td><td><span class="pill mut">orders</span></td><td><span class="pill ok">delivered</span></td></tr>
+                <tr><td>12:04:22</td><td>bela@example.hu</td><td>Rendelés #9184</td><td><span class="pill mut">orders</span></td><td><span class="pill warn">deferred</span></td></tr>
+                <tr><td>12:03:58</td><td>ceg@nincsilyen.hu</td><td>Heti hírlevél</td><td><span class="pill mut">news</span></td><td><span class="pill bad">bounced</span></td></tr>
+                <tr><td>12:03:44</td><td>support@venture.co</td><td>Re: hibajegy</td><td><span class="pill inb">inbound</span></td><td><span class="pill acc">stored</span></td></tr>
+                <tr><td>12:03:12</td><td>dora@example.com</td><td>Heti hírlevél</td><td><span class="pill mut">news</span></td><td><span class="pill ok">opened</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="panel">
+            <div class="sect-h"><div class="sect-title">Trace · <code style="color:var(--accent-2)">msg_9f3a21</code></div><span class="pill ok">delivered</span></div>
+            <div class="pad">
+              <div class="trace">
+                <div class="tstep ok"><div class="tt">Elfogadva (API)</div><div class="td">12:04:29.114 · Idempotency-Key: order-9183-confirm</div></div>
+                <div class="tstep ok"><div class="tt">PreSendGate — 6/6 kapu átment</div><div class="td">domain ✓ suppression ✓ consent n/a ✓ kvóta ✓ rate ✓ kockázat 0.02 ✓</div></div>
+                <div class="tstep ok"><div class="tt">Sorbaállítva · transactional</div><div class="td">12:04:29.180 · pool txn-01 · IP 203.0.113.10</div></div>
+                <div class="tstep ok"><div class="tt">SMTP-párbeszéd — aspmx.l.google.com</div>
+                  <div class="td">220 mx.google.com ESMTP<br>250-STARTTLS · TLS1.3 ✓<br>250 2.1.0 MAIL OK<br>250 2.1.5 RCPT OK<br><b style="color:var(--ok)">250 2.0.0 OK 1724930671 — queued as C4F2A</b></div></div>
+                <div class="tstep ok"><div class="tt">Kézbesítve</div><div class="td">12:04:31.402 · 2,29 mp teljes út</div></div>
+                <div class="tstep"><div class="tt">Megnyitva</div><div class="td">12:19:04 · Gmail (proxy-pixel)</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel" style="margin-top:15px">
+          <div class="sect-h"><div class="sect-title">Tag-statisztika</div><span class="muted">Mailgun tag-stats paritás</span></div>
+          <table>
+            <thead><tr><th>Tag</th><th>Küldve</th><th>Kézbesítve</th><th>Nyitás</th><th>Klikk</th><th>Bounce</th></tr></thead>
+            <tbody>
+              <tr><td><b>orders</b></td><td>412 004</td><td>99,99%</td><td>62,1%</td><td>18,4%</td><td>0,01%</td></tr>
+              <tr><td><b>news</b></td><td>688 200</td><td>99,94%</td><td>39,1%</td><td>5,7%</td><td>0,06%</td></tr>
+              <tr><td><b>auth</b></td><td>184 698</td><td>100%</td><td>71,3%</td><td>44,0%</td><td>0,00%</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- 3 · KÜLDŐ INFRA -->
+      <section id="infra" class="screen">
+        <div class="head">
+          <div><span class="tagline">Platform</span><h1>Küldő infra</h1><p class="sub">Domainek · SMTP hitelesítők · IP-poolok és warmup · sub-accountok</p></div>
+          <div class="actions"><button class="btn ghost">SMTP hitelesítő</button><button class="btn primary">Domain hozzáadása</button></div>
+        </div>
+
+        <div class="grid c2" style="margin-bottom:15px">
+          <div class="panel">
+            <div class="sect-h"><div><div class="sect-title">mailer.venture.co</div><span class="muted">kimenő · tracking: track.venture.co</span></div><span class="pill ok"><span class="pdot"></span>Verifikált</span></div>
+            <div class="pad" style="padding-top:8px">
+              <div class="kv"><span class="k">SPF</span><div class="bar"><i class="g" style="width:100%"></i></div><span class="pill ok">pass</span></div>
+              <div class="kv"><span class="k">DKIM (s=vm1)</span><div class="bar"><i class="g" style="width:100%"></i></div><span class="pill ok">pass</span></div>
+              <div class="kv"><span class="k">DMARC</span><div class="bar"><i class="w" style="width:70%"></i></div><span class="pill warn">p=quarantine</span></div>
+              <div class="kv"><span class="k">PTR / rDNS</span><div class="bar"><i class="g" style="width:100%"></i></div><span class="pill ok">ok</span></div>
+              <div class="kv"><span class="k">MTA-STS</span><div class="bar"><i class="g" style="width:100%"></i></div><span class="pill ok">enforce</span></div>
+              <div class="kv"><span class="k">BIMI</span><div class="bar"><i style="width:30%"></i></div><span class="pill mut">nincs VMC</span></div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="sect-h"><div class="sect-title">SMTP relay</div><span class="muted">legacy appoknak</span></div>
+            <div class="pad" style="padding-top:8px">
+              <div class="kv"><span class="k">Host</span><span class="v"><code>smtp.ventmail.app</code></span></div>
+              <div class="kv"><span class="k">Portok</span><span class="v"><code>587</code> STARTTLS · <code>465</code> TLS</span></div>
+              <div class="kv"><span class="k">Hitelesítő</span><span class="v"><code>postmaster@mailer.venture.co</code></span></div>
+              <div class="kv"><span class="k">Jelszó</span><span class="v"><code>••••••••••••</code> <span class="pill mut">rotálható</span></span></div>
+              <div class="kv"><span class="k">Kapu</span><span class="v"><span class="pill ok">PreSendGate érvényes</span></span></div>
+              <p class="muted" style="margin-top:10px">A relayen beadott levél ugyanazokat a kapukat járja végig, mint a REST-hívás. Nyílt relay tiltva; plaintext auth tiltva.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid c2e">
+          <div class="panel">
+            <div class="sect-h"><div class="sect-title">IP-poolok & warmup</div><button class="btn ghost" style="padding:6px 11px">Warmup-görbe</button></div>
+            <table>
+              <thead><tr><th>IP</th><th>Pool</th><th>Warmup</th><th>Napi limit</th><th>Rep.</th></tr></thead>
+              <tbody>
+                <tr><td><code>203.0.113.10</code></td><td><span class="pill txn">txn-01</span></td><td>Kész</td><td>korlátlan</td><td><span class="pill ok">98</span></td></tr>
+                <tr><td><code>203.0.113.20</code></td><td><span class="pill mkt">mkt-01</span></td><td>Kész</td><td>korlátlan</td><td><span class="pill ok">95</span></td></tr>
+                <tr><td><code>203.0.113.21</code></td><td><span class="pill mkt">mkt-02</span></td><td><span style="color:var(--warn)">7 / 30 nap</span></td><td>20 000</td><td><span class="pill warn">82</span></td></tr>
+                <tr><td><code>203.0.113.22</code></td><td><span class="pill mut">karantén</span></td><td>—</td><td>0</td><td><span class="pill bad">41</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="panel">
+            <div class="sect-h"><div class="sect-title">Sub-accountok</div><span class="muted">ügynökségi minta · konszolidált számla</span></div>
+            <table>
+              <thead><tr><th>Child workspace</th><th>Domain</th><th>Küldés (hó)</th><th>Állapot</th></tr></thead>
+              <tbody>
+                <tr><td><b>Ügyfél — Aurora Kft.</b></td><td>mail.aurora.hu</td><td>184 200</td><td><span class="pill ok">aktív</span></td></tr>
+                <tr><td><b>Ügyfél — Kertész Bt.</b></td><td>hirlevel.kertesz.hu</td><td>42 100</td><td><span class="pill ok">aktív</span></td></tr>
+                <tr><td><b>Ügyfél — Nova Zrt.</b></td><td>—</td><td>0</td><td><span class="pill warn">domain hiányzik</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- 4 · INBOUND -->
+      <section id="inbound" class="screen">
+        <div class="head">
+          <div><span class="tagline">Platform · magfunkció</span><h1>Bejövő útvonalak</h1><p class="sub">MX-fogadás → szűrés → MIME-parse → route-motor</p></div>
+          <div class="actions"><button class="btn ghost">MX-ellenőrzés</button><button class="btn primary">Új útvonal</button></div>
+        </div>
+
+        <div class="grid c2">
+          <div class="panel pad">
+            <div class="sect-title" style="margin-bottom:13px">Útvonalak — prioritás szerint</div>
+
+            <div class="rule">
+              <div class="rh"><span class="prio">10</span><b style="color:var(--ink);font-size:13px">Support-levelek</b><span class="pill ok" style="margin-left:auto">aktív</span></div>
+              <div class="expr">match_recipient("^support@venture\.co$")</div>
+              <div class="acts"><span class="pill acc">forward → ventsupport.app/hooks/mail</span><span class="pill mut">stop()</span></div>
+            </div>
+
+            <div class="rule">
+              <div class="rh"><span class="prio">20</span><b style="color:var(--ink);font-size:13px">Válasz-kezelés</b><span class="pill ok" style="margin-left:auto">aktív</span></div>
+              <div class="expr">match_recipient("^(.*)@reply\.venture\.co$")</div>
+              <div class="acts"><span class="pill acc">store(notify)</span><span class="pill inb">stripped-text</span></div>
+            </div>
+
+            <div class="rule">
+              <div class="rh"><span class="prio">30</span><b style="color:var(--ink);font-size:13px">Számlák továbbítása</b><span class="pill ok" style="margin-left:auto">aktív</span></div>
+              <div class="expr">match_header("subject", ".*számla.*")</div>
+              <div class="acts"><span class="pill acc">forward → ops@venture.co</span></div>
+            </div>
+
+            <div class="rule" style="opacity:.75">
+              <div class="rh"><span class="prio">99</span><b style="color:var(--ink);font-size:13px">Minden más</b><span class="pill mut" style="margin-left:auto">catch-all</span></div>
+              <div class="expr">catch_all()</div>
+              <div class="acts"><span class="pill mut">store() · 3 nap retenció</span></div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="sect-h"><div class="sect-title">Feldolgozott levél</div><span class="pill inb"><span class="pdot"></span>stored</span></div>
+            <div class="pad" style="padding-top:10px">
+              <div class="kv"><span class="k">from</span><span class="v">ugyfel@example.hu</span></div>
+              <div class="kv"><span class="k">to</span><span class="v">support@venture.co</span></div>
+              <div class="kv"><span class="k">subject</span><span class="v">Re: hibajegy #4412</span></div>
+              <div class="kv"><span class="k">spam-pontszám</span><span class="v"><span class="pill ok">1,2 / 5</span></span></div>
+              <div class="kv"><span class="k">SPF / DKIM</span><span class="v"><span class="pill ok">pass</span> <span class="pill ok">pass</span></span></div>
+              <div class="kv"><span class="k">csatolmány</span><span class="v">kepernyokep.png (214 kB) <span class="pill ok">ClamAV tiszta</span></span></div>
+              <div style="margin-top:12px">
+                <div class="muted" style="margin-bottom:6px">stripped-text (idézett rész levágva)</div>
+                <pre>Köszönöm a gyors választ! A hiba
+azóta sem jelentkezett újra.
+
+<span class="tok-c">— az idézett előzmény és az aláírás
+  automatikusan eltávolítva —</span></pre>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel pad" style="margin-top:15px">
+          <div class="sect-title" style="margin-bottom:11px">A továbbított JSON (HMAC-aláírt POST)</div>
+          <pre>{ <span class="tok-k">"recipient"</span>: <span class="tok-s">"support@venture.co"</span>,
+  <span class="tok-k">"sender"</span>: <span class="tok-s">"ugyfel@example.hu"</span>,
+  <span class="tok-k">"subject"</span>: <span class="tok-s">"Re: hibajegy #4412"</span>,
+  <span class="tok-k">"body-plain"</span>: <span class="tok-s">"…"</span>,
+  <span class="tok-k">"stripped-text"</span>: <span class="tok-s">"Köszönöm a gyors választ! …"</span>,
+  <span class="tok-k">"attachments"</span>: [{ <span class="tok-k">"name"</span>: <span class="tok-s">"kepernyokep.png"</span>, <span class="tok-k">"url"</span>: <span class="tok-s">"https://…presigned"</span> }],
+  <span class="tok-k">"spam-score"</span>: 1.2, <span class="tok-k">"dkim"</span>: <span class="tok-s">"pass"</span> }</pre>
+        </div>
+      </section>
+
+      <!-- 5 · CÍMELLENŐRZÉS -->
+      <section id="validate" class="screen">
+        <div class="head">
+          <div><span class="tagline">Platform · külön is eladható</span><h1>Címellenőrzés</h1><p class="sub">Szintaxis · MX · szerepcím · eldobható · catch-all · mailbox-szonda</p></div>
+          <div class="actions"><button class="btn ghost">Bulk lista feltöltése</button><button class="btn primary">Cím ellenőrzése</button></div>
+        </div>
+
+        <div class="grid c2" style="margin-bottom:15px">
+          <div class="panel pad">
+            <div class="setrow"><label>E-mail cím</label><input class="input" value="anna@gmial.com"></div>
+            <div class="score" style="margin:16px 0 12px"><span class="big" style="color:var(--warn)">risky</span><span class="muted">kockázati pontszám 0,62</span></div>
+            <div class="kv"><span class="k">Szintaxis</span><span class="v"><span class="pill ok">érvényes</span></span></div>
+            <div class="kv"><span class="k">Domain / MX</span><span class="v"><span class="pill bad">nincs MX</span></span></div>
+            <div class="kv"><span class="k">Elgépelés</span><span class="v"><span class="pill warn">javaslat: anna@gmail.com</span></span></div>
+            <div class="kv"><span class="k">Szerepcím</span><span class="v"><span class="pill ok">nem</span></span></div>
+            <div class="kv"><span class="k">Eldobható</span><span class="v"><span class="pill ok">nem</span></span></div>
+            <div class="kv"><span class="k">Mailbox-szonda</span><span class="v"><span class="pill mut">kihagyva (nincs MX)</span></span></div>
+          </div>
+
+          <div class="panel">
+            <div class="sect-h"><div class="sect-title">Bulk feldolgozás</div><span class="pill acc">2 futó</span></div>
+            <table>
+              <thead><tr><th>Lista</th><th>Méret</th><th>Állapot</th><th>Eredmény</th></tr></thead>
+              <tbody>
+                <tr><td><b>import-2026-08.csv</b></td><td>48 200</td><td><span class="pill acc">72%</span></td><td>—</td></tr>
+                <tr><td><b>regi-hirlevel.csv</b></td><td>112 400</td><td><span class="pill acc">31%</span></td><td>—</td></tr>
+                <tr><td><b>partnerek.csv</b></td><td>3 044</td><td><span class="pill ok">kész</span></td><td>2 891 ✓ / 96 ⚠ / 57 ✗</td></tr>
+              </tbody>
+            </table>
+            <div class="pad" style="padding-top:14px">
+              <div class="muted" style="margin-bottom:8px">Beépülés</div>
+              <div class="kv"><span class="k">Űrlapok</span><span class="v">valós idejű ellenőrzés beküldéskor <span class="pill ok">be</span></span></div>
+              <div class="kv"><span class="k">PreSendGate</span><span class="v">6. kapu, küszöb 0,80 <span class="pill ok">be</span></span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel pad">
+          <div class="sect-title" style="margin-bottom:11px">API</div>
+          <pre><span class="tok-f">curl</span> https://api.ventmail.app/v1/validate \
+  -H <span class="tok-s">"Authorization: Bearer $VENTMAIL_API_KEY"</span> \
+  -d <span class="tok-s">'address=anna@gmial.com'</span>
+
+<span class="tok-c">→</span> { <span class="tok-k">"result"</span>: <span class="tok-w">"risky"</span>, <span class="tok-k">"risk"</span>: 0.62, <span class="tok-k">"did_you_mean"</span>: <span class="tok-s">"anna@gmail.com"</span>,
+    <span class="tok-k">"is_role"</span>: false, <span class="tok-k">"is_disposable"</span>: false, <span class="tok-k">"mx_found"</span>: false }</pre>
+        </div>
+      </section>
+
+      <!-- 6 · KÉZBESÍTHETŐSÉG -->
+      <section id="deliver" class="screen">
+        <div class="head">
+          <div><span class="tagline">Platform</span><h1>Kézbesíthetőség</h1><p class="sub">Blocklist · DMARC · inbox placement · spam-pontszám · suppression</p></div>
+          <div class="actions"><button class="btn ghost">Suppression export</button><button class="btn primary">Inbox placement teszt</button></div>
+        </div>
+
+        <div class="grid c4" style="margin-bottom:15px">
+          <div class="panel kpi"><div class="lbl">Panasz-arány</div><div class="val" style="color:var(--ok)">0,0009%</div><div class="chg neu">küszöb 0,3%</div></div>
+          <div class="panel kpi"><div class="lbl">Blocklist találat</div><div class="val" style="color:var(--warn)">1</div><div class="chg neu">SORBS · mkt-02</div></div>
+          <div class="panel kpi"><div class="lbl">DMARC átmenet</div><div class="val">99,2%</div><div class="chg up">▲ 0,4 pp</div></div>
+          <div class="panel kpi"><div class="lbl">Suppression</div><div class="val">14 208</div><div class="chg neu">hard · panasz · leiratkozás</div></div>
+        </div>
+
+        <div class="grid c2" style="margin-bottom:15px">
+          <div class="panel">
+            <div class="sect-h"><div class="sect-title">Inbox placement teszt</div><span class="muted">seed-fiókok · utolsó futás 09:12</span></div>
+            <div class="pad" style="padding-top:10px">
+              <div class="kv"><span class="k">Gmail</span><div class="bar"><i class="g" style="width:94%"></i></div><span class="pill ok">94% inbox</span></div>
+              <div class="kv"><span class="k">Outlook</span><div class="bar"><i class="g" style="width:88%"></i></div><span class="pill ok">88% inbox</span></div>
+              <div class="kv"><span class="k">Yahoo</span><div class="bar"><i class="w" style="width:71%"></i></div><span class="pill warn">71% inbox</span></div>
+              <div class="kv"><span class="k">Apple Mail</span><div class="bar"><i class="g" style="width:97%"></i></div><span class="pill ok">97% inbox</span></div>
+              <p class="muted" style="margin-top:10px">Kampány előtt futtatható; az eredmény a küldés-megerősítő képernyőn is megjelenik.</p>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="sect-h"><div class="sect-title">Spam-pontszám (küldés előtt)</div><span class="pill ok">2,1 / 10</span></div>
+            <div class="pad" style="padding-top:10px">
+              <div class="kv"><span class="k">HTML/szöveg arány</span><span class="v"><span class="pill ok">rendben</span></span></div>
+              <div class="kv"><span class="k">Link-ellenőrzés</span><span class="v"><span class="pill warn">1 shortener a levélben</span></span></div>
+              <div class="kv"><span class="k">Kép/szöveg arány</span><span class="v"><span class="pill ok">rendben</span></span></div>
+              <div class="kv"><span class="k">Leiratkozó fejléc</span><span class="v"><span class="pill ok">RFC 8058 jelen</span></span></div>
+              <div class="kv"><span class="k">Tárgysor</span><span class="v"><span class="pill ok">nincs trigger-szó</span></span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid c2e">
+          <div class="panel">
+            <div class="sect-h"><div class="sect-title">DMARC jelentések (RUA)</div><span class="muted">ki küld a nevedben</span></div>
+            <table>
+              <thead><tr><th>Forrás</th><th>Volumen</th><th>SPF</th><th>DKIM</th></tr></thead>
+              <tbody>
+                <tr><td><b>ventMail (saját)</b></td><td>1 284 902</td><td><span class="pill ok">pass</span></td><td><span class="pill ok">pass</span></td></tr>
+                <tr><td>Google Workspace</td><td>8 412</td><td><span class="pill ok">pass</span></td><td><span class="pill ok">pass</span></td></tr>
+                <tr><td><b>ismeretlen 45.x.x.x</b></td><td>1 204</td><td><span class="pill bad">fail</span></td><td><span class="pill bad">fail</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="panel">
+            <div class="sect-h"><div class="sect-title">Suppression</div><span class="muted">globális + workspace</span></div>
+            <table>
+              <thead><tr><th>Cím</th><th>Ok</th><th>Forrás</th></tr></thead>
+              <tbody>
+                <tr><td>ceg@nincsilyen.hu</td><td><span class="pill bad">hard bounce</span></td><td>550 5.1.1</td></tr>
+                <tr><td>x@example.com</td><td><span class="pill warn">panasz</span></td><td>FBL / ARF</td></tr>
+                <tr><td>y@example.hu</td><td><span class="pill mut">leiratkozás</span></td><td>one-click</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- 7 · KÖZÖNSÉG -->
+      <section id="audience" class="screen">
+        <div class="head">
+          <div><span class="tagline">Studio</span><h1>Közönség</h1><p class="sub">Listák, szegmensek, consent — kétirányú ventOS CRM-szinkron</p></div>
+          <div class="actions"><button class="btn ghost">Import + ellenőrzés</button><button class="btn primary">Új lista</button></div>
+        </div>
+
+        <div class="grid c4" style="margin-bottom:15px">
+          <div class="panel kpi"><div class="lbl">Összes kontakt</div><div class="val">58 204</div><div class="chg neu">havi csúcs a számlázáshoz</div></div>
+          <div class="panel kpi"><div class="lbl">Megerősített</div><div class="val">56 991</div><div class="chg up">▲ 97,9% double opt-in</div></div>
+          <div class="panel kpi"><div class="lbl">Megerősítésre vár</div><div class="val">1 013</div><div class="chg neu">marketing tiltva</div></div>
+          <div class="panel kpi"><div class="lbl">Kockázatos cím</div><div class="val" style="color:var(--warn)">318</div><div class="chg neu">címellenőrzésből</div></div>
+        </div>
+
+        <div class="panel" style="margin-bottom:15px">
+          <div class="sect-h"><div class="sect-title">Listák és szegmensek</div><span class="pill inb"><span class="pdot"></span>ventOS sync aktív</span></div>
+          <table>
+            <thead><tr><th>Név</th><th>Típus</th><th>Kontaktok</th><th>Consent</th><th>Frissítve</th></tr></thead>
+            <tbody>
+              <tr><td><b>Hírlevél-feliratkozók</b></td><td><span class="pill mut">Lista</span></td><td>47 210</td><td><span class="pill ok">double opt-in</span></td><td>2 perce</td></tr>
+              <tr><td><b>Aktív vásárlók</b></td><td><span class="pill mut">Lista</span></td><td>18 942</td><td><span class="pill ok">double opt-in</span></td><td>1 órája</td></tr>
+              <tr><td><b>Utolsó 30 nap nyitók</b></td><td><span class="pill acc">Szegmens</span></td><td>21 388</td><td><span class="pill mut">öröklött</span></td><td>dinamikus</td></tr>
+              <tr><td><b>Kosárelhagyók</b></td><td><span class="pill acc">Szegmens</span></td><td>3 104</td><td><span class="pill mut">öröklött</span></td><td>dinamikus</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="grid c2e">
+          <div class="panel pad">
+            <div class="sect-title" style="margin-bottom:11px">Szegmens-szabály</div>
+            <pre><span class="tok-c"># SegmentEngine DSL</span>
+<span class="tok-k">where</span> event(<span class="tok-s">"opened"</span>).within(<span class="tok-s">"30d"</span>)
+  <span class="tok-k">and</span> contact.status == <span class="tok-s">"confirmed"</span>
+  <span class="tok-k">and</span> validation.result != <span class="tok-s">"undeliverable"</span>
+  <span class="tok-k">and</span> not suppressed()</pre>
+          </div>
+          <div class="panel pad">
+            <div class="sect-title" style="margin-bottom:11px">Kontakt-profil · anna@example.com</div>
+            <div class="kv"><span class="k">Állapot</span><span class="v"><span class="pill ok">megerősített</span> <span class="pill ok">deliverable</span></span></div>
+            <div class="kv"><span class="k">Utolsó nyitás</span><span class="v">2 órája · „Heti hírlevél"</span></div>
+            <div class="kv"><span class="k">Tranzakciós</span><span class="v">14 levél · 100% kézbesítve</span></div>
+            <div class="kv"><span class="k">Bejövő válasz</span><span class="v">1 · support@ útvonalon</span></div>
+            <div class="kv"><span class="k">Journey</span><span class="v">„Üdvözlő sorozat" · 3/5 lépés</span></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 8 · KAMPÁNY -->
+      <section id="campaign" class="screen">
+        <div class="head">
+          <div><span class="tagline">Studio · hero</span><h1>Kampány-szerkesztő</h1><p class="sub">Block editor · ventStudio motor + MJML · ugyanaz a küldőmotor, mint az API-nak</p></div>
+          <div class="actions"><button class="btn ghost">Spam-pontszám</button><button class="btn ghost">Inbox teszt</button><button class="btn primary">Ütemezés & küldés</button></div>
+        </div>
+
+        <div class="editor">
+          <div class="palette">
+            <div class="muted" style="margin:2px 2px 9px">Blokkok</div>
+            <div class="blk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h16M4 12h16M4 18h10"/></svg> Szöveg</div>
+            <div class="blk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="M4 17l5-4 5 3 3-2 3 2"/></svg> Kép</div>
+            <div class="blk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="9" width="16" height="6" rx="3"/></svg> Gomb</div>
+            <div class="blk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="8" height="14" rx="1.5"/><rect x="13" y="5" width="8" height="14" rx="1.5"/></svg> Oszlopok</div>
+            <div class="blk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8"/></svg> Merge-tag</div>
+            <div class="blk" style="opacity:.7"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12l4 4L21 6"/></svg> Feltételes</div>
+            <div style="margin-top:14px"><button class="btn ghost" style="width:100%;justify-content:center;font-size:12px">Mentés tárolt sablonként</button></div>
+          </div>
+
+          <div class="canvas">
+            <div class="mail">
+              <div class="mhead">Venture Co</div>
+              <div class="mblock sel"><h2>Szia, {{ contact.first_name }}</h2><p>Bemutatjuk az őszi kollekciót — az aktív vásárlóknak előbb nyitjuk meg.</p></div>
+              <div class="mblock"><a class="mbtn">Kollekció megtekintése</a></div>
+              <div class="mblock"><p>A beállításaidat bármikor módosíthatod a preferencia-központban.</p></div>
+              <div class="mfoot">Venture Co Kft. · Budapest<br><a>Preferenciák</a> · <a>Leiratkozás egy kattintással</a></div>
+            </div>
+          </div>
+
+          <div class="panel pad" style="align-self:start">
+            <div class="setrow"><label>Csatorna</label><div class="seg"><button>transactional</button><button class="on mkt">marketing</button></div></div>
+            <div class="setrow"><label>Tárgysor</label><input class="input" value="Neked előbb: az őszi kollekció"></div>
+            <div class="setrow"><label>Feladó</label><input class="input" value="hello@mailer.venture.co"></div>
+            <div class="setrow"><label>Célközönség</label><input class="input" value="Aktív vásárlók − suppression"></div>
+            <div class="setrow"><label>IP-pool</label><input class="input" value="mkt-01 (dedikált)"></div>
+            <div class="setrow"><label>A/B teszt</label><div class="seg"><button class="on">Tárgysor</button><button>Feladó</button><button>Idő</button></div></div>
+            <div style="border-top:1px solid var(--stroke);margin:4px 0 12px"></div>
+            <div class="muted" style="line-height:1.75">Leiratkozó-blokk ✓<br>Becsült címzett: <b style="color:var(--ink)">18 942</b><br>Spam-pontszám: <b style="color:var(--ok)">2,1</b><br>Sor: <b style="color:var(--ink)">campaign</b> (legalacsonyabb prioritás)</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 9 · JOURNEY -->
+      <section id="journey" class="screen">
+        <div class="head">
+          <div><span class="tagline">Studio</span><h1>Journey-építő</h1><p class="sub">„Üdvözlő sorozat" · a trigger jöhet API-eseményből és bejövő levélből is</p></div>
+          <div class="actions"><button class="btn ghost">Szüneteltetés</button><button class="btn primary">Aktiválás</button></div>
+        </div>
+
+        <div class="panel pad">
+          <div class="flow">
+            <div class="wire" style="left:192px;top:48px;width:66px"></div>
+            <div class="wire" style="left:450px;top:48px;width:66px"></div>
+            <div class="wireV" style="left:604px;top:62px;height:66px"></div>
+            <div class="wire" style="left:192px;top:226px;width:66px"></div>
+            <div class="wireV" style="left:346px;top:124px;height:66px"></div>
+
+            <div class="node2 n-trig" style="left:12px;top:20px">
+              <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M13 2 3 14h7l-1 8 10-12h-7z"/></svg></div>
+              <div class="ttl">Trigger</div><div class="desc">Form-signup · vagy inbound e-mail</div>
+            </div>
+            <div class="node2 n-act" style="left:270px;top:20px">
+              <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg></div>
+              <div class="ttl">Akció · E-mail</div><div class="desc">Üdvözlő levél (T+0)</div>
+            </div>
+            <div class="node2 n-wait" style="left:528px;top:20px">
+              <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div>
+              <div class="ttl">Várakozás</div><div class="desc">2 nap</div>
+            </div>
+            <div class="node2 n-cond" style="left:528px;top:142px">
+              <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M12 3v6M6 21l6-8 6 8M4 9h16"/></svg></div>
+              <div class="ttl">Feltétel</div><div class="desc">Megnyitotta?</div>
+            </div>
+            <div class="node2 n-act" style="left:270px;top:198px">
+              <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg></div>
+              <div class="ttl">Akció · E-mail</div><div class="desc">Emlékeztető (ha nem)</div>
+            </div>
+            <div class="node2 n-exit" style="left:12px;top:198px">
+              <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg></div>
+              <div class="ttl">Kilépés</div><div class="desc">Cél elérve / leiratkozás</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:9px;flex-wrap:wrap;margin-top:6px">
+            <span class="pill acc">EnsureEntitlement:journeys ✓</span>
+            <span class="muted">Perzisztens journey_runs · idempotens lépés · sor-prioritás: journey</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- 0 · FEJLESZTŐK -->
+      <section id="devs" class="screen">
+        <div class="head">
+          <div><span class="tagline">Platform</span><h1>Fejlesztők / API</h1><p class="sub">Messages · MIME · batch · SMTP · webhookok replay-jel</p></div>
+          <div class="actions"><button class="btn ghost">OpenAPI</button><button class="btn primary">Új API-kulcs</button></div>
+        </div>
+
+        <div class="grid c2e" style="margin-bottom:15px">
+          <div class="panel pad">
+            <div class="sect-title" style="margin-bottom:11px">Batch küldés egyedi behelyettesítéssel</div>
+            <pre><span class="tok-f">curl</span> https://api.ventmail.app/v1/messages \
+  -H <span class="tok-s">"Authorization: Bearer $KEY"</span> \
+  -H <span class="tok-s">"Idempotency-Key: batch-08-31-a"</span> \
+  -F channel=<span class="tok-s">transactional</span> \
+  -F template=<span class="tok-s">order_confirmation</span> \
+  -F <span class="tok-s">'to=anna@example.com'</span> -F <span class="tok-s">'to=bela@example.hu'</span> \
+  -F <span class="tok-s">'recipient-variables={"anna@…":{"order":9183},
+                        "bela@…":{"order":9184}}'</span> \
+  -F <span class="tok-s">'o:tag=orders'</span> -F <span class="tok-s">'o:require-tls=true'</span> \
+  -F <span class="tok-s">'v:campaign_ref=aug-orders'</span></pre>
+            <p class="muted" style="margin-top:10px">Max 1000 címzett hívásonként. <code>o:deliverytime</code> ütemez, <code>o:testmode</code> naplóz kiküldés nélkül.</p>
+          </div>
+
+          <div class="panel pad">
+            <div class="sect-title" style="margin-bottom:11px">Nyers MIME továbbítása</div>
+            <pre><span class="tok-f">curl</span> https://api.ventmail.app/v1/messages.mime \
+  -H <span class="tok-s">"Authorization: Bearer $KEY"</span> \
+  -F <span class="tok-s">'to=anna@example.com'</span> \
+  -F message=@<span class="tok-s">level.eml</span></pre>
+            <div class="sect-title" style="margin:16px 0 11px">SMTP relay</div>
+            <pre><span class="tok-k">host</span>  smtp.ventmail.app
+<span class="tok-k">port</span>  587 (STARTTLS) <span class="tok-c">|</span> 465 (TLS)
+<span class="tok-k">user</span>  postmaster@mailer.venture.co
+<span class="tok-c"># ugyanaz a PreSendGate, mint a REST-en</span></pre>
+          </div>
+        </div>
+
+        <div class="panel" style="margin-bottom:15px">
+          <div class="sect-h"><div class="sect-title">Webhookok</div><span class="muted">HMAC-SHA256 · retry · dead-letter · replay</span></div>
+          <table>
+            <thead><tr><th>Esemény</th><th>Endpoint</th><th>Utolsó válasz</th><th>Sikerarány</th><th></th></tr></thead>
+            <tbody>
+              <tr><td><span class="pill ok">delivered</span></td><td><code>app.venture.co/hooks/mail</code></td><td><span class="pill ok">200</span></td><td>99,8%</td><td><span class="muted">Teszt · Replay</span></td></tr>
+              <tr><td><span class="pill bad">bounced</span></td><td><code>app.venture.co/hooks/mail</code></td><td><span class="pill ok">200</span></td><td>99,9%</td><td><span class="muted">Teszt · Replay</span></td></tr>
+              <tr><td><span class="pill inb">stored</span></td><td><code>ventsupport.app/hooks/mail</code></td><td><span class="pill warn">503</span></td><td>94,1%</td><td><span class="muted">DLQ: 12 · Replay</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="panel">
+          <div class="sect-h"><div class="sect-title">API-kulcsok</div><span class="muted">workspace-hez kötve</span></div>
+          <div class="pad" style="padding-top:8px">
+            <div class="keyrow"><code>vm_live_9f3a…c210</code><div style="flex:1"></div><span class="scope">messages:send</span><span class="scope">templates:read</span><span class="pill ok">aktív</span></div>
+            <div class="keyrow"><code>vm_live_71bd…88a4</code><div style="flex:1"></div><span class="scope">events:read</span><span class="scope">suppressions:write</span><span class="pill ok">aktív</span></div>
+            <div class="keyrow"><code>vm_live_33ce…9a01</code><div style="flex:1"></div><span class="scope">validate:run</span><span class="scope">routes:write</span><span class="pill ok">aktív</span></div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </div>
+</div>
+
+<script>
+  const order=['overview','logs','infra','inbound','validate','deliver','audience','campaign','journey','devs'];
+  const platform=['overview','logs','infra','inbound','validate','deliver','devs'];
+  function go(id){
+    document.querySelectorAll('.screen').forEach(s=>s.classList.toggle('active', s.id===id));
+    document.querySelectorAll('.navbtn').forEach(b=>b.classList.toggle('active', b.dataset.go===id));
+    const btns=document.querySelectorAll('.pillar button');
+    const isPlat=platform.includes(id);
+    btns[0].classList.toggle('on', isPlat); btns[1].classList.toggle('on', !isPlat);
+    const st=document.querySelector('.stage'); if(st) st.scrollTop=0;
+  }
+  document.addEventListener('keydown',e=>{
+    if(e.target.matches('input,textarea')) return;
+    if(e.key==='0'){ go(order[9]); return; }
+    const n=parseInt(e.key,10);
+    if(n>=1 && n<=9) go(order[n-1]);
+  });
+</script>
+</body>
+</html>
