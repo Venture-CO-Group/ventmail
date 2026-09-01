@@ -47,6 +47,12 @@ final class MessageEvent extends Model
             throw new \RuntimeException('A message_events sor nem módosítható (napló-integritás).');
         });
 
+        // A retenciós törlés chunk-szinten megy (drop_chunks, A3), nem modellen keresztül:
+        // egy panasz-esemény soronkénti törlése bizonyítékot semmisítene meg.
+        self::deleting(function (): never {
+            throw new \RuntimeException('A message_events sor nem törölhető (retenció: drop_chunks).');
+        });
+
         self::creating(function (self $event): void {
             $event->occurred_at ??= now();
         });

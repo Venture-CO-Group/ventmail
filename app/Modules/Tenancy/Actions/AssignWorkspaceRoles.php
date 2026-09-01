@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Tenancy\Actions;
 
 use App\Models\User;
+use App\Modules\Audit\Services\AuditLogger;
 use App\Modules\Identity\Enums\Role;
 use App\Modules\Tenancy\Models\WorkspaceMember;
 use App\Modules\Tenancy\Policies\AbilityMap;
@@ -25,7 +26,10 @@ use InvalidArgumentException;
  */
 final class AssignWorkspaceRoles
 {
-    public function __construct(private readonly WorkspaceContext $context) {}
+    public function __construct(
+        private readonly WorkspaceContext $context,
+        private readonly AuditLogger $audit,
+    ) {}
 
     /** @param list<string> $roles */
     public function __invoke(User $target, array $roles): WorkspaceMember
@@ -63,10 +67,32 @@ final class AssignWorkspaceRoles
             }
         }
 
-        return WorkspaceMember::updateOrCreate(
+        $roleValues = array_map(fn (Role $role) => $role->value, $validated);
+
+        $existing = WorkspaceMember::query()
+            ->where('workspace_id', $this->context->workspaceId())
+            ->where('user_id', $target->getKey())
+            ->first();
+
+        $member = WorkspaceMember::updateOrCreate(
             ['workspace_id' => $this->context->workspaceId(), 'user_id' => $target->getKey()],
-            ['roles' => array_map(fn (Role $role) => $role->value, $validated)],
+            ['roles' => $roleValues],
         );
+
+        // Golden rule 11: a szerep-kiosztás a legprivilegizáltabb admin-művelet — enélkül
+        // valaki jogot oszthatna magának úgy, hogy nyoma sem marad.
+        $this->audit->log(
+            'member.roles.assigned',
+            $member,
+            before: ['roles' => $existing?->roles() ?? []],
+            after: ['roles' => $roleValues],
+            context: [
+                'target_user_id' => $target->getKey(),
+                'target_sso_subject' => $target->sso_subject,
+            ],
+        );
+
+        return $member;
     }
 
     /** @return list<string> */

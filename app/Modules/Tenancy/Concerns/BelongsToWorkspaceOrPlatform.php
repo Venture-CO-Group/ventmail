@@ -20,14 +20,16 @@ use RuntimeException;
  */
 trait BelongsToWorkspaceOrPlatform
 {
-    private static bool $platformWrite = false;
+    /** Számláló, nem bool: egymásba ágyazott onPlatform() hívásnál a belső blokk
+     *  nem kapcsolhatja vissza a külsőt a közepén. */
+    private static int $platformWriteDepth = 0;
 
     public static function bootBelongsToWorkspaceOrPlatform(): void
     {
         static::addGlobalScope(new WorkspaceOrPlatformScope);
 
         static::creating(function ($model): void {
-            if (self::$platformWrite) {
+            if (self::isPlatformWrite()) {
                 $model->workspace_id = null;
 
                 return;
@@ -54,6 +56,14 @@ trait BelongsToWorkspaceOrPlatform
             if ($model->isDirty('workspace_id')) {
                 throw new RuntimeException('A workspace_id nem írható át.');
             }
+
+            self::assertMayMutatePlatformRow($model);
+        });
+
+        // A platform-sor MINDEN tenant számára látszik — ha bármelyik törölhetné, a
+        // leiratkozott címre onnantól mindenki küldhetne (golden rule 2/6).
+        static::deleting(function ($model): void {
+            self::assertMayMutatePlatformRow($model);
         });
     }
 
@@ -68,12 +78,27 @@ trait BelongsToWorkspaceOrPlatform
      */
     public static function onPlatform(callable $callback): mixed
     {
-        self::$platformWrite = true;
+        self::$platformWriteDepth++;
 
         try {
             return $callback();
         } finally {
-            self::$platformWrite = false;
+            self::$platformWriteDepth--;
+        }
+    }
+
+    private static function isPlatformWrite(): bool
+    {
+        return self::$platformWriteDepth > 0;
+    }
+
+    private static function assertMayMutatePlatformRow(object $model): void
+    {
+        if ($model->workspace_id === null && ! self::isPlatformWrite()) {
+            throw new RuntimeException(sprintf(
+                '%s: platform-szintű sor csak ::onPlatform() hívásból módosítható vagy törölhető.',
+                static::class
+            ));
         }
     }
 

@@ -48,7 +48,11 @@ it('a particionáló oszlop része a kulcsnak', function () {
         where tablename = 'message_events' and indexdef like '%UNIQUE%'
     ");
 
+    // Enélkül a teszt üres halmaznál is zöld lenne, azaz akkor is, ha egyetlen unique
+    // index sincs a táblán.
+    expect($indexes)->not->toBeEmpty('nincs unique index a message_events táblán');
+
     foreach ($indexes as $index) {
         expect($index->indexdef)->toContain('occurred_at');
     }
-})->skip(fn () => false);
+});

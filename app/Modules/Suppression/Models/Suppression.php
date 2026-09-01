@@ -31,12 +31,20 @@ final class Suppression extends Model
         return ['expires_at' => 'datetime'];
     }
 
-    protected static function booted(): void
+    /**
+     * Normalizálás MUTATORBAN, nem `creating` hookban: különben a `firstOrCreate` a nyers
+     * értékkel keresne (nem talál), normalizálva írna, és a második hívás unique-violationnel
+     * elszállna — épp a bounce-kezelés közben, így a hard bounce nem kerülne suppressionre.
+     *
+     * A hash HMAC pepperrel készül: egy sózatlan e-mail-hash szótárral triviálisan
+     * visszafejthető lenne.
+     */
+    public function setEmailAttribute(?string $value): void
     {
-        self::creating(function (self $suppression): void {
-            $suppression->email = strtolower(trim((string) $suppression->email));
-            $suppression->email_hash = hash('sha256', $suppression->email);
-        });
+        $normalized = strtolower(trim((string) $value));
+
+        $this->attributes['email'] = $normalized;
+        $this->attributes['email_hash'] = hash_hmac('sha256', $normalized, (string) config('audit.hash_pepper'));
     }
 
     public function isActive(): bool

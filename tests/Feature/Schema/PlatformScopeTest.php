@@ -79,5 +79,6 @@ it('az e-mail normalizált és hashelt', function () {
     $row = Suppression::create(['email' => '  Vegyes@Example.TEST ', 'reason' => 'manual']);
 
     expect($row->email)->toBe('vegyes@example.test');
-    expect($row->email_hash)->toBe(hash('sha256', 'vegyes@example.test'));
+    // Sózatlan SHA-256 egy e-mail címen szótárral triviálisan visszafejthető, ezért HMAC.
+    expect($row->email_hash)->toBe(hash_hmac('sha256', 'vegyes@example.test', (string) config('audit.hash_pepper')));
 });

@@ -6,6 +6,8 @@ namespace App\Modules\Audit\Models;
 
 use App\Models\User;
 use App\Modules\Tenancy\Models\Workspace;
+use App\Modules\Tenancy\Services\WorkspaceContext;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -17,14 +19,18 @@ use RuntimeException;
  *
  * Szándékosan NEM használ `BelongsToWorkspace`-t: a naplónak akkor is íródnia kell, amikor
  * nincs workspace-kontextus (pl. rendszerszintű művelet), és a super-admin (C2)
- * tenant-független kereséssel dolgozik. Az olvasást a `forWorkspace()` szűkíti.
+ * tenant-független kereséssel dolgozik.
+ *
+ * EZÉRT: minden tenant-felületű olvasás KÖTELEZŐEN a `forWorkspace()` scope-on megy —
+ * enélkül az első napló-képernyő minden tenant `before`/`after` payloadját visszaadná.
  */
 final class AuditLog extends Model
 {
     use HasUuids;
 
     protected $fillable = [
-        'workspace_id', 'user_id', 'action', 'auditable_type', 'auditable_id',
+        'workspace_id', 'user_id', 'actor_email', 'actor_sso_subject',
+        'action', 'auditable_type', 'auditable_id',
         'before', 'after', 'context', 'ip_hash', 'user_agent',
     ];
 
@@ -51,6 +57,27 @@ final class AuditLog extends Model
         self::deleting(function (): never {
             throw new RuntimeException('Az audit-napló nem törölhető.');
         });
+    }
+
+    /**
+     * Tenant-felületű olvasás. Argumentum nélkül az aktuális kontextust használja;
+     * kontextus nélkül egyetlen sort sem ad vissza (fail-closed).
+     */
+    public function scopeForWorkspace(Builder $query, Workspace|int|null $workspace = null): Builder
+    {
+        $workspaceId = match (true) {
+            $workspace instanceof Workspace => $workspace->getKey(),
+            is_int($workspace) => $workspace,
+            default => app(WorkspaceContext::class)->hasWorkspace()
+                ? app(WorkspaceContext::class)->workspaceId()
+                : null,
+        };
+
+        if ($workspaceId === null) {
+            return $query->whereRaw('1 = 0');
+        }
+
+        return $query->where('workspace_id', $workspaceId);
     }
 
     public function workspace(): BelongsTo

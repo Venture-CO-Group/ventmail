@@ -9,7 +9,6 @@ use App\Modules\Tenancy\Concerns\BelongsToWorkspace;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 
 /**
@@ -20,7 +19,7 @@ final class ApiKey extends Model
 {
     use Auditable, BelongsToWorkspace, HasUuids, SoftDeletes;
 
-    protected $fillable = ['name', 'prefix', 'key_hash', 'scopes', 'expires_at', 'last_used_at'];
+    protected $fillable = ['name', 'prefix', 'key_hash', 'scopes', 'testmode', 'expires_at', 'last_used_at'];
 
     protected $hidden = ['key_hash'];
 
@@ -33,6 +32,7 @@ final class ApiKey extends Model
     {
         return [
             'scopes' => 'array',
+            'testmode' => 'boolean',
             'expires_at' => 'datetime',
             'last_used_at' => 'datetime',
         ];
@@ -45,23 +45,46 @@ final class ApiKey extends Model
      * @param  list<string>  $scopes
      * @return array{model: self, plain: string}
      */
-    public static function issue(string $name, array $scopes = []): array
+    public static function issue(string $name, array $scopes = [], bool $testmode = false): array
     {
-        $plain = 'vm_'.Str::random(48);
+        $plain = ($testmode ? 'vm_test_' : 'vm_live_').Str::random(48);
 
         $model = self::create([
             'name' => $name,
-            'prefix' => substr($plain, 0, 12),
-            'key_hash' => Hash::make($plain),
+            'prefix' => substr($plain, 0, 16),
+            'key_hash' => self::hashOf($plain),
             'scopes' => $scopes,
+            'testmode' => $testmode,
         ]);
 
         return ['model' => $model, 'plain' => $plain];
     }
 
+    /**
+     * A kulcs feloldása EGYETLEN indexelt lekérdezéssel.
+     *
+     * Miért SHA-256 és nem bcrypt: az API-kulcs nagy entrópiájú, gépi generálású titok,
+     * nem jelszó — nincs mit brute-force-olni. A bcrypt viszont (a) lassú (mérve ~222 ms
+     * hívásonként), és (b) a random só miatt a hash NEM kereshető, tehát minden kérésnél
+     * végig kellene próbálni a workspace összes kulcsát.
+     */
+    public static function findByPlainKey(string $plain): ?self
+    {
+        $key = self::query()
+            ->where('key_hash', self::hashOf($plain))
+            ->first();
+
+        return $key !== null && $key->matches($plain) ? $key : null;
+    }
+
     public function matches(string $plain): bool
     {
-        return Hash::check($plain, (string) $this->key_hash);
+        return hash_equals((string) $this->key_hash, self::hashOf($plain));
+    }
+
+    private static function hashOf(string $plain): string
+    {
+        return hash_hmac('sha256', $plain, (string) config('audit.hash_pepper'));
     }
 
     public function hasScope(string $scope): bool

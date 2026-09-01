@@ -2,9 +2,13 @@
 
 declare(strict_types=1);
 
+use App\Modules\Audit\Concerns\Auditable;
 use App\Modules\Audit\Models\AuditLog;
+use App\Modules\Events\Models\MessageEvent;
+use App\Modules\Sending\Models\Message;
 use App\Modules\Tenancy\Concerns\BelongsToWorkspace;
 use App\Modules\Tenancy\Concerns\BelongsToWorkspaceOrPlatform;
+use App\Modules\Tenancy\Models\Workspace;
 use App\Modules\Tenancy\Models\WorkspaceMember;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\File;
@@ -69,6 +73,39 @@ it('minden tenant-tábla modellje használja a BelongsToWorkspace traitet', func
     }
 
     expect($offenders)->toBeEmpty('workspace_id oszlop tenant-izoláció nélkül: '.implode(', ', $offenders));
+});
+
+it('minden admin-felületű modell auditált', function () {
+    // Az Auditable opt-in — enélkül egy új admin-entitás csendben audit nélkül maradna
+    // (golden rule 11). A kivételek dokumentáltak és indokoltak.
+    $exceptions = [
+        AuditLog::class,        // maga a napló
+        MessageEvent::class,   // esemény-adat, nem admin-művelet
+        Message::class,       // üzenet-adat; a küldést a gate auditálja
+        Workspace::class,     // a workspace-műveleteket a SuperAdmin (C2) auditálja
+        WorkspaceMember::class, // az AssignWorkspaceRoles explicit auditot ír
+    ];
+
+    $offenders = [];
+
+    foreach (File::allFiles(app_path('Modules')) as $file) {
+        if ($file->getExtension() !== 'php' || ! str_contains($file->getPathname(), '/Models/')) {
+            continue;
+        }
+
+        $module = basename(dirname($file->getPath()));
+        $class = "App\\Modules\\{$module}\\Models\\".$file->getFilenameWithoutExtension();
+
+        if (! class_exists($class) || in_array($class, $exceptions, true)) {
+            continue;
+        }
+
+        if (! in_array(Auditable::class, class_uses_recursive($class), true)) {
+            $offenders[] = $class;
+        }
+    }
+
+    expect($offenders)->toBeEmpty('audit nélküli admin-modell: '.implode(', ', $offenders));
 });
 
 it('a workspace_id egyetlen modellen sem tömegesen kitölthető', function () {

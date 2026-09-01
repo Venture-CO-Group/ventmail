@@ -65,7 +65,9 @@ it('titok SOHA nem kerül az audit-sorba', function () {
 
     expect($serialized)->not->toContain('SUPER-TITKOS-KULCS');
     expect($log->after)->toHaveKey('dkim_selector');
-    expect($log->after)->not->toHaveKey('dkim_private_key');
+    // A kulcs MEGMARAD, csak az érték takart: az auditnak a változás tényét mutatnia kell
+    // (hogy a DKIM privát kulcs cserélődött), különben a rotációnak nyoma sem lenne.
+    expect($log->after['dkim_private_key'])->toBe('[redacted]');
 });
 
 it('az audit-sor rögzíti a forrás IP hashét, nem a nyers IP-t', function () {
