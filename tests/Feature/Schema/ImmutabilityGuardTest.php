@@ -10,6 +10,7 @@ use App\Modules\Tenancy\Models\Workspace;
 use App\Modules\Tenancy\Services\WorkspaceContext;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 
 uses(RefreshDatabase::class);
 
@@ -84,4 +85,46 @@ it('a globális suppression nem duplikálódik', function () {
         'email' => 'ismetelt@example.test',
         'reason' => 'complaint',
     ])))->toThrow(QueryException::class);
+});
+
+it('a workspace törölhető marad audit-sorok mellett is', function () {
+    // A `SET NULL` FK maga is UPDATE a hivatkozó táblán — az immutabilitási trigger
+    // enélkül LEHETETLENNÉ tenné a workspace és a user törlését, azaz a GDPR Art. 17
+    // törlési utat.
+    app(WorkspaceContext::class)->set($this->a);
+    app(AuditLogger::class)->log('teszt.muvelet');
+
+    $this->a->forceDelete();
+
+    $log = AuditLog::query()->latest('id')->firstOrFail();
+
+    expect($log->workspace_id)->toBeNull();
+    // Az aktor-pillanatkép miatt a nyom megmarad.
+    expect($log->action)->toBe('teszt.muvelet');
+});
+
+it('a platform-sor a builder-úton sem módosítható tenant-kontextusból', function () {
+    // A modell-event nem fut le Model::query()->update() esetén — DB-szintű őr kell.
+    Suppression::onPlatform(fn () => Suppression::create(['email' => 'globalis@example.test', 'reason' => 'policy']));
+
+    app(WorkspaceContext::class)->set($this->b);
+
+    expect(fn () => Suppression::query()->whereNull('workspace_id')->update(['reason' => 'ATIRVA']))
+        ->toThrow(QueryException::class);
+});
+
+it('a platform-sor a builder-úton sem törölhető tenant-kontextusból', function () {
+    Suppression::onPlatform(fn () => Suppression::create(['email' => 'globalis@example.test', 'reason' => 'complaint']));
+
+    app(WorkspaceContext::class)->set($this->b);
+
+    expect(fn () => Suppression::query()->whereNull('workspace_id')->delete())
+        ->toThrow(QueryException::class);
+});
+
+it('az audit-napló TRUNCATE-tel sem üríthető', function () {
+    app(WorkspaceContext::class)->set($this->a);
+    app(AuditLogger::class)->log('teszt.muvelet');
+
+    expect(fn () => DB::statement('truncate audit_logs'))->toThrow(QueryException::class);
 });

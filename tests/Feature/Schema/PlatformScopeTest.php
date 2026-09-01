@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Modules\Audit\Services\KeyedHash;
 use App\Modules\Suppression\Models\Suppression;
 use App\Modules\Tenancy\Models\Workspace;
 use App\Modules\Tenancy\Services\WorkspaceContext;
@@ -80,5 +81,5 @@ it('az e-mail normalizált és hashelt', function () {
 
     expect($row->email)->toBe('vegyes@example.test');
     // Sózatlan SHA-256 egy e-mail címen szótárral triviálisan visszafejthető, ezért HMAC.
-    expect($row->email_hash)->toBe(hash_hmac('sha256', 'vegyes@example.test', (string) config('audit.hash_pepper')));
+    expect($row->email_hash)->toBe(KeyedHash::of('email', 'vegyes@example.test'));
 });

@@ -23,7 +23,21 @@ final class AuditLogger
      * fogja (pl. `dkim_private_key`, `smtp_password`, `api_key_hash`).
      */
     private const REDACTED = [
-        'password', 'secret', 'token', 'key_hash', 'private_key', 'api_key', 'client_secret',
+        'password', 'passphrase', 'secret', 'token', 'key_hash', 'private_key', 'api_key',
+        'client_secret', 'credential', 'authorization', 'cookie', 'bearer', 'signature',
+        'refresh', 'code_verifier', 'authorization_code', 'nonce', 'state', 'otp', 'mfa',
+        'recovery', 'salt', 'pepper', 'session',
+    ];
+
+    /**
+     * Érték-alapú védőháló: egy ártatlan nevű mező is hordozhat kulcsot, a kulcsnév-alapú
+     * szűrés önmagában nem elég.
+     */
+    private const SECRET_VALUE_PATTERNS = [
+        '/^vm_(live|test)_/',           // ventMail API-kulcs
+        '/-----BEGIN [A-Z ]*PRIVATE KEY/', // PEM privát kulcs
+        '/^eyJ[A-Za-z0-9_-]+\./',        // JWT
+        '/^sk_[A-Za-z0-9]/',             // idegen szolgáltatók titkos kulcsai
     ];
 
     public function __construct(private readonly WorkspaceContext $context) {}
@@ -52,9 +66,9 @@ final class AuditLogger
             'action' => $action,
             'auditable_type' => $auditable !== null ? $auditable::class : null,
             'auditable_id' => $auditable?->getKey(),
-            'before' => $this->redact($before),
-            'after' => $this->redact($after),
-            'context' => $this->redact($context),
+            'before' => $this->capped($this->redact($this->attributesFor($auditable, $before))),
+            'after' => $this->capped($this->redact($this->attributesFor($auditable, $after))),
+            'context' => $this->capped($this->redact($context)),
             'ip_hash' => $this->hashedIp(),
             // mb_substr: a bájt szerinti vágás többbájtos karakter közepén érvénytelen
             // UTF-8-at adna, amivel a Postgres az EGÉSZ admin-műveletet elszalasztaná.
@@ -73,8 +87,12 @@ final class AuditLogger
      * @param  array<string, mixed>  $attributes
      * @return array<string, mixed>
      */
-    private function redact(array $attributes): array
+    private function redact(array $attributes, int $depth = 0): array
     {
+        if ($depth >= (int) config('audit.max_depth')) {
+            return ['_truncated_depth' => true];
+        }
+
         $redacted = [];
 
         foreach ($attributes as $key => $value) {
@@ -84,10 +102,92 @@ final class AuditLogger
                 continue;
             }
 
-            $redacted[$key] = is_array($value) ? $this->redact($value) : $value;
+            $redacted[$key] = $this->redactValue($value, $depth);
         }
 
         return $redacted;
+    }
+
+    private function redactValue(mixed $value, int $depth): mixed
+    {
+        if (is_array($value)) {
+            return $this->redact($value, $depth + 1);
+        }
+
+        // Objektumot is be kell járni: egy DTO publikus property-je ugyanúgy tartalmazhat
+        // jelszót, és az Eloquent `array` cast kiszerializálná.
+        if (is_object($value)) {
+            return $this->redact(json_decode((string) json_encode($value), true) ?? [], $depth + 1);
+        }
+
+        if (is_string($value)) {
+            return $this->redactString($value, $depth);
+        }
+
+        return $value;
+    }
+
+    private function redactString(string $value, int $depth): mixed
+    {
+        foreach (self::SECRET_VALUE_PATTERNS as $pattern) {
+            if (preg_match($pattern, $value)) {
+                return '[redacted]';
+            }
+        }
+
+        // JSON-sztringbe ágyazott payload: a kérés-body nyers sztringként átadva minden
+        // titkot átengedne.
+        $trimmed = trim($value);
+
+        if (str_starts_with($trimmed, '{') || str_starts_with($trimmed, '[')) {
+            $decoded = json_decode($trimmed, true);
+
+            if (is_array($decoded)) {
+                return $this->redact($decoded, $depth + 1);
+            }
+        }
+
+        return $value;
+    }
+
+    /**
+     * A payload felső korlátja: egy MIME-fejlécekkel teli context korlátlan PII-t öntene
+     * egy törölhetetlen táblába.
+     *
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     */
+    private function capped(array $payload): array
+    {
+        $max = (int) config('audit.max_payload_bytes');
+
+        if (strlen((string) json_encode($payload)) <= $max) {
+            return $payload;
+        }
+
+        return ['_truncated' => true, '_keys' => array_keys($payload)];
+    }
+
+    /**
+     * Modell-specifikus audit-kizárás: a `$auditRedacted` mezők (pl. a suppression nyílt
+     * e-mail-címe) NEM kerülhetnek a soha nem törölhető audit-táblába.
+     *
+     * @param  array<string, mixed>  $attributes
+     * @return array<string, mixed>
+     */
+    private function attributesFor(?object $auditable, array $attributes): array
+    {
+        $excluded = property_exists($auditable ?? new \stdClass, 'auditRedacted')
+            ? (array) $auditable->auditRedacted
+            : [];
+
+        foreach ($excluded as $field) {
+            if (array_key_exists($field, $attributes)) {
+                $attributes[$field] = '[redacted]';
+            }
+        }
+
+        return $attributes;
     }
 
     private function isSecretKey(string $key): bool
@@ -114,6 +214,6 @@ final class AuditLogger
         // A hash kulcsolt: a nyers IP-t szótár-támadással sem lehet visszafejteni.
         // A pepper KÜLÖN titok — az APP_KEY rotációja különben minden korábbi hasht
         // összehasonlíthatatlanná tenne.
-        return hash_hmac('sha256', $ip, (string) config('audit.hash_pepper'));
+        return KeyedHash::of('ip', $ip);
     }
 }

@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace App\Modules\Identity\Models;
 
 use App\Modules\Audit\Concerns\Auditable;
+use App\Modules\Audit\Services\KeyedHash;
 use App\Modules\Tenancy\Concerns\BelongsToWorkspace;
+use App\Modules\Tenancy\Scopes\WorkspaceScope;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -70,8 +72,16 @@ final class ApiKey extends Model
      */
     public static function findByPlainKey(string $plain): ?self
     {
+        // Az API-auth valós helyzetében a workspace-kontextus MAGÁBÓL a kulcsból származik,
+        // tehát lookup-időben még nincs. Ezért a global scope-ot itt — és KIZÁRÓLAG itt,
+        // a hash pontos egyezésére — kikapcsoljuk; a hívó ezután azonnal beállítja a
+        // kontextust a kulcs workspace-ére. Enélkül minden API-hívás fail-closed 401 lenne,
+        // és a következő fejlesztő a scope általános kikapcsolásáért nyúlna.
         $key = self::query()
+            ->withoutGlobalScope(WorkspaceScope::class)
             ->where('key_hash', self::hashOf($plain))
+            // Lejárt kulcs SOHA nem érvényes: egy auth-primitívnél a fail-open alap rossz.
+            ->where(fn ($query) => $query->whereNull('expires_at')->orWhere('expires_at', '>', now()))
             ->first();
 
         return $key !== null && $key->matches($plain) ? $key : null;
@@ -79,12 +89,14 @@ final class ApiKey extends Model
 
     public function matches(string $plain): bool
     {
-        return hash_equals((string) $this->key_hash, self::hashOf($plain));
+        // A rotációs átfedést is figyelembe veszi: a pepper cseréje különben egyszerre
+        // lőné ki minden ügyfél minden kulcsát.
+        return KeyedHash::matches('api_key', $plain, (string) $this->key_hash);
     }
 
     private static function hashOf(string $plain): string
     {
-        return hash_hmac('sha256', $plain, (string) config('audit.hash_pepper'));
+        return KeyedHash::of('api_key', $plain);
     }
 
     public function hasScope(string $scope): bool
