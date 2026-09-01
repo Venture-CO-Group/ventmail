@@ -107,6 +107,18 @@ final class FakeSsoProvider
         ]);
     }
 
+    /** @return array<string, mixed> a publikus JWK */
+    public function jwk(): array
+    {
+        return $this->jwk;
+    }
+
+    /** A publikus kulcs PEM formában (algoritmus-zavarásos negatív teszthez). */
+    public function publicKeyPem(): string
+    {
+        return openssl_pkey_get_details($this->privateKey)['key'];
+    }
+
     private static function base64Url(string $value): string
     {
         return rtrim(strtr(base64_encode($value), '+/', '-_'), '=');

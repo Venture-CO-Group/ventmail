@@ -48,12 +48,20 @@ class User extends Model implements AuthenticatableContract
      * @var list<string>
      */
     protected $fillable = [
+        'sso_issuer',
         'sso_subject',
         'name',
         'email',
         'locale',
         'last_login_at',
     ];
+
+    /**
+     * A ventSSO-alany azonosítója családszinten korrelálható — nem megy ki szerializálva.
+     *
+     * @var list<string>
+     */
+    protected $hidden = ['sso_issuer', 'sso_subject'];
 
     /**
      * @return array<string, string>

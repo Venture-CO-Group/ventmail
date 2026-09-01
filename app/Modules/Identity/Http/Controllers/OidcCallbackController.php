@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Identity\Http\Controllers;
 
+use App\Modules\Identity\Actions\AuthorizeSsoSubject;
 use App\Modules\Identity\Actions\SyncSsoUser;
 use App\Modules\Identity\Services\OidcClient;
 use App\Modules\Identity\Services\RoleMapper;
@@ -25,16 +26,23 @@ final class OidcCallbackController
         OidcClient $client,
         SyncSsoUser $syncUser,
         RoleMapper $roleMapper,
+        AuthorizeSsoSubject $authorizeSubject,
     ): RedirectResponse {
         $claims = $client->handleCallback($request);
+
+        $roles = $roleMapper->map($claims);
+
+        // Sor létrehozása ELŐTT: jogosultság nélküli alanyról PII-t sem tárolunk.
+        $authorizeSubject($claims, $roles);
 
         $user = $syncUser($claims);
 
         Auth::login($user);
         $request->session()->regenerate();
 
-        // A szerepek a tokenből jönnek; a TENANT-TAGSÁG NEM — azt a workspace_members adja.
-        $request->session()->put('oidc.roles', $roleMapper->map($claims));
+        // DIAGNOSZTIKA. Jogosultsági döntéshez TILOS használni: a hozzáférés egyetlen
+        // forrása a `workspace_members` tábla (golden rule 1).
+        $request->session()->put('oidc.roles_diagnostic', $roles);
 
         return redirect()->intended('/');
     }

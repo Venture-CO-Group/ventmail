@@ -20,6 +20,9 @@ class UserFactory extends Factory
     public function definition(): array
     {
         return [
+            // Élesben minden sor egy ventSSO-alany tükre — a factory is ilyet gyártson.
+            'sso_issuer' => (string) config('oidc.provider_url'),
+            'sso_subject' => fake()->unique()->uuid(),
             'name' => fake()->name(),
             'email' => fake()->unique()->safeEmail(),
             'email_verified_at' => now(),

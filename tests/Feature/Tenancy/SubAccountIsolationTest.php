@@ -2,10 +2,13 @@
 
 declare(strict_types=1);
 
+use App\Models\User;
+use App\Modules\Identity\Enums\Role;
 use App\Modules\Tenancy\Models\Workspace;
 use App\Modules\Tenancy\Services\WorkspaceContext;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Auth;
 use Tests\Support\TenantFixture;
 
 uses(RefreshDatabase::class);
@@ -71,6 +74,12 @@ it('a child nem lát rá a parent hierarchiájára', function () {
 });
 
 it('a parent csak explicit jogosultsággal olvashat child nyers adatot', function () {
+    // A váltáshoz a felhasználónak is joga kell legyen (subAccount.manage) — lásd
+    // SubAccountAuthorizationTest.
+    $admin = User::factory()->create();
+    $this->parent->members()->create(['user_id' => $admin->id, 'roles' => [Role::Admin->value]]);
+    Auth::login($admin);
+
     $context = app(WorkspaceContext::class);
     $context->set($this->parent);
 
@@ -87,6 +96,10 @@ it('a parent csak explicit jogosultsággal olvashat child nyers adatot', functio
 });
 
 it('idegen workspace-re a parent sem válthat', function () {
+    $admin = User::factory()->create();
+    $this->parent->members()->create(['user_id' => $admin->id, 'roles' => [Role::Admin->value]]);
+    Auth::login($admin);
+
     $idegen = Workspace::factory()->create();
     $context = app(WorkspaceContext::class);
     $context->set($this->parent);

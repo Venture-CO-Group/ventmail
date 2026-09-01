@@ -45,7 +45,20 @@ it('választás nélkül az első tagságot használja', function () {
         ->assertJson(['workspace' => $workspace->uuid]);
 });
 
-it('idegen workspace-re 403', function () {
+it('idegen workspace-re EXPLICIT váltáskor 403', function () {
+    $mine = Workspace::factory()->create();
+    $foreign = Workspace::factory()->create();
+    $user = User::factory()->create();
+    $mine->members()->create(['user_id' => $user->id, 'roles' => [Role::Owner->value]]);
+
+    $this->actingAs($user)
+        ->get('/teszt/workspace?workspace='.$foreign->uuid)
+        ->assertForbidden();
+});
+
+it('elavult session-választás nem zárja ki a felhasználót', function () {
+    // Ha időközben eltávolították a session-ben tárolt workspace-ből, ne ragadjon 403-ban:
+    // a stale értéket takarítjuk, és visszaesünk az első érvényes tagságra.
     $mine = Workspace::factory()->create();
     $foreign = Workspace::factory()->create();
     $user = User::factory()->create();
@@ -54,7 +67,22 @@ it('idegen workspace-re 403', function () {
     $this->actingAs($user)
         ->withSession(['workspace_uuid' => $foreign->uuid])
         ->get('/teszt/workspace')
-        ->assertForbidden();
+        ->assertOk()
+        ->assertJson(['workspace' => $mine->uuid]);
+});
+
+it('a soft delete-elt workspace tagsága nem használható', function () {
+    $deleted = Workspace::factory()->create();
+    $live = Workspace::factory()->create();
+    $user = User::factory()->create();
+
+    $deleted->members()->create(['user_id' => $user->id, 'roles' => [Role::Owner->value]]);
+    $live->members()->create(['user_id' => $user->id, 'roles' => [Role::Owner->value]]);
+    $deleted->delete();
+
+    $this->actingAs($user)->get('/teszt/workspace')
+        ->assertOk()
+        ->assertJson(['workspace' => $live->uuid]);
 });
 
 it('tagság nélkül 403', function () {

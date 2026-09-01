@@ -38,5 +38,9 @@ class AppServiceProvider extends ServiceProvider
 
             return Limit::perMinute(300)->by((string) $key);
         });
+
+        // A bejelentkezési folyamat hitelesítetlen: minden hívás session-rekordot ír és
+        // kimenő HTTP-t indít a ventSSO felé, ezért IP-alapon szűkebb a keret.
+        RateLimiter::for('oidc', fn (Request $request) => Limit::perMinute(20)->by((string) $request->ip()));
     }
 }

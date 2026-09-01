@@ -30,26 +30,64 @@ final class ResolveWorkspace
             return redirect()->guest(route('auth.redirect'));
         }
 
+        // Explicit váltási kérés (query/route paraméter) SOSEM eshet vissza csendben:
+        // ha nincs rá tagság, az 403. A session-ben tárolt választás viszont elavulhat.
+        $explicit = (string) ($request->route('workspace') ?? $request->query('workspace', ''));
+
+        if ($explicit !== '') {
+            $membership = $this->membershipFor($user->getKey(), $explicit);
+
+            if ($membership === null) {
+                abort(403, 'Nincs hozzáférésed ehhez a workspace-hez.');
+            }
+
+            return $this->withWorkspace($request, $next, $membership);
+        }
+
         $requested = (string) $request->session()->get('workspace_uuid', '');
 
-        $membership = WorkspaceMember::query()
-            ->where('user_id', $user->getKey())
-            ->when($requested !== '', fn ($query) => $query->whereIn(
-                'workspace_id',
-                Workspace::query()->where('uuid', $requested)->select('id')
-            ))
-            ->orderBy('id')
-            ->first();
+        // A tagsági sor a workspace soft delete-je után is megmarad (a cascade csak hard
+        // delete-re fut), ezért a törölt workspace-eket ki kell zárni — különben egy régi
+        // tagság 404-be vinné a felhasználót minden kérésen.
+        $membership = $this->membershipFor($user->getKey(), $requested);
+
+        if ($membership === null && $requested !== '') {
+            // Elavult választás (pl. időközben eltávolították a workspace-ből): a session-t
+            // takarítjuk, és visszaesünk az első érvényes tagságra — enélkül a felhasználó
+            // tartósan kizárná magát, kijelentkezés nélkül.
+            $request->session()->forget('workspace_uuid');
+            $membership = $this->membershipFor($user->getKey(), '');
+        }
 
         if ($membership === null) {
             abort(403, 'Nincs hozzáférésed ehhez a workspace-hez.');
         }
 
-        $workspace = Workspace::query()->whereKey($membership->workspace_id)->firstOrFail();
+        return $this->withWorkspace($request, $next, $membership);
+    }
+
+    private function withWorkspace(Request $request, Closure $next, WorkspaceMember $membership): Response
+    {
+        $workspace = Workspace::query()->whereKey($membership->workspace_id)->first();
+
+        if ($workspace === null) {
+            abort(403, 'A workspace nem érhető el.');
+        }
 
         $this->context->set($workspace);
         $request->session()->put('workspace_uuid', $workspace->uuid);
 
         return $next($request);
+    }
+
+    private function membershipFor(mixed $userId, string $requestedUuid): ?WorkspaceMember
+    {
+        return WorkspaceMember::query()
+            ->where('user_id', $userId)
+            ->whereIn('workspace_id', Workspace::query()
+                ->when($requestedUuid !== '', fn ($query) => $query->where('uuid', $requestedUuid))
+                ->select('id'))
+            ->orderBy('id')
+            ->first();
     }
 }

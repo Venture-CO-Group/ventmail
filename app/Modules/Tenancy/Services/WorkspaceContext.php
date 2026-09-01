@@ -6,6 +6,8 @@ namespace App\Modules\Tenancy\Services;
 
 use App\Modules\Tenancy\Models\Workspace;
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Gate;
 use RuntimeException;
 
 /**
@@ -64,6 +66,14 @@ final class WorkspaceContext
     public function runForChild(Workspace $child, callable $callback): mixed
     {
         $current = $this->workspace();
+
+        // A kapcsolat joga (pivot) ÉS a kérő felhasználó joga is kell: egy parent-beli
+        // `analyst` nem olvashat child nyers adatot pusztán azért, mert a pivot engedi.
+        $user = Auth::user();
+
+        if ($user === null || ! Gate::forUser($user)->allows('subAccount.manage')) {
+            throw new AuthorizationException('A felhasználó nem jogosult sub-account adat olvasására.');
+        }
 
         if (! $child->isChildOf($current)) {
             throw new AuthorizationException('A workspace nem sub-accountja az aktuális workspace-nek.');

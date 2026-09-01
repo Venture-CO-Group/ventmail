@@ -27,9 +27,16 @@ abstract class ModuleServiceProvider extends ServiceProvider
      * önmagában felülírható lett volna üres tömbre, és a route middleware nélkül regisztrált.
      * A modul csak BŐVÍTHETI a stacket.
      */
-    private const REQUIRED_WEB = ['web'];
+    private const REQUIRED_WEB = ['web', 'auth', 'workspace'];
 
-    private const REQUIRED_API = ['api', 'throttle:api'];
+    private const REQUIRED_API = ['api', 'throttle:api', 'auth', 'workspace'];
+
+    /**
+     * Kivétel a kötelező stack alól — KIZÁRÓLAG a bejelentkezési folyamathoz, ahol még
+     * nincs sem user, sem workspace-kontextus. A modul ezt csak akkor kapcsolhatja be,
+     * ha a route-jai valóban hitelesítés ELŐTTIEK (Identity: /auth/*).
+     */
+    protected bool $routesPrecedeAuthentication = false;
 
     /** A modul által HOZZÁADOTT web-middleware-ek. */
     protected array $webMiddleware = [];
@@ -95,12 +102,16 @@ abstract class ModuleServiceProvider extends ServiceProvider
     /** @return list<string> */
     private function webStack(): array
     {
-        return array_values(array_unique([...self::REQUIRED_WEB, ...$this->webMiddleware]));
+        $required = $this->routesPrecedeAuthentication ? ['web'] : self::REQUIRED_WEB;
+
+        return array_values(array_unique([...$required, ...$this->webMiddleware]));
     }
 
     /** @return list<string> */
     private function apiStack(): array
     {
-        return array_values(array_unique([...self::REQUIRED_API, ...$this->apiMiddleware]));
+        $required = $this->routesPrecedeAuthentication ? ['api', 'throttle:api'] : self::REQUIRED_API;
+
+        return array_values(array_unique([...$required, ...$this->apiMiddleware]));
     }
 }

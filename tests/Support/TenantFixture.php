@@ -19,7 +19,8 @@ final class TenantFixture extends Model
 
     protected $table = 'tenant_fixtures';
 
-    protected $fillable = ['label', 'workspace_id'];
+    // A workspace_id SOHA nem fillable: a kontextus tölti ki (BelongsToWorkspace).
+    protected $fillable = ['label'];
 
     public static function createTable(): void
     {

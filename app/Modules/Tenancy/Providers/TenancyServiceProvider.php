@@ -24,10 +24,12 @@ final class TenancyServiceProvider extends ModuleServiceProvider
 
     protected function bootModule(): void
     {
-        $gate = $this->app->make(WorkspaceGate::class);
-
         foreach (AbilityMap::all() as $ability) {
-            Gate::define($ability, fn (User $user) => $gate->allows($user, $ability));
+            // A WorkspaceGate-et MINDIG futásidőben oldjuk fel: a WorkspaceContext `scoped`,
+            // amit a queue worker két job között eldob. Egy boot-időben becsukott példány
+            // a RÉGI workspace szerepeivel döntene, miközben az adat már a másikra szűrül —
+            // cross-tenant jogosultság-emelés (golden rule 6).
+            Gate::define($ability, fn (User $user) => $this->app->make(WorkspaceGate::class)->allows($user, $ability));
         }
     }
 }

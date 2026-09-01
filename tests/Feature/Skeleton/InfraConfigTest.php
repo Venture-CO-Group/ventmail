@@ -116,3 +116,16 @@ it('az .env.example a kanonikus Venture stacket írja le', function () {
         expect($env)->toContain($setting);
     }
 });
+
+it('a session-védelem alapból bekapcsolt', function () {
+    // Az OIDC state/nonce/PKCE verifier a session-payloadban él, a store Redis.
+    expect(config('session.encrypt'))->toBeTrue('a session titkosítása ki van kapcsolva');
+    expect(config('session.same_site'))->toBe('lax');
+});
+
+it('az .env.example nem hagyja jelszó nélkül a Redist éles használatra', function () {
+    $env = file_get_contents(base_path('.env.example'));
+
+    expect($env)->toContain('REDIS_PASSWORD');
+    expect($env)->toContain('ÉLES környezetben a jelszó KÖTELEZŐ');
+});

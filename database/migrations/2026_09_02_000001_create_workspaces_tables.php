@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /*
@@ -38,6 +39,30 @@ return new class extends Migration
             $table->unique('child_workspace_id'); // egy childnak legfeljebb egy parentje van
         });
 
+        // Önmaga szülője nem lehet; a spec 3.2 EGYSZINTŰ ügynökség-modellt ír le, ezért a
+        // többszintű lánc (A→B→C) és a kör (A→B→A) sem alakulhat ki: aki már child,
+        // az nem lehet parent, és fordítva.
+        DB::statement('alter table workspace_parents add constraint workspace_parents_not_self
+            check (parent_workspace_id <> child_workspace_id)');
+
+        DB::statement('create or replace function workspace_parents_single_level() returns trigger as $$
+            begin
+                if exists (select 1 from workspace_parents where child_workspace_id = new.parent_workspace_id) then
+                    raise exception \'A sub-account hierarchia egyszintű: egy child nem lehet parent.\';
+                end if;
+
+                if exists (select 1 from workspace_parents where parent_workspace_id = new.child_workspace_id) then
+                    raise exception \'A sub-account hierarchia egyszintű: egy parent nem lehet child.\';
+                end if;
+
+                return new;
+            end;
+        $$ language plpgsql');
+
+        DB::statement('create trigger workspace_parents_single_level_trigger
+            before insert or update on workspace_parents
+            for each row execute function workspace_parents_single_level()');
+
         Schema::create('workspace_members', function (Blueprint $table) {
             $table->id();
             $table->foreignId('workspace_id')->constrained()->cascadeOnDelete();
@@ -51,6 +76,8 @@ return new class extends Migration
 
     public function down(): void
     {
+        DB::statement('drop trigger if exists workspace_parents_single_level_trigger on workspace_parents');
+        DB::statement('drop function if exists workspace_parents_single_level()');
         Schema::dropIfExists('workspace_members');
         Schema::dropIfExists('workspace_parents');
         Schema::dropIfExists('workspaces');

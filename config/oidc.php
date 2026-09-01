@@ -21,6 +21,13 @@ return [
 
     'roles_claim' => env('OIDC_ROLES_CLAIM', 'resource_access.ventmail.roles'),
 
+    // Elfogadott aláíró algoritmusok. Amit a JWKS hirdet, azt önmagában NEM fogadjuk el:
+    // egy szimmetrikus (`oct`) kulcs HS256-konfúziót tenne lehetővé.
+    'allowed_algorithms' => ['RS256', 'ES256'],
+
+    // A discovery-végpontok https-kényszere. Kizárólag lokális fejlesztéshez oldható fel.
+    'allow_insecure_transport' => (bool) env('OIDC_ALLOW_INSECURE', false),
+
     'redirect_path' => '/auth/callback',
 
     // Discovery + JWKS cache. Ismeretlen `kid` esetén a kliens EGYSZER ürít és újrapróbál.
