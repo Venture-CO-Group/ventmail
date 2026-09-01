@@ -45,7 +45,7 @@
 2. `@venture/ui` komponenst renderelő Inertia-oldal betölt, `@venture/design` tokenek CSS-változóként
    jelen; `vue-tsc` hibátlan. A csomagok `file:../venture-*` linkkel (ventSSO/ventVault mintája).
 3. A CI minden kapuja zöld egy üres PR-en (teszt · pint · vue-tsc · composer/npm audit · gitleaks).
-4. Mind a 24 modul váza létezik `app/Modules/<Name>/` alatt README-vel.
+4. Mind a 25 modul váza létezik `app/Modules/<Name>/` alatt README-vel.
 
 **M0-1 · Tenancy + OIDC + sub-account**
 5. Valódi OIDC authorization-code + PKCE; ID-token JWKS ellen ellenőrizve; ismeretlen `kid` → egyszeri

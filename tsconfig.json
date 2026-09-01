@@ -1,0 +1,39 @@
+{
+    "compilerOptions": {
+        "target": "ESNext",
+        "module": "ESNext",
+        "moduleResolution": "bundler",
+        "strict": true,
+        "jsx": "preserve",
+        "resolveJsonModule": true,
+        "isolatedModules": true,
+        "esModuleInterop": true,
+        "skipLibCheck": true,
+        "noEmit": true,
+        "types": [
+            "vite/client"
+        ],
+        "paths": {
+            "@/*": [
+                "./resources/js/*"
+            ],
+            "vue": [
+                "./node_modules/vue"
+            ],
+            "@venture/ui": [
+                "../venture-ui/dist/index.d.ts"
+            ]
+        }
+    },
+    "include": [
+        "resources/js/**/*.ts",
+        "resources/js/**/*.vue",
+        "vite.config.ts"
+    ],
+    "exclude": [
+        "node_modules",
+        "public",
+        "vendor",
+        "e2e"
+    ]
+}

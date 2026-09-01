@@ -1,0 +1,4 @@
+/* Design forrás: @venture/design tokenek + @venture/ui komponens-stílusok.
+   Lokális szín/spacing/font érték TILOS — ha nincs token, jelentsd a design repóba. */
+@import '@venture/design/styles.css';
+@import '@venture/ui/style.css';

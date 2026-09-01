@@ -1,0 +1,22 @@
+# dev: noindex + Basic Auth (golden rule 11) — éles konfiguráció NEM ez.
+:80 {
+	# A path a PHP-FPM konténerből nézve érvényes (SCRIPT_FILENAME), ezért /var/www/public.
+	root * /var/www/public
+	encode gzip
+
+	header {
+		X-Robots-Tag "noindex, nofollow, noarchive"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+	}
+
+	# A dev Basic Auth jelszó-hash env-ből jön, soha nem a repóból:
+	#   caddy hash-password --plaintext '<jelszo>'  →  DEV_BASIC_AUTH_HASH
+	basic_auth {
+		{$DEV_BASIC_AUTH_USER:ventmail} {$DEV_BASIC_AUTH_HASH}
+	}
+
+	php_fastcgi app:9000
+	file_server
+}

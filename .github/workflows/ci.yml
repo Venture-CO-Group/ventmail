@@ -1,0 +1,106 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (teszt · pint · composer audit)
+    runs-on: ubuntu-latest
+
+    services:
+      db:
+        # UGYANAZ az image, mint dev-ben — a hypertable-teszt valódi Timescale ellen fut.
+        image: timescale/timescaledb-ha:pg17
+        env:
+          POSTGRES_DB: ventmail_test
+          POSTGRES_USER: ventmail
+          POSTGRES_PASSWORD: ventmail
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd="pg_isready -U ventmail -d ventmail_test"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+
+    env:
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5432
+      DB_DATABASE: ventmail_test
+      DB_USERNAME: ventmail
+      DB_PASSWORD: ventmail
+      REDIS_HOST: 127.0.0.1
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_pgsql, redis, intl, zip, bcmath, pcntl
+          coverage: none
+
+      - name: composer install
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: env
+        run: cp .env.example .env && php artisan key:generate
+
+      - name: pint (kód-stílus)
+        run: ./vendor/bin/pint --test
+
+      - name: php artisan test
+        run: php artisan test --parallel
+
+      - name: composer audit
+        run: composer audit --no-interaction
+
+  frontend:
+    name: Frontend (vue-tsc · build · npm audit)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # A @venture/* csomagok file: linkkel jönnek — a CI-ban a registry-tarballt használjuk,
+      # amíg a privát registry nem él, addig ez a lépés a lokális csomagokat várja.
+      - name: npm install
+        run: npm install --no-audit --no-fund
+
+      - name: vue-tsc (típusellenőrzés)
+        run: npm run typecheck
+
+      - name: vite build
+        run: npm run build
+
+      - name: npm audit
+        run: npm audit --audit-level=high
+
+  security:
+    name: Security (gitleaks)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
