@@ -22,14 +22,15 @@ final class Domain extends Model
 
     protected $fillable = [
         'name', 'status', 'dkim_selector', 'dkim_public_key', 'dkim_private_key',
-        'dkim_previous_selector', 'dkim_rotated_at', 'tracking_domain', 'tracking_status',
+        'dkim_previous_selector', 'dkim_previous_public_key', 'dkim_previous_private_key',
+        'dkim_rotated_at', 'tracking_domain', 'tracking_status',
         'spf_status', 'dkim_status', 'dmarc_status', 'ptr_status', 'mta_sts_status',
         'bimi_status', 'inbound_mx_status', 'tracking_enabled', 'require_tls',
         'verified_at', 'last_checked_at',
     ];
 
     /** A privát kulcs sosem kerül szerializálva a válaszba. */
-    protected $hidden = ['dkim_private_key'];
+    protected $hidden = ['dkim_private_key', 'dkim_previous_private_key'];
 
     /**
      * A DB-alapértékek modell-szinten is jelen vannak: enélkül az audit `before` mezője
@@ -56,6 +57,7 @@ final class Domain extends Model
     {
         return [
             'dkim_private_key' => 'encrypted',
+            'dkim_previous_private_key' => 'encrypted',
             'tracking_enabled' => 'boolean',
             'require_tls' => 'boolean',
             'verified_at' => 'datetime',

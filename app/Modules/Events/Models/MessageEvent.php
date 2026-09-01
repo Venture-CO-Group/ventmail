@@ -31,6 +31,21 @@ final class MessageEvent extends Model
         return ['uuid'];
     }
 
+    /**
+     * Érintetti törlési kérés teljesítése: a személyes adat eltűnik, az esemény TÉNYE
+     * (típus, idő, workspace) megmarad — enélkül a kézbesítési statisztika és a
+     * panasz-bizonyíték is elveszne.
+     */
+    public function redactPersonalData(): void
+    {
+        $this->forceFill([
+            'recipient' => null,
+            'variables' => [],
+            'payload' => [],
+            'redacted_at' => now(),
+        ])->save();
+    }
+
     protected function casts(): array
     {
         return [
@@ -38,13 +53,20 @@ final class MessageEvent extends Model
             'variables' => 'array',
             'payload' => 'array',
             'occurred_at' => 'datetime',
+            'redacted_at' => 'datetime',
         ];
     }
 
     protected static function booted(): void
     {
-        self::updating(function (): never {
-            throw new \RuntimeException('A message_events sor nem módosítható (napló-integritás).');
+        self::updating(function (self $event): void {
+            // Egyetlen engedélyezett módosítás: a GDPR-redakció (PII-mezők nullázása).
+            // Minden más átírás tiltott — a naplónak hitelesnek kell maradnia.
+            $allowed = ['recipient', 'variables', 'payload', 'redacted_at'];
+
+            if (array_diff(array_keys($event->getDirty()), $allowed) !== [] || $event->redacted_at === null) {
+                throw new \RuntimeException('A message_events sor csak redakcióval módosítható.');
+            }
         });
 
         // A retenciós törlés chunk-szinten megy (drop_chunks, A3), nem modellen keresztül:

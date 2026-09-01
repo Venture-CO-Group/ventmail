@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Suppression\Models;
 
 use App\Modules\Audit\Concerns\Auditable;
+use App\Modules\Audit\Services\KeyedHash;
 use App\Modules\Tenancy\Concerns\BelongsToWorkspaceOrPlatform;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
@@ -19,7 +20,12 @@ final class Suppression extends Model
 {
     use Auditable, BelongsToWorkspaceOrPlatform, HasUuids;
 
-    protected $fillable = ['email', 'email_hash', 'reason', 'source', 'detail', 'expires_at'];
+    // Az email_hash SZÁNDÉKOSAN nincs a fillable-ben: a mutátor számolja. Kívülről
+    // beadva egy hamis hash tartósan beíródna (és az auditba is bekerülne).
+    protected $fillable = ['email', 'reason', 'applies_to', 'source', 'detail', 'expires_at'];
+
+    /** Az audit-tábla sosem törölhető — érintetti e-mail-cím nem kerülhet bele. */
+    public array $auditRedacted = ['email'];
 
     public function uniqueIds(): array
     {
@@ -44,7 +50,7 @@ final class Suppression extends Model
         $normalized = strtolower(trim((string) $value));
 
         $this->attributes['email'] = $normalized;
-        $this->attributes['email_hash'] = hash_hmac('sha256', $normalized, (string) config('audit.hash_pepper'));
+        $this->attributes['email_hash'] = KeyedHash::of('email', $normalized);
     }
 
     public function isActive(): bool

@@ -8,6 +8,7 @@ use App\Modules\Tenancy\Models\Workspace;
 use App\Modules\Tenancy\Scopes\WorkspaceOrPlatformScope;
 use App\Modules\Tenancy\Services\WorkspaceContext;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
 /**
@@ -80,10 +81,18 @@ trait BelongsToWorkspaceOrPlatform
     {
         self::$platformWriteDepth++;
 
+        // A DB-trigger EZT nézi: a modell-event a builder-úton (Model::query()->update())
+        // nem futna le, ezért a valódi határ az adatbázisban van.
+        DB::statement("set local ventmail.platform_write = 'on'");
+
         try {
             return $callback();
         } finally {
             self::$platformWriteDepth--;
+
+            if (self::$platformWriteDepth === 0) {
+                DB::statement("set local ventmail.platform_write = 'off'");
+            }
         }
     }
 

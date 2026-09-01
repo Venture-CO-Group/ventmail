@@ -69,3 +69,30 @@ it('a testmode kulcs elkülönül', function () {
 
     expect($plain)->toStartWith('vm_test_');
 });
+
+it('a lejárt kulcs nem érvényes', function () {
+    ['model' => $model, 'plain' => $plain] = ApiKey::issue('lejaro');
+    $model->forceFill(['expires_at' => now()->subMinute()])->save();
+
+    expect(ApiKey::findByPlainKey($plain))->toBeNull();
+});
+
+it('a kulcs kontextus nélkül is feloldható', function () {
+    // Az API-auth valós helyzetében a workspace-kontextus magából a kulcsból származik.
+    ['plain' => $plain] = ApiKey::issue('kulcs');
+
+    app(WorkspaceContext::class)->forget();
+
+    $found = ApiKey::findByPlainKey($plain);
+
+    expect($found)->not->toBeNull();
+    expect($found->workspace_id)->not->toBeNull();
+});
+
+it('idegen kulcs nem oldható fel', function () {
+    ApiKey::issue('sajat');
+
+    app(WorkspaceContext::class)->forget();
+
+    expect(ApiKey::findByPlainKey('vm_live_teljesen-mas'))->toBeNull();
+});
