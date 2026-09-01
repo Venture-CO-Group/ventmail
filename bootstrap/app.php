@@ -46,5 +46,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->dontFlash([
             'current_password', 'password', 'password_confirmation',
             'api_key', 'client_secret', 'smtp_password', 'dkim_private_key', 'token',
+            // OIDC-tranziensek: az authorization code query-paraméterben érkezik.
+            'code', 'state', 'nonce', 'code_verifier', 'id_token', 'access_token', 'refresh_token',
         ]);
     })->create();

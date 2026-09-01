@@ -14,7 +14,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 final class WorkspaceMember extends Model
 {
+    // A workspace_id csak a Tenancy modul sanctionált útján (AssignWorkspaceRoles) állítható:
+    // egy tagkezelő endpoint tömeges hozzárendeléssel idegen workspace-be írhatna tagságot.
     protected $fillable = ['workspace_id', 'user_id', 'roles'];
+
+    /** @var list<string> */
+    protected $hidden = [];
 
     protected function casts(): array
     {

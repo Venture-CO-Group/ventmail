@@ -76,6 +76,36 @@ it('a kötelező middleware-alapot a modul nem veheti el', function () {
         ->toContain('final public function boot');
 });
 
+it('minden modul-route hitelesített és workspace-kontextusban fut', function () {
+    // A `workspace`/`auth` alias önmagában semmit nem véd, ha egyetlen route sem hivatkozik rá.
+    // Kivétel csak a bejelentkezési folyamat (ott még nincs user és nincs kontextus).
+    $allowlist = ['auth/redirect', 'auth/callback', 'auth/logout', 'up', '/'];
+
+    $offenders = [];
+
+    foreach (Route::getRoutes() as $route) {
+        $action = $route->getAction('controller') ?? $route->getActionName();
+
+        if (! str_contains((string) $action, 'App\\Modules\\') || in_array($route->uri(), $allowlist, true)) {
+            continue;
+        }
+
+        $middleware = $route->gatherMiddleware();
+
+        if (! in_array('auth', $middleware, true) || ! in_array('workspace', $middleware, true)) {
+            $offenders[] = $route->uri().' ['.implode(', ', $middleware).']';
+        }
+    }
+
+    expect($offenders)->toBeEmpty('auth/workspace nélküli modul-route: '.implode(' | ', $offenders));
+});
+
+it('a kötelező stack tartalmazza a hitelesítést és a tenant-kontextust', function () {
+    $source = file_get_contents(app_path('Modules/Support/ModuleServiceProvider.php'));
+
+    expect($source)->toContain("'auth'")->toContain("'workspace'");
+});
+
 it('futásidőben minden modul-route middleware-csoportban van', function () {
     // Nem sztringkeresés: a tényleges route-táblát nézzük.
     $offenders = [];

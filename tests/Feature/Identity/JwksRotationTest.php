@@ -25,7 +25,7 @@ beforeEach(function () {
 it('ismeretlen kid esetén újratölti a JWKS-t és sikeresen belép', function () {
     // Első belépés: bemelegíti a JWKS-cache-t.
     $this->get('/auth/redirect');
-    $this->sso->fakeHttp(['id_token' => $this->sso->idToken(['nonce' => session('oidc.nonce')])]);
+    $this->sso->fakeHttp(['id_token' => $this->sso->idToken(['nonce' => session('oidc.nonce'), 'resource_access' => ['ventmail' => ['roles' => ['analyst']]]])]);
     $this->get('/auth/callback?code=c&state='.session('oidc.state'));
 
     expect(Auth::check())->toBeTrue();
@@ -38,7 +38,7 @@ it('ismeretlen kid esetén újratölti a JWKS-t és sikeresen belép', function 
     $this->sso->rotate('test-key-2');
 
     $this->get('/auth/redirect');
-    $this->sso->fakeHttp(['id_token' => $this->sso->idToken(['nonce' => session('oidc.nonce')])]);
+    $this->sso->fakeHttp(['id_token' => $this->sso->idToken(['nonce' => session('oidc.nonce'), 'resource_access' => ['ventmail' => ['roles' => ['analyst']]]])]);
     $this->get('/auth/callback?code=c&state='.session('oidc.state'));
 
     expect(Auth::check())->toBeTrue('kulcsrotáció után nem sikerült a belépés');
@@ -67,7 +67,7 @@ it('a JWKS cache-elve van a normál úton', function () {
     Cache::flush();
 
     $this->get('/auth/redirect');
-    $this->sso->fakeHttp(['id_token' => $this->sso->idToken(['nonce' => session('oidc.nonce')])]);
+    $this->sso->fakeHttp(['id_token' => $this->sso->idToken(['nonce' => session('oidc.nonce'), 'resource_access' => ['ventmail' => ['roles' => ['analyst']]]])]);
     $this->get('/auth/callback?code=c&state='.session('oidc.state'));
 
     $first = $this->sso->jwksRequests;
@@ -76,7 +76,7 @@ it('a JWKS cache-elve van a normál úton', function () {
     session()->flush();
 
     $this->get('/auth/redirect');
-    $this->sso->fakeHttp(['id_token' => $this->sso->idToken(['nonce' => session('oidc.nonce')])]);
+    $this->sso->fakeHttp(['id_token' => $this->sso->idToken(['nonce' => session('oidc.nonce'), 'resource_access' => ['ventmail' => ['roles' => ['analyst']]]])]);
     $this->get('/auth/callback?code=c&state='.session('oidc.state'));
 
     expect($this->sso->jwksRequests)->toBe($first, 'a JWKS nincs cache-elve — minden login új lekérést indít');

@@ -28,16 +28,54 @@ final class OidcDiscovery
             self::DISCOVERY_CACHE_KEY,
             (int) config('oidc.discovery_cache_ttl'),
             function (): array {
-                $url = config('oidc.provider_url').'/.well-known/openid-configuration';
-                $response = Http::acceptJson()->get($url);
+                $provider = (string) config('oidc.provider_url');
+                $url = $provider.'/.well-known/openid-configuration';
+                $response = Http::acceptJson()->timeout(5)->connectTimeout(3)->get($url);
 
                 if (! $response->successful()) {
                     throw new RuntimeException("A ventSSO discovery nem érhető el: {$url}");
                 }
 
-                return $response->json();
+                return $this->assertTrustworthy($response->json(), $provider);
             }
         );
+    }
+
+    /**
+     * A discovery-dokumentum KIKÖTÉSE a konfigurált providerhez.
+     *
+     * Enélkül az `iss`-ellenőrzés önhivatkozó: aki a discovery-választ befolyásolja (pl.
+     * cache-poisoning a megosztott Redisen vagy plain HTTP provider-URL), az egyszerre
+     * adja meg a „megbízható" kibocsátót ÉS a „megbízható" aláíró kulcsot, és tetszőleges
+     * `sub`-bal beléptethet. (OIDC Discovery 1.0 §4.3 az issuer-egyezést kötelezővé teszi.)
+     *
+     * @param  array<string, mixed>  $document
+     * @return array<string, mixed>
+     */
+    private function assertTrustworthy(array $document, string $provider): array
+    {
+        if (($document['issuer'] ?? null) !== $provider) {
+            throw new RuntimeException('A discovery issuer nem egyezik a konfigurált providerrel.');
+        }
+
+        $providerHost = parse_url($provider, PHP_URL_HOST);
+        $allowInsecure = (bool) config('oidc.allow_insecure_transport') && app()->environment('local', 'testing');
+
+        foreach (['authorization_endpoint', 'token_endpoint', 'jwks_uri'] as $endpoint) {
+            $url = $document[$endpoint] ?? throw new RuntimeException("Hiányzó OIDC végpont: {$endpoint}");
+
+            $scheme = parse_url((string) $url, PHP_URL_SCHEME);
+
+            if ($scheme !== 'https' && ! $allowInsecure) {
+                throw new RuntimeException("Nem titkosított OIDC végpont: {$endpoint}");
+            }
+
+            if (parse_url((string) $url, PHP_URL_HOST) !== $providerHost) {
+                throw new RuntimeException("Idegen hoszton hirdetett OIDC végpont: {$endpoint}");
+            }
+        }
+
+        return $document;
     }
 
     public function endpoint(string $name): string
@@ -47,9 +85,10 @@ final class OidcDiscovery
         return $document[$name] ?? throw new RuntimeException("Hiányzó OIDC végpont: {$name}");
     }
 
+    /** A kibocsátó MINDIG a konfigurált provider — sosem a dokumentum önbevallása. */
     public function issuer(): string
     {
-        return $this->document()['issuer'] ?? config('oidc.provider_url');
+        return (string) config('oidc.provider_url');
     }
 
     /**
@@ -67,13 +106,19 @@ final class OidcDiscovery
             self::JWKS_CACHE_KEY,
             (int) config('oidc.jwks_cache_ttl'),
             function (): array {
-                $response = Http::acceptJson()->get($this->endpoint('jwks_uri'));
+                $response = Http::acceptJson()->timeout(5)->connectTimeout(3)->get($this->endpoint('jwks_uri'));
 
                 if (! $response->successful()) {
                     throw new RuntimeException('A ventSSO JWKS nem érhető el.');
                 }
 
-                return $response->json('keys', []);
+                // Csak aláíró kulcs jöhet szóba: egy `use: enc` kulcs nem válhat
+                // aláírás-ellenőrző kulccsá (a php-jwt nem szűr `use`-ra).
+                return array_values(array_filter(
+                    $response->json('keys', []),
+                    static fn (array $key): bool => ($key['use'] ?? 'sig') === 'sig'
+                        && in_array($key['alg'] ?? 'RS256', (array) config('oidc.allowed_algorithms'), true)
+                ));
             }
         );
     }

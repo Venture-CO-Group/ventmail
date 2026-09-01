@@ -78,3 +78,43 @@ it('idegen workspace_id-vel sem lehet átszivárogtatni', function () {
 it('a próbatábla tényleg workspace-hez kötött', function () {
     expect(Schema::hasColumn('tenant_fixtures', 'workspace_id'))->toBeTrue();
 });
+
+it('explicit idegen workspace_id-vel sem lehet ÍRNI', function () {
+    // A global scope csak SELECT/UPDATE/DELETE-re fut, INSERT-re nem: explicit workspace_id-vel
+    // egy tenant a másik adatterébe írhatott. Írás irányú leak = blocking (golden rule 6).
+    $a = Workspace::factory()->create();
+    $b = Workspace::factory()->create();
+
+    app(WorkspaceContext::class)->set($b);
+
+    // Nem a tömeges-hozzárendelés véd (az csak eldobná a mezőt), hanem a mentési őr:
+    // közvetlenül állítjuk be az attribútumot.
+    expect(function () use ($a) {
+        $row = new TenantFixture(['label' => 'atszivargas']);
+        $row->workspace_id = $a->id;
+        $row->save();
+    })->toThrow(RuntimeException::class, 'Idegen workspace_id');
+
+    app(WorkspaceContext::class)->set($a);
+    expect(TenantFixture::count())->toBe(0);
+});
+
+it('a workspace_id utólag sem írható át idegen tenantra', function () {
+    $a = Workspace::factory()->create();
+    $b = Workspace::factory()->create();
+
+    app(WorkspaceContext::class)->set($a);
+    $row = TenantFixture::create(['label' => 'a-sor']);
+
+    expect(function () use ($row, $b) {
+        $row->workspace_id = $b->id;
+        $row->save();
+    })->toThrow(RuntimeException::class);
+});
+
+it('kontextus nélkül nem jön létre tenant-sor', function () {
+    app(WorkspaceContext::class)->forget();
+
+    expect(fn () => TenantFixture::create(['label' => 'gazdatlan']))
+        ->toThrow(RuntimeException::class);
+});

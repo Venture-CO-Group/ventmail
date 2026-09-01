@@ -57,6 +57,7 @@ it('a callback bejelentkezteti a ventSSO-alanyt', function () {
         'email' => 'tamas@example.test',
         'name' => 'Vezér Tamás',
         'nonce' => session('oidc.nonce'),
+        'resource_access' => ['ventmail' => ['roles' => ['analyst']]],
     ])]);
 
     $this->get('/auth/callback?code=auth-code&state='.session('oidc.state'))
@@ -77,6 +78,7 @@ it('a felhasználót a sub azonosítja, nem az e-mail', function () {
         'sub' => 'uj-alany',
         'email' => 'tamas@example.test',
         'nonce' => session('oidc.nonce'),
+        'resource_access' => ['ventmail' => ['roles' => ['analyst']]],
     ])]);
 
     $this->get('/auth/callback?code=auth-code&state='.session('oidc.state'));
@@ -130,7 +132,8 @@ it('a szerepeket a resource_access.ventmail.roles claimből képezi le', functio
     $this->get('/auth/callback?code=auth-code&state='.session('oidc.state'));
 
     // Ismeretlen szerep NEM ad jogot (fehérlistás leképezés).
-    expect(session('oidc.roles'))->toEqualCanonicalizing([Role::Developer->value, Role::Analyst->value]);
+    // A session-kulcs szándékosan `_diagnostic`: jogosultsághoz TILOS használni.
+    expect(session('oidc.roles_diagnostic'))->toEqualCanonicalizing([Role::Developer->value, Role::Analyst->value]);
 });
 
 it('a tenant-tagság a workspace_members-ből jön, nem a tokenből', function () {

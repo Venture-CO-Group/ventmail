@@ -56,15 +56,30 @@ final class OidcClient
      */
     public function handleCallback(Request $request): array
     {
+        // Az IdP hibát is visszairányítással jelez (pl. ?error=access_denied) — ilyenkor
+        // nincs kód, és félrevezető „aláírás nem ellenőrizhető" hiba lenne belőle.
+        if ($request->query('error') !== null) {
+            throw new AuthorizationException(sprintf(
+                'A ventSSO elutasította a bejelentkezést: %s',
+                (string) $request->query('error')
+            ));
+        }
+
         $this->assertState($request);
         $this->assertNotExpired($request);
 
         $verifier = (string) $request->session()->pull('oidc.code_verifier', '');
         $nonce = (string) $request->session()->get('oidc.nonce', '');
 
-        $response = Http::asForm()->post($this->discovery->endpoint('token_endpoint'), [
+        $code = $request->query('code');
+
+        if (! is_string($code) || $code === '') {
+            throw new AuthorizationException('A ventSSO nem adott vissza authorization code-ot.');
+        }
+
+        $response = Http::asForm()->timeout(5)->connectTimeout(3)->post($this->discovery->endpoint('token_endpoint'), [
             'grant_type' => 'authorization_code',
-            'code' => (string) $request->query('code'),
+            'code' => $code,
             'redirect_uri' => url(config('oidc.redirect_path')),
             'client_id' => config('oidc.client_id'),
             'client_secret' => config('oidc.client_secret'),
@@ -81,10 +96,12 @@ final class OidcClient
             throw new AuthorizationException('A ventSSO nem adott vissza ID-tokent.');
         }
 
-        $claims = $this->verifier->verify($idToken, $nonce);
-
-        // Egyszer használatos tranziensek: a sikeres csere után azonnal eldobjuk.
-        $request->session()->forget(['oidc.state', 'oidc.nonce', 'oidc.expires_at']);
+        try {
+            $claims = $this->verifier->verify($idToken, $nonce);
+        } finally {
+            // Egyszer használatos tranziensek — a HIBAÁGON is eldobjuk.
+            $request->session()->forget(['oidc.state', 'oidc.nonce', 'oidc.expires_at']);
+        }
 
         return $claims;
     }
@@ -92,7 +109,8 @@ final class OidcClient
     private function assertState(Request $request): void
     {
         $expected = (string) $request->session()->pull('oidc.state', '');
-        $received = (string) $request->query('state', '');
+        $received = $request->query('state');
+        $received = is_string($received) ? $received : '';
 
         if ($expected === '' || ! hash_equals($expected, $received)) {
             throw new AuthorizationException('Érvénytelen OIDC state (CSRF-kísérlet?).');

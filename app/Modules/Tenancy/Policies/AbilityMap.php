@@ -26,14 +26,14 @@ final class AbilityMap
             'subAccount.manage', 'domain.manage', 'ipPool.manage',
             'apiKey.manage', 'smtpCredential.manage', 'webhook.manage',
             'suppression.manage', 'logs.view', 'analytics.view',
-            'campaign.create', 'campaign.publish', 'template.manage', 'audience.manage',
+            'campaign.create', 'campaign.publish', 'template.create', 'template.publish', 'audience.manage',
         ],
         'admin' => [
             'workspace.manage', 'member.manage',
             'subAccount.manage', 'domain.manage', 'ipPool.manage',
             'apiKey.manage', 'smtpCredential.manage', 'webhook.manage',
             'suppression.manage', 'logs.view', 'analytics.view',
-            'campaign.create', 'campaign.publish', 'template.manage', 'audience.manage',
+            'campaign.create', 'campaign.publish', 'template.create', 'template.publish', 'audience.manage',
         ],
         // Fejlesztő: a küldő infrastruktúra igen, a marketing tartalom nem.
         'developer' => [
@@ -42,12 +42,12 @@ final class AbilityMap
             'suppression.manage', 'logs.view', 'analytics.view',
         ],
         'editor' => [
-            'campaign.create', 'campaign.publish', 'template.manage', 'audience.manage',
+            'campaign.create', 'campaign.publish', 'template.create', 'template.publish', 'audience.manage',
             'logs.view', 'analytics.view',
         ],
-        // Szerző: draftot készít, publikálni nem tud.
+        // Szerző: draftot készít, publikálni nem tud — sablonon keresztül sem.
         'author' => [
-            'campaign.create', 'template.manage',
+            'campaign.create', 'template.create',
             'analytics.view',
         ],
         // Elemző: csak olvas.
@@ -60,6 +60,16 @@ final class AbilityMap
     public static function all(): array
     {
         return collect(self::ABILITIES)->flatten()->unique()->values()->all();
+    }
+
+    /**
+     * Egy szerep összes képessége.
+     *
+     * @return list<string>
+     */
+    public static function abilitiesOf(Role $role): array
+    {
+        return self::ABILITIES[$role->value] ?? [];
     }
 
     /** @param list<string> $roles */
