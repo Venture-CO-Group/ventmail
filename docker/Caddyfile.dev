@@ -1,0 +1,34 @@
+# DEV konfiguráció (a fájlnév is ezt mondja): noindex + Basic Auth (golden rule 11).
+# Éles környezet SOHA nem ezt használja — oda saját Caddyfile jön a devops packetben.
+#
+# A :2020-as belső health-listener Basic Auth NÉLKÜL szolgálja ki a /up-ot, hogy a
+# konténer-healthcheck ne kelljen hogy plaintext jelszót tartson (security-review K6).
+:80 {
+	# A path a PHP-FPM konténerből nézve érvényes (SCRIPT_FILENAME), ezért /var/www/public.
+	root * /var/www/public
+	encode gzip
+
+	header {
+		X-Robots-Tag "noindex, nofollow, noarchive"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+	}
+
+	# A dev Basic Auth jelszó-hash env-ből jön, soha nem a repóból:
+	#   caddy hash-password --plaintext '<jelszo>'  →  DEV_BASIC_AUTH_HASH
+	basic_auth {
+		{$DEV_BASIC_AUTH_USER:ventmail} {$DEV_BASIC_AUTH_HASH}
+	}
+
+	php_fastcgi app:9000
+	file_server
+}
+
+# Csak a konténerhálón belül elérhető health-listener (nincs kimappelve a hosztra).
+# NEM a 2019, mert azt a Caddy admin API foglalja.
+:2020 {
+	root * /var/www/public
+	header X-Robots-Tag "noindex, nofollow, noarchive"
+	php_fastcgi app:9000
+}

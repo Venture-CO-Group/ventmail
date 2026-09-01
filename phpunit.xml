@@ -26,6 +26,8 @@
         <!-- A teszt VALÓDI PostgreSQL 17 + TimescaleDB ellen fut (dev és CI ugyanaz az image). -->
         <env name="DB_CONNECTION" value="pgsql"/>
         <env name="DB_DATABASE" value="ventmail_test"/>
+        <!-- A dev/CI Postgres nem ajánl TLS-t; éles környezetben a `require` az alapértelmezés. -->
+        <env name="DB_SSLMODE" value="disable"/>
         <env name="DB_URL" value=""/>
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>

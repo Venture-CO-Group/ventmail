@@ -42,7 +42,7 @@ return [
     |
     | Golden rule 2: a PreSendGate megkerülhetetlen. A stock Laravel transportok
     | (smtp, ses, postmark, resend, sendmail) készen álló megkerülési útvonalak:
-    | egy `Mail::to(...)->send()` a gate, a domain-hitelesítés és az audit mellett
+    | egy közvetlen Laravel-küldés a gate, a domain-hitelesítés és az audit mellett
     | menne ki. A ventMail MINDEN kimenő levele a Sending modul SendingDriverén megy
     | (M0-3). Ami itt marad, az csak fejlesztői napló és teszt-gyűjtő.
     |

@@ -22,11 +22,20 @@ use Illuminate\Support\ServiceProvider;
  */
 abstract class ModuleServiceProvider extends ServiceProvider
 {
-    /** A modul `routes/web.php`-jára alkalmazott stack. */
-    protected array $webMiddleware = ['web'];
+    /**
+     * A KÖTELEZŐ alap, amit modul nem vehet el (security-review M2): a `protected` property
+     * önmagában felülírható lett volna üres tömbre, és a route middleware nélkül regisztrált.
+     * A modul csak BŐVÍTHETI a stacket.
+     */
+    private const REQUIRED_WEB = ['web'];
 
-    /** A modul `routes/api.php`-jára alkalmazott stack. */
-    protected array $apiMiddleware = ['api'];
+    private const REQUIRED_API = ['api', 'throttle:api'];
+
+    /** A modul által HOZZÁADOTT web-middleware-ek. */
+    protected array $webMiddleware = [];
+
+    /** A modul által HOZZÁADOTT api-middleware-ek. */
+    protected array $apiMiddleware = [];
 
     /** URL-prefix a modul API-route-jaihoz (a `/v1` felület az Api modul gazdája). */
     protected string $apiPrefix = '';
@@ -36,10 +45,17 @@ abstract class ModuleServiceProvider extends ServiceProvider
         //
     }
 
-    public function boot(): void
+    final public function boot(): void
     {
         $this->loadModuleMigrations();
         $this->registerModuleRoutes();
+        $this->bootModule();
+    }
+
+    /** A modul saját boot-logikája (a route- és migráció-regisztráció nem írható felül). */
+    protected function bootModule(): void
+    {
+        //
     }
 
     /** A modul könyvtárának abszolút útvonala. */
@@ -59,20 +75,32 @@ abstract class ModuleServiceProvider extends ServiceProvider
         }
     }
 
-    protected function registerModuleRoutes(): void
+    final protected function registerModuleRoutes(): void
     {
         $web = $this->modulePath('routes/web.php');
 
         if (file_exists($web)) {
-            Route::middleware($this->webMiddleware)->group($web);
+            Route::middleware($this->webStack())->group($web);
         }
 
         $api = $this->modulePath('routes/api.php');
 
         if (file_exists($api)) {
-            Route::middleware($this->apiMiddleware)
+            Route::middleware($this->apiStack())
                 ->prefix($this->apiPrefix)
                 ->group($api);
         }
+    }
+
+    /** @return list<string> */
+    private function webStack(): array
+    {
+        return array_values(array_unique([...self::REQUIRED_WEB, ...$this->webMiddleware]));
+    }
+
+    /** @return list<string> */
+    private function apiStack(): array
+    {
+        return array_values(array_unique([...self::REQUIRED_API, ...$this->apiMiddleware]));
     }
 }

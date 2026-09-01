@@ -5,6 +5,10 @@ on:
   push:
     branches: [main]
 
+# A GITHUB_TOKEN a lehető legszűkebb jogot kapja (security-review B2).
+permissions:
+  contents: read
+
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -40,12 +44,17 @@ jobs:
       DB_DATABASE: ventmail_test
       DB_USERNAME: ventmail
       DB_PASSWORD: ventmail
+      DB_SSLMODE: disable
       REDIS_HOST: 127.0.0.1
 
     steps:
-      - uses: actions/checkout@v4
+      # Minden action commit SHA-ra pinelve: mozgó tag mellett egy retagelt action
+      # ugyanahhoz a futtatókörnyezethez (és tokenhez) férne hozzá.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
-      - uses: shivammathur/setup-php@v2
+      - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
         with:
           php-version: '8.3'
           extensions: pdo_pgsql, redis, intl, zip, bcmath, pcntl
@@ -71,35 +80,44 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          node-version: '22'
+          persist-credentials: false
 
-      # A @venture/* csomagok `file:../venture-*` linkkel jönnek, ezért a testvér-repóknak
-      # a workspace MELLETT kell lenniük — enélkül az npm ci ENOENT-tel bukna.
-      # Szükséges repo secret: VENTURE_PACKAGES_TOKEN (read:packages/repo scope).
-      - name: '@venture/design checkout'
-        uses: actions/checkout@v4
+      # A @venture/* csomagok `file:../venture-*` linkkel jönnek. Az actions/checkout csak a
+      # workspace-en BELÜLRE tud klónozni, ezért _packages/ alá megy, és onnan symlinkeljük a
+      # testvér-elrendezésbe. persist-credentials: false — különben a token a .git/config-ba
+      # kerülne, ahonnan egy PR-ből érkező npm lifecycle-script kiolvashatná (security-review B2).
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: Venture-CO-Group/venture-design
-          path: ../venture-design
+          path: _packages/venture-design
           token: ${{ secrets.VENTURE_PACKAGES_TOKEN }}
+          persist-credentials: false
 
-      - name: '@venture/ui checkout'
-        uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: Venture-CO-Group/venture-ui
-          path: ../venture-ui
+          path: _packages/venture-ui
           token: ${{ secrets.VENTURE_PACKAGES_TOKEN }}
+          persist-credentials: false
 
-      - name: '@venture/sdk checkout'
-        uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: Venture-CO-Group/venture-sdk
-          path: ../venture-sdk
+          path: _packages/venture-sdk
           token: ${{ secrets.VENTURE_PACKAGES_TOKEN }}
+          persist-credentials: false
+
+      - name: testvér-elrendezés (file: linkek feloldása)
+        run: |
+          for pkg in venture-design venture-ui venture-sdk; do
+            ln -sfn "${GITHUB_WORKSPACE}/_packages/${pkg}" "$(dirname "${GITHUB_WORKSPACE}")/${pkg}"
+          done
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
 
       # npm ci: a committolt package-lock.json kényszerül, a CI nem csúszhat el a lokálistól.
       - name: npm ci
@@ -119,13 +137,23 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          persist-credentials: false
 
-      # A gitleaks-action szervezeti repónál GITLEAKS_LICENSE-t követel; a bináris nem.
+      # A gitleaks-action szervezeti repónál licencet követel; a binárist futtatjuk.
+      # A release asset ugyanazon a tagen lecserélhető, ezért checksum-ellenőrzés kell.
       - name: gitleaks
+        env:
+          GITLEAKS_VERSION: 8.21.2
         run: |
-          curl -sSL "https://github.com/gitleaks/gitleaks/releases/download/v8.21.2/gitleaks_8.21.2_linux_x64.tar.gz" \
-            | tar -xz -C /tmp gitleaks
-          /tmp/gitleaks detect --source . --redact --no-banner --exit-code 1
+          set -euo pipefail
+          base="https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}"
+          curl -sSLo gitleaks.tar.gz "${base}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          curl -sSLo checksums.txt "${base}/gitleaks_${GITLEAKS_VERSION}_checksums.txt"
+          grep "gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" checksums.txt \
+            | sed "s|gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz|gitleaks.tar.gz|" \
+            | sha256sum -c -
+          tar -xzf gitleaks.tar.gz gitleaks
+          ./gitleaks detect --source . --redact --no-banner --exit-code 1

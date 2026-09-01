@@ -1,7 +1,7 @@
 *.log
 .DS_Store
 .env
-.env.backup
+
 .env.production
 .phpactor.json
 .phpunit.result.cache
@@ -27,3 +27,9 @@ Thumbs.db
 /test-results
 /playwright-report
 /e2e/.cache
+
+/_packages
+
+# Minden env-variáns rejtve, az example kivételével
+.env*
+!.env.example

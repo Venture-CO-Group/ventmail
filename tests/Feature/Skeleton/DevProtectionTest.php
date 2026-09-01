@@ -8,13 +8,13 @@ declare(strict_types=1);
  */
 
 it('a Caddyfile kikényszeríti a noindex fejlécet', function () {
-    $caddyfile = file_get_contents(base_path('docker/Caddyfile'));
+    $caddyfile = file_get_contents(base_path('docker/Caddyfile.dev'));
 
     expect($caddyfile)->toContain('X-Robots-Tag')->toContain('noindex');
 });
 
 it('a Caddyfile Basic Authot követel a dev-en', function () {
-    $caddyfile = file_get_contents(base_path('docker/Caddyfile'));
+    $caddyfile = file_get_contents(base_path('docker/Caddyfile.dev'));
 
     expect($caddyfile)->toContain('basic_auth');
 });
@@ -30,7 +30,7 @@ it('a Caddy dev hitelesítője friss klónon is használható', function () {
     // loopolna, és az első reflex a basic_auth kikommentelése lenne (golden rule 11 elvész).
     // A hash külön fájlban van, mert a compose a gyökér .env-et interpolálja.
     // A compose ezt a fájlt is interpolálja, ezért a bcrypt $-ok duplázva vannak ($$).
-    $caddyEnv = file_get_contents(base_path('docker/caddy.env'));
+    $caddyEnv = file_get_contents(base_path('docker/caddy.dev.env'));
 
     expect($caddyEnv)->toMatch('/DEV_BASIC_AUTH_HASH=\$\$2[aby]\$\$/');
 });

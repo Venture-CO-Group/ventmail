@@ -24,10 +24,22 @@ it('nincs harmadik felű e-mail szolgáltató konfigurálva', function () {
     }
 });
 
-it('a Sending modulon kívül senki nem használja a Mail facade-ot', function () {
+it('a Sending modulon kívül senki nem nyit kimenő e-mail utat', function () {
+    // Nem csak a facade: a Mail::build() a configot MEGKERÜLI (közvetlenül transportot épít),
+    // a Mail::extend() sajátot regisztrál, a Symfony transport és a PHP mail() pedig teljesen
+    // kikerüli a keretrendszert. Az egész repót nézzük, nem csak az app/ fát.
     $offenders = [];
 
-    foreach (File::allFiles(app_path()) as $file) {
+    $roots = array_filter([
+        app_path(),
+        base_path('routes'),
+        base_path('database'),
+        base_path('config'),
+    ], 'is_dir');
+
+    $files = collect($roots)->flatMap(fn (string $root) => File::allFiles($root));
+
+    foreach ($files as $file) {
         if ($file->getExtension() !== 'php') {
             continue;
         }
@@ -48,6 +60,6 @@ it('a Sending modulon kívül senki nem használja a Mail facade-ot', function (
     }
 
     expect($offenders)->toBeEmpty(
-        'a Mail facade csak a Sending modulban használható (PreSendGate): '.implode(', ', $offenders)
+        'kimenő e-mail utat csak a Sending modul nyithat (PreSendGate): '.implode(', ', $offenders)
     );
 });

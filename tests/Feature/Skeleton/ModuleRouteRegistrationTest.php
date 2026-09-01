@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Modules\Support\ModuleServiceProvider;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Route;
 
 /*
  | A modul-providerek NEM regisztrálhatnak route-ot csupasz loadRoutesFrom()-mal:
@@ -61,4 +62,37 @@ it('a modul-route-ok mindig middleware-stackkel regisztrálnak', function () {
     expect($source)
         ->toContain('Route::middleware(')
         ->toContain('->group(');
+});
+
+it('a kötelező middleware-alapot a modul nem veheti el', function () {
+    // A `protected array` felülírható lett volna üres tömbre (security-review M2):
+    // a kötelező alap ezért konstans, a regisztráló metódus final.
+    $source = file_get_contents(app_path('Modules/Support/ModuleServiceProvider.php'));
+
+    expect($source)
+        ->toContain('private const REQUIRED_WEB')
+        ->toContain('private const REQUIRED_API')
+        ->toContain('final protected function registerModuleRoutes')
+        ->toContain('final public function boot');
+});
+
+it('futásidőben minden modul-route middleware-csoportban van', function () {
+    // Nem sztringkeresés: a tényleges route-táblát nézzük.
+    $offenders = [];
+
+    foreach (Route::getRoutes() as $route) {
+        $action = $route->getAction('controller') ?? $route->getActionName();
+
+        if (! str_contains((string) $action, 'App\\Modules\\')) {
+            continue;
+        }
+
+        $middleware = $route->gatherMiddleware();
+
+        if (! in_array('web', $middleware, true) && ! in_array('api', $middleware, true)) {
+            $offenders[] = $route->uri();
+        }
+    }
+
+    expect($offenders)->toBeEmpty('middleware-csoport nélküli modul-route: '.implode(', ', $offenders));
 });

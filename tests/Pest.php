@@ -2,7 +2,6 @@
 
 declare(strict_types=1);
 
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 /*
@@ -12,4 +11,5 @@ use Tests\TestCase;
 
 pest()->extend(TestCase::class)->in('Feature');
 
-pest()->extend(TestCase::class)->use(RefreshDatabase::class)->in('Feature/Database');
+// A RefreshDatabase-t az adatbázist érintő tesztek maguk kérik (`uses(RefreshDatabase::class)`),
+// hogy a séma nélküli skeleton-tesztek gyorsak maradjanak.

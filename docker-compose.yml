@@ -7,9 +7,9 @@ services:
     restart: unless-stopped
     ports: ['127.0.0.1:8088:80']
     # A Basic Auth hash külön fájlban: a gyökér .env-et a compose interpolálja (a bcrypt $-ok elvesznének).
-    env_file: [docker/caddy.env]
+    env_file: [docker/caddy.dev.env]
     volumes:
-      - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./docker/Caddyfile.dev:/etc/caddy/Caddyfile:ro
       - ./public:/var/www/public:ro
       - caddydata:/data
     depends_on:
@@ -17,14 +17,9 @@ services:
         condition: service_healthy
     healthcheck:
       # Nem a bináris létét nézzük, hanem hogy a config betöltve kiszolgál-e.
-      # A BusyBox wget nem ismeri a --user/--password kapcsolót; a Basic Auth fejlécet
-      # kézzel adjuk át, így a check a TELJES láncot méri (Caddy → FPM → Laravel /up).
-      test:
-        - CMD-SHELL
-        - >-
-          wget -q --spider
-          --header="Authorization: Basic $$(printf '%s:%s' "$$DEV_BASIC_AUTH_USER" "$$DEV_BASIC_AUTH_PASSWORD" | base64)"
-          http://127.0.0.1/up
+      # A TELJES láncot méri (Caddy → FPM → Laravel /up), a belső, Basic Auth nélküli
+      # health-listeneren — így a healthchecknek nem kell plaintext jelszót tartania.
+      test: ['CMD', 'wget', '-q', '--spider', 'http://127.0.0.1:2020/up']
       interval: 30s
       timeout: 5s
       retries: 3
