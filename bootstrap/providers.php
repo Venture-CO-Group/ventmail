@@ -27,6 +27,7 @@ use App\Modules\Tenancy\Providers\TenancyServiceProvider;
 use App\Modules\Validation\Providers\ValidationServiceProvider;
 use App\Modules\Webhooks\Providers\WebhooksServiceProvider;
 use App\Providers\AppServiceProvider;
+use App\Providers\OutboundMailGuardServiceProvider;
 
 /*
  | Modulmonolit: minden app/Modules/<Name> modul saját ServiceProviderrel regisztrál.
@@ -35,6 +36,8 @@ use App\Providers\AppServiceProvider;
 
 return [
     AppServiceProvider::class,
+    // Golden rule 2: futásidőben metszi a stock Laravel mail-transportokat (megkerülés-védelem).
+    OutboundMailGuardServiceProvider::class,
 
     // közös motor
     IdentityServiceProvider::class,

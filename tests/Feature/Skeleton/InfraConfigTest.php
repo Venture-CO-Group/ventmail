@@ -42,6 +42,30 @@ it('minden service-nek van healthcheckje vagy függ egy healthy service-től', f
     }
 });
 
+it('egyetlen healthcheck sem no-op', function () {
+    // A `php -r 'exit(0);'` és a `caddy version` akkor is zöld, ha a service nem szolgál ki —
+    // az „7 service healthy" kritérium ilyenkor cáfolhatatlan állítás lenne.
+    foreach (composeConfig()['services'] as $name => $service) {
+        $test = implode(' ', (array) ($service['healthcheck']['test'] ?? []));
+
+        if ($test === '') {
+            continue;
+        }
+
+        expect($test)->not->toMatch('/exit\(0\)|(^|\s)(caddy|php)\s+(version|-v)(\s|$)/',
+            "no-op healthcheck: {$name}");
+    }
+});
+
+it('a kimappelt portok csak a localhoston hallgatnak', function () {
+    // 0.0.0.0-ra publikált, jelszó nélküli Redis/Postgres idegen hálón támadási felület.
+    foreach (composeConfig()['services'] as $name => $service) {
+        foreach ((array) ($service['ports'] ?? []) as $mapping) {
+            expect((string) $mapping)->toStartWith('127.0.0.1:', "a(z) {$name} nem localhostra publikál: {$mapping}");
+        }
+    }
+});
+
 it('a compose named volume-okat használ a perzisztens adatra', function () {
     expect(array_keys(composeConfig()['volumes'] ?? []))
         ->toContain('pgdata')
@@ -58,7 +82,7 @@ it('a CI ugyanazt a Timescale image-et használja, mint a dev', function () {
 it('a CI minden blokkoló kaput futtat', function () {
     $ci = file_get_contents(base_path('.github/workflows/ci.yml'));
 
-    foreach (['artisan test', 'pint', 'vue-tsc', 'composer audit', 'npm audit', 'gitleaks'] as $gate) {
+    foreach (['artisan test', 'pint', 'vue-tsc', 'composer audit', 'npm audit', 'gitleaks', 'npm ci'] as $gate) {
         expect($ci)->toContain($gate);
     }
 });
@@ -66,7 +90,10 @@ it('a CI minden blokkoló kaput futtat', function () {
 it('az .env.example nem tartalmaz titkot', function () {
     $lines = file(base_path('.env.example'), FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
 
-    $secretKeys = ['APP_KEY', 'OIDC_CLIENT_SECRET', 'MEILISEARCH_KEY', 'DKIM_PRIVATE_KEY'];
+    // Valódi titkok: ezek SOHA nem kaphatnak értéket az example-ben. A dokumentált,
+    // kizárólag lokálisan érvényes dev-értékek (Basic Auth hash, Meili dev key, dev DB-jelszó)
+    // szándékosan benne vannak, hogy friss klónon elinduljon a stack.
+    $secretKeys = ['APP_KEY', 'OIDC_CLIENT_SECRET', 'REVERB_APP_SECRET', 'DKIM_PRIVATE_KEY'];
 
     foreach ($lines as $line) {
         if (str_starts_with(trim($line), '#') || ! str_contains($line, '=')) {

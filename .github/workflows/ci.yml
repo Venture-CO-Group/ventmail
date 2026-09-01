@@ -77,10 +77,33 @@ jobs:
         with:
           node-version: '22'
 
-      # A @venture/* csomagok file: linkkel jönnek — a CI-ban a registry-tarballt használjuk,
-      # amíg a privát registry nem él, addig ez a lépés a lokális csomagokat várja.
-      - name: npm install
-        run: npm install --no-audit --no-fund
+      # A @venture/* csomagok `file:../venture-*` linkkel jönnek, ezért a testvér-repóknak
+      # a workspace MELLETT kell lenniük — enélkül az npm ci ENOENT-tel bukna.
+      # Szükséges repo secret: VENTURE_PACKAGES_TOKEN (read:packages/repo scope).
+      - name: '@venture/design checkout'
+        uses: actions/checkout@v4
+        with:
+          repository: Venture-CO-Group/venture-design
+          path: ../venture-design
+          token: ${{ secrets.VENTURE_PACKAGES_TOKEN }}
+
+      - name: '@venture/ui checkout'
+        uses: actions/checkout@v4
+        with:
+          repository: Venture-CO-Group/venture-ui
+          path: ../venture-ui
+          token: ${{ secrets.VENTURE_PACKAGES_TOKEN }}
+
+      - name: '@venture/sdk checkout'
+        uses: actions/checkout@v4
+        with:
+          repository: Venture-CO-Group/venture-sdk
+          path: ../venture-sdk
+          token: ${{ secrets.VENTURE_PACKAGES_TOKEN }}
+
+      # npm ci: a committolt package-lock.json kényszerül, a CI nem csúszhat el a lokálistól.
+      - name: npm ci
+        run: npm ci --no-audit --no-fund
 
       - name: vue-tsc (típusellenőrzés)
         run: npm run typecheck
@@ -100,7 +123,9 @@ jobs:
         with:
           fetch-depth: 0
 
+      # A gitleaks-action szervezeti repónál GITLEAKS_LICENSE-t követel; a bináris nem.
       - name: gitleaks
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          curl -sSL "https://github.com/gitleaks/gitleaks/releases/download/v8.21.2/gitleaks_8.21.2_linux_x64.tar.gz" \
+            | tar -xz -C /tmp gitleaks
+          /tmp/gitleaks detect --source . --redact --no-banner --exit-code 1

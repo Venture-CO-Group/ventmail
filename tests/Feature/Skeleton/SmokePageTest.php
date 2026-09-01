@@ -35,7 +35,12 @@ it('a frontend nem tartalmaz beégetett design tokent', function () {
     foreach ($files as $file) {
         $contents = file_get_contents($file->getPathname());
 
-        if (preg_match('/#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\(/', $contents)) {
+        // CLAUDE.md: hardcode szín / spacing / font TILOS — mindhármat nézzük.
+        $hardcoded = '/#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\('          // szín
+            .'|\b\d+(\.\d+)?(px|rem|em)\b'                          // spacing / méret
+            .'|font-family\s*:/i';                                    // betűtípus
+
+        if (preg_match($hardcoded, $contents)) {
             $offenders[] = $file->getRelativePathname();
         }
     }

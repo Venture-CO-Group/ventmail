@@ -5,17 +5,26 @@ services:
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
-    ports: ['8088:80']
-    env_file: [.env]
+    ports: ['127.0.0.1:8088:80']
+    # A Basic Auth hash külön fájlban: a gyökér .env-et a compose interpolálja (a bcrypt $-ok elvesznének).
+    env_file: [docker/caddy.env]
     volumes:
       - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
-      - .:/var/www:ro
+      - ./public:/var/www/public:ro
       - caddydata:/data
     depends_on:
       app:
         condition: service_healthy
     healthcheck:
-      test: ['CMD', 'caddy', 'version']
+      # Nem a bináris létét nézzük, hanem hogy a config betöltve kiszolgál-e.
+      # A BusyBox wget nem ismeri a --user/--password kapcsolót; a Basic Auth fejlécet
+      # kézzel adjuk át, így a check a TELJES láncot méri (Caddy → FPM → Laravel /up).
+      test:
+        - CMD-SHELL
+        - >-
+          wget -q --spider
+          --header="Authorization: Basic $$(printf '%s:%s' "$$DEV_BASIC_AUTH_USER" "$$DEV_BASIC_AUTH_PASSWORD" | base64)"
+          http://127.0.0.1/up
       interval: 30s
       timeout: 5s
       retries: 3
@@ -42,7 +51,8 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ['CMD', 'php', '-r', 'exit(0);']
+      # Nem no-op: valóban megszólítja az FPM-et a 9000-en.
+      test: ['CMD-SHELL', 'nc -z 127.0.0.1 9000']
       interval: 30s
       timeout: 5s
       retries: 3
@@ -55,7 +65,7 @@ services:
       POSTGRES_DB: ${DB_DATABASE:-ventmail}
       POSTGRES_USER: ${DB_USERNAME:-ventmail}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-ventmail}
-    ports: ['54329:5432']
+    ports: ['127.0.0.1:54329:5432']
     volumes: ['pgdata:/home/postgres/pgdata/data']
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U ${DB_USERNAME:-ventmail} -d ${DB_DATABASE:-ventmail}']
@@ -66,7 +76,7 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    ports: ['63799:6379']
+    ports: ['127.0.0.1:63799:6379']
     volumes: ['redisdata:/data']
     healthcheck:
       test: ['CMD', 'redis-cli', 'ping']
@@ -109,7 +119,7 @@ services:
     restart: unless-stopped
     working_dir: /var/www
     command: ['php', 'artisan', 'reverb:start', '--host=0.0.0.0', '--port=8081']
-    ports: ['8081:8081']
+    ports: ['127.0.0.1:8081:8081']
     volumes: ['.:/var/www']
     env_file: [.env]
     environment:
@@ -134,8 +144,8 @@ services:
     restart: unless-stopped
     environment:
       MEILI_ENV: development
-      MEILI_MASTER_KEY: ${MEILISEARCH_KEY:-ventmail-dev-key}
-    ports: ['7700:7700']
+      MEILI_MASTER_KEY: ${MEILISEARCH_KEY:?a MEILISEARCH_KEY kotelezo (.env)}
+    ports: ['127.0.0.1:7700:7700']
     volumes: ['meilidata:/meili_data']
     healthcheck:
       test: ['CMD', 'curl', '-fsS', 'http://127.0.0.1:7700/health']
