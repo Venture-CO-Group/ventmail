@@ -117,7 +117,13 @@ final class AuditLogger
         // Objektumot is be kell járni: egy DTO publikus property-je ugyanúgy tartalmazhat
         // jelszót, és az Eloquent `array` cast kiszerializálná.
         if (is_object($value)) {
-            return $this->redact(json_decode((string) json_encode($value), true) ?? [], $depth + 1);
+            // Egy objektum skalárrá is szerializálódhat (pl. Carbon dátum) — ilyenkor
+            // nincs mit bejárni, de a sztring-mintákat akkor is nézni kell.
+            $decoded = json_decode((string) json_encode($value), true);
+
+            return is_array($decoded)
+                ? $this->redact($decoded, $depth + 1)
+                : $this->redactValue($decoded, $depth);
         }
 
         if (is_string($value)) {
