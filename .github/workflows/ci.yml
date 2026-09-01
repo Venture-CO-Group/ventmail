@@ -109,7 +109,7 @@ jobs:
           token: ${{ secrets.VENTURE_PACKAGES_TOKEN }}
           persist-credentials: false
 
-      - name: testvér-elrendezés (file: linkek feloldása)
+      - name: 'testvér-elrendezés (a file: linkek feloldása)'
         run: |
           for pkg in venture-design venture-ui venture-sdk; do
             ln -sfn "${GITHUB_WORKSPACE}/_packages/${pkg}" "$(dirname "${GITHUB_WORKSPACE}")/${pkg}"

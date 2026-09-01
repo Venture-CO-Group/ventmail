@@ -1,6 +1,7 @@
 <?php
 
 declare(strict_types=1);
+use Symfony\Component\Yaml\Yaml;
 
 /*
  | A CI titkot lát (VENTURE_PACKAGES_TOKEN), és a PR-ből érkező kódot futtatja (npm ci,
@@ -12,6 +13,14 @@ function ciWorkflow(): string
 {
     return file_get_contents(base_path('.github/workflows/ci.yml'));
 }
+
+it('a workflow YAML érvényes', function () {
+    // Egy idézőjel nélküli kettőspont a step-névben „workflow file issue"-val bukatja az
+    // EGÉSZ futást — a hiba a GitHub-logban nem is látszik. Ezért lokálisan parse-oljuk.
+    $workflow = Yaml::parseFile(base_path('.github/workflows/ci.yml'));
+
+    expect($workflow['jobs'] ?? [])->toHaveKeys(['backend', 'frontend', 'security']);
+});
 
 it('a workflow szűkíti a GITHUB_TOKEN jogosultságát', function () {
     expect(ciWorkflow())->toContain('permissions:')->toContain('contents: read');
