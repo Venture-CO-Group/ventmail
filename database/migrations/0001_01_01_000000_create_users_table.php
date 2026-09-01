@@ -18,7 +18,10 @@ return new class extends Migration
         Schema::create('users', function (Blueprint $table) {
             $table->id();
             $table->string('name');
-            $table->string('email')->unique();
+            // Az azonosító a ventSSO `sub` (lásd a következő migrációt) — az e-mail csak
+            // megjelenítési adat, ezért NEM unique: két SSO-alany címe egybeeshet, és az
+            // e-mail alapú párosítás account takeover-t engedne.
+            $table->string('email')->index();
             $table->timestamp('email_verified_at')->nullable();
             $table->timestamps();
         });

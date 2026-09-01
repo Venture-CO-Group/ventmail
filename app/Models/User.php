@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Modules\Tenancy\Models\Workspace;
 use Database\Factories\UserFactory;
 use Illuminate\Auth\Authenticatable as AuthenticatableTrait;
 use Illuminate\Contracts\Auth\Authenticatable as AuthenticatableContract;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Notifications\Notifiable;
 
 /**
@@ -46,8 +48,11 @@ class User extends Model implements AuthenticatableContract
      * @var list<string>
      */
     protected $fillable = [
+        'sso_subject',
         'name',
         'email',
+        'locale',
+        'last_login_at',
     ];
 
     /**
@@ -57,7 +62,17 @@ class User extends Model implements AuthenticatableContract
     {
         return [
             'email_verified_at' => 'datetime',
+            'last_login_at' => 'datetime',
         ];
+    }
+
+    /**
+     * A tenant-tagság EGYETLEN forrása (golden rule 1) — a ventSSO tokenje sosem dönt
+     * workspace-hozzáférésről.
+     */
+    public function workspaces(): BelongsToMany
+    {
+        return $this->belongsToMany(Workspace::class, 'workspace_members');
     }
 
     /** A ventMail nem tárol jelszót — a jelszó-alapú hitelesítés nem értelmezett. */
