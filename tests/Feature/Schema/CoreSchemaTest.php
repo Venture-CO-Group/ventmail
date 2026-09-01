@@ -17,7 +17,8 @@ it('minden M0-tábla létrejön', function () {
         'api_keys', 'smtp_credentials',
         'domains', 'sending_identities',
         'ip_pools', 'ip_addresses',
-        'suppressions', 'messages', 'message_events', 'audit_logs',
+        'suppressions', 'consents', 'messages', 'message_events', 'audit_logs',
+        'domain_ip_pool',
     ];
 
     foreach ($tables as $table) {
@@ -65,9 +66,19 @@ it('a publikus entitásokon van uuid', function () {
     }
 });
 
-it('a GDPR-releváns táblákon van soft delete', function () {
+it('a visszavonható konfigurációs entitásokon van soft delete', function () {
+    // Ezek konfigurációs entitások: a törlés visszavonható kell legyen (véletlen törlés,
+    // audit-nyomkövetés). NEM ide tartozik a `messages` és a `message_events`: azok
+    // személyes adatot HORDOZNAK, és a törlésük RETENCIÓ-alapú, végleges (golden rule 10) —
+    // soft delete ott épp a retenciót hiúsítaná meg.
     foreach (['workspaces', 'domains', 'api_keys', 'smtp_credentials'] as $table) {
         expect(Schema::hasColumn($table, 'deleted_at'))->toBeTrue("hiányzó soft delete: {$table}");
+    }
+
+    foreach (['messages', 'message_events'] as $table) {
+        expect(Schema::hasColumn($table, 'deleted_at'))->toBeFalse(
+            "{$table}: a PII-t hordozó tábla törlése retenció-alapú, nem soft delete"
+        );
     }
 });
 
