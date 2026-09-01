@@ -84,6 +84,17 @@ jobs:
         with:
           persist-credentials: false
 
+      # Beszédes hiba, ha a secret hiányzik: enélkül a checkout csak annyit mond,
+      # hogy „Input required and not supplied: token".
+      - name: 'előfeltétel ellenőrzése'
+        env:
+          PACKAGES_TOKEN: ${{ secrets.VENTURE_PACKAGES_TOKEN }}
+        run: |
+          if [ -z "${PACKAGES_TOKEN}" ]; then
+            echo "::error::Hiányzik a VENTURE_PACKAGES_TOKEN repo secret. A frontend kapu a privát @venture/design|ui|sdk csomagokat klónozza; enélkül nem futtatható. Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+
       # A @venture/* csomagok `file:../venture-*` linkkel jönnek. Az actions/checkout csak a
       # workspace-en BELÜLRE tud klónozni, ezért _packages/ alá megy, és onnan symlinkeljük a
       # testvér-elrendezésbe. persist-credentials: false — különben a token a .git/config-ba

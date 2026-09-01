@@ -8,7 +8,10 @@ declare(strict_types=1);
  */
 
 it('a smoke oldal Inertia-választ ad', function () {
-    $this->get('/')
+    // A backend-kapu nem függhet a lefordított Vite-manifesttől (a CI ott nem buildel);
+    // a tényleges renderelést a Playwright e2e fedi.
+    $this->withoutVite()
+        ->get('/')
         ->assertOk()
         ->assertInertia(fn ($page) => $page->component('Smoke'));
 });
