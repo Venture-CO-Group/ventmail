@@ -10,6 +10,43 @@
 
 ## M0 — Közös mag
 
+### M0-0 · Skeleton + infra + CI → `venture-devops` → `venture-backend`
+
+```
+Kontextus: ventMail v2 — a repóban MÉG NINCS Laravel-skeleton (nincs composer.json). Ez a packet
+hozza létre a vázat, hogy az M0-1..M0-4 tiszta domain-munka lehessen. Kanonikus Venture stack.
+Precedens: ~/Developer/venture/ventvault (Laravel 12 modulmonolit, app/Modules/) és
+~/Developer/venture/ventsso (Vite + Inertia + @venture csomagok). NE tervezz újat — kövesd a mintát.
+A CLAUDE.md és a .claude/rules/ kötelező. Domain-logikát ebben a packetben NEM írunk.
+
+Feladat (teszt előbb):
+1) venture-devops:
+   - docker-compose.yml: caddy · app (PHP 8.3-FPM) · db (timescale/timescaledb-ha:pg17) · redis ·
+     horizon · reverb · meilisearch. Minden service healthcheckkel, named volume-okkal.
+   - docker/Caddyfile (dev: noindex X-Robots-Tag + Basic Auth), .env.example (SECRET NÉLKÜL).
+   - .github/workflows/ci.yml — blokkoló kapuk: php artisan test --parallel · pint · vue-tsc ·
+     composer audit · npm audit · gitleaks. A CI ugyanazt a timescaledb-ha:pg17 image-et használja.
+2) venture-backend:
+   - Laravel 12 skeleton (PHP ^8.3), Inertia + Vue 3 + TS + Vite, Pest, Playwright váz.
+   - composer: inertiajs/inertia-laravel, laravel/horizon, laravel/reverb, laravel/scout,
+     meilisearch/meilisearch-php, league/oauth2-client, firebase/php-jwt (az M0-1 ezekre épít).
+   - npm: @venture/design, @venture/ui, @venture/sdk — 'file:../venture-*' linkkel (ventSSO mintája).
+   - app/Modules/<Name>/ váz mind a 24 modulra (Identity Tenancy Domains IpPools Sending Events
+     Suppression Messages Smtp Inbound Logs Validation Webhooks Deliverability StoredTemplates
+     Audience Consent Template Campaign Journey Forms Analytics Billing SuperAdmin Api) — minden
+     modulban README.md + ServiceProvider + a szokásos alkönyvtárak.
+   - Egy smoke Inertia-oldal, amely @venture/ui komponenst renderel @venture/design tokenekkel.
+
+Elfogadási kritériumok (tesztekkel):
+- docker compose up -d után minden service healthy; php artisan test zöld a KONTÉNERBEN (PHP 8.3).
+- a smoke oldal betölt, @venture/design tokenek CSS-változóként jelen vannak; vue-tsc hibátlan.
+- a CI minden kapuja zöld; gitleaks nem talál titkot; hardcode szín/spacing/font SEHOL.
+- mind a 24 modul váza létezik README-vel.
+
+DoD: konténerben zöld teszt · zöld CI · token-tiszta smoke oldal · 24 modulváz · nincs beégetett titok.
+Zárás: reviewer + contract-guard → /pr-kapu → PR.
+```
+
 ### M0-1 · Tenancy + OIDC + sub-account váz → `venture-architect` → `venture-backend`
 
 ```
