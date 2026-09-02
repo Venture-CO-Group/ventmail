@@ -4,6 +4,7 @@ declare(strict_types=1);
 use App\Modules\Analytics\Providers\AnalyticsServiceProvider;
 use App\Modules\Api\Providers\ApiServiceProvider;
 use App\Modules\Audience\Providers\AudienceServiceProvider;
+use App\Modules\Audit\Providers\AuditServiceProvider;
 use App\Modules\Billing\Providers\BillingServiceProvider;
 use App\Modules\Campaign\Providers\CampaignServiceProvider;
 use App\Modules\Consent\Providers\ConsentServiceProvider;
@@ -40,6 +41,7 @@ return [
     OutboundMailGuardServiceProvider::class,
 
     // közös motor
+    AuditServiceProvider::class,
     IdentityServiceProvider::class,
     TenancyServiceProvider::class,
     DomainsServiceProvider::class,

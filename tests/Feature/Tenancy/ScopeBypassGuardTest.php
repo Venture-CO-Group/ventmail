@@ -19,7 +19,12 @@ it('a Tenancy modulon kívül senki nem kerüli meg a global scope-ot', function
 
         $relative = $file->getRelativePathname();
 
-        if (str_starts_with($relative, 'Tenancy/')) {
+        // Dokumentált kivétel: az API-kulcs feloldása a kontextus FORRÁSA — lookup-időben
+        // még nincs workspace. A kikapcsolás ott egyetlen, szűk, hash-egyezésre korlátozott
+        // lekérdezésre szól, és teszt fedi (ApiKeyLookupTest).
+        $exceptions = ['Identity/Models/ApiKey.php'];
+
+        if (str_starts_with($relative, 'Tenancy/') || in_array($relative, $exceptions, true)) {
             continue;
         }
 
