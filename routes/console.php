@@ -19,3 +19,7 @@ Schedule::command('domains:verify --verified')->daily();
 
 // A lejárt előző DKIM privát kulcs törlése (a kompromittálódás ablakának zárása).
 Schedule::command('domains:purge-dkim')->daily();
+
+// Az esedékes, ütemezett üzenetek kiküldése — a kapuk ÚJRAÉRTÉKELÉSÉVEL (a közben érkezett
+// leiratkozásnak számítania kell).
+Schedule::command('messages:dispatch-scheduled')->everyMinute()->withoutOverlapping();

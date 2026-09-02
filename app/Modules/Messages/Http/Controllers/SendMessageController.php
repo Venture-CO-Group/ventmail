@@ -5,9 +5,12 @@ declare(strict_types=1);
 namespace App\Modules\Messages\Http\Controllers;
 
 use App\Modules\Api\Support\ApiError;
+use App\Modules\Billing\Contracts\VentPayClient;
+use App\Modules\Identity\Models\ApiKey;
 use App\Modules\IpPools\Models\IpPool;
 use App\Modules\Messages\Data\MailgunPayload;
 use App\Modules\Sending\Actions\SendMessage;
+use App\Modules\Sending\Gate\GateReason;
 use App\Modules\StoredTemplates\Models\StoredTemplate;
 use App\Modules\StoredTemplates\Services\TemplateRenderer;
 use Illuminate\Http\JsonResponse;
@@ -23,8 +26,25 @@ use InvalidArgumentException;
  */
 final class SendMessageController
 {
-    public function __invoke(Request $request, SendMessage $send, TemplateRenderer $renderer): JsonResponse
-    {
+    public function __invoke(
+        Request $request,
+        SendMessage $send,
+        TemplateRenderer $renderer,
+        VentPayClient $ventPay,
+    ): JsonResponse {
+        /** @var ApiKey|null $apiKey */
+        $apiKey = $request->attributes->get('api_key');
+
+        // A csatolmányt ma nem támogatjuk — a NÉMA eldobás rosszabb szerződés, mint a hiba:
+        // a hívó 202-t kapna, és a levél csatolmány nélkül menne ki.
+        if ($request->hasFile('attachment') || $request->hasFile('inline')) {
+            return ApiError::badRequest(
+                'UNSUPPORTED_ATTACHMENT',
+                'A csatolmány-küldés még nem támogatott (ventSec ClamAV-lánc: A4). '
+                .'Használj hivatkozást a tartalomra.'
+            );
+        }
+
         try {
             $payload = MailgunPayload::fromRequest($request->all());
         } catch (InvalidArgumentException $e) {
@@ -59,35 +79,75 @@ final class SendMessageController
         $ipPoolId = null;
 
         if ($payload->ipPool !== null) {
-            $pool = IpPool::query()->where('name', $payload->ipPool)->first();
+            // A SAJÁT pool előnyben a platform-szintűvel szemben: névütközésnél különben
+            // nem lenne determinisztikus, melyiket kapja a tenant.
+            $pool = IpPool::query()
+                ->where('name', $payload->ipPool)
+                ->orderByRaw('workspace_id is null')
+                ->first();
 
             if ($pool === null) {
                 return ApiError::badRequest('UNKNOWN_IP_POOL', "Ismeretlen IP-pool: {$payload->ipPool}");
+            }
+
+            // Dedikált pool ENTITLEMENT-hez kötött (ventPay): különben bárki rátehetné a
+            // forgalmát egy fizetett, jó reputációjú IP-re.
+            if ($pool->type === 'dedicated' && ! $ventPay->hasEntitlement((int) $pool->workspace_id, 'dedicated_ip')) {
+                return ApiError::rejected(
+                    'ENTITLEMENT_REQUIRED',
+                    'A dedikált IP-pool használata a csomagod része kell legyen (dedicated_ip).'
+                );
+            }
+
+            // Marketing IP nem vihet tranzakciós forgalmat és fordítva (spec 5.):
+            // a reputáció-szeparáció az egész ESP-modell alapja.
+            if (! $pool->servesChannel($payload->channel)) {
+                return ApiError::badRequest('IP_POOL_CHANNEL_MISMATCH', sprintf(
+                    'A(z) %s pool a(z) %s csatornára van fenntartva, nem a(z) %s-re.',
+                    $pool->name,
+                    (string) $pool->channel,
+                    $payload->channel
+                ));
             }
 
             $ipPoolId = $pool->getKey();
         }
 
         $result = $send([
-            'channel' => (string) $request->input('o:channel', 'transactional'),
+            // A csatornát a payload-parser allowlistázza, a JOGOSULTSÁGOT az `api.channel`
+            // middleware dönti el — a kontroller nem hoz biztonsági döntést.
+            'channel' => $payload->channel,
             'from_email' => $payload->fromEmail,
             'from_name' => $payload->fromName,
             'subject' => $payload->subject,
             'to' => $payload->recipients,
             'html' => $html,
             'text' => $text,
-            'rendered_html' => $html,
             'tags' => $payload->tags,
             'variables' => $payload->variables,
             'headers' => $payload->headers,
             'options' => $payload->options,
             'deliverytime' => $payload->deliverytime,
-            'testmode' => $payload->testmode,
+            // A teszt-kulcs testmode-ja NEM kapcsolható le a hívó oldaláról: egy CI-ban
+            // hagyott kulcs különben valódi címzettekre küldene (Mailgun-viselkedés).
+            'testmode' => $payload->testmode || $apiKey?->testmode === true,
             'ip_pool_id' => $ipPoolId,
             'idempotency_key' => (string) $request->attributes->get('idempotency_key'),
         ]);
 
         if (! $result->decision->allowed) {
+            // Az idempotencia-kulcs újrahasználata a HÍVÓ hibája, nem a gate elutasítása:
+            // 409, hogy a kliens tudja, a második levele NEM ment ki.
+            if ($result->decision->reason === GateReason::IdempotencyKeyReused->value) {
+                return ApiError::response(
+                    GateReason::IdempotencyKeyReused->value,
+                    'Ezt az Idempotency-Key-t már használtad MÁS kérés-tartalommal. '
+                    .'Új levélhez új kulcs kell — különben a második levél csendben elveszne.',
+                    409,
+                    ['id' => $result->message->uuid]
+                );
+            }
+
             return ApiError::rejected(
                 (string) $result->decision->reason,
                 $this->explain($result->decision->reason),

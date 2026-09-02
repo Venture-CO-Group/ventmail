@@ -24,13 +24,7 @@ final class TemplateRenderer
             function (array $matches) use ($variables, $escape): string {
                 $value = data_get($variables, $matches[1], '');
 
-                if (is_array($value)) {
-                    $value = json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-                }
-
-                $value = (string) $value;
-
-                return $escape ? htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : $value;
+                return $escape ? $this->escape($value) : (string) (is_array($value) ? json_encode($value) : $value);
             },
             $template
         );
@@ -52,18 +46,44 @@ final class TemplateRenderer
         array $recipientVariables,
         array $shared = [],
     ): string {
-        $variables = array_merge($shared, $recipientVariables[$recipient] ?? []);
+        // A hívó írja a `recipient-variables` kulcsait, a címzett viszont kisbetűsítve
+        // tárolódik: illesztés előtt normalizálunk, különben a nem egyező kulcs ÜRES
+        // behelyettesítést adna, és a levél mégis kimenne.
+        $normalized = [];
 
-        // Mailgun-szintaxis: %recipient.kulcs% és %recipient_email%
-        $rendered = (string) preg_replace_callback(
-            '/%recipient\.([a-zA-Z0-9_]+)%/',
-            fn (array $m) => htmlspecialchars((string) ($variables[$m[1]] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'),
+        foreach ($recipientVariables as $email => $values) {
+            $normalized[strtolower(trim((string) $email))] = $values;
+        }
+
+        $variables = array_merge($shared, (array) ($normalized[strtolower(trim($recipient))] ?? []));
+        $variables['recipient_email'] = $recipient;
+
+        // EGYETLEN PASS mindkét szintaxisra. Korábban a `%recipient.x%` EREDMÉNYE újra
+        // átment a `{{ }}` renderelésen — a `htmlspecialchars` a `{` és a `%` karaktert
+        // nem escape-eli, tehát a hívótól jövő érték MÁSODSZOR is kiértékelődött.
+        return (string) preg_replace_callback(
+            '/%recipient\.([a-zA-Z0-9_]+)%|%recipient_email%|\{\{\s*([a-zA-Z0-9_.]+)\s*\}\}/',
+            function (array $matches) use ($variables): string {
+                $name = match (true) {
+                    ($matches[1] ?? '') !== '' => $matches[1],
+                    ($matches[2] ?? '') !== '' => $matches[2],
+                    default => 'recipient_email',
+                };
+
+                return $this->escape(data_get($variables, $name, ''));
+            },
             $template
         );
+    }
 
-        $rendered = str_replace('%recipient_email%', htmlspecialchars($recipient, ENT_QUOTES, 'UTF-8'), $rendered);
+    private function escape(mixed $value): string
+    {
+        if (is_array($value)) {
+            $value = json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        }
 
-        // A `{{ }}` szintaxis is működik ugyanazokkal a változókkal.
-        return $this->render($rendered, $variables);
+        // ENT_SUBSTITUTE: érvénytelen UTF-8 esetén a hibás bájt cserélődik, nem az EGÉSZ
+        // érték tűnik el (különben a behelyettesítés némán üres lenne).
+        return htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     }
 }

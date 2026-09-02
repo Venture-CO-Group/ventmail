@@ -53,9 +53,19 @@ class AppServiceProvider extends ServiceProvider
     private function configureRateLimiting(): void
     {
         RateLimiter::for('api', function (Request $request) {
-            $key = $request->user()?->getAuthIdentifier() ?? $request->ip();
+            // A `/v1`-en nincs session-user: a kulcs a bucket alapja. IP-alapon két tenant
+            // egy NAT vagy CI-runner mögött megeszi egymás keretét (cross-tenant DoS),
+            // egy kulcs pedig sok IP-ről gyakorlatilag korlátlan lenne.
+            //
+            // A throttle az `api.auth` ELŐTT fut, ezért a bearer tokent hasheljük — nyers
+            // kulcs sosem kerül cache-kulcsba.
+            $bearer = $request->bearerToken() ?? $request->getPassword();
 
-            return Limit::perMinute(300)->by((string) $key);
+            $bucket = is_string($bearer) && $bearer !== ''
+                ? 'key:'.hash('sha256', $bearer)
+                : 'ip:'.$request->ip();
+
+            return Limit::perMinute(300)->by($bucket);
         });
 
         // A bejelentkezési folyamat hitelesítetlen: minden hívás session-rekordot ír és

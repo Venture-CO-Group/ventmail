@@ -33,4 +33,7 @@ enum GateReason: string
      * Nem „elfogadva" — a hívónak tudnia kell, hogy nincs végleges válasz.
      */
     case InProgress = 'IN_PROGRESS';
+
+    /** Ugyanaz az Idempotency-Key MÁS kérés-tartalommal. */
+    case IdempotencyKeyReused = 'IDEMPOTENCY_KEY_REUSED';
 }

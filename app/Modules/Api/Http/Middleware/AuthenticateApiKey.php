@@ -9,6 +9,8 @@ use App\Modules\Tenancy\Models\Workspace;
 use App\Modules\Tenancy\Services\WorkspaceContext;
 use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -28,26 +30,35 @@ final class AuthenticateApiKey
         $plain = $this->extractKey($request);
 
         if ($plain === null) {
-            return $this->unauthorized('Hiányzó API-kulcs. Használj `Authorization: Bearer <kulcs>` fejlécet.');
+            return $this->unauthorized();
         }
 
         $key = ApiKey::findByPlainKey($plain);
 
+        // EGYETLEN üzenet minden hitelesítési hibára: a különböző szövegek orákulumot
+        // adnának arra, hogy a kulcs valódi-e (csak a workspace-e törölt).
         if ($key === null) {
-            return $this->unauthorized('Érvénytelen vagy lejárt API-kulcs.');
+            return $this->unauthorized();
         }
 
         $workspace = Workspace::query()->whereKey($key->workspace_id)->first();
 
         if ($workspace === null) {
-            return $this->unauthorized('A kulcshoz tartozó workspace nem érhető el.');
+            Log::warning('API-kulcs elérhetetlen workspace-hez', ['api_key_id' => $key->getKey()]);
+
+            return $this->unauthorized();
         }
 
         $this->context->set($workspace);
         $request->attributes->set('api_key', $key);
 
-        // A használat rögzítése: a super-admin (C2) ebből látja az árva kulcsokat.
-        $key->forceFill(['last_used_at' => now()])->saveQuietly();
+        // A használat rögzítése LEGFELJEBB PERCENKÉNT: minden híváson írva ugyanarra a forró
+        // sorra folyamatos row-lock és WAL-forgalom lenne, épp a küldési csúcson.
+        Cache::remember('api-key-used:'.$key->getKey(), 60, function () use ($key): bool {
+            $key->forceFill(['last_used_at' => now()])->saveQuietly();
+
+            return true;
+        });
 
         return $next($request);
     }
@@ -61,16 +72,24 @@ final class AuthenticateApiKey
         }
 
         // Mailgun-paritás: a legacy integrációk HTTP Basic authot használnak `api:<kulcs>`
-        // formában. Ez teszi lehetővé a kódmódosítás nélküli átállást.
+        // formában. A felhasználónevet KÖVETELJÜK, hogy a kulcs ne kerülhessen véletlenül
+        // URL-userinfóba (ahonnan proxy- és access-logba szivárogna).
+        if ($request->getUser() !== 'api') {
+            return null;
+        }
+
         $password = $request->getPassword();
 
         return is_string($password) && $password !== '' ? $password : null;
     }
 
-    private function unauthorized(string $message): Response
+    private function unauthorized(): Response
     {
         return response()->json([
-            'error' => ['code' => 'UNAUTHENTICATED', 'message' => $message],
+            'error' => [
+                'code' => 'UNAUTHENTICATED',
+                'message' => 'Hiányzó vagy érvénytelen API-kulcs.',
+            ],
         ], 401);
     }
 }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Messages\Providers;
 
+use App\Modules\Messages\Console\DispatchScheduledCommand;
 use App\Modules\Support\ModuleServiceProvider;
 
 /**
@@ -21,4 +22,11 @@ final class MessagesServiceProvider extends ModuleServiceProvider
     protected array $apiMiddleware = ['api.auth'];
 
     protected string $apiPrefix = 'v1';
+
+    protected function bootModule(): void
+    {
+        if ($this->app->runningInConsole()) {
+            $this->commands([DispatchScheduledCommand::class]);
+        }
+    }
 }

@@ -42,6 +42,7 @@ final class SendingServiceProvider extends ModuleServiceProvider
     private const GATES = [
         Gates\RecipientSanityGate::class,
         Gates\HeaderSafetyGate::class,
+        Gates\ContentSafetyGate::class,
         Gates\RateLimitGate::class,
         Gates\DomainVerifiedGate::class,
         Gates\SuppressionGate::class,

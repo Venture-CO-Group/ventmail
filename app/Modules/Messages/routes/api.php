@@ -14,10 +14,10 @@ use Illuminate\Support\Facades\Route;
  */
 
 Route::post('/messages', SendMessageController::class)
-    ->middleware(['api.scope:messages:send', 'api.idempotency'])
+    ->middleware(['api.scope:messages:send', 'api.channel', 'api.idempotency'])
     ->name('v1.messages.send');
 
 // Nyers MIME: aki saját levelet állít össze, ne kényszerüljön átírni az integrációját.
 Route::post('/messages.mime', SendMimeController::class)
-    ->middleware(['api.scope:messages:send', 'api.idempotency'])
-    ->name('v1.messages.mime');
+    ->middleware(['api.scope:messages:send', 'api.channel', 'api.idempotency'])
+    ->name('v1.messages.mime.send');

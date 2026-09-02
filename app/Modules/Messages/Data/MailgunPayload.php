@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Messages\Data;
 
+use App\Modules\Sending\Enums\Channel;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
@@ -47,6 +48,7 @@ final readonly class MailgunPayload
         public bool $testmode,
         public ?string $ipPool,
         public ?string $template,
+        public string $channel,
     ) {}
 
     /**
@@ -96,7 +98,33 @@ final readonly class MailgunPayload
             testmode: self::truthy($input['o:testmode'] ?? false),
             ipPool: isset($input['o:sending-ip-pool']) ? (string) $input['o:sending-ip-pool'] : null,
             template: isset($input['template']) ? (string) $input['template'] : null,
+            channel: self::parseChannel($input['o:channel'] ?? null),
         );
+    }
+
+    /**
+     * A csatorna ALLOWLISTÁZOTT: ismeretlen érték elutasítás, nem „nem marketing".
+     *
+     * A JOGOSULTSÁGOT nem itt döntjük el (azt a kulcs scope-ja adja) — itt csak azt, hogy
+     * az érték egyáltalán értelmezhető-e.
+     */
+    private static function parseChannel(mixed $value): string
+    {
+        if ($value === null || $value === '') {
+            return Channel::Transactional->value;
+        }
+
+        $channel = strtolower(trim((string) $value));
+
+        if (Channel::tryFrom($channel) === null) {
+            throw new InvalidArgumentException(sprintf(
+                'INVALID_CHANNEL|Ismeretlen csatorna: %s (engedélyezett: %s)',
+                $channel,
+                implode(', ', Channel::values())
+            ));
+        }
+
+        return $channel;
     }
 
     /** @return array{0: string, 1: ?string} */
@@ -175,11 +203,14 @@ final readonly class MailgunPayload
     {
         $options = [];
 
+        // Az `o:skip-verification` SZÁNDÉKOSAN nincs itt: a nevében a 6. kapu (címellenőrzési
+        // kockázat) kikapcsolását ígéri, és egy „olvassuk ki innen" sor elég lenne ahhoz,
+        // hogy a golden rule 2 sérüljön. A Mailgun-kompatibilitás kedvéért elfogadjuk a
+        // paramétert, de eldobjuk — teszt őrzi, hogy a gate soha nem olvassa.
         $map = [
             'o:tracking' => 'tracking',
             'o:dkim' => 'dkim',
             'o:require-tls' => 'require_tls',
-            'o:skip-verification' => 'skip_verification',
         ];
 
         foreach ($map as $key => $name) {

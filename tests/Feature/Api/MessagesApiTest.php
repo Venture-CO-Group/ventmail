@@ -114,23 +114,25 @@ it('a batch max 1000 címzettet enged', function () {
         ->assertJsonPath('error.code', 'TOO_MANY_RECIPIENTS');
 });
 
-it('recipient-variables: minden címzett a SAJÁT behelyettesítését kapja', function () {
-    $response = apiPost('/v1/messages', validPayload([
+it('a batch címzettenkénti eseményt ír, azonos üzenet-azonosítóval', function () {
+    // A tartalom-oldali bizonyítás a BatchSendTestben van (a küldési úton mérve); itt a
+    // napló szerkezetét nézzük: egy üzenet, címzettenkénti esemény, lenyomattal.
+    apiPost('/v1/messages', validPayload([
         'to' => ['anna@example.test', 'bela@example.test'],
-        'html' => '<p>Szia %recipient.first_name%, egyenleged: %recipient.balance%</p>',
+        'html' => '<p>Szia %recipient.first_name%</p>',
         'recipient-variables' => json_encode([
-            'anna@example.test' => ['first_name' => 'Anna', 'balance' => 100],
-            'bela@example.test' => ['first_name' => 'Béla', 'balance' => 250],
+            'anna@example.test' => ['first_name' => 'Anna'],
+            'bela@example.test' => ['first_name' => 'Béla'],
         ]),
-    ]));
+    ]))->assertAccepted();
 
-    $response->assertAccepted();
+    $message = Message::firstOrFail();
+    $events = MessageEvent::where('type', 'delivered')->get();
 
-    $rendered = MessageEvent::where('type', 'delivered')->get()
-        ->mapWithKeys(fn ($event) => [$event->recipient => $event->payload['rendered_subject'] ?? '']);
-
-    // A behelyettesítés címzettenként külön történik.
-    $message = Message::first();
-    expect($message->recipients)->toHaveCount(2);
+    expect($events)->toHaveCount(2);
+    expect($events->pluck('message_uuid')->unique())->toHaveCount(1);
+    // A lenyomat CÍMZETTENKÉNT KÜLÖNBÖZŐ: bizonyítja, hogy más törzs ment ki, de nem
+    // őrzi meg a tartalmat.
+    expect($events->pluck('payload.body_sha256')->unique())->toHaveCount(2);
     expect($message->variables)->toHaveKey('recipient-variables');
 });

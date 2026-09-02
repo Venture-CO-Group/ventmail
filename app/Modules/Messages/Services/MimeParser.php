@@ -23,24 +23,58 @@ final class MimeParser
     private const MAX_HEADER_BYTES = 65536;
 
     /**
+     * RFC 5322 §3.6: ezek a fejlécek legfeljebb EGYSZER szerepelhetnek.
+     *
+     * Miért kritikus: duplikáció esetén a levélkliens az ELSŐT mutatja, a parser viszont
+     * (bármelyik irányban) csak az egyiket látja. Ha a gate a másikat vizsgálja, idegen
+     * `From` jelenhet meg a SAJÁT DKIM-ünkkel aláírva. Ezért itt nem „valamelyik győz",
+     * hanem ELUTASÍTÁS.
+     */
+    private const SINGLETON_HEADERS = [
+        'from', 'to', 'cc', 'bcc', 'sender', 'reply-to', 'subject', 'date', 'message-id',
+    ];
+
+    /**
      * @return array{from_email: string, from_name: ?string, recipients: list<string>, subject: ?string, headers: array<string, string>}
      */
     public function parseHeaders(string $raw): array
     {
         $separator = str_contains($raw, "\r\n\r\n") ? "\r\n\r\n" : "\n\n";
-        $headerBlock = substr($raw, 0, strpos($raw, $separator) ?: self::MAX_HEADER_BYTES);
+        $position = strpos($raw, $separator);
 
-        if (strlen($headerBlock) > self::MAX_HEADER_BYTES) {
+        // `=== false` ÉS `=== 0` külön: a `?:` mindkettőt falsy-nak vette, és ilyenkor a
+        // TELJES törzs fejlécként parse-olódott — a törzsben idézett `To:` sorok
+        // boríték-címzettekké léptek elő.
+        if ($position === false) {
+            throw new InvalidArgumentException('MIME_MALFORMED|A MIME-levélben nincs fejléc/törzs elválasztó.');
+        }
+
+        if ($position === 0) {
+            throw new InvalidArgumentException('MIME_MALFORMED|A MIME-levél fejléc nélkül kezdődik.');
+        }
+
+        // A limitet a vágás ELŐTT érvényesítjük — különben a `substr` mindig 64 KB-ra vág,
+        // és az ellenőrzés soha nem üt be.
+        if ($position > self::MAX_HEADER_BYTES) {
             throw new InvalidArgumentException('MIME_HEADERS_TOO_LARGE|A MIME fejléc-blokk túl nagy.');
         }
 
-        $headers = $this->unfold($headerBlock);
+        $headers = $this->unfold(substr($raw, 0, $position));
 
         $from = $headers['from'] ?? throw new InvalidArgumentException(
             'MIME_MISSING_FROM|A MIME-levélből hiányzik a `From:` fejléc.'
         );
 
         [$fromEmail, $fromName] = $this->parseAddress($from);
+
+        // A `Bcc` a MIME-ban rejtett címzett: ha csendben eldobnánk, a feladó azt hinné,
+        // hogy kiment — ha pedig továbbadnánk, egyetlen kapu sem látta volna. Explicit hiba.
+        if (isset($headers['bcc'])) {
+            throw new InvalidArgumentException(
+                'MIME_BCC_NOT_SUPPORTED|A `Bcc` fejléc nem támogatott: add meg a rejtett '
+                .'címzetteket a `to` mezőben, hogy a kapukon átmehessenek.'
+            );
+        }
 
         $recipients = [];
 
@@ -104,6 +138,15 @@ final class MimeParser
 
             [$name, $value] = explode(':', $line, 2);
             $current = strtolower(trim($name));
+
+            if (isset($headers[$current]) && in_array($current, self::SINGLETON_HEADERS, true)) {
+                throw new InvalidArgumentException(sprintf(
+                    'MIME_DUPLICATE_HEADER|A(z) `%s` fejléc többször szerepel. A levélkliens az '
+                    .'ELSŐT mutatja, az ellenőrzés a másikat látná — ez feladó-hamisítás lenne.',
+                    $current
+                ));
+            }
+
             $headers[$current] = trim($value);
         }
 

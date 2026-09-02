@@ -75,6 +75,12 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
+        '409':
+          description: |
+            Az `Idempotency-Key` már használt MÁS kérés-tartalommal. A második levél NEM ment ki.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
         '429':
           description: Rate-limit
 
@@ -297,11 +303,17 @@ components:
         o:sending-ip-pool: { type: string }
         o:channel:
           type: string
-          enum: [transactional, marketing, journey, campaign]
+          enum: [transactional, marketing]
           default: transactional
           description: |
-            A `transactional` az EGYETLEN consent-mentes csatorna. Minden más
-            marketing-hatókörű: leiratkozás és megerősített consent is vonatkozik rá.
+            A `transactional` az EGYETLEN consent-mentes csatorna, és ez az alapértelmezés.
+
+            A `marketing` **külön scope-ot igényel** (`messages:send:marketing`), és
+            megerősített (double opt-in) consentet a címzettre — enélkül `403
+            CHANNEL_NOT_ALLOWED`, illetve `422 NO_CONSENT`.
+
+            A `journey` és a `campaign` a Journey/Campaign motor BELSŐ csatornái (sor-prioritás
+            miatt), a publikus API-ról nem választhatók.
       additionalProperties:
         description: '`h:X-*` egyedi fejlécek és `v:*` változók.'
 
@@ -346,6 +358,15 @@ components:
         - INSUFFICIENT_SCOPE
         - IDEMPOTENCY_KEY_REQUIRED
         - IDEMPOTENCY_KEY_TOO_LONG
+        - IDEMPOTENCY_KEY_REUSED
+        - INVALID_CHANNEL
+        - CHANNEL_NOT_ALLOWED
+        - UNSUPPORTED_ATTACHMENT
+        - MIME_TOO_LARGE
+        - MIME_MALFORMED
+        - MIME_DUPLICATE_HEADER
+        - MIME_BCC_NOT_SUPPORTED
+        - VALIDATION_ERROR
         - MISSING_FROM
         - MISSING_RECIPIENT
         - TOO_MANY_RECIPIENTS

@@ -85,7 +85,15 @@ final class MessageDispatcher
         }
 
         try {
-            $result = $this->driver->send($message);
+            // A driver a SZEMÉLYRE SZABOTT törzset kapja címzettenként — a batch lényege,
+            // hogy mindenki a sajátját kapja. (A címzettenkénti ÚJRAPRÓBÁLÁS granularitása
+            // az A2 sorkezelőjének a feladata; itt üzenet-szintű a claim.)
+            $result = $this->driver->send($message->withRenderedBodies(
+                collect($message->recipients)
+                    ->mapWithKeys(fn ($recipient) => [
+                        (string) $recipient => $this->renderFor($message, (string) $recipient),
+                    ])->all()
+            ));
         } catch (Throwable $e) {
             // A hiba RÖGZÜL: állapot + esemény, hogy az újrapróbálás elindulhasson és a
             // trace megmutassa, mi történt. A kivétel SZÖVEGE nem kerül a sorba
@@ -156,16 +164,25 @@ final class MessageDispatcher
         $this->events($message, 'deferred', ['attempt' => $message->attempts]);
     }
 
-    /** @param array<string, mixed> $payload */
+    /**
+     * A címzettenkénti esemény-írás.
+     *
+     * A naplóba SOHA nem kerül kirenderelt levéltörzs — csak a LENYOMATA. Egy 90 napig élő
+     * eseménytáblában a törzs jelszó-visszaállító linket és magic-link tokent hordozna, és
+     * ugyanezt a payloadot küldi ki az A3 webhook harmadik félnek is. A reprodukcióhoz a
+     * lenyomat + a kanonikus törzs (a `messages` soron) elég.
+     *
+     * @param  array<string, mixed>  $payload
+     */
     private function events(Message $message, string $type, array $payload = []): void
     {
-        $template = (string) ($message->options['rendered_html'] ?? $message->options['html'] ?? '');
-        $recipientVariables = (array) ($message->variables['recipient-variables'] ?? []);
         $shared = collect($message->variables)->except('recipient-variables')->all();
 
         // MINDEN címzett kap eseményt: egyetlen sor batch esetén 999 címzettről nem tudna
         // semmit az A3 trace és a kézbesítési statisztika.
         foreach ($message->recipients as $recipient) {
+            $rendered = $this->renderFor($message, (string) $recipient);
+
             MessageEvent::create([
                 'message_uuid' => $message->uuid,
                 'type' => $type,
@@ -176,16 +193,35 @@ final class MessageDispatcher
                 // A `v:*` változók VISSZAJÖNNEK az eseményben és a webhookban (Mailgun-paritás):
                 // az integrációk ebből azonosítják a saját rekordjaikat.
                 'variables' => $shared,
-                'payload' => $template === ''
-                    ? $payload
-                    : [...$payload, 'rendered_html' => $this->renderer->renderForRecipient(
-                        $template,
-                        (string) $recipient,
-                        $recipientVariables,
-                        $shared
-                    )],
+                'payload' => [
+                    ...$payload,
+                    // Tartalom helyett LENYOMAT: bizonyítja, hogy melyik törzs ment ki,
+                    // de nem őrzi meg a titkokat.
+                    'body_sha256' => $rendered === null ? null : hash('sha256', $rendered),
+                ],
             ]);
         }
+    }
+
+    /**
+     * A címzettre személyre szabott törzs — a KÜLDÉSI úton, nem a naplóban.
+     *
+     * Determinisztikusan újrarenderelhető a kanonikus törzsből, ezért nem kell perzisztálni.
+     */
+    private function renderFor(Message $message, string $recipient): ?string
+    {
+        $template = (string) ($message->options['body_html'] ?? '');
+
+        if ($template === '') {
+            return null;
+        }
+
+        return $this->renderer->renderForRecipient(
+            $template,
+            $recipient,
+            (array) ($message->variables['recipient-variables'] ?? []),
+            collect($message->variables)->except('recipient-variables')->all()
+        );
     }
 
     private function decisionStale(Message $message): bool

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Modules\Api\Http\Middleware\AuthenticateApiKey;
+use App\Modules\Api\Http\Middleware\AuthorizeChannel;
 use App\Modules\Api\Http\Middleware\RequireApiScope;
 use App\Modules\Api\Http\Middleware\RequireIdempotencyKey;
 use App\Modules\Tenancy\Http\Middleware\ResolveWorkspace;
@@ -13,6 +14,7 @@ use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -34,6 +36,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'api.auth' => AuthenticateApiKey::class,
             'api.scope' => RequireApiScope::class,
             'api.idempotency' => RequireIdempotencyKey::class,
+            'api.channel' => AuthorizeChannel::class,
         ]);
 
         // A Laravel alapból a `login` nevű route-ra irányítaná a vendéget — az nálunk nem
@@ -71,6 +74,23 @@ return Application::configure(basePath: dirname(__DIR__))
             array_fill(0, count($e->getBindings()), '?'),
             $e->getPrevious() ?? $e
         ));
+
+        // A `/v1` egységes hibaformátuma a VALIDÁCIÓRA is érvényes: a Laravel alap
+        // `{message, errors}` alakja nem az `Error` séma, és egy generált kliens az
+        // `error.code`-ra ágazik — az `undefined` lenne (golden rule 7).
+        $exceptions->render(function (ValidationException $e, Request $request) {
+            if (! $request->is('v1/*')) {
+                return null;
+            }
+
+            return response()->json([
+                'error' => [
+                    'code' => 'VALIDATION_ERROR',
+                    'message' => 'A kérés nem felel meg a sémának.',
+                    'details' => $e->errors(),
+                ],
+            ], 422);
+        });
 
         // Titok soha nem kerülhet naplóba vagy exception-kontextusba.
         $exceptions->dontFlash([

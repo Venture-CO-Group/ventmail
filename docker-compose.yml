@@ -30,7 +30,11 @@ services:
       dockerfile: docker/app.Dockerfile
     restart: unless-stopped
     working_dir: /var/www
-    volumes: ['.:/var/www']
+    volumes:
+      - .:/var/www
+      # A `@venture/sdk` kontraktus-drift tesztje a szomszédos repót olvassa (ahogy az
+      # npm `file:../venture-sdk` link is) — enélkül a konténeres futás nem tudná ellenőrizni.
+      - ../venture-sdk:/venture-packages/venture-sdk:ro
     env_file: [.env]
     environment:
       # A .env a HOST-ról használható értékeket tartja (127.0.0.1 + kimappelt portok);

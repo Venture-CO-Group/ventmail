@@ -124,7 +124,7 @@ it('sablonnal küldés behelyettesítéssel', function () {
         'v:balance' => '1000',
     ])->assertAccepted();
 
-    $rendered = Message::firstOrFail()->options['rendered_html'] ?? '';
+    $rendered = Message::firstOrFail()->options['body_html'] ?? '';
 
     expect($rendered)->toContain('Szia Anna')->toContain('1000');
 });
@@ -142,7 +142,7 @@ it('a sablon auto-escape-eli a változókat', function () {
         'v:first_name' => '<script>alert(1)</script>',
     ])->assertAccepted();
 
-    $rendered = Message::firstOrFail()->options['rendered_html'] ?? '';
+    $rendered = Message::firstOrFail()->options['body_html'] ?? '';
 
     expect($rendered)->not->toContain('<script>');
     expect($rendered)->toContain('&lt;script&gt;');
@@ -159,7 +159,7 @@ it('hiányzó változó fallback, nem hiba', function () {
         'template' => 'welcome',
     ])->assertAccepted();
 
-    expect(Message::firstOrFail()->options['rendered_html'])->toContain('Szia !');
+    expect(Message::firstOrFail()->options['body_html'])->toContain('Szia !');
 });
 
 it('ismeretlen sablonra 400', function () {

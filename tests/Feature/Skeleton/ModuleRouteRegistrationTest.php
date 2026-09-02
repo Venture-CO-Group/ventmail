@@ -149,3 +149,44 @@ it('futásidőben minden modul-route middleware-csoportban van', function () {
 
     expect($offenders)->toBeEmpty('middleware-csoport nélküli modul-route: '.implode(', ', $offenders));
 });
+
+it('minden /v1 route-on van scope-ellenőrzés', function () {
+    // A scope a jogosultság EGYETLEN kapuja az API-felületen: egy kimaradt endpoint
+    // bármely érvényes kulccsal elérhető lenne, függetlenül attól, mire adták ki.
+    $offenders = [];
+
+    foreach (Route::getRoutes() as $route) {
+        if (! str_starts_with($route->uri(), 'v1/')) {
+            continue;
+        }
+
+        $hasScope = collect($route->gatherMiddleware())
+            ->contains(fn (string $middleware) => str_starts_with($middleware, 'api.scope:'));
+
+        if (! $hasScope) {
+            $offenders[] = $route->methods()[0].' '.$route->uri();
+        }
+    }
+
+    expect($offenders)->toBeEmpty('scope-ellenőrzés nélküli /v1 route: '.implode(', ', $offenders));
+});
+
+it('minden küldő útvonal idempotencia-kulcsot követel — a route NEVE alapján', function () {
+    // URI-prefix helyett a route NEVE a jelölés: egy jövőbeli `POST /v1/campaigns/{id}/send`
+    // különben átcsúszna az őrszemen.
+    $offenders = [];
+
+    foreach (Route::getRoutes() as $route) {
+        $name = (string) $route->getName();
+
+        if (! str_starts_with($name, 'v1.') || ! str_ends_with($name, '.send')) {
+            continue;
+        }
+
+        if (! in_array('api.idempotency', $route->gatherMiddleware(), true)) {
+            $offenders[] = $name;
+        }
+    }
+
+    expect($offenders)->toBeEmpty('idempotencia-kulcs nélküli küldő útvonal: '.implode(', ', $offenders));
+});

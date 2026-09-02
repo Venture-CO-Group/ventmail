@@ -51,6 +51,17 @@ final class SendMessage
             $existing = Message::query()->where('idempotency_key', $idempotencyKey)->first();
 
             if ($existing !== null) {
+                $fingerprint = $this->fingerprint($attributes);
+
+                // MÁS tartalom ugyanazzal a kulccsal: a hívó hibája, és a csendes eldobás
+                // elveszítené a második levelet. Ezt a Stripe és a Mailgun is hibának veszi.
+                if ($existing->request_fingerprint !== null && $existing->request_fingerprint !== $fingerprint) {
+                    return new SendResult(
+                        $existing,
+                        GateDecision::rejected(GateReason::IdempotencyKeyReused->value, [])
+                    );
+                }
+
                 return new SendResult($existing, $this->replayDecision($existing));
             }
         }
@@ -147,20 +158,27 @@ final class SendMessage
             'tags' => Arr::get($attributes, 'tags', []),
             'variables' => Arr::get($attributes, 'variables', []),
             'headers' => Arr::get($attributes, 'headers', []),
-            // A megjelenítendő tartalom az `options`-ban él: a `messages` tábla szándékosan
-            // nem tárol törzset (az A2 aláíró és a driver állítja össze a MIME-t).
+            // A törzs EGYETLEN kanonikus helyen él (`body_html` / `body_text`), nem
+            // duplikálva: 100 KB-os levélnél a kettős tárolás 200 KB/sor lenne.
+            //
+            // A SZEMÉLYRE SZABOTT törzs SEHOL nem perzisztál: a küldéskor determinisztikusan
+            // újrarenderelődik. Egy 90 napig élő naplóba írt, kirenderelt levél jelszó-
+            // visszaállító linket és magic-link tokent hordozna — az credential leak.
             'options' => array_merge(
                 Arr::get($attributes, 'options', []),
                 array_filter([
-                    'rendered_html' => Arr::get($attributes, 'rendered_html'),
-                    'html' => Arr::get($attributes, 'html'),
-                    'text' => Arr::get($attributes, 'text'),
+                    'body_html' => Arr::get($attributes, 'rendered_html') ?? Arr::get($attributes, 'html'),
+                    'body_text' => Arr::get($attributes, 'text'),
                 ], fn ($value) => $value !== null)
             ),
             'deliverytime' => Arr::get($attributes, 'deliverytime'),
             'ip_pool_id' => Arr::get($attributes, 'ip_pool_id'),
             'testmode' => (bool) Arr::get($attributes, 'testmode', false),
             'idempotency_key' => $idempotencyKey,
+            // Az idempotencia-kulcs ÖNMAGÁBAN nem elég: ugyanaz a kulcs MÁS tartalommal
+            // korábban csendben eldobta a második levelet (pl. `order-123` a visszaigazolóra
+            // ÉS a szállítási értesítőre). A lenyomat teszi lehetővé a 409-et.
+            'request_fingerprint' => $this->fingerprint($attributes),
             'queued_at' => now(),
         ];
 
@@ -174,17 +192,45 @@ final class SendMessage
         }
     }
 
+    /**
+     * A kérés kanonikus lenyomata. A kulcs- és a hálózati zaj (sorrend) nem befolyásolja,
+     * a TARTALOM viszont igen.
+     *
+     * @param  array<string, mixed>  $attributes
+     */
+    private function fingerprint(array $attributes): string
+    {
+        $canonical = Arr::only($attributes, [
+            'channel', 'from_email', 'from_name', 'subject', 'to', 'html', 'text',
+            'tags', 'variables', 'headers', 'deliverytime', 'testmode', 'rendered_html',
+        ]);
+
+        ksort($canonical);
+
+        return hash('sha256', (string) json_encode($canonical));
+    }
+
+    /**
+     * Esemény MINDEN címzettre — a naplóba tartalom helyett LENYOMAT kerül (a kirenderelt
+     * törzs magic-linket és tokent hordozhatna egy 90 napig élő táblában).
+     */
     private function event(Message $message, string $type, ?string $reason = null): void
     {
-        MessageEvent::create([
-            'message_uuid' => $message->uuid,
-            'type' => $type,
-            'recipient' => $message->recipients[0] ?? null,
-            'channel' => $message->channel,
-            'reason' => $reason,
-            'tags' => $message->tags,
-            'variables' => $message->variables,
-        ]);
+        $body = (string) ($message->options['body_html'] ?? '');
+        $shared = collect($message->variables)->except('recipient-variables')->all();
+
+        foreach ($message->recipients as $recipient) {
+            MessageEvent::create([
+                'message_uuid' => $message->uuid,
+                'type' => $type,
+                'recipient' => $recipient,
+                'channel' => $message->channel,
+                'reason' => $reason,
+                'tags' => $message->tags,
+                'variables' => $shared,
+                'payload' => ['body_sha256' => $body === '' ? null : hash('sha256', $body)],
+            ]);
+        }
     }
 
     /** Ismételt Idempotency-Key: az eredeti döntést tükrözzük vissza, új gate-futás nélkül. */

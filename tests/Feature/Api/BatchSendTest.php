@@ -5,6 +5,10 @@ declare(strict_types=1);
 use App\Modules\Domains\Models\Domain;
 use App\Modules\Events\Models\MessageEvent;
 use App\Modules\Identity\Models\ApiKey;
+use App\Modules\Sending\Contracts\SendingDriver;
+use App\Modules\Sending\Data\DispatchResult;
+use App\Modules\Sending\Data\DriverCapabilities;
+use App\Modules\Sending\Data\DriverHealth;
 use App\Modules\Sending\Models\Message;
 use App\Modules\Tenancy\Models\Workspace;
 use App\Modules\Tenancy\Services\WorkspaceContext;
@@ -25,6 +29,33 @@ beforeEach(function () {
     app(WorkspaceContext::class)->set(Workspace::factory()->create());
     Domain::create(['name' => 'pelda.hu', 'status' => 'verified', 'verified_at' => now()]);
     ['plain' => $this->plain] = ApiKey::issue('CI', ['messages:send']);
+
+    // A személyre szabott törzs a KÜLDÉSI úton él (a naplóba csak lenyomat kerül), ezért
+    // a driveren keresztül mérjük — ott, ahol a valóságban is használódik.
+    $this->sent = new stdClass;
+    $this->sent->bodies = [];
+
+    app()->bind(SendingDriver::class, fn () => new class($this->sent) implements SendingDriver
+    {
+        public function __construct(private readonly stdClass $captured) {}
+
+        public function send(Message $message): DispatchResult
+        {
+            $this->captured->bodies = $message->renderedBodies;
+
+            return DispatchResult::delivered('capture-'.$message->uuid);
+        }
+
+        public function capabilities(): DriverCapabilities
+        {
+            return new DriverCapabilities(name: 'capture');
+        }
+
+        public function health(): DriverHealth
+        {
+            return new DriverHealth(healthy: true);
+        }
+    });
 });
 
 function batchSend(array $payload): TestResponse
@@ -48,8 +79,7 @@ it('minden címzett a SAJÁT behelyettesítését kapja', function () {
         ]),
     ])->assertAccepted();
 
-    $rendered = MessageEvent::where('type', 'delivered')->get()
-        ->mapWithKeys(fn ($event) => [$event->recipient => $event->payload['rendered_html'] ?? '']);
+    $rendered = $this->sent->bodies;
 
     expect($rendered['anna@example.test'])->toContain('Szia Anna')->toContain('100');
     expect($rendered['bela@example.test'])->toContain('Szia Béla')->toContain('250');
@@ -69,9 +99,7 @@ it('a behelyettesítés escape-elt', function () {
         ]),
     ])->assertAccepted();
 
-    $rendered = MessageEvent::where('type', 'delivered')->firstOrFail()->payload['rendered_html'] ?? '';
-
-    expect($rendered)->not->toContain('<script>');
+    expect($this->sent->bodies['anna@example.test'])->not->toContain('<script>');
 });
 
 it('a %recipient_email% is behelyettesítődik', function () {
@@ -81,8 +109,7 @@ it('a %recipient_email% is behelyettesítődik', function () {
         'html' => '<p>A címed: %recipient_email%</p>',
     ])->assertAccepted();
 
-    expect(MessageEvent::where('type', 'delivered')->firstOrFail()->payload['rendered_html'])
-        ->toContain('anna@example.test');
+    expect($this->sent->bodies['anna@example.test'])->toContain('anna@example.test');
 });
 
 it('hiányzó címzett-változó fallback', function () {

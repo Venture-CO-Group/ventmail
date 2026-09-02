@@ -15,6 +15,9 @@ return [
     // 0. kapu — bemenet-épség. A spec 8.1 hívásonként max 1000 címzettet enged.
     'max_recipients' => (int) env('SENDING_MAX_RECIPIENTS', 1000),
 
+    // A beadott nyers MIME felső korlátja (a Mailgun 25 MB-ot enged csatolmányokkal).
+    'max_mime_bytes' => (int) env('SENDING_MAX_MIME_BYTES', 26_214_400),
+
     // A `sending` állapot lízingje: ennyi idő után egy félbemaradt küldés újraigényelhető.
     'lease_seconds' => (int) env('SENDING_LEASE_SECONDS', 300),
 
@@ -46,6 +49,6 @@ return [
     // 4. kapu — amíg a ventPay nem él, innen jön a kvóta és az entitlement.
     'fake_entitlement' => [
         'remaining' => (int) env('FAKE_SEND_QUOTA', 10000),
-        'features' => ['journeys', 'custom_domain', 'inbound_routes'],
+        'features' => ['journeys', 'custom_domain', 'inbound_routes', 'dedicated_ip'],
     ],
 ];

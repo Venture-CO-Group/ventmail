@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Modules\Audit\Concerns\Auditable;
 use App\Modules\Audit\Models\AuditLog;
 use App\Modules\Events\Models\MessageEvent;
+use App\Modules\Messages\Models\RawMimeMessage;
 use App\Modules\Sending\Models\Message;
 use App\Modules\Tenancy\Concerns\BelongsToWorkspace;
 use App\Modules\Tenancy\Concerns\BelongsToWorkspaceOrPlatform;
@@ -82,6 +83,7 @@ it('minden admin-felületű modell auditált', function () {
         AuditLog::class,        // maga a napló
         MessageEvent::class,   // esemény-adat, nem admin-művelet
         Message::class,       // üzenet-adat; a küldést a gate auditálja
+        RawMimeMessage::class, // a beadott levél MAGA (megváltoztathatatlan, nem admin-művelet)
         Workspace::class,     // a workspace-műveleteket a SuperAdmin (C2) auditálja
         WorkspaceMember::class, // az AssignWorkspaceRoles explicit auditot ír
     ];
