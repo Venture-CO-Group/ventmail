@@ -23,3 +23,6 @@ Schedule::command('domains:purge-dkim')->daily();
 // Az esedékes, ütemezett üzenetek kiküldése — a kapuk ÚJRAÉRTÉKELÉSÉVEL (a közben érkezett
 // leiratkozásnak számítania kell).
 Schedule::command('messages:dispatch-scheduled')->everyMinute()->withoutOverlapping();
+
+// A lejárt nyers MIME-levelek törlése (golden rule 10): a levéltest a legsűrűbb PII-tárolónk.
+Schedule::command('messages:purge-raw-mime')->dailyAt('03:20');

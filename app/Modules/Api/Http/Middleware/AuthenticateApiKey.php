@@ -11,6 +11,7 @@ use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\RateLimiter;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -25,12 +26,29 @@ final class AuthenticateApiKey
 {
     public function __construct(private readonly WorkspaceContext $context) {}
 
+    /**
+     * Hány SIKERTELEN hitelesítés fér bele percenként egy forrás-IP-ről.
+     *
+     * A kérés-alapú throttle ezt nem fogja meg: a kulcs-bucket a MÉG NEM ELLENŐRZÖTT
+     * tokenből származik, tehát aki kérésenként más Bearert küld, kérésenként friss keretet
+     * kap. A HIBÁK számlálása viszont pont azt méri, amit fékezni akarunk — és egy
+     * jóhiszemű integrációt nem érint.
+     */
+    private const MAX_FAILURES_PER_MINUTE = 20;
+
     public function handle(Request $request, Closure $next): Response
     {
+        $failureKey = 'api-auth-fail:'.(string) $request->ip();
+
+        // A fék a DRÁGA munka (kulcsolt hash + indexelt lekérdezés) ELŐTT csattan.
+        if (RateLimiter::tooManyAttempts($failureKey, self::MAX_FAILURES_PER_MINUTE)) {
+            return $this->tooManyFailures($failureKey);
+        }
+
         $plain = $this->extractKey($request);
 
         if ($plain === null) {
-            return $this->unauthorized();
+            return $this->unauthorized($failureKey);
         }
 
         $key = ApiKey::findByPlainKey($plain);
@@ -38,7 +56,7 @@ final class AuthenticateApiKey
         // EGYETLEN üzenet minden hitelesítési hibára: a különböző szövegek orákulumot
         // adnának arra, hogy a kulcs valódi-e (csak a workspace-e törölt).
         if ($key === null) {
-            return $this->unauthorized();
+            return $this->unauthorized($failureKey);
         }
 
         $workspace = Workspace::query()->whereKey($key->workspace_id)->first();
@@ -46,7 +64,7 @@ final class AuthenticateApiKey
         if ($workspace === null) {
             Log::warning('API-kulcs elérhetetlen workspace-hez', ['api_key_id' => $key->getKey()]);
 
-            return $this->unauthorized();
+            return $this->unauthorized($failureKey);
         }
 
         $this->context->set($workspace);
@@ -83,13 +101,25 @@ final class AuthenticateApiKey
         return is_string($password) && $password !== '' ? $password : null;
     }
 
-    private function unauthorized(): Response
+    private function unauthorized(string $failureKey): Response
     {
+        RateLimiter::hit($failureKey, 60);
+
         return response()->json([
             'error' => [
                 'code' => 'UNAUTHENTICATED',
                 'message' => 'Hiányzó vagy érvénytelen API-kulcs.',
             ],
         ], 401);
+    }
+
+    private function tooManyFailures(string $failureKey): Response
+    {
+        return response()->json([
+            'error' => [
+                'code' => 'TOO_MANY_REQUESTS',
+                'message' => 'Túl sok sikertelen hitelesítés erről a címről; próbáld később.',
+            ],
+        ], 429)->header('Retry-After', (string) RateLimiter::availableIn($failureKey));
     }
 }

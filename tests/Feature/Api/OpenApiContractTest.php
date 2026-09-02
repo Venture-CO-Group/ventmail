@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Modules\Sending\Gate\GateReason;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Route;
 use Symfony\Component\Yaml\Yaml;
 
@@ -190,4 +191,31 @@ it('az SDK hibakódjai a szerződésből származnak', function () {
     $ghosts = array_diff($matches[1] ?? [], $documented);
 
     expect($ghosts)->toBeEmpty('az SDK nem létező hibakódot hirdet: '.implode(', ', $ghosts));
+});
+
+it('minden kontrollerből kimenő hibakód dokumentált', function () {
+    // A korábbi ellenőrzés csak a `GateReason` eseteit nézte, a kontrollerekből jövő
+    // `ApiError` kódokat nem — így négy kimenő kód hiányzott a szerződésből (golden rule 7).
+    $documented = openapi()['components']['schemas']['ErrorCode']['enum'];
+
+    $used = [];
+
+    foreach (File::allFiles(app_path('Modules')) as $file) {
+        if ($file->getExtension() !== 'php') {
+            continue;
+        }
+
+        preg_match_all(
+            "/ApiError::(?:badRequest|rejected|response)\(\s*'([A-Z_]+)'/",
+            (string) file_get_contents($file->getPathname()),
+            $matches
+        );
+
+        $used = array_merge($used, $matches[1] ?? []);
+    }
+
+    $undocumented = array_values(array_unique(array_diff($used, $documented)));
+
+    expect($used)->not->toBeEmpty('nem találtunk egyetlen ApiError-kódot sem — a minta elromlott');
+    expect($undocumented)->toBeEmpty('dokumentálatlan hibakód a /v1-en: '.implode(', ', $undocumented));
 });

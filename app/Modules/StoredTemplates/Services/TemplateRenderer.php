@@ -45,6 +45,7 @@ final class TemplateRenderer
         string $recipient,
         array $recipientVariables,
         array $shared = [],
+        bool $escape = true,
     ): string {
         // A hívó írja a `recipient-variables` kulcsait, a címzett viszont kisbetűsítve
         // tárolódik: illesztés előtt normalizálunk, különben a nem egyező kulcs ÜRES
@@ -63,14 +64,20 @@ final class TemplateRenderer
         // nem escape-eli, tehát a hívótól jövő érték MÁSODSZOR is kiértékelődött.
         return (string) preg_replace_callback(
             '/%recipient\.([a-zA-Z0-9_]+)%|%recipient_email%|\{\{\s*([a-zA-Z0-9_.]+)\s*\}\}/',
-            function (array $matches) use ($variables): string {
+            function (array $matches) use ($variables, $escape): string {
                 $name = match (true) {
                     ($matches[1] ?? '') !== '' => $matches[1],
                     ($matches[2] ?? '') !== '' => $matches[2],
                     default => 'recipient_email',
                 };
 
-                return $this->escape(data_get($variables, $name, ''));
+                $value = data_get($variables, $name, '');
+
+                // A text/plain részben a HTML-escape hibás lenne (a címzett `&amp;`-et
+                // látna); a tartalmi kontrollt ott a ContentSafetyGate végzi.
+                return $escape
+                    ? $this->escape($value)
+                    : (string) (is_array($value) ? json_encode($value, JSON_UNESCAPED_UNICODE) : $value);
             },
             $template
         );

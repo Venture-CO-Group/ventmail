@@ -57,7 +57,13 @@ it('a publikus API-n NEM lehet consent-köteles csatornát választani', functio
 });
 
 it('marketing-scope-pal viszont engedett a marketing csatorna', function () {
-    ['plain' => $marketingKey] = ApiKey::issue('Marketing', ['messages:send', 'messages:send:marketing']);
+    // A scope ÉS a csatorna-jog is kell: a csatorna a kulcs kiállításakor eldöntött jog,
+    // nem futásidejű választás.
+    ['plain' => $marketingKey] = ApiKey::issue(
+        'Marketing',
+        ['messages:send', 'messages:send:marketing'],
+        channels: ['transactional', 'marketing']
+    );
 
     Consent::create([
         'email' => 'cimzett@example.test',
@@ -276,9 +282,24 @@ it('a /v1 validációs hibája az egységes formátumban jön', function () {
         ->assertJsonStructure(['error' => ['code', 'message', 'details']]);
 });
 
-it('a rate-limit a KULCSHOZ tartozik, nem az IP-hez', function () {
-    // IP-alapon két tenant egy NAT mögött megeszi egymás keretét.
-    $source = file_get_contents(app_path('Providers/AppServiceProvider.php'));
+it('a hitelesítési hibák IP-alapon fékezve vannak', function () {
+    // Ez a teszt korábban a FORRÁSKÓD szövegére assertált — vagyis a hibás megoldást
+    // rögzítette. A kulcs-alapú bucket önmagában semmit nem ér: a bucket a MÉG NEM
+    // ELLENŐRZÖTT tokenből jött, tehát kérésenként más Bearerrel korlátlan volt a felület.
+    // Most a HIBÁK számát mérjük — azt, amit fékezni akarunk.
+    $status = 200;
 
-    expect($source)->toContain("'key:'.hash('sha256', \$bearer)");
+    foreach (range(1, 30) as $i) {
+        $status = test()->withHeaders([
+            'Authorization' => 'Bearer nem-letezo-'.$i,
+            'Idempotency-Key' => 'x-'.$i,
+            'Accept' => 'application/json',
+        ])->postJson('/v1/messages', ['from' => 'a@pelda.hu', 'to' => 'b@example.test'])->status();
+
+        if ($status === 429) {
+            break;
+        }
+    }
+
+    expect($status)->toBe(429);
 });

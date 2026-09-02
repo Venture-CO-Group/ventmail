@@ -6,9 +6,9 @@ namespace App\Modules\Messages\Http\Controllers;
 
 use App\Modules\Api\Support\ApiError;
 use App\Modules\Identity\Models\ApiKey;
-use App\Modules\Messages\Models\RawMimeMessage;
 use App\Modules\Messages\Services\MimeParser;
 use App\Modules\Sending\Actions\SendMessage;
+use App\Modules\Sending\Gate\GateReason;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use InvalidArgumentException;
@@ -36,7 +36,9 @@ final class SendMimeController
         $apiKey = $request->attributes->get('api_key');
 
         if (! $file->isValid()) {
-            return ApiError::badRequest('MISSING_MIME', 'A feltöltött MIME-fájl sérült.');
+            // Külön kód: a „nem küldtél levelet" és a „sérülten érkezett meg" két
+            // különböző hívói hiba, és a kliens másképp is kezeli őket.
+            return ApiError::badRequest('INVALID_MIME_UPLOAD', 'A feltöltött MIME-fájl sérült.');
         }
 
         $maxBytes = (int) config('sending.max_mime_bytes');
@@ -84,24 +86,41 @@ final class SendMimeController
             : $parsed['recipients'];
 
         $result = $send([
-            'channel' => (string) $request->input('o:channel', 'transactional'),
+            // A tömb-bemenet `(string)` castja korábban 500-at adott az egységes
+            // hibaformátum helyett; a nem skalár érték itt egyszerűen érvénytelen csatorna.
+            'channel' => is_scalar($channel = $request->input('o:channel', 'transactional'))
+                ? (string) $channel
+                : '',
             'from_email' => $parsed['from_email'],
             'from_name' => $parsed['from_name'],
             'subject' => $parsed['subject'],
             'to' => $recipients,
             'headers' => $parsed['headers'],
             'options' => ['raw_mime' => true, 'mime_size' => strlen($raw)],
-            'testmode' => $apiKey?->testmode === true || $request->boolean('o:testmode'),
+            // A `testmode` a KULCSBÓL jön: a teszt-kulcs sosem küld élesben, és a hívó nem
+            // kapcsolhatja le. (A MIME-úton `o:testmode` amúgy is 400 — lásd feljebb.)
+            'testmode' => $apiKey?->testmode === true,
             'idempotency_key' => (string) $request->attributes->get('idempotency_key'),
+            // A levél MAGA. A perzisztálás a `SendMessage`-en belül, a gate és a küldés
+            // ELŐTT történik — itt már késő lenne: a dispatch szinkron fut.
+            'raw_mime' => $raw,
+            // A lenyomatba a TARTALOM is beszámít: enélkül ugyanaz az Idempotency-Key két
+            // különböző MIME-levéllel replayt adott, és a második soha nem ment ki.
+            'raw_sha256' => hash('sha256', $raw),
         ]);
 
-        // A nyers MIME MAGA a levél: megőrizzük, különben nincs mit kiküldeni és nincs
-        // mit trace-elni.
-        if ($result->decision->allowed) {
-            RawMimeMessage::create(['message_uuid' => $result->message->uuid, 'raw' => $raw]);
-        }
-
         if (! $result->decision->allowed) {
+            // A kulcs újrahasználata a HÍVÓ hibája, nem a gate elutasítása: 409, hogy a
+            // kliens tudja, a második levele NEM ment ki.
+            if ($result->decision->reason === GateReason::IdempotencyKeyReused->value) {
+                return ApiError::response(
+                    GateReason::IdempotencyKeyReused->value,
+                    'Ezt az Idempotency-Key-t már használtad MÁS levéllel. Új levélhez új kulcs kell.',
+                    409,
+                    ['id' => $result->message->uuid]
+                );
+            }
+
             return ApiError::rejected(
                 (string) $result->decision->reason,
                 'A nyers MIME küldést a PreSendGate elutasította.',

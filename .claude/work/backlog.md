@@ -23,6 +23,19 @@ TODO  a4    A  feat/a4-inbound-routing       backend,security,frontend # MX-foga
 TODO  a5    A  feat/a5-validation            backend,frontend          # Címellenőrzés: szintaxis/MX/szerep/eldobható/catch-all/szonda/kockázat + bulk
 TODO  a6    A  feat/a6-deliverability        backend,frontend          # Blocklist, DMARC RUA, seed/inbox placement, spam-score, MTA-STS/TLS-RPT/BIMI
 
+# ── Review-ból jövő adósságok (nevesített gazdával) ──────────────────────────
+# Nem külön packet: a nevesített packet DoD-jába tartozik.
+#  · a `stored_template_versions` DELETE-je nincs triggerrel fogva (az UPDATE igen)   → A3
+#  · a `From` display-name hamisítható (`"bank@x" <ok@sajat.hu>`) — Mailgun-paritás   → A6
+#  · a nyers MIME Wasabira költöztetése (ma bytea-ban van)                            → A3
+#  · audit hash-lánc; DB-szerep szeparáció (ventmail_owner/ventmail_app)              → C2
+#  · DoH/DNSSEC resolver, `_ventmail-verify` tulajdon-token                           → A6
+#  · a `messages` tábla retenciója és redakciós útja (a nyers MIME-é kész)            → A3
+#  · címzettenkénti újrapróbálás-granularitás (ma üzenet-szintű a claim)              → A2
+#  · a CI a `VENTURE_PACKAGES_TOKEN` hiányában KIHAGYJA a drift-tesztet; a secret
+#    beállítása után a kapu élesedjen (ma hangos skip)                                → ember
+#  · `workspace_invitations` (a tagság ma csak SSO-ból jön)                           → B1
+
 # ── B sáv · STUDIO (Mailchimp-kiváltás) ──────────────────────────────────────
 TODO  b1    B  feat/b1-audience-consent      backend,security,frontend # Listák/szegmensek/tag, ConsentService double opt-in, űrlapok, pref-center, ventOS sync
 TODO  b2    B  feat/b2-editor-campaign       backend,frontend,mockup   # Block-tree + MJML, editor UI, kampány-életciklus, célzás, A/B, ütemezés

@@ -58,7 +58,7 @@ final readonly class MailgunPayload
      */
     public static function fromRequest(array $input): self
     {
-        [$fromEmail, $fromName] = self::parseFrom((string) ($input['from'] ?? ''));
+        [$fromEmail, $fromName] = self::parseFrom(self::scalarField($input, 'from') ?? '');
 
         $recipients = self::parseRecipients($input['to'] ?? []);
 
@@ -87,19 +87,42 @@ final readonly class MailgunPayload
             fromEmail: $fromEmail,
             fromName: $fromName,
             recipients: $recipients,
-            subject: isset($input['subject']) ? (string) $input['subject'] : null,
-            html: isset($input['html']) ? (string) $input['html'] : null,
-            text: isset($input['text']) ? (string) $input['text'] : null,
+            subject: self::scalarField($input, 'subject'),
+            html: self::scalarField($input, 'html'),
+            text: self::scalarField($input, 'text'),
             tags: $tags,
             variables: self::parseVariables($input),
             headers: self::parsePrefixed($input, 'h:'),
             options: self::parseOptions($input),
             deliverytime: self::parseDeliverytime($input['o:deliverytime'] ?? null),
             testmode: self::truthy($input['o:testmode'] ?? false),
-            ipPool: isset($input['o:sending-ip-pool']) ? (string) $input['o:sending-ip-pool'] : null,
-            template: isset($input['template']) ? (string) $input['template'] : null,
+            ipPool: self::scalarField($input, 'o:sending-ip-pool'),
+            template: self::scalarField($input, 'template'),
             channel: self::parseChannel($input['o:channel'] ?? null),
         );
+    }
+
+    /**
+     * Skalár mező kiolvasása.
+     *
+     * A `(string)` cast tömbön „Array to string conversion" warningot ad, amiből a Laravel
+     * `ErrorException`-t csinál → 500 az egységes `error.code` alak helyett. Egy generált
+     * kliens ezen `undefined`-ot lát (golden rule 7), ezért itt STRUKTURÁLT hiba lesz belőle.
+     */
+    private static function scalarField(array $input, string $key): ?string
+    {
+        if (! array_key_exists($key, $input) || $input[$key] === null) {
+            return null;
+        }
+
+        if (! is_scalar($input[$key])) {
+            throw new InvalidArgumentException(sprintf(
+                'VALIDATION_ERROR|A(z) `%s` mező egyetlen értéket vár, nem listát.',
+                $key
+            ));
+        }
+
+        return (string) $input[$key];
     }
 
     /**
@@ -112,6 +135,12 @@ final readonly class MailgunPayload
     {
         if ($value === null || $value === '') {
             return Channel::Transactional->value;
+        }
+
+        if (! is_scalar($value)) {
+            throw new InvalidArgumentException(
+                'INVALID_CHANNEL|A csatorna egyetlen érték, nem lista.'
+            );
         }
 
         $channel = strtolower(trim((string) $value));
@@ -153,7 +182,7 @@ final readonly class MailgunPayload
         $values = is_string($to) ? explode(',', $to) : (array) $to;
 
         return array_values(array_filter(array_map(
-            static fn ($value) => strtolower(trim((string) $value)),
+            static fn ($value) => is_scalar($value) ? strtolower(trim((string) $value)) : '',
             $values
         ), static fn (string $value) => $value !== ''));
     }
@@ -225,7 +254,7 @@ final readonly class MailgunPayload
                 continue;
             }
 
-            $value = strtolower(trim((string) $input[$key]));
+            $value = is_scalar($input[$key]) ? strtolower(trim((string) $input[$key])) : '';
 
             $options[$name] = $value === 'htmlonly' ? 'htmlonly' : self::truthy($value);
         }
@@ -237,6 +266,10 @@ final readonly class MailgunPayload
     {
         if ($value === null || $value === '') {
             return null;
+        }
+
+        if (! is_scalar($value)) {
+            throw new InvalidArgumentException('INVALID_DELIVERYTIME|Az `o:deliverytime` egyetlen érték, nem lista.');
         }
 
         try {
@@ -263,7 +296,7 @@ final readonly class MailgunPayload
     private static function listOf(mixed $value): array
     {
         return array_values(array_filter(array_map(
-            static fn ($item) => trim((string) $item),
+            static fn ($item) => is_scalar($item) ? trim((string) $item) : '',
             is_array($value) ? $value : [$value]
         ), static fn (string $item) => $item !== ''));
     }
@@ -275,6 +308,7 @@ final readonly class MailgunPayload
             return $value;
         }
 
-        return in_array(strtolower(trim((string) $value)), ['yes', 'true', '1', 'on'], true);
+        return is_scalar($value)
+            && in_array(strtolower(trim((string) $value)), ['yes', 'true', '1', 'on'], true);
     }
 }

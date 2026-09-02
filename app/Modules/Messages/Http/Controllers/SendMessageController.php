@@ -12,7 +12,7 @@ use App\Modules\Messages\Data\MailgunPayload;
 use App\Modules\Sending\Actions\SendMessage;
 use App\Modules\Sending\Gate\GateReason;
 use App\Modules\StoredTemplates\Models\StoredTemplate;
-use App\Modules\StoredTemplates\Services\TemplateRenderer;
+use App\Modules\Tenancy\Services\WorkspaceContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use InvalidArgumentException;
@@ -29,8 +29,8 @@ final class SendMessageController
     public function __invoke(
         Request $request,
         SendMessage $send,
-        TemplateRenderer $renderer,
         VentPayClient $ventPay,
+        WorkspaceContext $workspace,
     ): JsonResponse {
         /** @var ApiKey|null $apiKey */
         $apiKey = $request->attributes->get('api_key');
@@ -53,9 +53,15 @@ final class SendMessageController
             return ApiError::badRequest($code, $message);
         }
 
-        // Tárolt sablon: a `template=` a Mailgun paritásának része. A behelyettesítés ITT
-        // történik, hogy a gate már a VÉGLEGES tartalmat lássa (a spam-score és a
-        // link-ellenőrzés A6-ban erre épül).
+        // Tárolt sablon: a `template=` a Mailgun paritásának része.
+        //
+        // A sablon törzse VÁLTOZATLANUL megy tovább — NEM renderelünk itt. A korábbi
+        // elő-renderelés két passt csinált: az itt behelyettesített érték a küldéskor
+        // MÉGEGYSZER átment a `{{ }}` / `%recipient.%` fázison (a `htmlspecialchars` a `{`
+        // és a `%` karaktert nem escape-eli), tehát a hívó saját értéke másodszor is
+        // kiértékelődött — kész gadget a B1 kontakt-attribútumaihoz. Egy pass, egy helyen:
+        // a renderelés a küldési úton történik, a megosztott és a címzettenkénti
+        // változókkal EGYSZERRE.
         $html = $payload->html;
         $text = $payload->text;
 
@@ -70,10 +76,8 @@ final class SendMessageController
                 );
             }
 
-            $variables = collect($payload->variables)->except('recipient-variables')->all();
-
-            $html = $renderer->render($version->body, $variables);
-            $text = $version->body_text !== null ? $renderer->render($version->body_text, $variables, escape: false) : $text;
+            $html = $version->body;
+            $text = $version->body_text ?? $text;
         }
 
         $ipPoolId = null;
@@ -92,7 +96,9 @@ final class SendMessageController
 
             // Dedikált pool ENTITLEMENT-hez kötött (ventPay): különben bárki rátehetné a
             // forgalmát egy fizetett, jó reputációjú IP-re.
-            if ($pool->type === 'dedicated' && ! $ventPay->hasEntitlement((int) $pool->workspace_id, 'dedicated_ip')) {
+            // Az ALANY a HÍVÓ, nem a pool tulajdonosa: platform-szintű poolnál a
+            // `workspace_id` NULL, tehát a jogosultságot egy nem létező tenantra néztük meg.
+            if ($pool->type === 'dedicated' && ! $ventPay->hasEntitlement($workspace->workspaceId(), 'dedicated_ip')) {
                 return ApiError::rejected(
                     'ENTITLEMENT_REQUIRED',
                     'A dedikált IP-pool használata a csomagod része kell legyen (dedicated_ip).'

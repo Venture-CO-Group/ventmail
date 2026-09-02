@@ -63,11 +63,11 @@ final class Message extends Model
      * A driver ezt használja a MIME összeállításához; az adatbázisba csak a kanonikus
      * törzs kerül, mert a személyre szabott változat titkot (magic-link, token) hordozhat.
      *
-     * @var array<string, string|null>
+     * @var array<string, array{html: ?string, text: ?string}>
      */
     public array $renderedBodies = [];
 
-    /** @param array<string, string|null> $bodies */
+    /** @param array<string, array{html: ?string, text: ?string}> $bodies */
     public function withRenderedBodies(array $bodies): self
     {
         $this->renderedBodies = $bodies;

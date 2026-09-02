@@ -23,7 +23,7 @@ return new class extends Migration
         Schema::create('raw_mime_messages', function (Blueprint $table) {
             $table->id();
             $table->foreignId('workspace_id')->constrained()->cascadeOnDelete();
-            $table->uuid('message_uuid')->index();
+            $table->uuid('message_uuid')->unique(); // egy üzenet = EGY nyers levél
             $table->binary('raw');
             $table->unsignedInteger('size');
             $table->char('sha256', 64);

@@ -15,11 +15,29 @@ use App\Modules\Sending\Models\Message;
  *
  * Ez teszi lehetővé, hogy a TELJES küldési lánc (gate → sor → esemény → napló → analitika)
  * kész legyen, mielőtt a Postal cluster egyáltalán létezik. Élesedéskor CSAK a config vált.
+ *
+ * A KIMENT levelet RÖGZÍTI (címzettenként a személyre szabott törzzsel): enélkül a teszt
+ * csak azt tudná ellenőrizni, hogy hívtuk a drivert — azt nem, hogy MI ment ki. A rögzítés
+ * kizárólag memóriában él, és a `reset()` üríti.
  */
 final class FakeDriver implements SendingDriver
 {
+    /** @var list<array{uuid: string, channel: string, bodies: array<string, array{html: ?string, text: ?string}>}> */
+    public static array $sent = [];
+
+    public static function reset(): void
+    {
+        self::$sent = [];
+    }
+
     public function send(Message $message): DispatchResult
     {
+        self::$sent[] = [
+            'uuid' => (string) $message->uuid,
+            'channel' => (string) $message->channel,
+            'bodies' => $message->renderedBodies,
+        ];
+
         // Determinisztikus azonosító: ugyanaz az üzenet ugyanazt az id-t kapja, tehát az
         // idempotencia a driver szintjén is ellenőrizhető.
         // A fake az MTA VISSZAJELZÉSÉT is szimulálja: a valódi driverek csak `accepted`-et

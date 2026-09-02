@@ -21,7 +21,7 @@ final class ApiKey extends Model
 {
     use Auditable, BelongsToWorkspace, HasUuids, SoftDeletes;
 
-    protected $fillable = ['name', 'prefix', 'key_hash', 'scopes', 'testmode', 'expires_at', 'last_used_at'];
+    protected $fillable = ['name', 'prefix', 'key_hash', 'scopes', 'channels', 'testmode', 'expires_at', 'last_used_at'];
 
     protected $hidden = ['key_hash'];
 
@@ -34,6 +34,7 @@ final class ApiKey extends Model
     {
         return [
             'scopes' => 'array',
+            'channels' => 'array',
             'testmode' => 'boolean',
             'expires_at' => 'datetime',
             'last_used_at' => 'datetime',
@@ -47,7 +48,7 @@ final class ApiKey extends Model
      * @param  list<string>  $scopes
      * @return array{model: self, plain: string}
      */
-    public static function issue(string $name, array $scopes = [], bool $testmode = false): array
+    public static function issue(string $name, array $scopes = [], bool $testmode = false, ?array $channels = null): array
     {
         $plain = ($testmode ? 'vm_test_' : 'vm_live_').Str::random(48);
 
@@ -56,6 +57,7 @@ final class ApiKey extends Model
             'prefix' => substr($plain, 0, 16),
             'key_hash' => self::hashOf($plain),
             'scopes' => $scopes,
+            'channels' => $channels,
             'testmode' => $testmode,
         ]);
 
@@ -102,5 +104,27 @@ final class ApiKey extends Model
     public function hasScope(string $scope): bool
     {
         return in_array($scope, (array) $this->scopes, true);
+    }
+
+    /**
+     * A kulcsnak ADOTT csatornák.
+     *
+     * `null` = konzervatív alapértelmezés: csak tranzakciós. A marketing küldés így
+     * SZÁNDÉKOS kiállítói döntés, nem a hívó futásidejű választása.
+     *
+     * @return list<string>
+     */
+    public function allowedChannels(): array
+    {
+        $channels = $this->channels;
+
+        return is_array($channels) && $channels !== []
+            ? array_values(array_map(strval(...), $channels))
+            : ['transactional'];
+    }
+
+    public function mayUseChannel(string $channel): bool
+    {
+        return in_array($channel, $this->allowedChannels(), true);
     }
 }

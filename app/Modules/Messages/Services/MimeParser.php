@@ -39,8 +39,14 @@ final class MimeParser
      */
     public function parseHeaders(string $raw): array
     {
-        $separator = str_contains($raw, "\r\n\r\n") ? "\r\n\r\n" : "\n\n";
-        $position = strpos($raw, $separator);
+        // A határ az ELSŐ üres sor — sorvég-fajtától függetlenül. A korábbi
+        // „van-e valahol CRLFCRLF" kérdés GLOBÁLIS volt: ha a fejlécblokk `\n`-nel zárult,
+        // de a TÖRZS bárhol tartalmazott CRLFCRLF-et (idézett levél, base64-blokk), a határ
+        // a törzsbe csúszott, és a törzs sorai fejlécként parse-olódtak — a törzsbe írt
+        // `To:` sor így valódi címzetté vált.
+        $position = preg_match('/\r?\n\r?\n/', $raw, $matches, PREG_OFFSET_CAPTURE) === 1
+            ? $matches[0][1]
+            : false;
 
         // `=== false` ÉS `=== 0` külön: a `?:` mindkettőt falsy-nak vette, és ilyenkor a
         // TELJES törzs fejlécként parse-olódott — a törzsben idézett `To:` sorok
@@ -121,8 +127,10 @@ final class MimeParser
         $current = null;
 
         foreach ($lines as $line) {
-            if ($line === '') {
-                continue;
+            // Üres sor = a fejlécblokk vége. Nem `continue`: az átugrás miatt egy rosszul
+            // vágott blokk törzs-sorai is fejlécként folytatódtak volna.
+            if (trim($line, "\r") === '') {
+                break;
             }
 
             // A folytatósor szóközzel vagy tabbal kezdődik.

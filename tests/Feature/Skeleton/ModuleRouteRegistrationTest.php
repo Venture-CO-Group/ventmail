@@ -190,3 +190,24 @@ it('minden küldő útvonal idempotencia-kulcsot követel — a route NEVE alapj
 
     expect($offenders)->toBeEmpty('idempotencia-kulcs nélküli küldő útvonal: '.implode(', ', $offenders));
 });
+
+it('minden küldő útvonalon van csatorna-jogosultság', function () {
+    // A scope azt mondja meg, HOGY küldhet; a csatorna azt, MIT. Egy jövőbeli küldő route
+    // az `api.channel` nélkül visszahozná a csatorna-eszkalációt (marketing tartalom
+    // tranzakciós címkével → a ConsentGate azonnal átengedi).
+    $offenders = [];
+
+    foreach (Route::getRoutes() as $route) {
+        $name = (string) $route->getName();
+
+        if (! str_starts_with($name, 'v1.') || ! str_ends_with($name, '.send')) {
+            continue;
+        }
+
+        if (! in_array('api.channel', $route->gatherMiddleware(), true)) {
+            $offenders[] = $name;
+        }
+    }
+
+    expect($offenders)->toBeEmpty('csatorna-jogosultság nélküli küldő útvonal: '.implode(', ', $offenders));
+});

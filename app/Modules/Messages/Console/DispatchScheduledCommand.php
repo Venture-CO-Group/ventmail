@@ -11,6 +11,8 @@ use App\Modules\Sending\Services\MessageDispatcher;
 use App\Modules\Tenancy\Models\Workspace;
 use App\Modules\Tenancy\Services\WorkspaceContext;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 
 /**
  * Az esedékes, ütemezett üzenetek kiküldése (`o:deliverytime`).
@@ -18,6 +20,10 @@ use Illuminate\Console\Command;
  * A KAPUK ÚJRA LEFUTNAK. A gate-döntésnek szavatossági ideje van: egy holnapra ütemezett
  * levélnél a közben érkezett leiratkozásnak, hard bounce-nak, kvóta-kimerülésnek vagy
  * domain-deverifikációnak számítania kell. Enélkül a tegnapi állapot szerint mennénk ki.
+ *
+ * HIBATŰRÉS: egyetlen üzenet hibája sem állíthatja meg a futást. A `MessageDispatcher`
+ * driver-hibánál `deferred`-re állít, majd ÚJRA DOBJA a kivételt — enélkül a kapott hiba
+ * az összes többi tenant esedékes levelét kizárta volna ebből a futásból.
  */
 final class DispatchScheduledCommand extends Command
 {
@@ -29,52 +35,90 @@ final class DispatchScheduledCommand extends Command
     {
         $sent = 0;
         $rejected = 0;
+        $failed = 0;
 
-        // Tenantonként megyünk: a global scope-nak kontextus kell, és egy hibás workspace
-        // nem állíthatja meg a többiét.
-        Workspace::query()->each(function (Workspace $workspace) use ($gate, $dispatcher, $context, &$sent, &$rejected): void {
-            $context->set($workspace);
+        try {
+            // Tenantonként megyünk: a global scope-nak kontextus kell.
+            //
+            // `chunkById`, nem `each()`: az offset-lapozás rendezés nélkül Postgresen
+            // sorokat hagyhat ki vagy duplázhat, és a kihagyott tenant esedékes levele
+            // ebben a futásban nem ment volna ki.
+            Workspace::query()->orderBy('id')->chunkById(100, function ($workspaces) use ($gate, $dispatcher, $context, &$sent, &$rejected, &$failed): void {
+                foreach ($workspaces as $workspace) {
+                    $context->set($workspace);
 
-            Message::query()
-                ->where('status', 'scheduled')
-                ->where('deliverytime', '<=', now())
-                ->orderBy('deliverytime')
-                ->limit((int) $this->option('limit'))
-                ->get()
-                ->each(function (Message $message) use ($gate, $dispatcher, &$sent, &$rejected): void {
-                    $decision = $gate->evaluate($message);
+                    $due = Message::query()
+                        ->where('status', 'scheduled')
+                        ->where('deliverytime', '<=', now())
+                        ->orderBy('deliverytime')
+                        ->limit((int) $this->option('limit'))
+                        ->get();
 
-                    if (! $decision->allowed) {
-                        $message->forceFill(['status' => 'rejected', 'reason' => $decision->reason])->save();
+                    foreach ($due as $message) {
+                        try {
+                            $this->process($message, $gate, $dispatcher, $sent, $rejected);
+                        } catch (Throwable $e) {
+                            $failed++;
 
-                        MessageEvent::create([
-                            'message_uuid' => $message->uuid,
-                            'type' => 'rejected',
-                            'recipient' => $message->recipients[0] ?? null,
-                            'channel' => $message->channel,
-                            'reason' => $decision->reason,
-                        ]);
-
-                        $rejected++;
-
-                        return;
+                            // A részlet a szerver-logba megy: az üzenet állapotát a
+                            // dispatcher már `deferred`-re állította, tehát az
+                            // újrapróbálásnak van hova visszatérnie.
+                            Log::error('Ütemezett küldés hibára futott', [
+                                'message_uuid' => $message->uuid,
+                                'workspace_id' => $workspace->getKey(),
+                                'exception' => $e::class,
+                            ]);
+                        }
                     }
+                }
+            });
+        } finally {
+            // A háttérfolyamat NEM hagyhat maga után tenant-kontextust — kivétel esetén sem.
+            $context->forget();
+        }
 
-                    $message->forceFill(['status' => 'accepted', 'gate_decided_at' => now()])->save();
-
-                    if ($message->testmode) {
-                        return;
-                    }
-
-                    $dispatcher->dispatch($message->fresh());
-                    $sent++;
-                });
-        });
-
-        $context->forget();
-
-        $this->info("Kiküldve: {$sent}, elutasítva: {$rejected}");
+        $this->info("Kiküldve: {$sent}, elutasítva: {$rejected}, hibára futott: {$failed}");
 
         return self::SUCCESS;
+    }
+
+    private function process(
+        Message $message,
+        PreSendGate $gate,
+        MessageDispatcher $dispatcher,
+        int &$sent,
+        int &$rejected,
+    ): void {
+        $decision = $gate->evaluate($message);
+
+        if (! $decision->allowed) {
+            $message->forceFill(['status' => 'rejected', 'reason' => $decision->reason])->save();
+
+            // MINDEN címzett kap eseményt, ahogy a küldési úton is: egy elutasított
+            // 1000-es batch trace-e különben egyetlen sor lenne.
+            foreach ($message->recipients as $recipient) {
+                MessageEvent::create([
+                    'message_uuid' => $message->uuid,
+                    'type' => 'rejected',
+                    'recipient' => $recipient,
+                    'channel' => $message->channel,
+                    'reason' => $decision->reason,
+                    'tags' => $message->tags,
+                ]);
+            }
+
+            $rejected++;
+
+            return;
+        }
+
+        $message->forceFill(['status' => 'accepted', 'gate_decided_at' => now()])->save();
+
+        if ($message->testmode) {
+            return;
+        }
+
+        $dispatcher->dispatch($message->fresh());
+        $sent++;
     }
 }

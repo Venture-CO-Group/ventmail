@@ -36,18 +36,23 @@ final class SendingServiceProvider extends ModuleServiceProvider
      * - fejléc-biztonság (Bcc/From felülírás, CRLF-injekció).
      * Enélkül a ciklusos kapuk üres listán „passed"-del tértek vissza.
      *
-     * A rate-limit előre került: az elutasított kérés is auditot ír, az audit-tábla pedig
-     * SOHA nem törölhető — korlátlan elutasítás tárhely-DoS lenne egy visszaút nélküli táblán.
+     * A rate-limit és a kvóta előre került: az elutasított kérés is auditot ír, az
+     * audit-tábla pedig SOHA nem törölhető — korlátlan elutasítás tárhely-DoS lenne egy
+     * visszaút nélküli táblán.
+     *
+     * A TARTALOM-KAPU a rate-limit MÖGÉ került: ő a legdrágább (a törzset és minden
+     * behelyettesítendő értéket végigolvassa), tehát előtte kell álljon az a két kapu,
+     * amelyik a kérések SZÁMÁT fogja. Előtte egy hívás korlátlanul vitte a CPU-t.
      */
     private const GATES = [
         Gates\RecipientSanityGate::class,
         Gates\HeaderSafetyGate::class,
-        Gates\ContentSafetyGate::class,
         Gates\RateLimitGate::class,
+        Gates\EntitlementGate::class,
+        Gates\ContentSafetyGate::class,
         Gates\DomainVerifiedGate::class,
         Gates\SuppressionGate::class,
         Gates\ConsentGate::class,
-        Gates\EntitlementGate::class,
         Gates\ValidationRiskGate::class,
     ];
 

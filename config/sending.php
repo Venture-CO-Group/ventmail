@@ -18,6 +18,10 @@ return [
     // A beadott nyers MIME felső korlátja (a Mailgun 25 MB-ot enged csatolmányokkal).
     'max_mime_bytes' => (int) env('SENDING_MAX_MIME_BYTES', 26_214_400),
 
+    // Meddig őrizzük a beadott nyers levelet (golden rule 10). A plan-függő tier a C1
+    // (ventPay `log_retention_tier`) dolga; ez a biztonságos alapérték.
+    'raw_mime_retention_days' => (int) env('SENDING_RAW_MIME_RETENTION_DAYS', 30),
+
     // A `sending` állapot lízingje: ennyi idő után egy félbemaradt küldés újraigényelhető.
     'lease_seconds' => (int) env('SENDING_LEASE_SECONDS', 300),
 

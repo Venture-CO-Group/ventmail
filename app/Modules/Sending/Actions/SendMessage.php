@@ -13,6 +13,7 @@ use App\Modules\Sending\Gate\GateReason;
 use App\Modules\Sending\Gate\GateResult;
 use App\Modules\Sending\Gate\PreSendGate;
 use App\Modules\Sending\Models\Message;
+use App\Modules\Sending\Models\RawMimeMessage;
 use App\Modules\Sending\Services\MessageDispatcher;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Arr;
@@ -51,22 +52,33 @@ final class SendMessage
             $existing = Message::query()->where('idempotency_key', $idempotencyKey)->first();
 
             if ($existing !== null) {
-                $fingerprint = $this->fingerprint($attributes);
-
-                // MÁS tartalom ugyanazzal a kulccsal: a hívó hibája, és a csendes eldobás
-                // elveszítené a második levelet. Ezt a Stripe és a Mailgun is hibának veszi.
-                if ($existing->request_fingerprint !== null && $existing->request_fingerprint !== $fingerprint) {
-                    return new SendResult(
-                        $existing,
-                        GateDecision::rejected(GateReason::IdempotencyKeyReused->value, [])
-                    );
-                }
-
-                return new SendResult($existing, $this->replayDecision($existing));
+                return $this->replay($existing, $attributes);
             }
         }
 
         $message = $this->createMessage($attributes, $idempotencyKey);
+
+        // A DB döntötte el a versenyt, és MI VESZTETTÜNK: a győztes üzenet már átment a
+        // kapukon és ki is ment. Itt TOVÁBBMENNI dupla kézbesítés lett volna — a győztes
+        // sort visszaállítottuk `accepted`-re, a dispatcher lízingje pedig újra engedett.
+        if ($message === null) {
+            return $this->replay(
+                Message::query()->where('idempotency_key', $idempotencyKey)->firstOrFail(),
+                $attributes
+            );
+        }
+
+        // A NYERS MIME a levél MAGA — a gate és a dispatcher ELŐTT kell perzisztálnia.
+        // Korábban a hívás UTÁN történt, a küldés viszont ugyanabban a hívásban, szinkron
+        // fut: a driver olyan pillanatban kapta meg az üzenetet, amikor a törzs még nem
+        // létezett. `firstOrCreate`, mert a sor megváltoztathatatlan: egy üzenethez EGY
+        // nyers levél tartozik (unique kényszer is védi).
+        if (is_string($raw = Arr::get($attributes, 'raw_mime')) && $raw !== '') {
+            RawMimeMessage::query()->firstOrCreate(
+                ['message_uuid' => $message->uuid],
+                ['raw' => $raw]
+            );
+        }
 
         $decision = $this->gate->evaluate($message);
 
@@ -113,11 +125,39 @@ final class SendMessage
      */
     private function rejectInvalidInput(array $attributes): ?SendResult
     {
+        // NUL bájt és érvénytelen UTF-8: a `jsonb`/`text` oszlop ezeket ELUTASÍTJA
+        // („unsupported Unicode escape sequence", „invalid byte sequence"), és mivel a sor
+        // a kapuk ELŐTT íródik, a hívó `QueryException` → 500-at kapott az egységes
+        // `error.code` alak helyett. A nyers MIME kivétel: az `bytea`-ba megy.
+        $unstorable = $this->firstUnstorableField(Arr::except($attributes, ['raw_mime']));
+
+        if ($unstorable !== null) {
+            return $this->invalid(
+                $attributes,
+                sprintf('A(z) `%s` mező NUL bájtot vagy érvénytelen UTF-8 szekvenciát tartalmaz.', $unstorable)
+            );
+        }
+
         $channel = (string) Arr::get($attributes, 'channel', Channel::Transactional->value);
 
         if (Channel::tryFrom($channel) !== null) {
             return null;
         }
+
+        return $this->invalid(
+            $attributes,
+            'Ismeretlen csatorna; engedélyezett: '.implode(', ', Channel::values())
+        );
+    }
+
+    /**
+     * Perzisztálás ELŐTTI elutasítás: nincs sor, van strukturált válasz és audit.
+     *
+     * @param  array<string, mixed>  $attributes
+     */
+    private function invalid(array $attributes, string $detail): SendResult
+    {
+        $channel = (string) Arr::get($attributes, 'channel', Channel::Transactional->value);
 
         $message = new Message([
             'channel' => $channel,
@@ -126,10 +166,7 @@ final class SendMessage
         ]);
 
         $decision = GateDecision::rejected(GateReason::InvalidRequest->value, [
-            'recipient_sanity' => GateResult::reject(
-                GateReason::InvalidRequest,
-                'Ismeretlen csatorna; engedélyezett: '.implode(', ', Channel::values())
-            ),
+            'recipient_sanity' => GateResult::reject(GateReason::InvalidRequest, $detail),
         ]);
 
         $this->audit->log('sending.gate.rejected', null, after: [
@@ -142,9 +179,58 @@ final class SendMessage
     }
 
     /**
+     * Az első olyan mező neve, amit az adatbázis nem tudna eltárolni — vagy `null`.
+     *
+     * @param  array<string, mixed>  $values
+     */
+    private function firstUnstorableField(array $values, string $path = ''): ?string
+    {
+        foreach ($values as $key => $value) {
+            $name = $path === '' ? (string) $key : $path.'.'.$key;
+
+            if (is_array($value)) {
+                $nested = $this->firstUnstorableField($value, $name);
+
+                if ($nested !== null) {
+                    return $nested;
+                }
+
+                continue;
+            }
+
+            if (is_string($value) && (str_contains($value, "\0") || ! mb_check_encoding($value, 'UTF-8'))) {
+                return $name;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Ismételt (vagy versenyt vesztett) Idempotency-Key: ugyanaz a válasz, ÚJRAKÜLDÉS NÉLKÜL.
+     *
      * @param  array<string, mixed>  $attributes
      */
-    private function createMessage(array $attributes, ?string $idempotencyKey): Message
+    private function replay(Message $existing, array $attributes): SendResult
+    {
+        // MÁS tartalom ugyanazzal a kulccsal: a hívó hibája, és a csendes eldobás
+        // elveszítené a második levelet. Ezt a Stripe és a Mailgun is hibának veszi.
+        if ($existing->request_fingerprint !== null
+            && $existing->request_fingerprint !== $this->fingerprint($attributes)) {
+            return new SendResult(
+                $existing,
+                GateDecision::rejected(GateReason::IdempotencyKeyReused->value, [])
+            );
+        }
+
+        return new SendResult($existing, $this->replayDecision($existing));
+    }
+
+    /**
+     * @param  array<string, mixed>  $attributes
+     * @return Message|null `null`, ha a kulcsot egy PÁRHUZAMOS hívás nyerte meg
+     */
+    private function createMessage(array $attributes, ?string $idempotencyKey): ?Message
     {
         $payload = [
             'channel' => Arr::get($attributes, 'channel', Channel::Transactional->value),
@@ -186,9 +272,9 @@ final class SendMessage
             return Message::create($payload);
         } catch (UniqueConstraintViolationException) {
             // Versenyhelyzet: két párhuzamos, azonos kulcsú hívás közül mindkettő „nem
-            // találtam"-ot olvasott. A DB döntött — a vesztes az ELSŐ üzenetet adja vissza,
-            // nem 500-at (golden rule 5: ugyanaz a kulcs, ugyanaz a válasz).
-            return Message::query()->where('idempotency_key', $idempotencyKey)->firstOrFail();
+            // találtam"-ot olvasott. A DB döntött — a vesztes NEM küld, csak visszatükrözi
+            // a győztes válaszát (golden rule 5).
+            return null;
         }
     }
 
@@ -203,11 +289,18 @@ final class SendMessage
         $canonical = Arr::only($attributes, [
             'channel', 'from_email', 'from_name', 'subject', 'to', 'html', 'text',
             'tags', 'variables', 'headers', 'deliverytime', 'testmode', 'rendered_html',
+            // A MIME-úton a TARTALOM kizárólag itt van: `options` (vezérlők) és a nyers
+            // levél lenyomata. Enélkül ugyanaz a kulcs KÉT különböző MIME-levéllel replayt
+            // adott, és a második soha nem ment ki.
+            'options', 'ip_pool_id', 'raw_sha256',
         ]);
 
         ksort($canonical);
 
-        return hash('sha256', (string) json_encode($canonical));
+        // Érvénytelen UTF-8 (latin-1 törzsű legacy integráció) esetén a `json_encode`
+        // `false`-t adott, tehát MINDEN ilyen kérés lenyomata `hash('')` lett — két
+        // különböző levél ütközött, a második csendben elveszett.
+        return hash('sha256', json_encode($canonical, JSON_INVALID_UTF8_SUBSTITUTE) ?: serialize($canonical));
     }
 
     /**

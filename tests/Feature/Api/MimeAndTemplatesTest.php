@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Modules\Domains\Models\Domain;
 use App\Modules\Identity\Models\ApiKey;
+use App\Modules\Sending\Drivers\FakeDriver;
 use App\Modules\Sending\Models\Message;
 use App\Modules\StoredTemplates\Models\StoredTemplate;
 use App\Modules\Tenancy\Models\Workspace;
@@ -21,6 +22,8 @@ uses(RefreshDatabase::class);
  */
 
 beforeEach(function () {
+    FakeDriver::reset();
+
     app(WorkspaceContext::class)->set(Workspace::factory()->create());
     Domain::create(['name' => 'pelda.hu', 'status' => 'verified', 'verified_at' => now()]);
     ['plain' => $this->plain] = ApiKey::issue('CI', ['messages:send', 'templates:write', 'templates:read']);
@@ -124,7 +127,10 @@ it('sablonnal küldés behelyettesítéssel', function () {
         'v:balance' => '1000',
     ])->assertAccepted();
 
-    $rendered = Message::firstOrFail()->options['body_html'] ?? '';
+    // A behelyettesítés a KÜLDÉSI úton történik, egyetlen passban: a `messages` soron a
+    // KANONIKUS sablon marad (a kétszeres renderelés gadget volt), a kirenderelt levelet
+    // a driver kapja.
+    $rendered = FakeDriver::$sent[0]['bodies']['cimzett@example.test']['html'];
 
     expect($rendered)->toContain('Szia Anna')->toContain('1000');
 });
@@ -142,7 +148,7 @@ it('a sablon auto-escape-eli a változókat', function () {
         'v:first_name' => '<script>alert(1)</script>',
     ])->assertAccepted();
 
-    $rendered = Message::firstOrFail()->options['body_html'] ?? '';
+    $rendered = FakeDriver::$sent[0]['bodies']['cimzett@example.test']['html'];
 
     expect($rendered)->not->toContain('<script>');
     expect($rendered)->toContain('&lt;script&gt;');
@@ -159,7 +165,7 @@ it('hiányzó változó fallback, nem hiba', function () {
         'template' => 'welcome',
     ])->assertAccepted();
 
-    expect(Message::firstOrFail()->options['body_html'])->toContain('Szia !');
+    expect(FakeDriver::$sent[0]['bodies']['cimzett@example.test']['html'])->toContain('Szia !');
 });
 
 it('ismeretlen sablonra 400', function () {

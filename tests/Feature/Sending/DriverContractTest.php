@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Modules\Consent\Models\Consent;
 use App\Modules\Sending\Drivers\PostalDriver;
 use App\Modules\Sending\Models\Message;
+use App\Modules\Sending\Models\RawMimeMessage;
 use App\Modules\Sending\Testing\FakeAddressRiskScorer;
 use App\Modules\Sending\Testing\FakeConsentChecker;
 use App\Modules\Tenancy\Models\Workspace;
@@ -26,12 +27,20 @@ beforeEach(function () {
 
 function outbound(array $overrides = []): Message
 {
-    return Message::create(array_merge([
+    $message = Message::create(array_merge([
         'channel' => 'transactional',
         'from_email' => 'no-reply@pelda.hu',
         'subject' => 'Teszt',
         'recipients' => ['cimzett@example.test'],
+        'options' => ['body_html' => '<p>Szia</p>'],
     ], $overrides));
+
+    // A driver a KIRENDERELT törzset kapja — ezt a valóságban a MessageDispatcher tölti fel.
+    return $message->withRenderedBodies(
+        collect($message->recipients)
+            ->mapWithKeys(fn ($recipient) => [(string) $recipient => ['html' => '<p>Szia</p>', 'text' => 'Szia']])
+            ->all()
+    );
 }
 
 it('a PostalDriver konfiguráció nélkül hangosan megáll', function () {
@@ -78,7 +87,72 @@ it('a PostalDriver idempotencia-kulcsot küld', function () {
     $message = outbound();
     (new PostalDriver)->send($message);
 
-    Http::assertSent(fn ($request) => ($request['idempotency_key'] ?? null) === $message->uuid);
+    // Címzettenként EGYEDI: közös kulccsal a második címzett a firstre futna rá.
+    Http::assertSent(fn ($request) => ($request['idempotency_key'] ?? null)
+        === $message->uuid.':'.hash('sha256', 'cimzett@example.test'));
+});
+
+it('a PostalDriver TÖRZSET küld, címzettenként személyre szabva', function () {
+    // A driver korábban csak fejléceket adott át: a `SENDING_DRIVER=postal` napján
+    // tartalom nélküli levél ment volna ki, a batch személyre szabása pedig nyomtalanul
+    // elveszett volna.
+    config(['sending.postal.endpoint' => 'https://postal.test', 'sending.postal.api_key' => 'kulcs']);
+
+    Http::fake(['https://postal.test/*' => Http::response(['data' => ['message_id' => 'x']])]);
+
+    $message = outbound(['recipients' => ['anna@example.test', 'bence@example.test']])
+        ->withRenderedBodies([
+            'anna@example.test' => ['html' => '<p>Kedves Anna</p>', 'text' => 'Kedves Anna'],
+            'bence@example.test' => ['html' => '<p>Kedves Bence</p>', 'text' => 'Kedves Bence'],
+        ]);
+
+    (new PostalDriver)->send($message);
+
+    Http::assertSent(fn ($request) => ($request['html_body'] ?? null) === '<p>Kedves Anna</p>'
+        && $request['to'] === ['anna@example.test']);
+    Http::assertSent(fn ($request) => ($request['html_body'] ?? null) === '<p>Kedves Bence</p>'
+        && $request['to'] === ['bence@example.test']);
+});
+
+it('a PostalDriver NEM küld ki törzs nélküli levelet', function () {
+    config(['sending.postal.endpoint' => 'https://postal.test', 'sending.postal.api_key' => 'kulcs']);
+
+    Http::fake(['https://postal.test/*' => Http::response(['data' => ['message_id' => 'x']])]);
+
+    // Kirenderelt törzs nélkül: fail-closed. Üres levelet kiküldeni rosszabb, mint nem küldeni.
+    $message = Message::create([
+        'channel' => 'transactional',
+        'from_email' => 'no-reply@pelda.hu',
+        'subject' => 'Teszt',
+        'recipients' => ['cimzett@example.test'],
+        'options' => ['body_html' => '<p>Szia</p>'],
+    ]);
+
+    expect(fn () => (new PostalDriver)->send($message))->toThrow(RuntimeException::class);
+
+    Http::assertNothingSent();
+});
+
+it('a nyers MIME-üzenetet a Postal RAW végpontja kapja', function () {
+    config(['sending.postal.endpoint' => 'https://postal.test', 'sending.postal.api_key' => 'kulcs']);
+
+    Http::fake(['https://postal.test/*' => Http::response(['data' => ['message_id' => 'x']])]);
+
+    $message = Message::create([
+        'channel' => 'transactional',
+        'from_email' => 'no-reply@pelda.hu',
+        'recipients' => ['cimzett@example.test'],
+        'options' => ['raw_mime' => true],
+    ]);
+
+    $raw = "From: no-reply@pelda.hu\r\nTo: cimzett@example.test\r\n\r\nTorzs\r\n";
+
+    RawMimeMessage::create(['message_uuid' => $message->uuid, 'raw' => $raw]);
+
+    (new PostalDriver)->send($message);
+
+    Http::assertSent(fn ($request) => str_contains((string) $request->url(), '/send/raw')
+        && ($request['data'] ?? null) === base64_encode($raw));
 });
 
 it('a PostalDriver health-je nem szivárogtat belső részletet', function () {

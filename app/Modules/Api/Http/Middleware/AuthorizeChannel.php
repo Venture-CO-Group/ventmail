@@ -19,9 +19,16 @@ use Symfony\Component\HttpFoundation\Response;
  * panaszokat NEM IS NÉZTE. Ez a golden rule 4 („transactional ≠ marketing", keverés =
  * instant blokk) megkerülése volt.
  *
- * Mostantól a consent-köteles csatorna külön scope-ot igényel (`messages:send:marketing`),
- * és a `journey`/`campaign` a publikus API-ról egyáltalán nem érhető el — azok a
+ * Mostantól a kérésben megadott csatorna csak azon a halmazon belül mozoghat, amit a KULCS
+ * kapott (`api_keys.channels`, alapértelmezés: csak `transactional`), a consent-köteles
+ * csatorna ezen felül külön scope-ot igényel (`messages:send:marketing`), a
+ * `journey`/`campaign` pedig a publikus API-ról egyáltalán nem érhető el — azok a
  * Journey/Campaign motor belső csatornái (sor-prioritás!).
+ *
+ * Amit ez NEM old meg, és amit ezért ki kell mondani: azt, hogy valaki MARKETING TARTALMAT
+ * küld tranzakciósnak jelölve, egyetlen kapu sem tudja megállapítani a tartalomból. Az a
+ * jelölés a küldő felelőssége; a védelem ott a panasz- és bounce-arány figyelése (A6),
+ * nem ez a middleware.
  */
 final class AuthorizeChannel
 {
@@ -30,7 +37,15 @@ final class AuthorizeChannel
 
     public function handle(Request $request, Closure $next): Response
     {
-        $requested = strtolower(trim((string) $request->input('o:channel', Channel::Transactional->value)));
+        $raw = $request->input('o:channel', Channel::Transactional->value);
+
+        // Tömb-bemenet (`o:channel[]=marketing`) korábban „Array to string conversion"
+        // warningon át 500-at adott az egységes hibaformátum helyett.
+        if (! is_scalar($raw)) {
+            return $next($request);
+        }
+
+        $requested = strtolower(trim((string) $raw));
 
         $channel = Channel::tryFrom($requested);
 
@@ -46,15 +61,27 @@ final class AuthorizeChannel
             );
         }
 
-        if ($channel->requiresConsent()) {
-            $key = $request->attributes->get('api_key');
+        $key = $request->attributes->get('api_key');
 
-            if (! $key instanceof ApiKey || ! $key->hasScope('messages:send:marketing')) {
-                return $this->forbidden(
-                    'Consent-köteles csatornához `messages:send:marketing` scope kell. '
-                    .'Marketing küldéshez megerősített (double opt-in) consent is szükséges.'
-                );
-            }
+        // A KULCS a jogosultság forrása. Fail-closed: kulcs nélkül nincs csatorna.
+        if (! $key instanceof ApiKey) {
+            return $this->forbidden('A csatorna-jogosultság a kulcsból dől el; hitelesítés nélkül nincs küldés.');
+        }
+
+        if (! $key->mayUseChannel($channel->value)) {
+            return $this->forbidden(sprintf(
+                'Ez a kulcs a(z) %s csatorná(k)ra lett kiállítva, a(z) %s nincs köztük. '
+                .'A csatorna a kulcs joga, nem a kérés önbevallása.',
+                implode(', ', $key->allowedChannels()),
+                $channel->value
+            ));
+        }
+
+        if ($channel->requiresConsent() && ! $key->hasScope('messages:send:marketing')) {
+            return $this->forbidden(
+                'Consent-köteles csatornához `messages:send:marketing` scope kell. '
+                .'Marketing küldéshez megerősített (double opt-in) consent is szükséges.'
+            );
         }
 
         return $next($request);

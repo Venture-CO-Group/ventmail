@@ -41,7 +41,11 @@ beforeEach(function () {
 
         public function send(Message $message): DispatchResult
         {
-            $this->captured->bodies = $message->renderedBodies;
+            // A törzs mostantól címzettenként HTML+szöveg párban érkezik: a text/plain
+            // részt is személyre kell szabni, különben ott nyersen menne ki a `%recipient.%`.
+            $this->captured->bodies = collect($message->renderedBodies)
+                ->map(fn (array $bodies) => (string) $bodies['html'])
+                ->all();
 
             return DispatchResult::delivered('capture-'.$message->uuid);
         }

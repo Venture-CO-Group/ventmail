@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 use App\Modules\Domains\Models\Domain;
 use App\Modules\Identity\Models\ApiKey;
-use App\Modules\Messages\Models\RawMimeMessage;
 use App\Modules\Sending\Models\Message;
+use App\Modules\Sending\Models\RawMimeMessage;
 use App\Modules\Suppression\Models\Suppression;
 use App\Modules\Tenancy\Models\Workspace;
 use App\Modules\Tenancy\Services\WorkspaceContext;

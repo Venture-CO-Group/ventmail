@@ -7,27 +7,29 @@ namespace App\Modules\Sending\Gate\Gates;
 use App\Modules\Sending\Gate\GateReason;
 use App\Modules\Sending\Gate\GateResult;
 use App\Modules\Sending\Models\Message;
-use App\Modules\StoredTemplates\Services\TemplateRenderer;
+use App\Modules\Sending\Models\RawMimeMessage;
+use App\Modules\Sending\Services\ContentScanner;
 
 /**
- * Tartalom-biztonság a VÉGLEGES, behelyettesített törzsön.
+ * Tartalom-biztonság a kimenő levélen.
  *
- * Miért a gate-ben: a `htmlspecialchars` a HTML-kontextust védi, de a `href` ATTRIBÚTUMBAN
- * a séma érintetlenül átmegy. Egy `javascript:` vagy `data:text/html` link a tenant
- * DKIM-jével aláírt, webmailben megnyíló tárolt phishing lenne — a saját domainünk
- * hitelességével.
+ * Miért kell: a `htmlspecialchars` a HTML-kontextust védi, de a `href` ATTRIBÚTUMBAN a séma
+ * érintetlenül átmegy. Egy `javascript:` vagy `data:text/html` link a tenant DKIM-jével
+ * aláírt, webmailben megnyíló tárolt phishing lenne — a saját domainünk hitelességével.
  *
- * A gate a behelyettesített tartalmat vizsgálja, nem a sablont: a veszélyes séma a
- * VÁLTOZÓBÓL is jöhet (`recipient-variables`, kontakt-attribútum).
+ * MIT NÉZ (és miért pont ezt):
+ * - a kanonikus HTML- és szöveges törzset EGYSZER,
+ * - a behelyettesítendő VÁLTOZÓ-ÉRTÉKEKET külön (`v:*`, `recipient-variables`) — ez a
+ *   valódi támadási csatorna, mert a sablon a tenanté, az érték viszont a hívóé,
+ * - a NYERS MIME-ot (a szomszédos végponton különben trükk nélkül kiment volna).
  *
- * Ide épül majd az A6 spam-score és link-ellenőrzés is — ezért a végleges tartalmon.
+ * Amit SZÁNDÉKOSAN nem tesz: nem rendereli újra a teljes törzset címzettenként. Az ezer
+ * címzett × 1 MB sablon a rate-limit ELŐTT álló CPU-erősítő volt (mérve ~12 s egyetlen
+ * kérésre); a változó-értékek vizsgálata ugyanazt fogja meg a törzs mérete nélkül.
  */
 final class ContentSafetyGate implements Gate
 {
-    /** Csak ezek a sémák jelenhetnek meg linkként. */
-    private const ALLOWED_SCHEMES = ['http', 'https', 'mailto', 'tel'];
-
-    public function __construct(private readonly TemplateRenderer $renderer) {}
+    public function __construct(private readonly ContentScanner $scanner) {}
 
     public function name(): string
     {
@@ -36,47 +38,58 @@ final class ContentSafetyGate implements Gate
 
     public function check(Message $message): GateResult
     {
-        $template = (string) ($message->options['body_html'] ?? '');
+        $html = (string) ($message->options['body_html'] ?? '');
+        $text = (string) ($message->options['body_text'] ?? '');
 
-        if ($template === '') {
-            return GateResult::pass('nincs HTML törzs');
-        }
+        $violation = ($html === '' ? null : $this->scanner->firstViolation($html))
+            ?? ($text === '' ? null : $this->scanner->firstViolationInText($text))
+            ?? $this->scanVariables($message)
+            ?? $this->scanRawMime($message);
 
-        $recipientVariables = (array) ($message->variables['recipient-variables'] ?? []);
-        $shared = collect($message->variables)->except('recipient-variables')->all();
-
-        foreach ($message->recipients as $index => $recipient) {
-            $rendered = $this->renderer->renderForRecipient(
-                $template,
-                (string) $recipient,
-                $recipientVariables,
-                $shared
-            );
-
-            $offending = $this->firstDangerousScheme($rendered);
-
-            if ($offending !== null) {
-                // Nyers cím SOHA nem kerül a törölhetetlen auditba — index elég.
-                return GateResult::reject(
-                    GateReason::InvalidRequest,
-                    sprintf('címzett #%d: tiltott link-séma a törzsben (%s)', $index, $offending)
-                );
-            }
+        if ($violation !== null) {
+            return GateResult::reject(GateReason::InvalidRequest, 'tiltott tartalom: '.$violation);
         }
 
         return GateResult::pass();
     }
 
-    private function firstDangerousScheme(string $html): ?string
+    /**
+     * A hívótól jövő értékek — a megosztott `v:*` és a címzettenkénti behelyettesítések.
+     * Nyers cím SOHA nem kerül a törölhetetlen auditba, ezért csak a szabály neve utazik.
+     */
+    private function scanVariables(Message $message): ?string
     {
-        preg_match_all('/(?:href|src|action)\s*=\s*["\']?\s*([a-zA-Z][a-zA-Z0-9+.-]*):/i', $html, $matches);
+        foreach ($message->variables as $key => $value) {
+            if ($key === 'recipient-variables') {
+                foreach ((array) $value as $perRecipient) {
+                    $violation = $this->scanner->firstViolationInValue($perRecipient);
 
-        foreach ($matches[1] ?? [] as $scheme) {
-            if (! in_array(strtolower($scheme), self::ALLOWED_SCHEMES, true)) {
-                return strtolower($scheme);
+                    if ($violation !== null) {
+                        return $violation;
+                    }
+                }
+
+                continue;
+            }
+
+            $violation = $this->scanner->firstViolationInValue($value);
+
+            if ($violation !== null) {
+                return $violation;
             }
         }
 
         return null;
+    }
+
+    private function scanRawMime(Message $message): ?string
+    {
+        if (($message->options['raw_mime'] ?? false) !== true) {
+            return null;
+        }
+
+        $raw = RawMimeMessage::query()->where('message_uuid', $message->uuid)->first();
+
+        return $raw === null ? null : $this->scanner->firstViolationInMime($raw->raw);
     }
 }

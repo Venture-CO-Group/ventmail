@@ -13,6 +13,22 @@ info:
     **Stabilitás:** ami ebben a leírásban szerepel, az SZERZŐDÉS. A `/v1` nem kap
     breaking change-et; új mező csak opcionálisként jöhet.
 
+    **Változásnapló (GA előtt).** A `/v1` a GA napján fagy be; addig itt vezetjük, mi
+    változott, hogy a korai integrációk ne csendben törjenek el:
+
+    - `o:channel`: a `journey` és a `campaign` érték a publikus API-ról ELTÁVOLÍTVA (a
+      Journey/Campaign motor belső csatornái — a sor-prioritás miatt nem választhatók).
+    - A `marketing` csatorna mostantól KÉT feltételt kér: `messages:send:marketing` scope
+      ÉS a kulcshoz rendelt csatorna-jog (`api_keys.channels`). A meglévő kulcsok
+      alapértelmezése `transactional`, tehát új jogot ez a változás nem ad.
+      A csatorna CÍMKE marad: azt, hogy valaki marketing tartalmat küld tranzakciósnak
+      jelölve, tartalomból nem lehet megállapítani — ott a panasz- és bounce-arány figyelése
+      a védelem, nem az API.
+    - `POST /v1/messages.mime`: a nem értelmezett `o:` vezérlő mostantól HIBA
+      (`UNSUPPORTED_MIME_OPTION`), nem csendes eldobás.
+    - Ugyanaz az `Idempotency-Key` MÁS kérés-tartalommal `409 IDEMPOTENCY_KEY_REUSED`
+      (korábban csendben eldobta a második levelet).
+
 servers:
   - url: https://api.ventmail.app/v1
     description: éles
@@ -355,6 +371,7 @@ components:
         hívó ugyanazt látja, mint az üzenet-trace.
       enum:
         - UNAUTHENTICATED
+        - TOO_MANY_REQUESTS
         - INSUFFICIENT_SCOPE
         - IDEMPOTENCY_KEY_REQUIRED
         - IDEMPOTENCY_KEY_TOO_LONG
@@ -389,4 +406,9 @@ components:
         - VALIDATION_RISK
         - INVALID_REQUEST
         - GATE_ERROR
+        - ENTITLEMENT_REQUIRED
+        - IP_POOL_CHANNEL_MISMATCH
+        - UNSUPPORTED_MIME_OPTION
+        - TEMPLATE_VERSION_CONFLICT
+        - INVALID_MIME_UPLOAD
         - IN_PROGRESS

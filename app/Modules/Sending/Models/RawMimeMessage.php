@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Modules\Messages\Models;
+namespace App\Modules\Sending\Models;
 
 use App\Modules\Tenancy\Concerns\BelongsToWorkspace;
 use Illuminate\Database\Eloquent\Model;
@@ -17,7 +17,12 @@ final class RawMimeMessage extends Model
 {
     use BelongsToWorkspace;
 
-    protected $fillable = ['message_uuid', 'raw', 'size', 'sha256'];
+    protected $fillable = ['message_uuid', 'raw', 'size', 'sha256', 'expires_at'];
+
+    protected function casts(): array
+    {
+        return ['expires_at' => 'datetime'];
+    }
 
     /**
      * A Postgres `bytea` oszlopot a PDO STREAM-ként adja vissza — a hívónak sztring kell.
@@ -38,6 +43,9 @@ final class RawMimeMessage extends Model
 
             $mime->size = strlen($raw);
             $mime->sha256 = hash('sha256', $raw);
+
+            // Retenció: a nyers levél a legsűrűbb PII-tárolónk, nem élhet határidő nélkül.
+            $mime->expires_at ??= now()->addDays((int) config('sending.raw_mime_retention_days'));
         });
 
         self::updating(function (): never {
