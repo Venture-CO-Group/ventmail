@@ -8,7 +8,9 @@ use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
+use RuntimeException;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -24,6 +26,7 @@ class AppServiceProvider extends ServiceProvider
         Model::shouldBeStrict(! $this->app->isProduction());
 
         $this->configureRateLimiting();
+        $this->assertNoDevelopmentBackdoors();
     }
 
     /**
@@ -31,6 +34,22 @@ class AppServiceProvider extends ServiceProvider
      * használhatatlan (proxy, mobilhálózat). A per-tenant kvóta a PreSendGate 4. és 5.
      * kapujának alapja (M0-3).
      */
+    /**
+     * Deploy-idejű őr: élesben a fejlesztői belépés route-ja nem is LÉTEZHET.
+     *
+     * Miért kell a config-kapcsoló mellé: egy `local` környezetben készült és az image-be
+     * sütött `route:cache` átemelné a route-ot élesbe. A tesztek élesben nem futnak — ez fut.
+     */
+    private function assertNoDevelopmentBackdoors(): void
+    {
+        if ($this->app->isProduction() && Route::has('auth.dev-login')) {
+            throw new RuntimeException(
+                'A fejlesztői belépés route-ja jelen van éles környezetben (valószínűleg beégetett '
+                .'route-cache). Töröld a cache-t és állítsd IDENTITY_DEV_LOGIN=false.'
+            );
+        }
+    }
+
     private function configureRateLimiting(): void
     {
         RateLimiter::for('api', function (Request $request) {

@@ -7,6 +7,7 @@ namespace App\Modules\Domains\Http\Controllers;
 use App\Modules\Domains\Actions\CreateDomain;
 use App\Modules\Domains\Models\Domain;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -20,6 +21,9 @@ final class DomainWizardController
 {
     public function __invoke(Request $request, CreateDomain $createDomain): Response
     {
+        // A tagság nem elég: a küldő infrastruktúra képernyője szerephez kötött.
+        Gate::authorize('domain.manage');
+
         // A wizard EGY domainre vonatkozik, és a domaint a hívó adja meg — nem a
         // „legutóbbi" sort találgatjuk. (Találgatva a képernyő állapota attól függne, ki mit
         // hozott létre korábban, és a flow-tesztek is egymásra hatnának.)
@@ -28,9 +32,12 @@ final class DomainWizardController
             : null;
 
         // Demo-mód: a mockup- és e2e-ellenőrzéshez kell egy kitöltött állapot VALÓDI
-        // DNS-rekordokkal (a generátor ugyanaz, mint élesben).
-        if ($domain === null && $request->boolean('demo')) {
-            $domain = Domain::query()->where('name', 'demo.pelda.hu')->first()
+        // DNS-rekordokkal (a generátor ugyanaz, mint élesben). KIZÁRÓLAG fejlesztői
+        // környezetben: élesben egy GET-kérés így entitást és kulcsanyagot hozna létre.
+        if ($request->boolean('demo')) {
+            abort_unless(app()->environment('local', 'testing'), 404);
+
+            $domain ??= Domain::query()->where('name', 'demo.pelda.hu')->first()
                 ?? $createDomain('demo.pelda.hu');
         }
 

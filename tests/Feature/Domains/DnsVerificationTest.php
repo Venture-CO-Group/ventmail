@@ -74,19 +74,25 @@ it('verified → failed, ha a rekord eltűnik', function () {
     app(VerifyDomainDns::class)->handle($this->domain->fresh());
 
     expect($this->domain->fresh()->status)->toBe('failed');
-    expect($this->domain->fresh()->verified_at)->toBeNull();
+    // A `verified_at` BIZONYÍTÉK — mikortól küldhetett a tenant erről a domainről —,
+    // ezért a visszaesés nem törli; külön mező rögzíti, mikor veszett el.
+    expect($this->domain->fresh()->verified_at)->not->toBeNull();
+    expect($this->domain->fresh()->unverified_at)->not->toBeNull();
 });
 
 it('a részstátuszok nem hazudhatnak: a verified csak teljes egyezésre jár', function () {
-    // Golden rule 8: SPF/DKIM/DMARC mind kell — a `verified` nem írható be részlegesen.
+    // Golden rule 8: SPF/DKIM/DMARC MIND kell — a `verified` nem írható be részlegesen.
+    // (A saját RUA-cím viszont az ügyfél döntése: a jelentést küldheti magának is, ez a
+    // hitelesítés erősségét nem érinti.)
     $records = $this->domain->dnsRecords();
     $this->resolver->publish($records['spf']['name'], 'TXT', $records['spf']['value']);
-    $this->resolver->publish($records['dkim']['name'], 'TXT', $records['dkim']['value']);
     $this->resolver->publish($records['dmarc']['name'], 'TXT', 'v=DMARC1; p=none; rua=mailto:masik@example.test');
 
     app(VerifyDomainDns::class)->handle($this->domain);
 
+    // A DKIM hiányzik: a domain NEM hitelesített.
     expect($this->domain->fresh()->status)->toBe('failed');
+    expect($this->domain->fresh()->dmarc_status)->toBe('verified');
 });
 
 it('az ellenőrzés rögzíti az utolsó futás idejét', function () {

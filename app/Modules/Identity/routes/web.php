@@ -19,6 +19,6 @@ Route::post('/auth/logout', LogoutController::class)->name('auth.logout');
 
 // KIZÁRÓLAG fejlesztői/teszt környezetben: a Playwright nem tudja végigjátszani a ventSSO
 // OIDC-folyamatát, a flow-tesztek viszont hitelesített munkamenetet igényelnek.
-if (app()->environment('local', 'testing')) {
+if (config('identity.dev_login_enabled') && app()->environment('local', 'testing')) {
     Route::get('/auth/dev-login', DevLoginController::class)->name('auth.dev-login');
 }
