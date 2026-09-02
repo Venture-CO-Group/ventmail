@@ -17,6 +17,8 @@ use App\Modules\Sending\Models\RawMimeMessage;
 use App\Modules\Sending\Services\MessageDispatcher;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\DB;
+use RuntimeException;
 
 /**
  * A küldés belépési pontja — a PreSendGate-en át.
@@ -62,10 +64,20 @@ final class SendMessage
         // kapukon és ki is ment. Itt TOVÁBBMENNI dupla kézbesítés lett volna — a győztes
         // sort visszaállítottuk `accepted`-re, a dispatcher lízingje pedig újra engedett.
         if ($message === null) {
-            return $this->replay(
-                Message::query()->where('idempotency_key', $idempotencyKey)->firstOrFail(),
-                $attributes
-            );
+            // Kulcs nélkül nem lehet unique-ütközés — ha mégis ide jutnánk, az más
+            // kényszer sérülése, és a csendes „nem találtam" 500 lenne. Hangos hiba jobb.
+            $winner = $idempotencyKey === null
+                ? null
+                : Message::query()->where('idempotency_key', $idempotencyKey)->first();
+
+            if ($winner === null) {
+                throw new RuntimeException(
+                    'Az üzenet létrehozása egyediségi kényszerbe ütközött, de a nyertes sor '
+                    .'nem található — ez nem az idempotencia-kulcs ütközése.'
+                );
+            }
+
+            return $this->replay($winner, $attributes);
         }
 
         // A NYERS MIME a levél MAGA — a gate és a dispatcher ELŐTT kell perzisztálnia.
@@ -269,7 +281,11 @@ final class SendMessage
         ];
 
         try {
-            return Message::create($payload);
+            // SAVEPOINT (beágyazott tranzakcióban): egy egyediségi ütközés Postgresen a
+            // TELJES tranzakciót elrontja („current transaction is aborted"), tehát egy
+            // tranzakcióba ágyazott hívónál a következő lekérdezés is elszállna — épp az,
+            // amelyikkel a győztes üzenetet megkeressük.
+            return DB::transaction(fn () => Message::create($payload));
         } catch (UniqueConstraintViolationException) {
             // Versenyhelyzet: két párhuzamos, azonos kulcsú hívás közül mindkettő „nem
             // találtam"-ot olvasott. A DB döntött — a vesztes NEM küld, csak visszatükrözi

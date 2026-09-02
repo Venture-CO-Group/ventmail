@@ -55,8 +55,15 @@ return Application::configure(basePath: dirname(__DIR__))
         // Caddy mögött enélkül a kliens IP a proxyé lenne (rossz rate-limit kulcs és audit-forrás),
         // és a generált URL-ek http:// sémával jönnének — az OIDC redirect_uri-t a ventSSO
         // jogosan utasítaná el. Élesben az `at:` a konkrét proxy-hálóra szűkítendő.
+        // A `*` SZTRINGKÉNT megy tovább: az `explode` egyelemű TÖMBÖT adott (`['*']`), amire
+        // a Laravel wildcard-ága nem fut le, és az `IpUtils::checkIp` sem illeszt — vagyis
+        // a beállítás némán no-op volt. Ez akkor válik veszélyessé, amikor bármi (LB,
+        // Cloudflare) a Caddy elé kerül: onnantól MINDEN kérés forrás-IP-je a proxyé, tehát
+        // egyetlen közös rate-limit vödörbe esne az összes tenant.
+        $proxies = (string) env('TRUSTED_PROXIES', '*');
+
         $middleware->trustProxies(
-            at: explode(',', (string) env('TRUSTED_PROXIES', '*')),
+            at: $proxies === '*' ? '*' : explode(',', $proxies),
             headers: Request::HEADER_X_FORWARDED_FOR
                 | Request::HEADER_X_FORWARDED_HOST
                 | Request::HEADER_X_FORWARDED_PORT

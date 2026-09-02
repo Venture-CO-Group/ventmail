@@ -29,7 +29,10 @@ final class DispatchScheduledCommand extends Command
 {
     protected $signature = 'messages:dispatch-scheduled {--limit=500 : futásonként legfeljebb ennyi üzenet}';
 
-    protected $description = 'Az esedékes ütemezett üzenetek kiküldése, a kapuk újraértékelésével.';
+    protected $description = 'Esedékes ütemezett és félbemaradt üzenetek kiküldése, a kapuk újraértékelésével.';
+
+    /** Hány próbálkozás után hagyjuk abba — különben egy tartósan hibás levél örökké forogna. */
+    private const MAX_ATTEMPTS = 5;
 
     public function handle(PreSendGate $gate, MessageDispatcher $dispatcher, WorkspaceContext $context): int
     {
@@ -47,10 +50,26 @@ final class DispatchScheduledCommand extends Command
                 foreach ($workspaces as $workspace) {
                     $context->set($workspace);
 
+                    // Kétféle esedékes üzenet:
+                    //  1. `scheduled`, aminek eljött az ideje (`o:deliverytime`);
+                    //  2. `deferred`, aminek a lízingje lejárt — a driver hibára futott.
+                    //
+                    // A második nélkül a hívó 202 „Queued"-ot kapott olyan levélre, amit
+                    // EGYETLEN tranziens hiba után SENKI nem vett elő többé: a repóban nem
+                    // volt más `deferred`-feldolgozó, tehát a levél véglegesen elveszett.
+                    $lease = now()->subSeconds((int) config('sending.lease_seconds'));
+
                     $due = Message::query()
-                        ->where('status', 'scheduled')
-                        ->where('deliverytime', '<=', now())
-                        ->orderBy('deliverytime')
+                        ->where(function ($query) use ($lease): void {
+                            $query->where(fn ($scheduled) => $scheduled
+                                ->where('status', 'scheduled')
+                                ->where('deliverytime', '<=', now()))
+                                ->orWhere(fn ($deferred) => $deferred
+                                    ->where('status', 'deferred')
+                                    ->where('attempts', '<', self::MAX_ATTEMPTS)
+                                    ->where('updated_at', '<=', $lease));
+                        })
+                        ->orderByRaw('coalesce(deliverytime, updated_at)')
                         ->limit((int) $this->option('limit'))
                         ->get();
 

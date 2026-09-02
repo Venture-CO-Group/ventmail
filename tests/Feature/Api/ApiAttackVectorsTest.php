@@ -289,7 +289,7 @@ it('a hitelesítési hibák IP-alapon fékezve vannak', function () {
     // Most a HIBÁK számát mérjük — azt, amit fékezni akarunk.
     $status = 200;
 
-    foreach (range(1, 30) as $i) {
+    foreach (range(1, 120) as $i) {
         $status = test()->withHeaders([
             'Authorization' => 'Bearer nem-letezo-'.$i,
             'Idempotency-Key' => 'x-'.$i,

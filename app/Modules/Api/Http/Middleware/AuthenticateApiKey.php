@@ -36,16 +36,35 @@ final class AuthenticateApiKey
      */
     private const MAX_FAILURES_PER_MINUTE = 20;
 
+    /**
+     * A FORRÁS-IP plafonja.
+     *
+     * Magasabb, mint a hitelesítő-szintű: egy megosztott kimenő IP (NAT, CI-runner, LB)
+     * mögött több ügyfél is lehet, és egyetlen elrontott integráció nem zárhatja ki az
+     * összes többit. Ugyanakkor a kulcsot forgató támadót ez fogja meg.
+     */
+    private const MAX_FAILURES_PER_IP = 100;
+
     public function handle(Request $request, Closure $next): Response
     {
-        $failureKey = 'api-auth-fail:'.(string) $request->ip();
+        $plain = $this->extractKey($request);
+
+        // KÉT vödör: a bemutatott hitelesítőé és a forrás-IP-é. Csak az IP-é önmagában
+        // kizárná a szomszédokat egy közös NAT mögött; csak a hitelesítőé pedig
+        // hatástalan, mert a támadó kulcsot forgat.
+        $ipKey = 'api-auth-fail:ip:'.(string) $request->ip();
+        $credentialKey = 'api-auth-fail:key:'.hash('sha256', (string) $plain);
 
         // A fék a DRÁGA munka (kulcsolt hash + indexelt lekérdezés) ELŐTT csattan.
-        if (RateLimiter::tooManyAttempts($failureKey, self::MAX_FAILURES_PER_MINUTE)) {
-            return $this->tooManyFailures($failureKey);
+        if (RateLimiter::tooManyAttempts($credentialKey, self::MAX_FAILURES_PER_MINUTE)) {
+            return $this->tooManyFailures($credentialKey);
         }
 
-        $plain = $this->extractKey($request);
+        if (RateLimiter::tooManyAttempts($ipKey, self::MAX_FAILURES_PER_IP)) {
+            return $this->tooManyFailures($ipKey);
+        }
+
+        $failureKey = [$credentialKey, $ipKey];
 
         if ($plain === null) {
             return $this->unauthorized($failureKey);
@@ -101,9 +120,12 @@ final class AuthenticateApiKey
         return is_string($password) && $password !== '' ? $password : null;
     }
 
-    private function unauthorized(string $failureKey): Response
+    /** @param list<string> $failureKeys */
+    private function unauthorized(array $failureKeys): Response
     {
-        RateLimiter::hit($failureKey, 60);
+        foreach ($failureKeys as $key) {
+            RateLimiter::hit($key, 60);
+        }
 
         return response()->json([
             'error' => [

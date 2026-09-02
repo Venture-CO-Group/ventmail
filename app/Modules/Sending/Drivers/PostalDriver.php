@@ -75,8 +75,18 @@ final class PostalDriver implements SendingDriver
     {
         $ids = [];
 
+        // Akiket egy KORÁBBI, félbeszakadt próbálkozás már kiküldött, azokat kihagyjuk:
+        // a batch címzettenként megy ki, tehát az újrapróbálás különben nekik másodszor
+        // is kézbesítene (golden rule 5 a hálózat felé is).
+        $already = (array) ($message->options['delivered_recipients'] ?? []);
+        $accepted = [];
+
         foreach ($message->recipients as $recipient) {
             $recipient = (string) $recipient;
+
+            if (in_array($recipient, $already, true)) {
+                continue;
+            }
             $bodies = $message->renderedBodies[$recipient] ?? ['html' => null, 'text' => null];
 
             if (($bodies['html'] ?? null) === null && ($bodies['text'] ?? null) === null) {
@@ -104,9 +114,12 @@ final class PostalDriver implements SendingDriver
             ]);
 
             if (! $response->successful()) {
-                return DispatchResult::failed('Postal hiba: '.$response->status());
+                // A már kiment címzettek NEM vesznek el a jelentésből: enélkül a trace
+                // mindenkire `deferred`-et írna, az újrapróbálás pedig duplán kézbesítene.
+                return DispatchResult::partial('Postal hiba: '.$response->status(), $accepted);
             }
 
+            $accepted[] = $recipient;
             $ids[] = (string) $response->json('data.message_id', '');
         }
 

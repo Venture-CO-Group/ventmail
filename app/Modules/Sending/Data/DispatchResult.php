@@ -19,6 +19,17 @@ final readonly class DispatchResult
          * vennénk, a kézbesíthetőségi statisztika az első naptól hamis lenne.
          */
         public bool $delivered = false,
+        /**
+         * Azok a címzettek, akiket az MTA MÁR ÁTVETT.
+         *
+         * Batch-küldésnél a driver címzettenként hív (a személyre szabás miatt), tehát egy
+         * félbeszakadt küldésnél a lista eleje már kiment. Enélkül az újrapróbálás nekik
+         * MÁSODSZOR is kézbesítene, a trace pedig mindenkire `deferred`-et írna — azokra
+         * is, akik megkapták.
+         *
+         * @var list<string>
+         */
+        public array $acceptedRecipients = [],
     ) {}
 
     /** Az MTA átvette (de még nem kézbesítette). */
@@ -36,5 +47,15 @@ final readonly class DispatchResult
     public static function failed(string $error): self
     {
         return new self(false, '', $error);
+    }
+
+    /**
+     * Részben sikerült küldés: a felsorolt címzettek MÁR megkapták, a többi újrapróbálandó.
+     *
+     * @param  list<string>  $acceptedRecipients
+     */
+    public static function partial(string $error, array $acceptedRecipients): self
+    {
+        return new self(false, '', $error, acceptedRecipients: $acceptedRecipients);
     }
 }

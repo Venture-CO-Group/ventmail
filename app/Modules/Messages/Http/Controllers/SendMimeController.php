@@ -81,8 +81,19 @@ final class SendMimeController
 
         // A `to` felülírhatja a MIME `To:` fejlécét (Mailgun-viselkedés): a boríték-címzett
         // és a fejléc-címzett nem ugyanaz.
-        $recipients = $request->has('to')
-            ? array_map('trim', explode(',', (string) $request->input('to')))
+        $to = $request->input('to');
+
+        // Tömb-bemenet (`to[]=a&to[]=b`) itt is strukturált hiba, nem 500: ugyanaz a
+        // hibaosztály, mint a `subject`/`o:channel` mezőn.
+        if ($to !== null && ! is_scalar($to)) {
+            return ApiError::badRequest(
+                'VALIDATION_ERROR',
+                'A `to` mező vesszővel elválasztott listát vár, nem tömböt.'
+            );
+        }
+
+        $recipients = $to !== null
+            ? array_map('trim', explode(',', (string) $to))
             : $parsed['recipients'];
 
         $result = $send([

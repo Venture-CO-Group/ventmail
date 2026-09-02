@@ -139,17 +139,44 @@ final class MessageDispatcher
             default => 'sent',
         };
 
+        // A RÉSZBEN kiment batch: akiket az MTA már átvett, azokat megjegyezzük, hogy az
+        // újrapróbálás NE kézbesítsen nekik másodszor, és a trace se írjon rájuk
+        // `deferred`-et. (A teljes címzettenkénti állapotgép az A2 sorkezelőjéé.)
+        $alreadyDelivered = (array) ($message->options['delivered_recipients'] ?? []);
+
+        $delivered = array_values(array_unique(array_merge(
+            $alreadyDelivered,
+            $result->accepted ? $message->recipients : $result->acceptedRecipients
+        )));
+
         $message->forceFill([
             'status' => $status,
             'reason' => $result->accepted ? null : 'DRIVER_REJECTED',
             'sent_at' => now(),
+            'options' => [...$message->options, 'delivered_recipients' => $delivered],
         ])->save();
+
+        $successful = $status === 'delivered' ? 'delivered' : 'accepted';
+
+        if ($result->accepted) {
+            $this->events($message, $successful, $rendered, ['provider_message_id' => $result->providerMessageId]);
+
+            return;
+        }
+
+        // Kevert kimenet: akik megkapták, azokra sikeres esemény megy, a többire halasztás.
+        $newlyAccepted = array_values(array_diff($result->acceptedRecipients, $alreadyDelivered));
+
+        if ($newlyAccepted !== []) {
+            $this->events($message, 'accepted', $rendered, ['provider_message_id' => $result->providerMessageId], $newlyAccepted);
+        }
 
         $this->events(
             $message,
-            $status === 'delivered' ? 'delivered' : ($status === 'sent' ? 'accepted' : 'deferred'),
+            'deferred',
             $rendered,
-            ['provider_message_id' => $result->providerMessageId]
+            ['provider_message_id' => $result->providerMessageId],
+            array_values(array_diff($message->recipients, $delivered))
         );
     }
 
@@ -178,14 +205,15 @@ final class MessageDispatcher
      *
      * @param  array<string, array{html: ?string, text: ?string}>  $rendered
      * @param  array<string, mixed>  $payload
+     * @param  list<string>|null  $recipients  csak ezekre — `null` esetén mindenkire
      */
-    private function events(Message $message, string $type, array $rendered, array $payload = []): void
+    private function events(Message $message, string $type, array $rendered, array $payload = [], ?array $recipients = null): void
     {
         $shared = collect($message->variables)->except('recipient-variables')->all();
 
         // MINDEN címzett kap eseményt: egyetlen sor batch esetén 999 címzettről nem tudna
         // semmit az A3 trace és a kézbesítési statisztika.
-        foreach ($message->recipients as $recipient) {
+        foreach ($recipients ?? $message->recipients as $recipient) {
             $body = $rendered[(string) $recipient]['html'] ?? null;
 
             MessageEvent::create([

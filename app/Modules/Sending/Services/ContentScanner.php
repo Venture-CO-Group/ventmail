@@ -22,6 +22,8 @@ namespace App\Modules\Sending\Services;
  */
 final class ContentScanner
 {
+    public function __construct(private readonly MimeTextExtractor $extractor = new MimeTextExtractor) {}
+
     /** Csak ezek a sémák jelenhetnek meg linkként. */
     private const ALLOWED_SCHEMES = ['http', 'https', 'mailto', 'tel'];
 
@@ -36,12 +38,6 @@ final class ContentScanner
      * sémák tiltása nem.
      */
     private const EXECUTABLE_SCHEMES = ['javascript', 'vbscript', 'data', 'file', 'jar'];
-
-    /** A MIME-vizsgálat felső korlátja: a kapu a kérés útján fut, nem sorban. */
-    private const MAX_SCAN_BYTES = 2_097_152;
-
-    /** Hány base64-blokkot bontunk ki legfeljebb. */
-    private const MAX_BASE64_BLOCKS = 20;
 
     /** @return string|null a megsértett szabály rövid neve, vagy `null`, ha tiszta */
     public function firstViolation(string $html): ?string
@@ -72,14 +68,16 @@ final class ContentScanner
 
         // URL-attribútumok sémái.
         preg_match_all(
-            '/\b(?:'.self::URL_ATTRIBUTES.')\s*=\s*(?:"([^"]*)"|\'([^\']*)\'|([^\s>]+))/i',
+            '/\b(?:'.self::URL_ATTRIBUTES.')\s*=\s*(?:"([^"]*)"|\'([^\']*)\'|`([^`]*)`|([^\s>]+))/i',
             $normalized,
             $matches,
             PREG_SET_ORDER
         );
 
         foreach ($matches as $match) {
-            $value = $match[1] !== '' ? $match[1] : ($match[2] !== '' ? $match[2] : ($match[3] ?? ''));
+            // A backtickes alak régi IE-vektor, de egy karakterbe kerül lefedni.
+            $value = collect([$match[1] ?? '', $match[2] ?? '', $match[3] ?? '', $match[4] ?? ''])
+                ->first(static fn (string $candidate) => $candidate !== '') ?? '';
 
             $scheme = $this->schemeOf($value);
 
@@ -155,7 +153,7 @@ final class ContentScanner
         // Az ÉRTÉKNÉL a whitespace-mentes változatot is nézzük: a `java\tscript:` a
         // böngészőben `javascript:`. Ezt a szöveges TÖRZSRE nem tesszük meg (ott a szavak
         // összeragasztása téves találatot adna), az érték viszont egyetlen URL/mező.
-        $collapsed = (string) preg_replace('/[\x00-\x20\x7f]/', '', $this->normalize($text));
+        $collapsed = (string) preg_replace('/[\x00-\x20\x7f]|\xc2\xa0/', '', $this->normalize($text));
 
         // CSAK a sémákat nézzük: a `<script>` egy változó-értékben ártalmatlan, mert a
         // renderelés escape-eli (`&lt;script&gt;`), és egy legitim hírlevél-változó
@@ -168,29 +166,17 @@ final class ContentScanner
      *
      * A MIME-út eddig teljesen kimaradt a tartalom-kapuból (a `body_html` ott üres), tehát
      * amit a strukturált végponton tiltunk, az egy `curl -F message=@level.eml`-lel trükk
-     * nélkül kiment volna. Teljes MIME-parse helyett a gyakorlati kódolásokat bontjuk ki:
-     * a nyers szöveget, a quoted-printable változatát és a base64-blokkokat — mind
-     * méretkorláttal, mert ez a kapu a kérés útján fut.
+     * nélkül kiment volna.
+     *
+     * A részekre bontás SZERKEZET szerint megy (`MimeTextExtractor`), nem mintaillesztéssel:
+     * az első változat egy „két hosszú base64-sor" regexszel keresett kódolt részt, amit
+     * (a) 59-es tördeléssel meg lehetett kerülni, (b) négyzetes visszalépése miatt 500 KB
+     * törzsön 76 s CPU-t evett — szinkron, a kérés útján.
      */
     public function firstViolationInMime(string $raw): ?string
     {
-        $capped = substr($raw, 0, self::MAX_SCAN_BYTES);
-
-        $candidates = [$capped, quoted_printable_decode($capped)];
-
-        // Összefüggő base64-blokkok (a HTML-rész tipikus kódolása).
-        preg_match_all('/(?:[A-Za-z0-9+\/=]{60,}\r?\n){2,}/', $capped, $blocks);
-
-        foreach (array_slice($blocks[0] ?? [], 0, self::MAX_BASE64_BLOCKS) as $block) {
-            $decoded = base64_decode((string) preg_replace('/\s+/', '', $block), strict: false);
-
-            if (is_string($decoded) && $decoded !== '') {
-                $candidates[] = substr($decoded, 0, self::MAX_SCAN_BYTES);
-            }
-        }
-
-        foreach ($candidates as $candidate) {
-            $violation = $this->firstViolation($candidate);
+        foreach ($this->extractor->extract($raw) as $text) {
+            $violation = $this->firstViolation($text);
 
             if ($violation !== null) {
                 return $violation;
@@ -212,7 +198,8 @@ final class ContentScanner
     /** A séma kinyerése úgy, ahogy a kliens látja: a kontrollbájtok és a szóköz eldobva. */
     private function schemeOf(string $url): ?string
     {
-        $cleaned = preg_replace('/[\x00-\x20\x7f]/', '', $url) ?? $url;
+        // A nem törő szóköz (U+00A0) is eltűnik: a kliensek URL-parsere sem tartja meg.
+        $cleaned = preg_replace('/[\x00-\x20\x7f]|\xc2\xa0/', '', $url) ?? $url;
 
         if (preg_match('/^([a-zA-Z][a-zA-Z0-9+.\-]*):/', $cleaned, $match) !== 1) {
             return null; // relatív URL vagy horgony — nincs séma, nincs mit engedélyezni

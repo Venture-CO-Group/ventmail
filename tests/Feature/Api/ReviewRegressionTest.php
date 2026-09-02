@@ -17,6 +17,7 @@ use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
 
 uses(RefreshDatabase::class);
@@ -187,6 +188,47 @@ it('a NYERS MIME tartalma is átmegy a tartalom-kapun', function () {
  | BLOKKOLÓ — a versenyt vesztett idempotencia-ág NEM küldhet újra.
  */
 
+it('a DB-verseny vesztese nem küld másodszor', function () {
+    // A korábbi teszt a korai „már létezik" ágon tért vissza, tehát a JAVÍTOTT kódot
+    // (unique-ütközés) nem is futtatta. Itt kikényszerítjük: a „létezik-e már?" LEKÉRDEZÉS
+    // UTÁN, a beszúrás ELŐTT hozzuk létre a győztes sort — pontosan az az ablak, amiben a
+    // párhuzamos kérés nyer.
+    $workspace = $this->workspace;
+    $inserted = false;
+
+    DB::listen(function ($query) use ($workspace, &$inserted): void {
+        if ($inserted || ! str_contains($query->sql, 'idempotency_key') || ! str_starts_with($query->sql, 'select')) {
+            return;
+        }
+
+        $inserted = true;
+
+        DB::table('messages')->insert([
+            'uuid' => (string) Str::uuid(),
+            'workspace_id' => $workspace->getKey(),
+            'channel' => 'transactional',
+            'from_email' => 'no-reply@pelda.hu',
+            'recipients' => json_encode(['cimzett@example.test']),
+            'tags' => '[]',
+            'variables' => '{}',
+            'headers' => '{}',
+            'options' => '{}',
+            'status' => 'delivered',
+            'idempotency_key' => 'db-race',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+    });
+
+    sendApi([], ['Idempotency-Key' => 'db-race'])->assertAccepted();
+
+    expect($inserted)->toBeTrue('a verseny-ablakot nem sikerült előidézni');
+    // A vesztes NEM küldött: egyetlen üzenet van, és a driver egyszer sem futott (a
+    // győztest nem ez a kérés küldte ki).
+    expect(Message::count())->toBe(1);
+    expect(FakeDriver::$sent)->toBeEmpty();
+});
+
 it('a versenyt vesztett kérés nem küld másodszor', function () {
     // Az első hívás kiküldi a levelet; a második ugyanazzal a kulccsal a DB unique-jába
     // ütközik. Korábban a vesztes VISSZAÁLLÍTOTTA `accepted`-re a győztes üzenetet és
@@ -322,13 +364,15 @@ it('a sablonba behelyettesített érték NEM értékelődik ki másodszor', func
  | KÖZEPES — a rate-limit VISELKEDÉSE (nem a forráskód szövege).
  */
 
-it('a hitelesítetlen özön IP-alapon korlátozva van', function () {
-    // Kérésenként MÁS bearer: kulcs-alapú bucketen ez korlátlan lett volna.
+it('az ismételt rossz kulcs hamar fékbe fut', function () {
+    // A HITELESÍTŐ-szintű vödör: egy elrontott integráció a saját keretét éli fel, nem a
+    // szomszédokét (közös NAT mögött ez a különbség dönti el, hogy kizárjuk-e a többi
+    // ügyfelet).
     $status = 200;
 
-    foreach (range(1, 30) as $i) {
+    foreach (range(1, 25) as $i) {
         $status = $this->withHeaders([
-            'Authorization' => 'Bearer nem-letezo-'.$i,
+            'Authorization' => 'Bearer ugyanaz-a-rossz-kulcs',
             'Idempotency-Key' => 'f-'.$i,
             'Accept' => 'application/json',
         ])->postJson('/v1/messages', ['from' => 'x@pelda.hu', 'to' => 'a@example.test'])->status();
@@ -403,4 +447,57 @@ it('a nyers MIME adatbázis-szinten sem írható át', function () {
     // A modell-event megkerülhető volt nyers query-vel — a triggert nem lehet megkerülni.
     expect(fn () => DB::table('raw_mime_messages')->update(['sha256' => str_repeat('0', 64)]))
         ->toThrow(QueryException::class);
+});
+
+/*
+ | A tartalom-kapu a nyers MIME-on: kódolás és FUTÁSIDŐ.
+ */
+
+it('a base64-kódolt HTML-rész is átmegy a tartalom-kapun — bármilyen tördeléssel', function (int $width) {
+    // Az első változat „két, 60+ karakteres base64-sort" keresett: 59-es tördeléssel a
+    // kapu egyáltalán nem látta a levelet.
+    $html = '<a href="javascript:fetch(1)">Számla</a>';
+
+    $eml = "From: no-reply@pelda.hu\r\nTo: cimzett@example.test\r\nSubject: Számla\r\n"
+        ."Content-Type: text/html\r\nContent-Transfer-Encoding: base64\r\n\r\n"
+        .chunk_split(base64_encode($html), $width, "\r\n");
+
+    expect(app(ContentScanner::class)->firstViolationInMime($eml))->not->toBeNull();
+})->with([76, 60, 59, 40, 100000]);
+
+it('a többrészes, beágyazott MIME rejtett része sem marad ki', function () {
+    $html = base64_encode('<a href="data:text/html;base64,PHNjcmlwdD4=">x</a>');
+
+    $eml = "From: no-reply@pelda.hu\r\nTo: cimzett@example.test\r\n"
+        ."Content-Type: multipart/mixed; boundary=\"KULSO\"\r\n\r\n"
+        ."--KULSO\r\nContent-Type: multipart/alternative; boundary=\"BELSO\"\r\n\r\n"
+        ."--BELSO\r\nContent-Type: text/plain\r\n\r\nSima szoveg\r\n"
+        ."--BELSO\r\nContent-Type: text/html\r\nContent-Transfer-Encoding: base64\r\n\r\n"
+        .chunk_split($html, 40, "\r\n")
+        ."--BELSO--\r\n--KULSO--\r\n";
+
+    expect(app(ContentScanner::class)->firstViolationInMime($eml))->not->toBeNull();
+});
+
+it('a tartalom-vizsgálat NEM négyzetes — nagy törzsön is ezredmásodperces', function () {
+    // A regex-alapú első változat 500 KB-os base64-osztályú futamon 76 másodpercet evett,
+    // szinkron, a kérés útján: EGYETLEN hívás kiütötte volna az összes workert.
+    $eml = "From: no-reply@pelda.hu\r\nTo: cimzett@example.test\r\n\r\n".str_repeat('A', 500_000);
+
+    $start = hrtime(true);
+    app(ContentScanner::class)->firstViolationInMime($eml);
+    $seconds = (hrtime(true) - $start) / 1e9;
+
+    expect($seconds)->toBeLessThan(1.0, "a MIME-vizsgálat {$seconds} másodpercig tartott");
+});
+
+it('az 1 MB-os HTML törzs vizsgálata is gyors', function () {
+    $html = str_repeat('<p>Kedves {{ nev }}, <a href="https://pelda.hu/a">nézd meg</a>.</p>', 16_000);
+
+    $start = hrtime(true);
+    app(ContentScanner::class)->firstViolation($html);
+    $seconds = (hrtime(true) - $start) / 1e9;
+
+    expect(strlen($html))->toBeGreaterThan(1_000_000);
+    expect($seconds)->toBeLessThan(1.0, "a törzs-vizsgálat {$seconds} másodpercig tartott");
 });

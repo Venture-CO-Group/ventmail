@@ -31,7 +31,10 @@ final class PurgeRawMimeCommand extends Command
         $deleted = 0;
 
         try {
-            Workspace::query()->orderBy('id')->chunkById(100, function ($workspaces) use ($context, &$deleted): void {
+            // `withTrashed`: a soft-deleted tenant levelei különben HATÁRIDŐ NÉLKÜL
+            // bennmaradnának (a `cascadeOnDelete` csak hard delete-re fut le) — pont az,
+            // amit a golden rule 10 tilt.
+            Workspace::query()->withTrashed()->orderBy('id')->chunkById(100, function ($workspaces) use ($context, &$deleted): void {
                 foreach ($workspaces as $workspace) {
                     $context->set($workspace);
 
