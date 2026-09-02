@@ -35,6 +35,11 @@ TODO  a6    A  feat/a6-deliverability        backend,frontend          # Blockli
 #  · a CI a `VENTURE_PACKAGES_TOKEN` hiányában KIHAGYJA a drift-tesztet; a secret
 #    beállítása után a kapu élesedjen (ma hangos skip)                                → ember
 #  · `workspace_invitations` (a tagság ma csak SSO-ból jön)                           → B1
+#  · a `v:*` változók NYERSEN vannak a `message_events`-ben (Mailgun-paritás), és az
+#    A3 webhook ki is küldi őket: retenció + redakció kell rájuk                       → A3
+#  · a Postal `send/message` idempotency_key támogatása NEM igazolt (élő cluster kell)  → A2
+#  · volumetrikus (L7) védelem az edge feladata: a trusted-proxy mögötti XFF-rotációt
+#    alkalmazásszinten nem lehet megfogni — Caddy/LB rate limit kell                    → devops
 
 # ── B sáv · STUDIO (Mailchimp-kiváltás) ──────────────────────────────────────
 TODO  b1    B  feat/b1-audience-consent      backend,security,frontend # Listák/szegmensek/tag, ConsentService double opt-in, űrlapok, pref-center, ventOS sync
