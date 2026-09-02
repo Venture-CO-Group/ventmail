@@ -1,0 +1,37 @@
+# gitleaks konfiguráció.
+#
+# Az allowlist KIZÁRÓLAG teszt-vektorokat és dokumentált dev-hitelesítőt tartalmaz.
+# Minden bejegyzésnél kötelező az indoklás: miért nem valódi titok, és mi garantálja, hogy
+# az is marad.
+
+title = "ventMail"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = """
+1) tests/Fixtures/dkim-test-key.pem — DKIM KAT-vektor (known-answer test).
+   Miért fix kulcs: a KAT lényege, hogy a kimenet LITERÁL elvárt értékhez hasonlítódik.
+   Futásidőben generált kulccsal a teszt a saját implementációját ismételné meg, és egy
+   regressziót (pl. elrontott PEM-fejléc-eltávolítás) nem venne észre.
+   Miért nem kockázat: ez a kulcs sosem kerül DNS-be és nem ír alá éles levelet; az éles
+   kulcsok futásidőben, domainenként keletkeznek és titkosítva tárolódnak.
+
+2) docker/caddy.dev.env — a lokális dev-stack Basic Auth bcrypt hashe (jelszó: ventmail-dev).
+   A felület loopbackra kötött, a jelszó dokumentált, a fájlnév is jelzi, hogy dev.
+   Üres hash esetén a Caddy el sem indulna (fail-closed), ezért kell benne értéknek lennie.
+
+3) A REDAKCIÓT bizonyító tesztek szándékos ál-titkai (`vm_live_TITOK`, `NYERS-JELSZO`).
+   Ezek pont attól hasznosak, hogy VALÓDINAK LÁTSZANAK: a teszt azt állítja, hogy az
+   audit-naplóba nem kerülnek be. Ha a mintát „ártalmatlanabbra" cserélnénk, a teszt
+   megszűnne bizonyítani bármit — épp azt a rést nyitná ki, amit a security-review talált.
+"""
+paths = [
+  '''tests/Fixtures/dkim-test-key\.pem''',
+  '''tests/Fixtures/dkim-test-key\.pub\.pem''',
+  '''docker/caddy\.dev\.env''',
+  '''tests/Feature/Schema/AuditCoverageTest\.php''',
+  '''tests/Feature/Schema/RedactionVectorsTest\.php''',
+  '''\.gitleaks\.toml''',
+]

@@ -5,7 +5,7 @@ defineProps<{ app: string; stack: string[] }>();
 </script>
 
 <template>
-    <main class="vt-stack">
+    <main>
         <VtGlowLine />
 
         <VtCard>

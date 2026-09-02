@@ -26,15 +26,18 @@
    + `firebase/php-jwt`), nem tervezünk újat.
 
 ## M0 packetek — sorrend kötelező
-- [ ] **M0-0 · Skeleton + infra + CI** — devops → backend
-- [ ] **M0-1 · Tenancy + OIDC + sub-account váz** — architect → test → backend → security
-- [ ] **M0-2 · Alap séma + audit** — test → db → backend
-- [ ] **M0-3 · SendingDriver + PreSendGate (6 kapu) + FakeDriver** — architect → test → backend → security
-- [ ] **M0-4 · Domain-hitelesítés + wizard + suppression** — test → backend → db → mockup → frontend → security
+- [x] **M0-0 · Skeleton + infra + CI** — PR #3 (reviewer + security átment, javítva)
+- [x] **M0-1 · Tenancy + OIDC + sub-account váz** — PR #4 (reviewer + security átment, javítva)
+- [x] **M0-2 · Alap séma + audit** — PR #5 (reviewer + security átment, javítva)
+- [x] **M0-3 · SendingDriver + PreSendGate (6 kapu) + FakeDriver** — PR #6 (reviewer + security átment, javítva)
+- [x] **M0-4 · Domain-hitelesítés + wizard + suppression** — PR #7
+
+> A packetek EGYMÁSRA ÉPÜLNEK (stacked PR-ek): a merge sorrendje kötelezően #3 → #4 → #5 → #6 → #7.
 
 ## Aktív packet
-> **M0-0** — még nem indult. Branch: `feat/m0-0-skeleton`.
-> Az M0-1..M0-4 promptja: `docs/ventmail-indito-promptok.md`.
+> **Nincs futó packet** — az M0 mind az öt packetje kész és PR-ben áll (#3–#7), emberi
+> mergre várva. A merge után az **A sáv (A1)** és a **B sáv (B1)** indulhat párhuzamosan,
+> külön worktree-ben.
 
 ---
 

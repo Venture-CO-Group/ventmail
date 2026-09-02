@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Domains\Models;
 
 use App\Modules\Audit\Concerns\Auditable;
+use App\Modules\Domains\Services\DnsRecordGenerator;
 use App\Modules\Tenancy\Concerns\BelongsToWorkspace;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
@@ -26,7 +27,7 @@ final class Domain extends Model
         'dkim_rotated_at', 'tracking_domain', 'tracking_status',
         'spf_status', 'dkim_status', 'dmarc_status', 'ptr_status', 'mta_sts_status',
         'bimi_status', 'inbound_mx_status', 'tracking_enabled', 'require_tls',
-        'verified_at', 'last_checked_at',
+        'verified_at', 'unverified_at', 'last_checked_at', 'dkim_active_selector',
     ];
 
     /** A privát kulcs sosem kerül szerializálva a válaszba. */
@@ -61,9 +62,42 @@ final class Domain extends Model
             'tracking_enabled' => 'boolean',
             'require_tls' => 'boolean',
             'verified_at' => 'datetime',
+            'unverified_at' => 'datetime',
             'last_checked_at' => 'datetime',
             'dkim_rotated_at' => 'datetime',
         ];
+    }
+
+    /**
+     * A wizardban megjelenő ÉS a DNS-check által ellenőrzött rekordok — ugyanabból a
+     * forrásból, hogy ne csúszhassanak szét.
+     *
+     * @return array<string, array{type: string, name: string, value: string, purpose: string}>
+     */
+    public function dnsRecords(): array
+    {
+        return app(DnsRecordGenerator::class)->for($this);
+    }
+
+    /**
+     * Az ALÁÍRÁSHOZ használandó selector.
+     *
+     * Rotáció alatt még a RÉGI: az új selector DNS-rekordja ekkor még nem látszik, tehát
+     * az új kulccsal aláírt levelek DKIM-je bukna — pont az, amit az átfedés elkerülni hivatott.
+     */
+    public function signingSelector(): ?string
+    {
+        return $this->dkim_active_selector ?? $this->dkim_selector;
+    }
+
+    /** Az előző DKIM-selector még érvényes-e (rotációs átfedés). */
+    public function previousDkimIsValid(): bool
+    {
+        if ($this->dkim_previous_selector === null || $this->dkim_rotated_at === null) {
+            return false;
+        }
+
+        return $this->dkim_rotated_at->addDays((int) config('domains.dkim_rotation_overlap_days'))->isFuture();
     }
 
     public function isVerified(): bool

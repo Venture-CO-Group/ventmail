@@ -1,0 +1,54 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Modules\Domains\Services;
+
+use App\Modules\Domains\Models\Domain;
+
+/**
+ * A hitelesítéshez szükséges DNS-rekordok (spec 4.).
+ *
+ * Egyetlen forrás: a wizard EZT jeleníti meg, és a DNS-check UGYANEZT ellenőrzi. Ha a
+ * kettő szétcsúszna, az ügyfél a helyes rekordot másolná be, és a hitelesítés mégis
+ * elbukna — ez a leggyakoribb ESP-támogatási hiba.
+ */
+final class DnsRecordGenerator
+{
+    /** @return array<string, array{type: string, name: string, value: string, purpose: string}> */
+    public function for(Domain $domain): array
+    {
+        $host = $domain->name;
+
+        return [
+            'spf' => [
+                'type' => 'TXT',
+                'name' => $host,
+                'value' => sprintf('v=spf1 include:%s ~all', config('domains.spf_include')),
+                'purpose' => 'Feladó-hitelesítés: engedélyezi a ventMail küldő szervereit.',
+            ],
+            'dkim' => [
+                'type' => 'TXT',
+                'name' => sprintf('%s._domainkey.%s', $domain->dkim_selector, $host),
+                'value' => sprintf('v=DKIM1; k=rsa; p=%s', $domain->dkim_public_key),
+                'purpose' => 'Aláírás-hitelesítés: a levél tartalmának sértetlenségét igazolja.',
+            ],
+            'dmarc' => [
+                'type' => 'TXT',
+                'name' => '_dmarc.'.$host,
+                'value' => sprintf(
+                    'v=DMARC1; p=%s; rua=mailto:%s',
+                    config('domains.dmarc_policy'),
+                    config('domains.dmarc_rua')
+                ),
+                'purpose' => 'Házirend: mi történjen a hitelesítetlen levelekkel, és hova jöjjön a jelentés.',
+            ],
+            'tracking' => [
+                'type' => 'CNAME',
+                'name' => sprintf('%s.%s', config('domains.tracking_subdomain'), $host),
+                'value' => config('domains.tracking_target'),
+                'purpose' => 'Saját domainen futó klikk-átirányítás és nyitás-pixel.',
+            ],
+        ];
+    }
+}

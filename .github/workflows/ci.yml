@@ -64,7 +64,12 @@ jobs:
         run: composer install --no-interaction --prefer-dist --no-progress
 
       - name: env
-        run: cp .env.example .env && php artisan key:generate
+        # Az AUDIT_PEPPER kötelező és fail-closed (a KeyedHash üres pepperrel dob) — a CI
+        # eldobható értéket generál, ahogy egy friss telepítés is tenné.
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+          php artisan ventmail:pepper | sed 's/^/AUDIT_PEPPER=/' >> .env
 
       - name: pint (kód-stílus)
         run: ./vendor/bin/pint --test
@@ -167,4 +172,4 @@ jobs:
             | sed "s|gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz|gitleaks.tar.gz|" \
             | sha256sum -c -
           tar -xzf gitleaks.tar.gz gitleaks
-          ./gitleaks detect --source . --redact --no-banner --exit-code 1
+          ./gitleaks detect --source . --config .gitleaks.toml --redact --no-banner --exit-code 1
