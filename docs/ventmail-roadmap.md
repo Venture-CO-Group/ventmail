@@ -46,13 +46,16 @@
 
 | Packet | Tartalom | Kulcs-DoD | Becslés |
 |---|---|---|---|
-| **M0-0** Skeleton + infra + CI | Laravel 12 / PHP 8.3 modulmonolit, 24 modulváz, Docker Compose (Caddy · app · timescaledb-ha:pg17 · Redis · Horizon · Reverb · Meili), Vite+Inertia+Vue3+TS, `@venture/design\|ui\|sdk`, Pest + Playwright, GitHub Actions CI | konténerben zöld teszt · zöld CI · token-tiszta smoke oldal | 1–2 nap |
+| **M0-0** Skeleton + infra + CI | Laravel 12 / PHP 8.3 modulmonolit, 25 modulváz, Docker Compose (Caddy · app · timescaledb-ha:pg17 · Redis · Horizon · Reverb · Meili), Vite+Inertia+Vue3+TS, `@venture/design\|ui\|sdk`, Pest + Playwright, GitHub Actions CI | konténerben zöld teszt · zöld CI · token-tiszta smoke oldal | 1–2 nap |
 | **M0-1** Tenancy + OIDC + sub-account | Valódi ventSSO OIDC (auth-code + PKCE, JWKS, `kid`-rotáció), 6 szerep a `resource_access.ventmail.roles`-ból, `workspaces`/`workspace_parents`/`workspace_members`, global scope, Policy-k | tenant- ÉS sub-account izoláció zöld · 6 szerep fedve | 3–4 nap |
 | **M0-2** Séma + audit | A spec 25. fejezetének M0-táblái, `message_events` Timescale hypertable, `messages` (tags[], variables, deliverytime, testmode, ip_pool_id, idempotency_key), `audit_logs` | migrate zöld dev+CI · hypertable insert · audit-write | 2–3 nap |
 | **M0-3** SendingDriver + PreSendGate | `SendingDriver` interfész + Fake/Log/Postal driver, **PreSendGate 6 kapu**, `channel` szeparáció, idempotencia, strukturált `reason` kódok, gate-audit | mind a 6 kapu külön piros→zöld · idempotencia · gate megkerülhetetlen | 3–4 nap |
 | **M0-4** Domainek + wizard + suppression | SPF/DKIM/DMARC/tracking-CNAME generálás, DNS-check állapotgép, DKIM-rotáció átfedéssel, suppression store, wizard UI | verifikálatlan domain elutasítva · wizard flow zöld · token-tiszta UI | 3–4 nap |
 
 **M0 összesen: ~12–17 nap (~17–22 nightly kör), EGY runnerrel.**
+
+> **Állapot:** az M0 mind az öt packetje elkészült (PR #3–#7). A modultérkép **25** modul
+> (7 közös + 8 Platform + 7 Studio + 3 zárás) — a fázisterv eredeti „24" száma elszámolás volt.
 
 ### Az M0 négy jóváhagyott döntése
 1. **Külön M0-0 packet** hozza a skeletont — a repóban nem volt `composer.json`.
