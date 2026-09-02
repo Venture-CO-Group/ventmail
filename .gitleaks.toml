@@ -1,0 +1,31 @@
+# gitleaks konfiguráció.
+#
+# Az allowlist KIZÁRÓLAG teszt-vektorokat tartalmaz. Minden bejegyzésnél kötelező az
+# indoklás: miért nem valódi titok, és mi garantálja, hogy az is marad.
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = """
+DKIM KAT-vektor (known-answer test): rögzített, KIZÁRÓLAG tesztkulcs.
+
+Miért kell fix kulcs: a KAT lényege, hogy a kimenet LITERÁL elvárt értékhez hasonlítódik.
+Futásidőben generált kulccsal a teszt a saját implementációját ismételné meg, és egy
+regressziót (pl. elrontott PEM-fejléc-eltávolítás) nem venne észre.
+
+Miért nem kockázat: ez a kulcs SOHA nem kerül DNS-be, nem ír alá éles levelet, és a fájl
+fejléce is kimondja. Az éles kulcsok futásidőben, domainenként keletkeznek, titkosítva
+tárolódnak, és sosem kerülnek a repóba.
+"""
+paths = ['''tests/Fixtures/dkim-test-key\.pem''']
+
+[[allowlists]]
+description = """
+A Caddy dev Basic Auth bcrypt hashe (jelszó: ventmail-dev), kizárólag a lokális dev-stackhez.
+
+Nem éles hitelesítő: a felület loopbackra kötött, a jelszó dokumentált, és éles környezetben
+a `docker/caddy.dev.env` fájlnév is jelzi, hogy nem odavaló. Üres hash esetén a Caddy el sem
+indulna (fail-closed), ezért kell benne értéknek lennie.
+"""
+paths = ['''docker/caddy\.dev\.env''']
