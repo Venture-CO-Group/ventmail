@@ -23,10 +23,30 @@ final class FakeConsentChecker implements ConsentChecker
             return $this->confirmed;
         }
 
-        return Consent::query()
-            ->where('email', strtolower(trim($email)))
+        // A `revoked_at` NÉZÉSE nem opcionális: a preference center a leiratkozáskor ezt
+        // állítja, a `status` pedig 'confirmed' maradhat — enélkül a leiratkozott címzett
+        // tovább kapná a marketinget. Az egyetlen igazság-definíció a `usable()` scope.
+        return $this->withoutConsent([$email], $channel) === [];
+    }
+
+    /**
+     * @param  list<string>  $emails
+     * @return list<string>
+     */
+    public function withoutConsent(array $emails, string $channel): array
+    {
+        if ($this->confirmed !== null) {
+            return $this->confirmed ? [] : array_values($emails);
+        }
+
+        $normalized = array_map(fn (string $email) => strtolower(trim($email)), $emails);
+
+        $consented = Consent::query()->usable()
+            ->whereIn('email', $normalized)
             ->where('channel', $channel)
-            ->where('status', 'confirmed')
-            ->exists();
+            ->pluck('email')
+            ->all();
+
+        return array_values(array_diff($normalized, $consented));
     }
 }

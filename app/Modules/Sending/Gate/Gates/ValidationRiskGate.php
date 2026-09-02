@@ -33,13 +33,14 @@ final class ValidationRiskGate implements Gate
 
         $threshold = (float) config('sending.validation.risk_threshold');
 
-        foreach ($message->recipients as $recipient) {
+        foreach ($message->recipients as $index => $recipient) {
             $risk = $this->scorer->riskFor((string) $recipient);
 
             if ($risk >= $threshold) {
+                // Nyers cím nélkül: a detail a törölhetetlen audit-naplóba kerül.
                 return GateResult::reject(
                     GateReason::ValidationRisk,
-                    sprintf('%s kockázata %.2f (küszöb: %.2f)', $recipient, $risk, $threshold)
+                    sprintf('címzett #%d kockázata %.2f (küszöb: %.2f)', $index, $risk, $threshold)
                 );
             }
         }

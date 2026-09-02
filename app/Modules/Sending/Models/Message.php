@@ -24,6 +24,7 @@ final class Message extends Model
         'domain_id', 'ip_pool_id', 'channel', 'from_email', 'from_name', 'subject',
         'recipients', 'tags', 'variables', 'headers', 'options', 'deliverytime',
         'testmode', 'status', 'reason', 'idempotency_key', 'queued_at', 'sent_at',
+        'sending_started_at', 'attempts', 'gate_decided_at',
     ];
 
     public function uniqueIds(): array
@@ -44,6 +45,8 @@ final class Message extends Model
             'deliverytime' => 'datetime',
             'queued_at' => 'datetime',
             'sent_at' => 'datetime',
+            'sending_started_at' => 'datetime',
+            'gate_decided_at' => 'datetime',
             'testmode' => 'boolean',
         ];
     }

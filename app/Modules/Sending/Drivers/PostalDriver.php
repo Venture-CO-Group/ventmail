@@ -10,6 +10,7 @@ use App\Modules\Sending\Data\DriverCapabilities;
 use App\Modules\Sending\Data\DriverHealth;
 use App\Modules\Sending\Models\Message;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use RuntimeException;
 
 /**
@@ -34,20 +35,32 @@ final class PostalDriver implements SendingDriver
             );
         }
 
+        // Az API-kulcs FEJLÉCBEN megy: titkosítatlan végponton elhagyná a hálózatot.
+        if (! str_starts_with($endpoint, 'https://')) {
+            throw new RuntimeException(
+                'A POSTAL_ENDPOINT csak https lehet: az X-Server-API-Key fejlécben utazik.'
+            );
+        }
+
         $response = Http::withHeaders(['X-Server-API-Key' => $key])
+            ->withOptions(['verify' => true])
             ->timeout(10)
+            ->connectTimeout(5)
             ->post($endpoint.'/api/v1/send/message', [
                 'to' => $message->recipients,
                 'from' => $message->from_email,
                 'subject' => $message->subject,
                 // A tartalom-összeállítás az A1 packet feladata; itt a kontraktus a lényeg.
                 'headers' => $message->headers,
+                // Idempotencia a MÁSIK oldalon is: egy retry különben kétszer kézbesítene.
+                'idempotency_key' => $message->uuid,
             ]);
 
         if (! $response->successful()) {
             return DispatchResult::failed('Postal hiba: '.$response->status());
         }
 
+        // Az MTA átvette — a KÉZBESÍTÉS visszaigazolása a webhookból jön (A3).
         return DispatchResult::accepted((string) $response->json('data.message_id', ''));
     }
 
@@ -73,7 +86,11 @@ final class PostalDriver implements SendingDriver
         try {
             $ok = Http::timeout(3)->get($endpoint.'/health')->successful();
         } catch (\Throwable $e) {
-            return new DriverHealth(healthy: false, detail: $e->getMessage());
+            // A nyers kivétel-üzenet a teljes URL-t hordozza (tokennel együtt), és ez egy
+            // operátori felületre menne ki. A részlet a szerver-logba való.
+            Log::warning('Postal health-check hiba', ['exception' => $e::class, 'error' => $e->getMessage()]);
+
+            return new DriverHealth(healthy: false, detail: 'A Postal health-check hibára futott.');
         }
 
         return new DriverHealth(healthy: $ok, detail: $ok ? 'Postal elérhető.' : 'Postal nem válaszol.');

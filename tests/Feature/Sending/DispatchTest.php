@@ -131,3 +131,39 @@ it('a driver egészség- és képesség-jelentést ad', function () {
     expect($driver->health()->healthy)->toBeTrue();
     expect($driver->capabilities()->name)->toBe('fake');
 });
+
+it('elavult gate-döntéssel nem indul küldés', function () {
+    // Egy holnapra ütemezett kampánynál a közben érkezett leiratkozásnak számítania kell.
+    $message = sendResult(['testmode' => true])->message;
+    $message->forceFill(['testmode' => false, 'gate_decided_at' => now()->subDay()])->save();
+
+    expect(fn () => app(MessageDispatcher::class)->dispatch($message->fresh()))
+        ->toThrow(RuntimeException::class);
+});
+
+it('a küldés a feladó domainhez kötődik', function () {
+    $message = sendResult()->message;
+
+    expect($message->domain_id)->not->toBeNull();
+    expect($message->domain->name)->toBe('pelda.hu');
+});
+
+it('batch küldésnél MINDEN címzett kap eseményt', function () {
+    $recipients = ['egy@example.test', 'ketto@example.test', 'harom@example.test'];
+
+    $message = sendResult(['to' => $recipients])->message;
+
+    $delivered = MessageEvent::where('message_uuid', $message->uuid)
+        ->where('type', 'delivered')->pluck('recipient')->all();
+
+    expect($delivered)->toEqualCanonicalizing($recipients);
+});
+
+it('a FakeDriver determinisztikus azonosítót ad', function () {
+    $message = sendResult()->message;
+
+    $payload = MessageEvent::where('message_uuid', $message->uuid)
+        ->where('type', 'delivered')->value('payload');
+
+    expect($payload['provider_message_id'])->toBe('fake-'.$message->uuid);
+});

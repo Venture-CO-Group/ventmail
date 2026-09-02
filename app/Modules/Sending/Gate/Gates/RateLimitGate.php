@@ -27,15 +27,23 @@ final class RateLimitGate implements Gate
         $key = 'sending:'.$message->workspace_id;
         $limit = (int) config('sending.rate_limit.per_minute');
 
-        if (RateLimiter::tooManyAttempts($key, $limit)) {
+        // A limit CÍMZETTBEN mér, nem hívásban: különben 300 hívás × 1000 címzett
+        // „limiten belül" 300 000 levelet jelentene.
+        $needed = max(1, count($message->recipients));
+        $used = RateLimiter::attempts($key);
+
+        if ($used + $needed > $limit) {
             return GateResult::reject(
                 GateReason::RateLimited,
-                sprintf('Percenkénti limit (%d) elérve, %d mp múlva oldódik', $limit, RateLimiter::availableIn($key))
+                sprintf(
+                    'Percenkénti limit: %d/%d felhasználva, ez a küldés %d címzett; %d mp múlva oldódik',
+                    $used, $limit, $needed, RateLimiter::availableIn($key)
+                )
             );
         }
 
-        RateLimiter::hit($key, 60);
+        RateLimiter::increment($key, 60, $needed);
 
-        return GateResult::pass();
+        return GateResult::pass(sprintf('%d/%d', $used + $needed, $limit));
     }
 }

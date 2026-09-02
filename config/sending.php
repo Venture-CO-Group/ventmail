@@ -12,6 +12,20 @@ declare(strict_types=1);
 return [
     'driver' => env('SENDING_DRIVER', 'fake'),
 
+    // 0. kapu — bemenet-épség. A spec 8.1 hívásonként max 1000 címzettet enged.
+    'max_recipients' => (int) env('SENDING_MAX_RECIPIENTS', 1000),
+
+    // A `sending` állapot lízingje: ennyi idő után egy félbemaradt küldés újraigényelhető.
+    'lease_seconds' => (int) env('SENDING_LEASE_SECONDS', 300),
+
+    // A fake külső gazdák (consent, kockázat, kvóta) csak nem-éles környezetben köthetők be:
+    // élesben némán kinyitnák a 3., 4. és 6. kaput.
+    'allow_fake_dependencies' => (bool) env('SENDING_ALLOW_FAKE_DEPENDENCIES', true),
+
+    // A gate-döntés szavatossága: ennél régebbi döntéssel nem indul küldés (ütemezett
+    // kampánynál a közben érkezett leiratkozásnak számítania kell).
+    'decision_max_age_seconds' => (int) env('SENDING_DECISION_MAX_AGE', 900),
+
     'postal' => [
         'endpoint' => env('POSTAL_ENDPOINT', ''),
         'api_key' => env('POSTAL_API_KEY', ''),

@@ -18,4 +18,19 @@ enum GateReason: string
     case QuotaExceeded = 'QUOTA_EXCEEDED';
     case RateLimited = 'RATE_LIMITED';
     case ValidationRisk = 'VALIDATION_RISK';
+
+    /** Bemenet-épség: ismeretlen csatorna, hiányzó/érvénytelen címzett, tiltott fejléc. */
+    case InvalidRequest = 'INVALID_REQUEST';
+
+    /**
+     * Egy kapu HIBÁRA futott (pl. a kvóta-szolgáltatás nem elérhető).
+     * A lánc ilyenkor fail-closed: inkább nem küldünk, mint ellenőrizetlenül.
+     */
+    case GateError = 'GATE_ERROR';
+
+    /**
+     * Ugyanaz az Idempotency-Key, de az eredeti kérés még nem jutott döntésig.
+     * Nem „elfogadva" — a hívónak tudnia kell, hogy nincs végleges válasz.
+     */
+    case InProgress = 'IN_PROGRESS';
 }
