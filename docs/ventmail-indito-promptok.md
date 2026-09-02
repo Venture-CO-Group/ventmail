@@ -31,7 +31,7 @@ Feladat (teszt előbb):
    - composer: inertiajs/inertia-laravel, laravel/horizon, laravel/reverb, laravel/scout,
      meilisearch/meilisearch-php, league/oauth2-client, firebase/php-jwt (az M0-1 ezekre épít).
    - npm: @venture/design, @venture/ui, @venture/sdk — 'file:../venture-*' linkkel (ventSSO mintája).
-   - app/Modules/<Name>/ váz mind a 24 modulra (Identity Tenancy Domains IpPools Sending Events
+   - app/Modules/<Name>/ váz mind a 25 modulra (Identity Tenancy Domains IpPools Sending Events
      Suppression Messages Smtp Inbound Logs Validation Webhooks Deliverability StoredTemplates
      Audience Consent Template Campaign Journey Forms Analytics Billing SuperAdmin Api) — minden
      modulban README.md + ServiceProvider + a szokásos alkönyvtárak.
@@ -41,9 +41,9 @@ Elfogadási kritériumok (tesztekkel):
 - docker compose up -d után minden service healthy; php artisan test zöld a KONTÉNERBEN (PHP 8.3).
 - a smoke oldal betölt, @venture/design tokenek CSS-változóként jelen vannak; vue-tsc hibátlan.
 - a CI minden kapuja zöld; gitleaks nem talál titkot; hardcode szín/spacing/font SEHOL.
-- mind a 24 modul váza létezik README-vel.
+- mind a 25 modul váza létezik README-vel.
 
-DoD: konténerben zöld teszt · zöld CI · token-tiszta smoke oldal · 24 modulváz · nincs beégetett titok.
+DoD: konténerben zöld teszt · zöld CI · token-tiszta smoke oldal · 25 modulváz · nincs beégetett titok.
 Zárás: reviewer + contract-guard → /pr-kapu → PR.
 ```
 

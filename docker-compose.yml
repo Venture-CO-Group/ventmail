@@ -1,0 +1,155 @@
+# ventMail — dev stack (kanonikus Venture: Caddy · PG17+Timescale · Redis · Horizon · Reverb · Meili)
+# Éles deploy SOSEM innen megy — lásd docker-compose.prod.yml (devops packet, később).
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports: ['127.0.0.1:8088:80']
+    # A Basic Auth hash külön fájlban: a gyökér .env-et a compose interpolálja (a bcrypt $-ok elvesznének).
+    env_file: [docker/caddy.dev.env]
+    volumes:
+      - ./docker/Caddyfile.dev:/etc/caddy/Caddyfile:ro
+      - ./public:/var/www/public:ro
+      - caddydata:/data
+    depends_on:
+      app:
+        condition: service_healthy
+    healthcheck:
+      # Nem a bináris létét nézzük, hanem hogy a config betöltve kiszolgál-e.
+      # A TELJES láncot méri (Caddy → FPM → Laravel /up), a belső, Basic Auth nélküli
+      # health-listeneren — így a healthchecknek nem kell plaintext jelszót tartania.
+      test: ['CMD', 'wget', '-q', '--spider', 'http://127.0.0.1:2020/up']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  app:
+    build:
+      context: .
+      dockerfile: docker/app.Dockerfile
+    restart: unless-stopped
+    working_dir: /var/www
+    volumes: ['.:/var/www']
+    env_file: [.env]
+    environment:
+      # A .env a HOST-ról használható értékeket tartja (127.0.0.1 + kimappelt portok);
+      # a konténereken belül a service-nevek érvényesek.
+      DB_HOST: db
+      DB_PORT: 5432
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      MEILISEARCH_HOST: http://meilisearch:7700
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      # Nem no-op: valóban megszólítja az FPM-et a 9000-en.
+      test: ['CMD-SHELL', 'nc -z 127.0.0.1 9000']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  db:
+    # A hypertable-teszt VALÓDI Timescale ellen fut — a CI ugyanezt az image-et használja.
+    image: timescale/timescaledb-ha:pg17
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_DATABASE:-ventmail}
+      POSTGRES_USER: ${DB_USERNAME:-ventmail}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-ventmail}
+    ports: ['127.0.0.1:54329:5432']
+    volumes: ['pgdata:/home/postgres/pgdata/data']
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${DB_USERNAME:-ventmail} -d ${DB_DATABASE:-ventmail}']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports: ['127.0.0.1:63799:6379']
+    volumes: ['redisdata:/data']
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  horizon:
+    build:
+      context: .
+      dockerfile: docker/app.Dockerfile
+    restart: unless-stopped
+    working_dir: /var/www
+    command: ['php', 'artisan', 'horizon']
+    volumes: ['.:/var/www']
+    env_file: [.env]
+    environment:
+      # A .env a HOST-ról használható értékeket tartja (127.0.0.1 + kimappelt portok);
+      # a konténereken belül a service-nevek érvényesek.
+      DB_HOST: db
+      DB_PORT: 5432
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      MEILISEARCH_HOST: http://meilisearch:7700
+    depends_on:
+      redis:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'php', 'artisan', 'horizon:status']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  reverb:
+    build:
+      context: .
+      dockerfile: docker/app.Dockerfile
+    restart: unless-stopped
+    working_dir: /var/www
+    command: ['php', 'artisan', 'reverb:start', '--host=0.0.0.0', '--port=8081']
+    ports: ['127.0.0.1:8081:8081']
+    volumes: ['.:/var/www']
+    env_file: [.env]
+    environment:
+      # A .env a HOST-ról használható értékeket tartja (127.0.0.1 + kimappelt portok);
+      # a konténereken belül a service-nevek érvényesek.
+      DB_HOST: db
+      DB_PORT: 5432
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      MEILISEARCH_HOST: http://meilisearch:7700
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD-SHELL', 'nc -z 127.0.0.1 8081']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  meilisearch:
+    image: getmeili/meilisearch:v1.11
+    restart: unless-stopped
+    environment:
+      MEILI_ENV: development
+      MEILI_MASTER_KEY: ${MEILISEARCH_KEY:?a MEILISEARCH_KEY kotelezo (.env)}
+    ports: ['127.0.0.1:7700:7700']
+    volumes: ['meilidata:/meili_data']
+    healthcheck:
+      test: ['CMD', 'curl', '-fsS', 'http://127.0.0.1:7700/health']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pgdata:
+  redisdata:
+  meilidata:
+  caddydata:

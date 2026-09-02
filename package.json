@@ -1,0 +1,29 @@
+{
+    "name": "ventmail",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "dev": "vite",
+        "build": "vite build",
+        "typecheck": "vue-tsc --noEmit",
+        "e2e": "playwright test"
+    },
+    "dependencies": {
+        "@inertiajs/vue3": "^2.0.0",
+        "@venture/design": "file:../venture-design",
+        "@venture/sdk": "file:../venture-sdk",
+        "@venture/ui": "file:../venture-ui",
+        "pinia": "^3.0.1",
+        "vue": "^3.5.13"
+    },
+    "devDependencies": {
+        "@playwright/test": "^1.61.0",
+        "@types/node": "^26.4.1",
+        "@vitejs/plugin-vue": "^6.0.0",
+        "axios": "^1.11.0",
+        "laravel-vite-plugin": "^2.0.0",
+        "typescript": "^5.7.2",
+        "vite": "^7.0.7",
+        "vue-tsc": "^2.2.0"
+    }
+}

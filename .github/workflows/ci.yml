@@ -1,0 +1,170 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# A GITHUB_TOKEN a lehető legszűkebb jogot kapja (security-review B2).
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (teszt · pint · composer audit)
+    runs-on: ubuntu-latest
+
+    services:
+      db:
+        # UGYANAZ az image, mint dev-ben — a hypertable-teszt valódi Timescale ellen fut.
+        image: timescale/timescaledb-ha:pg17
+        env:
+          POSTGRES_DB: ventmail_test
+          POSTGRES_USER: ventmail
+          POSTGRES_PASSWORD: ventmail
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd="pg_isready -U ventmail -d ventmail_test"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+
+    env:
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5432
+      DB_DATABASE: ventmail_test
+      DB_USERNAME: ventmail
+      DB_PASSWORD: ventmail
+      DB_SSLMODE: disable
+      REDIS_HOST: 127.0.0.1
+
+    steps:
+      # Minden action commit SHA-ra pinelve: mozgó tag mellett egy retagelt action
+      # ugyanahhoz a futtatókörnyezethez (és tokenhez) férne hozzá.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
+        with:
+          php-version: '8.3'
+          extensions: pdo_pgsql, redis, intl, zip, bcmath, pcntl
+          coverage: none
+
+      - name: composer install
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: env
+        run: cp .env.example .env && php artisan key:generate
+
+      - name: pint (kód-stílus)
+        run: ./vendor/bin/pint --test
+
+      - name: php artisan test
+        run: php artisan test --parallel
+
+      - name: composer audit
+        run: composer audit --no-interaction
+
+  frontend:
+    name: Frontend (vue-tsc · build · npm audit)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Beszédes hiba, ha a secret hiányzik: enélkül a checkout csak annyit mond,
+      # hogy „Input required and not supplied: token".
+      - name: 'előfeltétel ellenőrzése'
+        env:
+          PACKAGES_TOKEN: ${{ secrets.VENTURE_PACKAGES_TOKEN }}
+        run: |
+          if [ -z "${PACKAGES_TOKEN}" ]; then
+            echo "::error::Hiányzik a VENTURE_PACKAGES_TOKEN repo secret. A frontend kapu a privát @venture/design|ui|sdk csomagokat klónozza; enélkül nem futtatható. Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+
+      # A @venture/* csomagok `file:../venture-*` linkkel jönnek. Az actions/checkout csak a
+      # workspace-en BELÜLRE tud klónozni, ezért _packages/ alá megy, és onnan symlinkeljük a
+      # testvér-elrendezésbe. persist-credentials: false — különben a token a .git/config-ba
+      # kerülne, ahonnan egy PR-ből érkező npm lifecycle-script kiolvashatná (security-review B2).
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: Venture-CO-Group/venture-design
+          path: _packages/venture-design
+          token: ${{ secrets.VENTURE_PACKAGES_TOKEN }}
+          persist-credentials: false
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: Venture-CO-Group/venture-ui
+          path: _packages/venture-ui
+          token: ${{ secrets.VENTURE_PACKAGES_TOKEN }}
+          persist-credentials: false
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: Venture-CO-Group/venture-sdk
+          path: _packages/venture-sdk
+          token: ${{ secrets.VENTURE_PACKAGES_TOKEN }}
+          persist-credentials: false
+
+      - name: 'testvér-elrendezés (a file: linkek feloldása)'
+        run: |
+          for pkg in venture-design venture-ui venture-sdk; do
+            ln -sfn "${GITHUB_WORKSPACE}/_packages/${pkg}" "$(dirname "${GITHUB_WORKSPACE}")/${pkg}"
+          done
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
+
+      # npm ci: a committolt package-lock.json kényszerül, a CI nem csúszhat el a lokálistól.
+      - name: npm ci
+        run: npm ci --no-audit --no-fund
+
+      - name: vue-tsc (típusellenőrzés)
+        run: npm run typecheck
+
+      - name: vite build
+        run: npm run build
+
+      - name: npm audit
+        run: npm audit --audit-level=high
+
+  security:
+    name: Security (gitleaks)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      # A gitleaks-action szervezeti repónál licencet követel; a binárist futtatjuk.
+      # A release asset ugyanazon a tagen lecserélhető, ezért checksum-ellenőrzés kell.
+      - name: gitleaks
+        env:
+          GITLEAKS_VERSION: 8.21.2
+        run: |
+          set -euo pipefail
+          base="https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}"
+          curl -sSLo gitleaks.tar.gz "${base}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          curl -sSLo checksums.txt "${base}/gitleaks_${GITLEAKS_VERSION}_checksums.txt"
+          grep "gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" checksums.txt \
+            | sed "s|gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz|gitleaks.tar.gz|" \
+            | sha256sum -c -
+          tar -xzf gitleaks.tar.gz gitleaks
+          ./gitleaks detect --source . --redact --no-banner --exit-code 1
