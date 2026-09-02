@@ -56,7 +56,7 @@ it('analyst nem vehet fel domaint', function () {
 it('analyst a wizardot sem éri el', function () {
     actingWith(Role::Analyst);
 
-    $this->get('/domains/wizard')->assertForbidden();
+    $this->withoutVite()->get('/domains/wizard')->assertForbidden();
 });
 
 it('a demo-mód éles környezetben nem létezik', function () {
@@ -64,14 +64,15 @@ it('a demo-mód éles környezetben nem létezik', function () {
 
     app()->detectEnvironment(fn () => 'production');
 
-    $this->get('/domains/wizard?demo=1')->assertNotFound();
+    $this->withoutVite()->get('/domains/wizard?demo=1')->assertNotFound();
     expect(Domain::query()->count())->toBe(0);
 });
 
 it('GET nem hoz létre domaint', function () {
     actingWith(Role::Admin);
 
-    $this->get('/domains/wizard')->assertOk();
+    // A backend-kapu nem függhet a lefordított Vite-manifesttől (a CI ott nem buildel).
+    $this->withoutVite()->get('/domains/wizard')->assertOk();
 
     expect(Domain::query()->count())->toBe(0);
 });
