@@ -22,7 +22,9 @@ final class FakeDriver implements SendingDriver
     {
         // Determinisztikus azonosító: ugyanaz az üzenet ugyanazt az id-t kapja, tehát az
         // idempotencia a driver szintjén is ellenőrizhető.
-        return DispatchResult::accepted('fake-'.$message->uuid);
+        // A fake az MTA VISSZAJELZÉSÉT is szimulálja: a valódi driverek csak `accepted`-et
+        // adnak, és a `delivered` a webhookból érkezik (A3).
+        return DispatchResult::delivered('fake-'.$message->uuid);
     }
 
     public function capabilities(): DriverCapabilities

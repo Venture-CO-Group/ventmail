@@ -7,6 +7,7 @@ namespace App\Modules\Consent\Models;
 use App\Modules\Audit\Concerns\Auditable;
 use App\Modules\Audit\Services\KeyedHash;
 use App\Modules\Tenancy\Concerns\BelongsToWorkspace;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 
@@ -49,5 +50,18 @@ final class Consent extends Model
     public function isConfirmed(): bool
     {
         return $this->status === 'confirmed' && $this->revoked_at === null;
+    }
+
+    /**
+     * A HASZNÁLHATÓ consent egyetlen definíciója — a gate is ezt hívja.
+     *
+     * Enélkül két igazság-definíció élne egymás mellett (a modellé és a gate lekérdezéséé),
+     * és a gyengébb nyerne: a visszavont consenttel kiment volna a marketing.
+     */
+    public function scopeUsable(Builder $query): Builder
+    {
+        return $query->where('status', 'confirmed')
+            ->whereNotNull('confirmed_at')
+            ->whereNull('revoked_at');
     }
 }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Sending\Gate\Gates;
 
 use App\Modules\Sending\Contracts\ConsentChecker;
+use App\Modules\Sending\Enums\Channel;
 use App\Modules\Sending\Gate\GateReason;
 use App\Modules\Sending\Gate\GateResult;
 use App\Modules\Sending\Models\Message;
@@ -26,17 +27,27 @@ final class ConsentGate implements Gate
 
     public function check(Message $message): GateResult
     {
-        if (! $message->isMarketing()) {
-            return GateResult::pass('nem marketing csatorna');
+        // MEGFORDÍTOTT logika: nem azt kérdezzük, „marketing-e", hanem hogy
+        // consent-mentes-e. Egy ismeretlen csatorna így NEM csúszik át.
+        $channel = Channel::from((string) $message->channel);
+
+        if (! $channel->requiresConsent()) {
+            return GateResult::pass('tranzakciós csatorna');
         }
 
-        foreach ($message->recipients as $recipient) {
-            if (! $this->consent->hasConfirmedConsent((string) $recipient, $message->channel)) {
-                return GateResult::reject(
-                    GateReason::NoConsent,
-                    "Nincs megerősített marketing-consent: {$recipient}"
-                );
-            }
+        // Egyetlen lekérdezés: 1000 címzettnél a címzettenkénti ellenőrzés 1000 körutazás
+        // lenne, szinkron a kérésben.
+        $missing = $this->consent->withoutConsent(
+            array_map(static fn ($recipient) => (string) $recipient, $message->recipients),
+            $channel->value
+        );
+
+        if ($missing !== []) {
+            // Nyers cím SOHA nem kerül a törölhetetlen auditba — darabszám elég.
+            return GateResult::reject(
+                GateReason::NoConsent,
+                sprintf('%d címzettnek nincs megerősített consentje (%s)', count($missing), $channel->value)
+            );
         }
 
         return GateResult::pass();

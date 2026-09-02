@@ -13,4 +13,13 @@ namespace App\Modules\Sending\Contracts;
 interface ConsentChecker
 {
     public function hasConfirmedConsent(string $email, string $channel): bool;
+
+    /**
+     * Tömeges ellenőrzés: 1000 címzettnél a címzettenkénti lekérdezés 1000 körutazás lenne
+     * egyetlen küldés kapujában.
+     *
+     * @param  list<string>  $emails
+     * @return list<string> azok a címek, amelyeknek NINCS érvényes consentjük
+     */
+    public function withoutConsent(array $emails, string $channel): array;
 }

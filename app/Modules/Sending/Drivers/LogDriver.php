@@ -28,7 +28,7 @@ final class LogDriver implements SendingDriver
             'recipient_count' => count($message->recipients),
         ]);
 
-        return DispatchResult::accepted('log-'.$message->uuid);
+        return DispatchResult::delivered('log-'.$message->uuid);
     }
 
     public function capabilities(): DriverCapabilities

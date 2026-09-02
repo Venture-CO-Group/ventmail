@@ -24,7 +24,9 @@ final class DomainVerifiedGate implements Gate
 
     public function check(Message $message): GateResult
     {
-        $host = Str::after($message->from_email, '@');
+        // A domain az UTOLSÓ @ után van (RFC), és kisbetűsítve keresendő: a nagybetűs
+        // feladó különben hitelesített domainen is DOMAIN_UNVERIFIED-et kapott.
+        $host = strtolower(trim(Str::afterLast((string) $message->from_email, '@')));
 
         $domain = Domain::query()->where('name', $host)->first();
 
@@ -38,6 +40,10 @@ final class DomainVerifiedGate implements Gate
                 "A(z) {$host} domain állapota: {$domain->status}"
             );
         }
+
+        // A döntés PERZISZTÁLÓDIK az üzenetre: enélkül nincs bizonyíték arra, melyik domain
+        // engedélyezte a küldést, és az IP-pool-választás (A2) sem tud mire épülni.
+        $message->domain_id = $domain->getKey();
 
         return GateResult::pass("verified: {$host}");
     }
