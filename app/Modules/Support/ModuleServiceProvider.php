@@ -107,9 +107,15 @@ abstract class ModuleServiceProvider extends ServiceProvider
         return array_values(array_unique([...$required, ...$this->webMiddleware]));
     }
 
-    /** @return list<string> */
+    /**
+     * @return list<string>
+     */
     private function apiStack(): array
     {
+        // A `/v1` felület API-KULCCSAL hitelesít, nem böngésző-session-nel: ott az `auth` és a
+        // `workspace` middleware nem értelmezett, a kontextus magából a kulcsból származik.
+        // A hitelesítés viszont NEM opcionális — a modulnak meg kell adnia a saját őrét
+        // (`api.auth`), és ezt teszt kényszeríti ki.
         $required = $this->routesPrecedeAuthentication ? ['api', 'throttle:api'] : self::REQUIRED_API;
 
         return array_values(array_unique([...$required, ...$this->apiMiddleware]));

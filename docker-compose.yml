@@ -30,7 +30,11 @@ services:
       dockerfile: docker/app.Dockerfile
     restart: unless-stopped
     working_dir: /var/www
-    volumes: ['.:/var/www']
+    volumes:
+      - .:/var/www
+      # A `@venture/sdk` kontraktus-drift tesztje a szomszédos repót olvassa (ahogy az
+      # npm `file:../venture-sdk` link is) — enélkül a konténeres futás nem tudná ellenőrizni.
+      - ../venture-sdk:/venture-packages/venture-sdk:ro
     env_file: [.env]
     environment:
       # A .env a HOST-ról használható értékeket tartja (127.0.0.1 + kimappelt portok);
@@ -105,6 +109,35 @@ services:
       test: ['CMD', 'php', 'artisan', 'horizon:status']
       interval: 30s
       timeout: 10s
+      retries: 3
+
+  # Az ÜTEMEZŐ. Enélkül a `routes/console.php` minden ütemezése holt betű: az
+  # `o:deliverytime`-ra adott 202 zsákutca lenne (a levél sosem megy ki), és a
+  # domain-újraellenőrzés sem futna. A `schedule:work` maga várja ki a percet.
+  scheduler:
+    build:
+      context: .
+      dockerfile: docker/app.Dockerfile
+    restart: unless-stopped
+    working_dir: /var/www
+    command: ['php', 'artisan', 'schedule:work']
+    volumes: ['.:/var/www']
+    env_file: [.env]
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      MEILISEARCH_HOST: http://meilisearch:7700
+    depends_on:
+      redis:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'php', 'artisan', 'schedule:list']
+      interval: 60s
+      timeout: 15s
       retries: 3
 
   reverb:

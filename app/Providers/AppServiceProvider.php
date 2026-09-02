@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
+use App\Modules\Audit\Services\KeyedHash;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
@@ -53,9 +54,29 @@ class AppServiceProvider extends ServiceProvider
     private function configureRateLimiting(): void
     {
         RateLimiter::for('api', function (Request $request) {
-            $key = $request->user()?->getAuthIdentifier() ?? $request->ip();
+            // KÉT bucket, mindkettő egyszerre érvényes.
+            //
+            // Csak a kulcs alapján tiltani NEM elég: a throttle az `api.auth` ELŐTT fut,
+            // tehát a bucket a MÉG NEM ELLENŐRZÖTT tokenből származna. Aki kérésenként más
+            // Bearer értéket küld, kérésenként friss keretet kapott volna — vagyis a `/v1`
+            // hitelesítetlen forgalomra korlátlan lett. Csak IP alapján tiltani szintén
+            // rossz: két tenant egy NAT vagy CI-runner mögött megenné egymás keretét.
+            //
+            // Ezért: a KULCS kerete a normál működésé, az IP kerete pedig a hitelesítetlen
+            // özön plafonja. A nyers kulcs sosem kerül cache-kulcsba — kulcsolt hash megy,
+            // domain-elválasztással (a peppertelen SHA-256 egy Redis-dumpból offline
+            // verifikátort adna az API-kulcsokhoz).
+            $bearer = $request->bearerToken() ?? $request->getPassword();
+            $ip = (string) $request->ip();
 
-            return Limit::perMinute(300)->by((string) $key);
+            if (! is_string($bearer) || $bearer === '') {
+                return Limit::perMinute(60)->by('ip:'.$ip);
+            }
+
+            return [
+                Limit::perMinute(300)->by('key:'.KeyedHash::of('rate_limit', $bearer)),
+                Limit::perMinute(1200)->by('ip:'.$ip),
+            ];
         });
 
         // A bejelentkezési folyamat hitelesítetlen: minden hívás session-rekordot ír és

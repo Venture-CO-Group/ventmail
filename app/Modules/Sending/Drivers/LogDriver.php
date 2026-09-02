@@ -21,11 +21,24 @@ final class LogDriver implements SendingDriver
 {
     public function send(Message $message): DispatchResult
     {
+        // A törzset FOGYASZTJA (különben a személyre szabás észrevétlenül elveszne), de
+        // csak a LENYOMATÁT naplózza: a kirenderelt levél magic-linket és tokent hordoz.
+        $fingerprints = [];
+
+        foreach ($message->renderedBodies as $recipient => $bodies) {
+            $fingerprints[] = [
+                'recipient_sha256' => hash('sha256', (string) $recipient),
+                'html_sha256' => $bodies['html'] === null ? null : hash('sha256', $bodies['html']),
+                'text_sha256' => ($bodies['text'] ?? null) === null ? null : hash('sha256', (string) $bodies['text']),
+            ];
+        }
+
         Log::info('ventMail kimenő üzenet (log driver)', [
             'message_uuid' => $message->uuid,
             'workspace_id' => $message->workspace_id,
             'channel' => $message->channel,
             'recipient_count' => count($message->recipients),
+            'bodies' => $fingerprints,
         ]);
 
         return DispatchResult::delivered('log-'.$message->uuid);

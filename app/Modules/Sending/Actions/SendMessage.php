@@ -13,9 +13,12 @@ use App\Modules\Sending\Gate\GateReason;
 use App\Modules\Sending\Gate\GateResult;
 use App\Modules\Sending\Gate\PreSendGate;
 use App\Modules\Sending\Models\Message;
+use App\Modules\Sending\Models\RawMimeMessage;
 use App\Modules\Sending\Services\MessageDispatcher;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\DB;
+use RuntimeException;
 
 /**
  * A küldés belépési pontja — a PreSendGate-en át.
@@ -51,11 +54,43 @@ final class SendMessage
             $existing = Message::query()->where('idempotency_key', $idempotencyKey)->first();
 
             if ($existing !== null) {
-                return new SendResult($existing, $this->replayDecision($existing));
+                return $this->replay($existing, $attributes);
             }
         }
 
         $message = $this->createMessage($attributes, $idempotencyKey);
+
+        // A DB döntötte el a versenyt, és MI VESZTETTÜNK: a győztes üzenet már átment a
+        // kapukon és ki is ment. Itt TOVÁBBMENNI dupla kézbesítés lett volna — a győztes
+        // sort visszaállítottuk `accepted`-re, a dispatcher lízingje pedig újra engedett.
+        if ($message === null) {
+            // Kulcs nélkül nem lehet unique-ütközés — ha mégis ide jutnánk, az más
+            // kényszer sérülése, és a csendes „nem találtam" 500 lenne. Hangos hiba jobb.
+            $winner = $idempotencyKey === null
+                ? null
+                : Message::query()->where('idempotency_key', $idempotencyKey)->first();
+
+            if ($winner === null) {
+                throw new RuntimeException(
+                    'Az üzenet létrehozása egyediségi kényszerbe ütközött, de a nyertes sor '
+                    .'nem található — ez nem az idempotencia-kulcs ütközése.'
+                );
+            }
+
+            return $this->replay($winner, $attributes);
+        }
+
+        // A NYERS MIME a levél MAGA — a gate és a dispatcher ELŐTT kell perzisztálnia.
+        // Korábban a hívás UTÁN történt, a küldés viszont ugyanabban a hívásban, szinkron
+        // fut: a driver olyan pillanatban kapta meg az üzenetet, amikor a törzs még nem
+        // létezett. `firstOrCreate`, mert a sor megváltoztathatatlan: egy üzenethez EGY
+        // nyers levél tartozik (unique kényszer is védi).
+        if (is_string($raw = Arr::get($attributes, 'raw_mime')) && $raw !== '') {
+            RawMimeMessage::query()->firstOrCreate(
+                ['message_uuid' => $message->uuid],
+                ['raw' => $raw]
+            );
+        }
 
         $decision = $this->gate->evaluate($message);
 
@@ -76,6 +111,15 @@ final class SendMessage
         ])->save();
         $this->event($message, 'accepted');
 
+        // Az ÜTEMEZETT üzenet nem megy ki azonnal: a `deliverytime` a Mailgun-paritás része
+        // (o:deliverytime). A sorból az A2 ütemezője veszi majd ki — és mivel a gate-döntésnek
+        // szavatossági ideje van, a küldés előtt újraértékelés kell.
+        if ($message->deliverytime !== null && $message->deliverytime->isFuture()) {
+            $message->forceFill(['status' => 'scheduled'])->save();
+
+            return new SendResult($message->fresh(), $decision);
+        }
+
         // A testmode naplóz, de NEM küld (Mailgun-paritás: o:testmode).
         if (! $message->testmode) {
             $this->dispatcher->dispatch($message);
@@ -93,11 +137,42 @@ final class SendMessage
      */
     private function rejectInvalidInput(array $attributes): ?SendResult
     {
+        // NUL bájt és érvénytelen UTF-8: a `jsonb`/`text` oszlop ezeket ELUTASÍTJA
+        // („unsupported Unicode escape sequence", „invalid byte sequence"), és mivel a sor
+        // a kapuk ELŐTT íródik, a hívó `QueryException` → 500-at kapott az egységes
+        // `error.code` alak helyett. A nyers MIME kivétel: az `bytea`-ba megy.
+        $unstorable = $this->firstUnstorableField(Arr::except($attributes, ['raw_mime']));
+
+        if ($unstorable !== null) {
+            // A MEZŐNÉV maga is tartalmazhatja a hibás bájtot (`v:"ne\0v"`), és ez a szöveg
+            // az auditba megy — ott ugyanaz a `jsonb` fogadná, tehát a hibaüzenet ölte
+            // volna meg a kérést. Ezért a névből is kitakarítjuk, amit nem lehet tárolni.
+            return $this->invalid(
+                $attributes,
+                sprintf('A(z) `%s` mező NUL bájtot vagy érvénytelen UTF-8 szekvenciát tartalmaz.', $this->printable($unstorable))
+            );
+        }
+
         $channel = (string) Arr::get($attributes, 'channel', Channel::Transactional->value);
 
         if (Channel::tryFrom($channel) !== null) {
             return null;
         }
+
+        return $this->invalid(
+            $attributes,
+            'Ismeretlen csatorna; engedélyezett: '.implode(', ', Channel::values())
+        );
+    }
+
+    /**
+     * Perzisztálás ELŐTTI elutasítás: nincs sor, van strukturált válasz és audit.
+     *
+     * @param  array<string, mixed>  $attributes
+     */
+    private function invalid(array $attributes, string $detail): SendResult
+    {
+        $channel = (string) Arr::get($attributes, 'channel', Channel::Transactional->value);
 
         $message = new Message([
             'channel' => $channel,
@@ -106,10 +181,7 @@ final class SendMessage
         ]);
 
         $decision = GateDecision::rejected(GateReason::InvalidRequest->value, [
-            'recipient_sanity' => GateResult::reject(
-                GateReason::InvalidRequest,
-                'Ismeretlen csatorna; engedélyezett: '.implode(', ', Channel::values())
-            ),
+            'recipient_sanity' => GateResult::reject(GateReason::InvalidRequest, $detail),
         ]);
 
         $this->audit->log('sending.gate.rejected', null, after: [
@@ -121,10 +193,75 @@ final class SendMessage
         return new SendResult($message, $decision);
     }
 
+    /** Tárolható, olvasható alak: a vezérlőkarakterek és a hibás bájtok eltávolítva. */
+    private function printable(string $value): string
+    {
+        $clean = (string) preg_replace('/[\x00-\x1f\x7f]/', '', $value);
+
+        return mb_check_encoding($clean, 'UTF-8')
+            ? $clean
+            : (string) mb_convert_encoding($clean, 'UTF-8', 'UTF-8');
+    }
+
     /**
+     * Az első olyan mező neve, amit az adatbázis nem tudna eltárolni — vagy `null`.
+     *
+     * @param  array<string, mixed>  $values
+     */
+    private function firstUnstorableField(array $values, string $path = ''): ?string
+    {
+        foreach ($values as $key => $value) {
+            $name = $path === '' ? (string) $key : $path.'.'.$key;
+
+            // A KULCS ugyanúgy a `jsonb`-be kerül: `v:"ne\0v"` vagy egy hibás UTF-8 kulcs
+            // szintén 500-at adott (a szűrő korábban csak az értékeket nézte).
+            if (is_string($key) && (str_contains($key, "\0") || ! mb_check_encoding($key, 'UTF-8'))) {
+                return $name;
+            }
+
+            if (is_array($value)) {
+                $nested = $this->firstUnstorableField($value, $name);
+
+                if ($nested !== null) {
+                    return $nested;
+                }
+
+                continue;
+            }
+
+            if (is_string($value) && (str_contains($value, "\0") || ! mb_check_encoding($value, 'UTF-8'))) {
+                return $name;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Ismételt (vagy versenyt vesztett) Idempotency-Key: ugyanaz a válasz, ÚJRAKÜLDÉS NÉLKÜL.
+     *
      * @param  array<string, mixed>  $attributes
      */
-    private function createMessage(array $attributes, ?string $idempotencyKey): Message
+    private function replay(Message $existing, array $attributes): SendResult
+    {
+        // MÁS tartalom ugyanazzal a kulccsal: a hívó hibája, és a csendes eldobás
+        // elveszítené a második levelet. Ezt a Stripe és a Mailgun is hibának veszi.
+        if ($existing->request_fingerprint !== null
+            && $existing->request_fingerprint !== $this->fingerprint($attributes)) {
+            return new SendResult(
+                $existing,
+                GateDecision::rejected(GateReason::IdempotencyKeyReused->value, [])
+            );
+        }
+
+        return new SendResult($existing, $this->replayDecision($existing));
+    }
+
+    /**
+     * @param  array<string, mixed>  $attributes
+     * @return Message|null `null`, ha a kulcsot egy PÁRHUZAMOS hívás nyerte meg
+     */
+    private function createMessage(array $attributes, ?string $idempotencyKey): ?Message
     {
         $payload = [
             'channel' => Arr::get($attributes, 'channel', Channel::Transactional->value),
@@ -138,34 +275,90 @@ final class SendMessage
             'tags' => Arr::get($attributes, 'tags', []),
             'variables' => Arr::get($attributes, 'variables', []),
             'headers' => Arr::get($attributes, 'headers', []),
-            'options' => Arr::get($attributes, 'options', []),
+            // A törzs EGYETLEN kanonikus helyen él (`body_html` / `body_text`), nem
+            // duplikálva: 100 KB-os levélnél a kettős tárolás 200 KB/sor lenne.
+            //
+            // A SZEMÉLYRE SZABOTT törzs SEHOL nem perzisztál: a küldéskor determinisztikusan
+            // újrarenderelődik. Egy 90 napig élő naplóba írt, kirenderelt levél jelszó-
+            // visszaállító linket és magic-link tokent hordozna — az credential leak.
+            'options' => array_merge(
+                Arr::get($attributes, 'options', []),
+                array_filter([
+                    'body_html' => Arr::get($attributes, 'rendered_html') ?? Arr::get($attributes, 'html'),
+                    'body_text' => Arr::get($attributes, 'text'),
+                ], fn ($value) => $value !== null)
+            ),
             'deliverytime' => Arr::get($attributes, 'deliverytime'),
+            'ip_pool_id' => Arr::get($attributes, 'ip_pool_id'),
             'testmode' => (bool) Arr::get($attributes, 'testmode', false),
             'idempotency_key' => $idempotencyKey,
+            // Az idempotencia-kulcs ÖNMAGÁBAN nem elég: ugyanaz a kulcs MÁS tartalommal
+            // korábban csendben eldobta a második levelet (pl. `order-123` a visszaigazolóra
+            // ÉS a szállítási értesítőre). A lenyomat teszi lehetővé a 409-et.
+            'request_fingerprint' => $this->fingerprint($attributes),
             'queued_at' => now(),
         ];
 
         try {
-            return Message::create($payload);
+            // SAVEPOINT (beágyazott tranzakcióban): egy egyediségi ütközés Postgresen a
+            // TELJES tranzakciót elrontja („current transaction is aborted"), tehát egy
+            // tranzakcióba ágyazott hívónál a következő lekérdezés is elszállna — épp az,
+            // amelyikkel a győztes üzenetet megkeressük.
+            return DB::transaction(fn () => Message::create($payload));
         } catch (UniqueConstraintViolationException) {
             // Versenyhelyzet: két párhuzamos, azonos kulcsú hívás közül mindkettő „nem
-            // találtam"-ot olvasott. A DB döntött — a vesztes az ELSŐ üzenetet adja vissza,
-            // nem 500-at (golden rule 5: ugyanaz a kulcs, ugyanaz a válasz).
-            return Message::query()->where('idempotency_key', $idempotencyKey)->firstOrFail();
+            // találtam"-ot olvasott. A DB döntött — a vesztes NEM küld, csak visszatükrözi
+            // a győztes válaszát (golden rule 5).
+            return null;
         }
     }
 
+    /**
+     * A kérés kanonikus lenyomata. A kulcs- és a hálózati zaj (sorrend) nem befolyásolja,
+     * a TARTALOM viszont igen.
+     *
+     * @param  array<string, mixed>  $attributes
+     */
+    private function fingerprint(array $attributes): string
+    {
+        $canonical = Arr::only($attributes, [
+            'channel', 'from_email', 'from_name', 'subject', 'to', 'html', 'text',
+            'tags', 'variables', 'headers', 'deliverytime', 'testmode', 'rendered_html',
+            // A MIME-úton a TARTALOM kizárólag itt van: `options` (vezérlők) és a nyers
+            // levél lenyomata. Enélkül ugyanaz a kulcs KÉT különböző MIME-levéllel replayt
+            // adott, és a második soha nem ment ki.
+            'options', 'ip_pool_id', 'raw_sha256',
+        ]);
+
+        ksort($canonical);
+
+        // Érvénytelen UTF-8 (latin-1 törzsű legacy integráció) esetén a `json_encode`
+        // `false`-t adott, tehát MINDEN ilyen kérés lenyomata `hash('')` lett — két
+        // különböző levél ütközött, a második csendben elveszett.
+        return hash('sha256', json_encode($canonical, JSON_INVALID_UTF8_SUBSTITUTE) ?: serialize($canonical));
+    }
+
+    /**
+     * Esemény MINDEN címzettre — a naplóba tartalom helyett LENYOMAT kerül (a kirenderelt
+     * törzs magic-linket és tokent hordozhatna egy 90 napig élő táblában).
+     */
     private function event(Message $message, string $type, ?string $reason = null): void
     {
-        MessageEvent::create([
-            'message_uuid' => $message->uuid,
-            'type' => $type,
-            'recipient' => $message->recipients[0] ?? null,
-            'channel' => $message->channel,
-            'reason' => $reason,
-            'tags' => $message->tags,
-            'variables' => $message->variables,
-        ]);
+        $body = (string) ($message->options['body_html'] ?? '');
+        $shared = collect($message->variables)->except('recipient-variables')->all();
+
+        foreach ($message->recipients as $recipient) {
+            MessageEvent::create([
+                'message_uuid' => $message->uuid,
+                'type' => $type,
+                'recipient' => $recipient,
+                'channel' => $message->channel,
+                'reason' => $reason,
+                'tags' => $message->tags,
+                'variables' => $shared,
+                'payload' => ['body_sha256' => $body === '' ? null : hash('sha256', $body)],
+            ]);
+        }
     }
 
     /** Ismételt Idempotency-Key: az eredeti döntést tükrözzük vissza, új gate-futás nélkül. */

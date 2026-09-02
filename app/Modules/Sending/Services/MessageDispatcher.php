@@ -8,6 +8,7 @@ use App\Modules\Events\Models\MessageEvent;
 use App\Modules\Sending\Contracts\SendingDriver;
 use App\Modules\Sending\Data\DispatchResult;
 use App\Modules\Sending\Models\Message;
+use App\Modules\StoredTemplates\Services\TemplateRenderer;
 use App\Modules\Tenancy\Services\WorkspaceContext;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
@@ -38,6 +39,7 @@ final class MessageDispatcher
     public function __construct(
         private readonly SendingDriver $driver,
         private readonly WorkspaceContext $context,
+        private readonly TemplateRenderer $renderer = new TemplateRenderer,
     ) {}
 
     public function dispatch(Message $message): void
@@ -82,18 +84,25 @@ final class MessageDispatcher
             return; // más futás nyerte meg
         }
 
+        // A személyre szabott törzs EGYSZER készül el, és ugyanaz megy a drivernek és az
+        // esemény-lenyomatnak. Korábban kétszer-háromszor renderelt ugyanaz a küldés.
+        $rendered = $this->renderAll($message);
+
         try {
-            $result = $this->driver->send($message);
+            // A driver a SZEMÉLYRE SZABOTT törzset kapja címzettenként — a batch lényege,
+            // hogy mindenki a sajátját kapja. (A címzettenkénti ÚJRAPRÓBÁLÁS granularitása
+            // az A2 sorkezelőjének a feladata; itt üzenet-szintű a claim.)
+            $result = $this->driver->send($message->withRenderedBodies($rendered));
         } catch (Throwable $e) {
             // A hiba RÖGZÜL: állapot + esemény, hogy az újrapróbálás elindulhasson és a
             // trace megmutassa, mi történt. A kivétel SZÖVEGE nem kerül a sorba
             // (titok-szivárgás ellen) — az a szerver-logba megy.
-            $this->markDeferred($message, $e);
+            $this->markDeferred($message, $e, $rendered);
 
             throw $e;
         }
 
-        $this->recordOutcome($message, $result);
+        $this->recordOutcome($message, $result, $rendered);
     }
 
     private function claim(Message $message): bool
@@ -118,7 +127,8 @@ final class MessageDispatcher
         return $claimed > 0;
     }
 
-    private function recordOutcome(Message $message, DispatchResult $result): void
+    /** @param array<string, array{html: ?string, text: ?string}> $rendered */
+    private function recordOutcome(Message $message, DispatchResult $result, array $rendered): void
     {
         // A driver „elfogadta" NEM azonos a „kézbesítve"-vel: egy valódi MTA 2xx-e csak
         // annyit jelent, hogy sorba állt. A `delivered` a driver visszaigazolásából jön
@@ -129,18 +139,49 @@ final class MessageDispatcher
             default => 'sent',
         };
 
+        // A RÉSZBEN kiment batch: akiket az MTA már átvett, azokat megjegyezzük, hogy az
+        // újrapróbálás NE kézbesítsen nekik másodszor, és a trace se írjon rájuk
+        // `deferred`-et. (A teljes címzettenkénti állapotgép az A2 sorkezelőjéé.)
+        $alreadyDelivered = (array) ($message->options['delivered_recipients'] ?? []);
+
+        $delivered = array_values(array_unique(array_merge(
+            $alreadyDelivered,
+            $result->accepted ? $message->recipients : $result->acceptedRecipients
+        )));
+
         $message->forceFill([
             'status' => $status,
             'reason' => $result->accepted ? null : 'DRIVER_REJECTED',
             'sent_at' => now(),
+            'options' => [...$message->options, 'delivered_recipients' => $delivered],
         ])->save();
 
-        $this->events($message, $status === 'delivered' ? 'delivered' : ($status === 'sent' ? 'accepted' : 'deferred'), [
-            'provider_message_id' => $result->providerMessageId,
-        ]);
+        $successful = $status === 'delivered' ? 'delivered' : 'accepted';
+
+        if ($result->accepted) {
+            $this->events($message, $successful, $rendered, ['provider_message_id' => $result->providerMessageId]);
+
+            return;
+        }
+
+        // Kevert kimenet: akik megkapták, azokra sikeres esemény megy, a többire halasztás.
+        $newlyAccepted = array_values(array_diff($result->acceptedRecipients, $alreadyDelivered));
+
+        if ($newlyAccepted !== []) {
+            $this->events($message, 'accepted', $rendered, ['provider_message_id' => $result->providerMessageId], $newlyAccepted);
+        }
+
+        $this->events(
+            $message,
+            'deferred',
+            $rendered,
+            ['provider_message_id' => $result->providerMessageId],
+            array_values(array_diff($message->recipients, $delivered))
+        );
     }
 
-    private function markDeferred(Message $message, Throwable $e): void
+    /** @param array<string, array{html: ?string, text: ?string}> $rendered */
+    private function markDeferred(Message $message, Throwable $e, array $rendered): void
     {
         Log::error('A küldés meghiúsult a drivernél', [
             'message_uuid' => $message->uuid,
@@ -151,15 +192,30 @@ final class MessageDispatcher
 
         $message->forceFill(['status' => 'deferred', 'reason' => 'DRIVER_ERROR'])->save();
 
-        $this->events($message, 'deferred', ['attempt' => $message->attempts]);
+        $this->events($message, 'deferred', $rendered, ['attempt' => $message->attempts]);
     }
 
-    /** @param array<string, mixed> $payload */
-    private function events(Message $message, string $type, array $payload = []): void
+    /**
+     * A címzettenkénti esemény-írás.
+     *
+     * A naplóba SOHA nem kerül kirenderelt levéltörzs — csak a LENYOMATA. Egy 90 napig élő
+     * eseménytáblában a törzs jelszó-visszaállító linket és magic-link tokent hordozna, és
+     * ugyanezt a payloadot küldi ki az A3 webhook harmadik félnek is. A reprodukcióhoz a
+     * lenyomat + a kanonikus törzs (a `messages` soron) elég.
+     *
+     * @param  array<string, array{html: ?string, text: ?string}>  $rendered
+     * @param  array<string, mixed>  $payload
+     * @param  list<string>|null  $recipients  csak ezekre — `null` esetén mindenkire
+     */
+    private function events(Message $message, string $type, array $rendered, array $payload = [], ?array $recipients = null): void
     {
+        $shared = collect($message->variables)->except('recipient-variables')->all();
+
         // MINDEN címzett kap eseményt: egyetlen sor batch esetén 999 címzettről nem tudna
         // semmit az A3 trace és a kézbesítési statisztika.
-        foreach ($message->recipients as $recipient) {
+        foreach ($recipients ?? $message->recipients as $recipient) {
+            $body = $rendered[(string) $recipient]['html'] ?? null;
+
             MessageEvent::create([
                 'message_uuid' => $message->uuid,
                 'type' => $type,
@@ -167,9 +223,47 @@ final class MessageDispatcher
                 'channel' => $message->channel,
                 'reason' => $message->reason,
                 'tags' => $message->tags,
-                'payload' => $payload,
+                // A `v:*` változók VISSZAJÖNNEK az eseményben és a webhookban (Mailgun-paritás):
+                // az integrációk ebből azonosítják a saját rekordjaikat.
+                'variables' => $shared,
+                'payload' => [
+                    ...$payload,
+                    // Tartalom helyett LENYOMAT: bizonyítja, hogy melyik törzs ment ki,
+                    // de nem őrzi meg a titkokat.
+                    'body_sha256' => $body === null ? null : hash('sha256', $body),
+                ],
             ]);
         }
+    }
+
+    /**
+     * A címzettre személyre szabott törzsek — a KÜLDÉSI úton, nem a naplóban.
+     *
+     * Determinisztikusan újrarenderelhető a kanonikus törzsből, ezért nem kell perzisztálni.
+     * A SZÖVEGES rész is renderelődik: enélkül a text/plain változatban a `%recipient.x%`
+     * NYERSEN ment volna ki a címzettnek.
+     *
+     * @return array<string, array{html: ?string, text: ?string}>
+     */
+    private function renderAll(Message $message): array
+    {
+        $html = (string) ($message->options['body_html'] ?? '');
+        $text = (string) ($message->options['body_text'] ?? '');
+        $recipientVariables = (array) ($message->variables['recipient-variables'] ?? []);
+        $shared = collect($message->variables)->except('recipient-variables')->all();
+
+        $rendered = [];
+
+        foreach ($message->recipients as $recipient) {
+            $recipient = (string) $recipient;
+
+            $rendered[$recipient] = [
+                'html' => $html === '' ? null : $this->renderer->renderForRecipient($html, $recipient, $recipientVariables, $shared),
+                'text' => $text === '' ? null : $this->renderer->renderForRecipient($text, $recipient, $recipientVariables, $shared, escape: false),
+            ];
+        }
+
+        return $rendered;
     }
 
     private function decisionStale(Message $message): bool

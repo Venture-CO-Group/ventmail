@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Support\Facades\Artisan;
 use Symfony\Component\Yaml\Yaml;
 
 /*
@@ -128,4 +130,41 @@ it('az .env.example nem hagyja jelszó nélkül a Redist éles használatra', fu
 
     expect($env)->toContain('REDIS_PASSWORD');
     expect($env)->toContain('ÉLES környezetben a jelszó KÖTELEZŐ');
+});
+
+it('a stack FUTTATJA az ütemezőt', function () {
+    // A `routes/console.php` ütemezései csak akkor érnek valamit, ha valaki futtatja őket.
+    // Enélkül az `o:deliverytime`-ra adott 202 zsákutca (a levél sosem megy ki), és a
+    // domain-újraellenőrzés sem fut — vagyis egy deverifikált domain örökre `verified`
+    // maradna.
+    $compose = Yaml::parseFile(base_path('docker-compose.yml'));
+
+    $scheduler = $compose['services']['scheduler'] ?? null;
+
+    expect($scheduler)->not->toBeNull('nincs scheduler service a compose-ban');
+    expect(implode(' ', (array) $scheduler['command']))->toContain('schedule:work');
+});
+
+it('minden ütemezett parancs létezik', function () {
+    // Egy elgépelt parancsnév csendben soha nem futna le.
+    $schedule = app(Schedule::class);
+
+    $missing = [];
+    $checked = 0;
+
+    foreach ($schedule->events() as $event) {
+        if (preg_match('/artisan[\'\"]? ([a-z0-9:-]+)/i', $event->command ?? '', $match) !== 1) {
+            continue;
+        }
+
+        $checked++;
+
+        if (! array_key_exists($match[1], Artisan::all())) {
+            $missing[] = $match[1];
+        }
+    }
+
+    // Ha a minta elromlik, a teszt üresen is zöld lenne.
+    expect($checked)->toBeGreaterThanOrEqual(5, 'nem sikerült egyetlen ütemezett parancsot sem kiolvasni');
+    expect($missing)->toBeEmpty('nem létező ütemezett parancs: '.implode(', ', $missing));
 });

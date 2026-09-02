@@ -23,7 +23,8 @@ final class Message extends Model
     protected $fillable = [
         'domain_id', 'ip_pool_id', 'channel', 'from_email', 'from_name', 'subject',
         'recipients', 'tags', 'variables', 'headers', 'options', 'deliverytime',
-        'testmode', 'status', 'reason', 'idempotency_key', 'queued_at', 'sent_at',
+        'testmode', 'status', 'reason', 'idempotency_key', 'request_fingerprint',
+        'queued_at', 'sent_at',
         'sending_started_at', 'attempts', 'gate_decided_at',
     ];
 
@@ -54,6 +55,24 @@ final class Message extends Model
     public function domain(): BelongsTo
     {
         return $this->belongsTo(Domain::class);
+    }
+
+    /**
+     * A címzettenként személyre szabott törzsek — SZÁNDÉKOSAN NEM perzisztált attribútum.
+     *
+     * A driver ezt használja a MIME összeállításához; az adatbázisba csak a kanonikus
+     * törzs kerül, mert a személyre szabott változat titkot (magic-link, token) hordozhat.
+     *
+     * @var array<string, array{html: ?string, text: ?string}>
+     */
+    public array $renderedBodies = [];
+
+    /** @param array<string, array{html: ?string, text: ?string}> $bodies */
+    public function withRenderedBodies(array $bodies): self
+    {
+        $this->renderedBodies = $bodies;
+
+        return $this;
     }
 
     public function isTransactional(): bool
