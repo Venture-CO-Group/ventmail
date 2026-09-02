@@ -76,6 +76,15 @@ final class SendMessage
         ])->save();
         $this->event($message, 'accepted');
 
+        // Az ÜTEMEZETT üzenet nem megy ki azonnal: a `deliverytime` a Mailgun-paritás része
+        // (o:deliverytime). A sorból az A2 ütemezője veszi majd ki — és mivel a gate-döntésnek
+        // szavatossági ideje van, a küldés előtt újraértékelés kell.
+        if ($message->deliverytime !== null && $message->deliverytime->isFuture()) {
+            $message->forceFill(['status' => 'scheduled'])->save();
+
+            return new SendResult($message->fresh(), $decision);
+        }
+
         // A testmode naplóz, de NEM küld (Mailgun-paritás: o:testmode).
         if (! $message->testmode) {
             $this->dispatcher->dispatch($message);
@@ -138,8 +147,18 @@ final class SendMessage
             'tags' => Arr::get($attributes, 'tags', []),
             'variables' => Arr::get($attributes, 'variables', []),
             'headers' => Arr::get($attributes, 'headers', []),
-            'options' => Arr::get($attributes, 'options', []),
+            // A megjelenítendő tartalom az `options`-ban él: a `messages` tábla szándékosan
+            // nem tárol törzset (az A2 aláíró és a driver állítja össze a MIME-t).
+            'options' => array_merge(
+                Arr::get($attributes, 'options', []),
+                array_filter([
+                    'rendered_html' => Arr::get($attributes, 'rendered_html'),
+                    'html' => Arr::get($attributes, 'html'),
+                    'text' => Arr::get($attributes, 'text'),
+                ], fn ($value) => $value !== null)
+            ),
             'deliverytime' => Arr::get($attributes, 'deliverytime'),
+            'ip_pool_id' => Arr::get($attributes, 'ip_pool_id'),
             'testmode' => (bool) Arr::get($attributes, 'testmode', false),
             'idempotency_key' => $idempotencyKey,
             'queued_at' => now(),

@@ -3,6 +3,9 @@
 declare(strict_types=1);
 
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Modules\Api\Http\Middleware\AuthenticateApiKey;
+use App\Modules\Api\Http\Middleware\RequireApiScope;
+use App\Modules\Api\Http\Middleware\RequireIdempotencyKey;
 use App\Modules\Tenancy\Http\Middleware\ResolveWorkspace;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Application;
@@ -25,7 +28,13 @@ return Application::configure(basePath: dirname(__DIR__))
 
         // A tenant-kontextus feloldása és a tagság-ellenőrzés minden workspace-hez kötött
         // útvonalon kötelező (golden rule 6).
-        $middleware->alias(['workspace' => ResolveWorkspace::class]);
+        $middleware->alias([
+            'workspace' => ResolveWorkspace::class,
+            // A `/v1` felület őrei: kulcs-hitelesítés, scope és idempotencia.
+            'api.auth' => AuthenticateApiKey::class,
+            'api.scope' => RequireApiScope::class,
+            'api.idempotency' => RequireIdempotencyKey::class,
+        ]);
 
         // A Laravel alapból a `login` nevű route-ra irányítaná a vendéget — az nálunk nem
         // létezik (az identitás gazdája a ventSSO), és „Route [login] not defined" 500-at adna.

@@ -76,11 +76,11 @@ it('a kötelező middleware-alapot a modul nem veheti el', function () {
         ->toContain('final public function boot');
 });
 
-it('minden modul-route hitelesített és workspace-kontextusban fut', function () {
-    // A `workspace`/`auth` alias önmagában semmit nem véd, ha egyetlen route sem hivatkozik rá.
-    // Kivétel csak a bejelentkezési folyamat (ott még nincs user és nincs kontextus).
-    // A bejelentkezési folyamat útvonalai természetüknél fogva hitelesítés előttiek.
-    // A dev-login KIZÁRÓLAG local/testing környezetben létezik (külön teszt őrzi).
+it('egyetlen modul-route sem hitelesítetlen', function () {
+    // Két legitim hitelesítési út van, és MINDEN modul-route-nak az egyiken kell lennie:
+    //   - böngésző-session:  `auth` + `workspace` (a kontextus a tagságból jön)
+    //   - `/v1` API-kulcs:   `api.auth`           (a kontextus MAGÁBÓL a kulcsból jön)
+    // Kivétel csak a bejelentkezési folyamat, ahol még nincs se user, se kulcs.
     $allowlist = ['auth/redirect', 'auth/callback', 'auth/logout', 'auth/dev-login', 'up', '/'];
 
     $offenders = [];
@@ -94,12 +94,33 @@ it('minden modul-route hitelesített és workspace-kontextusban fut', function (
 
         $middleware = $route->gatherMiddleware();
 
-        if (! in_array('auth', $middleware, true) || ! in_array('workspace', $middleware, true)) {
+        $sessionAuth = in_array('auth', $middleware, true) && in_array('workspace', $middleware, true);
+        $apiKeyAuth = in_array('api.auth', $middleware, true);
+
+        if (! $sessionAuth && ! $apiKeyAuth) {
             $offenders[] = $route->uri().' ['.implode(', ', $middleware).']';
         }
     }
 
-    expect($offenders)->toBeEmpty('auth/workspace nélküli modul-route: '.implode(' | ', $offenders));
+    expect($offenders)->toBeEmpty('hitelesítetlen modul-route: '.implode(' | ', $offenders));
+});
+
+it('minden küldő /v1 POST idempotencia-kulcsot követel', function () {
+    // Golden rule 5: a küldő POST-on KÖTELEZŐ. Ha egy új endpoint kimaradna, a hálózat
+    // megismételt kérése duplán kézbesítene.
+    $offenders = [];
+
+    foreach (Route::getRoutes() as $route) {
+        if (! in_array('POST', $route->methods(), true) || ! str_starts_with($route->uri(), 'v1/messages')) {
+            continue;
+        }
+
+        if (! in_array('api.idempotency', $route->gatherMiddleware(), true)) {
+            $offenders[] = $route->uri();
+        }
+    }
+
+    expect($offenders)->toBeEmpty('idempotencia-kulcs nélküli küldő endpoint: '.implode(', ', $offenders));
 });
 
 it('a kötelező stack tartalmazza a hitelesítést és a tenant-kontextust', function () {

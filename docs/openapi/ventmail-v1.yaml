@@ -1,0 +1,371 @@
+openapi: 3.1.0
+
+info:
+  title: ventMail API
+  version: 1.0.0
+  description: |
+    A ventMail publikus küldő felülete — **Mailgun-kompatibilis**.
+
+    A cél, hogy a Mailgun Messages API-ra írt integráció **kódmódosítás nélkül** átjöjjön:
+    csak a bázis-URL és a kulcs cserélődik. Ezért követi a `o:` / `h:` / `v:` prefixelt
+    paraméterek szemantikáját, beleértve a „elnéző" logikai értékeket (`yes`/`true`/`1`).
+
+    **Stabilitás:** ami ebben a leírásban szerepel, az SZERZŐDÉS. A `/v1` nem kap
+    breaking change-et; új mező csak opcionálisként jöhet.
+
+servers:
+  - url: https://api.ventmail.app/v1
+    description: éles
+  - url: http://localhost:8088/v1
+    description: lokális fejlesztés
+
+security:
+  - bearerAuth: []
+  - basicAuth: []
+
+tags:
+  - name: messages
+    description: Küldés (strukturált és nyers MIME)
+  - name: templates
+    description: Tárolt sablonok verziózással
+
+paths:
+  /messages:
+    post:
+      tags: [messages]
+      summary: Üzenet küldése
+      description: |
+        Strukturált küldés. Minden hívás a **PreSendGate** hat kapuján megy át; az elutasítás
+        `422`-t ad a gate strukturált kódjával (`error.code`).
+
+        Batch: legfeljebb 1000 címzett hívásonként, `recipient-variables`-szel címzettre
+        bontott behelyettesítéssel.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SendMessageRequest' }
+          multipart/form-data:
+            schema: { $ref: '#/components/schemas/SendMessageRequest' }
+      responses:
+        '202':
+          description: Elfogadva (sorba állítva vagy elküldve)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SendAccepted' }
+        '400':
+          description: Formai hiba — a kérés így soha nem lett volna teljesíthető
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401':
+          description: Hiányzó vagy érvénytelen API-kulcs
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '403':
+          description: A kulcshoz hiányzik a `messages:send` scope
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '422':
+          description: A PreSendGate elutasította (a `error.code` a gate strukturált oka)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '429':
+          description: Rate-limit
+
+  /messages.mime:
+    post:
+      tags: [messages]
+      summary: Nyers MIME küldése
+      description: |
+        A kész MIME-levél továbbítása `multipart/form-data`-ként (a `message` mezőben).
+        A fejlécek megőrizve; a `to` felülírhatja a MIME `To:` fejlécét (boríték-címzett).
+
+        A gate itt is megkerülhetetlen.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [message]
+              properties:
+                message:
+                  type: string
+                  format: binary
+                  description: A nyers MIME-levél
+                to:
+                  type: string
+                  description: Boríték-címzett(ek), vesszővel elválasztva
+      responses:
+        '202':
+          description: Elfogadva
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SendAccepted' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/Rejected' }
+
+  /templates:
+    get:
+      tags: [templates]
+      summary: Tárolt sablonok listája
+      responses:
+        '200':
+          description: A sablonok és verzióik
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Template' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [templates]
+      summary: Sablon létrehozása
+      description: Az első verzió azonnal aktív lesz — különben a `template=` küldés némán elbukna.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, template]
+              properties:
+                name:
+                  type: string
+                  maxLength: 128
+                  pattern: '^[a-z0-9][a-z0-9._-]*$'
+                description: { type: string, maxLength: 255 }
+                template: { type: string, description: 'HTML törzs `{{ változó }}` merge-tagekkel' }
+                text: { type: string, description: 'Plaintext változat' }
+      responses:
+        '201':
+          description: Létrejött
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  template:
+                    type: object
+                    properties:
+                      name: { type: string }
+                      version: { type: integer }
+                      active: { type: boolean }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /templates/{name}/versions:
+    post:
+      tags: [templates]
+      summary: Új sablon-verzió
+      description: |
+        A verziók MEGVÁLTOZTATHATATLANOK: ami egyszer kimehetett egy levélben, azt utólag
+        nem írjuk át. Módosítás = új verzió; az `active` dönti el, hogy azonnal éles legyen.
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [template]
+              properties:
+                template: { type: string }
+                text: { type: string }
+                active: { type: boolean, default: false }
+      responses:
+        '201':
+          description: A verzió létrejött
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  version:
+                    type: object
+                    properties:
+                      version: { type: integer }
+                      active: { type: boolean }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: 'A ventMail API-kulcs: `Authorization: Bearer vm_live_…`'
+    basicAuth:
+      type: http
+      scheme: basic
+      description: 'Mailgun-paritás: `api` felhasználónév + az API-kulcs jelszóként.'
+
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema: { type: string, maxLength: 255 }
+      description: |
+        **Kötelező** minden küldő POST-on. Ugyanaz a kulcs ugyanazt a választ adja, és NEM
+        küld újra — enélkül egy megismételt hálózati kérés duplán kézbesítene.
+
+  responses:
+    BadRequest:
+      description: Formai hiba
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Unauthorized:
+      description: Hiányzó vagy érvénytelen API-kulcs
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Forbidden:
+      description: Hiányzó scope
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Rejected:
+      description: A PreSendGate elutasította
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+
+  schemas:
+    SendMessageRequest:
+      type: object
+      required: [from, to]
+      properties:
+        from:
+          type: string
+          description: '`Név <cim@domain>` vagy `cim@domain`. A domainnek hitelesítettnek kell lennie.'
+        to:
+          oneOf:
+            - type: string
+            - type: array
+              items: { type: string }
+              maxItems: 1000
+          description: 'Címzett(ek). Batch esetén legfeljebb 1000.'
+        subject: { type: string }
+        html: { type: string }
+        text: { type: string }
+        template:
+          type: string
+          description: 'Tárolt sablon neve; a `v:*` változókkal helyettesítődik be.'
+        recipient-variables:
+          type: string
+          description: |
+            JSON: címzett → változók. Minden címzett a SAJÁT behelyettesítését kapja
+            (`%recipient.kulcs%`, `%recipient_email%`).
+        o:deliverytime:
+          type: string
+          description: 'RFC 2822 időpont. Nem lehet a múltban, és legfeljebb 7 nappal előre.'
+        o:testmode:
+          type: string
+          description: 'Ha igaz, naplóz, de nem küld.'
+        o:tag:
+          type: array
+          items: { type: string }
+          maxItems: 3
+          description: 'Legfeljebb 3 tag üzenetenként.'
+        o:tracking: { type: string }
+        o:tracking-clicks: { type: string, enum: ['yes', 'no', 'htmlonly'] }
+        o:tracking-opens: { type: string }
+        o:dkim: { type: string }
+        o:require-tls: { type: string }
+        o:sending-ip-pool: { type: string }
+        o:channel:
+          type: string
+          enum: [transactional, marketing, journey, campaign]
+          default: transactional
+          description: |
+            A `transactional` az EGYETLEN consent-mentes csatorna. Minden más
+            marketing-hatókörű: leiratkozás és megerősített consent is vonatkozik rá.
+      additionalProperties:
+        description: '`h:X-*` egyedi fejlécek és `v:*` változók.'
+
+    SendAccepted:
+      type: object
+      properties:
+        id: { type: string, format: uuid, description: 'Az üzenet azonosítója (trace-hez).' }
+        message: { type: string, example: 'Queued. Thank you.' }
+        status:
+          type: string
+          enum: [accepted, scheduled, sending, sent, delivered, deferred]
+
+    Template:
+      type: object
+      properties:
+        name: { type: string }
+        description: { type: string, nullable: true }
+        versions:
+          type: array
+          items: { type: integer }
+        active_version: { type: integer, nullable: true }
+
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { $ref: '#/components/schemas/ErrorCode' }
+            message: { type: string, description: 'Emberi magyarázat. A KÓD a szerződés, ez segítség.' }
+            details: { type: object, additionalProperties: true }
+
+    ErrorCode:
+      type: string
+      description: |
+        Stabil hibakódok. A gate strukturált okai VÁLTOZATLANUL jelennek meg itt — így a
+        hívó ugyanazt látja, mint az üzenet-trace.
+      enum:
+        - UNAUTHENTICATED
+        - INSUFFICIENT_SCOPE
+        - IDEMPOTENCY_KEY_REQUIRED
+        - IDEMPOTENCY_KEY_TOO_LONG
+        - MISSING_FROM
+        - MISSING_RECIPIENT
+        - TOO_MANY_RECIPIENTS
+        - TOO_MANY_TAGS
+        - INVALID_DELIVERYTIME
+        - DELIVERYTIME_IN_PAST
+        - DELIVERYTIME_TOO_FAR
+        - INVALID_RECIPIENT_VARIABLES
+        - UNKNOWN_IP_POOL
+        - UNKNOWN_TEMPLATE
+        - TEMPLATE_EXISTS
+        - MISSING_MIME
+        - MIME_MISSING_FROM
+        - MIME_HEADERS_TOO_LARGE
+        - DOMAIN_UNVERIFIED
+        - SUPPRESSED
+        - NO_CONSENT
+        - QUOTA_EXCEEDED
+        - RATE_LIMITED
+        - VALIDATION_RISK
+        - INVALID_REQUEST
+        - GATE_ERROR
+        - IN_PROGRESS

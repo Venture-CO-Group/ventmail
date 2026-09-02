@@ -8,6 +8,7 @@ use App\Modules\Events\Models\MessageEvent;
 use App\Modules\Sending\Contracts\SendingDriver;
 use App\Modules\Sending\Data\DispatchResult;
 use App\Modules\Sending\Models\Message;
+use App\Modules\StoredTemplates\Services\TemplateRenderer;
 use App\Modules\Tenancy\Services\WorkspaceContext;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
@@ -38,6 +39,7 @@ final class MessageDispatcher
     public function __construct(
         private readonly SendingDriver $driver,
         private readonly WorkspaceContext $context,
+        private readonly TemplateRenderer $renderer = new TemplateRenderer,
     ) {}
 
     public function dispatch(Message $message): void
@@ -157,6 +159,10 @@ final class MessageDispatcher
     /** @param array<string, mixed> $payload */
     private function events(Message $message, string $type, array $payload = []): void
     {
+        $template = (string) ($message->options['rendered_html'] ?? $message->options['html'] ?? '');
+        $recipientVariables = (array) ($message->variables['recipient-variables'] ?? []);
+        $shared = collect($message->variables)->except('recipient-variables')->all();
+
         // MINDEN címzett kap eseményt: egyetlen sor batch esetén 999 címzettről nem tudna
         // semmit az A3 trace és a kézbesítési statisztika.
         foreach ($message->recipients as $recipient) {
@@ -167,7 +173,17 @@ final class MessageDispatcher
                 'channel' => $message->channel,
                 'reason' => $message->reason,
                 'tags' => $message->tags,
-                'payload' => $payload,
+                // A `v:*` változók VISSZAJÖNNEK az eseményben és a webhookban (Mailgun-paritás):
+                // az integrációk ebből azonosítják a saját rekordjaikat.
+                'variables' => $shared,
+                'payload' => $template === ''
+                    ? $payload
+                    : [...$payload, 'rendered_html' => $this->renderer->renderForRecipient(
+                        $template,
+                        (string) $recipient,
+                        $recipientVariables,
+                        $shared
+                    )],
             ]);
         }
     }

@@ -7,6 +7,14 @@ namespace App\Modules\StoredTemplates\Providers;
 use App\Modules\Support\ModuleServiceProvider;
 
 /**
- * StoredTemplates modul — Tárolt sablonok API verziózással (Platform-oldal, a Template modul a Studio-oldal).
+ * StoredTemplates modul — tárolt sablonok a Platform-oldalon (spec 15.).
+ * (A Studio-oldali block-editor sablonjai a `Template` modulban élnek — B2.)
  */
-final class StoredTemplatesServiceProvider extends ModuleServiceProvider {}
+final class StoredTemplatesServiceProvider extends ModuleServiceProvider
+{
+    protected bool $routesPrecedeAuthentication = true;
+
+    protected array $apiMiddleware = ['api.auth'];
+
+    protected string $apiPrefix = 'v1';
+}
