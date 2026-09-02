@@ -28,6 +28,9 @@
         <env force="true" name="DB_DATABASE" value="ventmail_test"/>
         <!-- A dev/CI Postgres nem ajánl TLS-t; éles környezetben a `require` az alapértelmezés. -->
         <env force="true" name="DB_SSLMODE" value="disable"/>
+        <!-- A teszt SOHA nem kérdezhet valódi DNS-t: determinisztikus fake resolver. -->
+        <env force="true" name="DOMAINS_RESOLVER" value="fake"/>
+        <env force="true" name="IDENTITY_DEV_LOGIN" value="true"/>
         <env name="DB_URL" value=""/>
         <env force="true" name="MAIL_MAILER" value="array"/>
         <env force="true" name="QUEUE_CONNECTION" value="sync"/>
@@ -48,6 +51,8 @@
         <server force="true" name="DB_CONNECTION" value="pgsql"/>
         <server force="true" name="DB_DATABASE" value="ventmail_test"/>
         <server force="true" name="DB_SSLMODE" value="disable"/>
+        <server force="true" name="DOMAINS_RESOLVER" value="fake"/>
+        <server force="true" name="IDENTITY_DEV_LOGIN" value="true"/>
         <server force="true" name="MAIL_MAILER" value="array"/>
         <server force="true" name="QUEUE_CONNECTION" value="sync"/>
         <server force="true" name="SESSION_DRIVER" value="array"/>
