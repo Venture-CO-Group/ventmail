@@ -47,7 +47,9 @@ return [
     |
     */
 
-    'encrypt' => env('SESSION_ENCRYPT', false),
+    // Az OIDC state/nonce/PKCE verifier a payloadban él, a store pedig Redis:
+    // az alapértelmezés ezért titkosított, nem opcionálisan az.
+    'encrypt' => env('SESSION_ENCRYPT', true),
 
     /*
     |--------------------------------------------------------------------------

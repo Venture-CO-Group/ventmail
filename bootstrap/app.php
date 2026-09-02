@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Modules\Tenancy\Http\Middleware\ResolveWorkspace;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -20,6 +21,10 @@ return Application::configure(basePath: dirname(__DIR__))
             HandleInertiaRequests::class,
             AddLinkHeadersForPreloadedAssets::class,
         ]);
+
+        // A tenant-kontextus feloldása és a tagság-ellenőrzés minden workspace-hez kötött
+        // útvonalon kötelező (golden rule 6).
+        $middleware->alias(['workspace' => ResolveWorkspace::class]);
 
         // A Laravel `api` csoportja alapból CSAK SubstituteBindings — throttle nincs benne.
         // A PreSendGate 5. kapuja (rate-limit) mellett az API-felület is limitált kell legyen.
@@ -41,5 +46,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->dontFlash([
             'current_password', 'password', 'password_confirmation',
             'api_key', 'client_secret', 'smtp_password', 'dkim_private_key', 'token',
+            // OIDC-tranziensek: az authorization code query-paraméterben érkezik.
+            'code', 'state', 'nonce', 'code_verifier', 'id_token', 'access_token', 'refresh_token',
         ]);
     })->create();
