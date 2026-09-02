@@ -27,7 +27,7 @@ final class Domain extends Model
         'dkim_rotated_at', 'tracking_domain', 'tracking_status',
         'spf_status', 'dkim_status', 'dmarc_status', 'ptr_status', 'mta_sts_status',
         'bimi_status', 'inbound_mx_status', 'tracking_enabled', 'require_tls',
-        'verified_at', 'last_checked_at',
+        'verified_at', 'unverified_at', 'last_checked_at', 'dkim_active_selector',
     ];
 
     /** A privát kulcs sosem kerül szerializálva a válaszba. */
@@ -62,6 +62,7 @@ final class Domain extends Model
             'tracking_enabled' => 'boolean',
             'require_tls' => 'boolean',
             'verified_at' => 'datetime',
+            'unverified_at' => 'datetime',
             'last_checked_at' => 'datetime',
             'dkim_rotated_at' => 'datetime',
         ];
@@ -76,6 +77,17 @@ final class Domain extends Model
     public function dnsRecords(): array
     {
         return app(DnsRecordGenerator::class)->for($this);
+    }
+
+    /**
+     * Az ALÁÍRÁSHOZ használandó selector.
+     *
+     * Rotáció alatt még a RÉGI: az új selector DNS-rekordja ekkor még nem látszik, tehát
+     * az új kulccsal aláírt levelek DKIM-je bukna — pont az, amit az átfedés elkerülni hivatott.
+     */
+    public function signingSelector(): ?string
+    {
+        return $this->dkim_active_selector ?? $this->dkim_selector;
     }
 
     /** Az előző DKIM-selector még érvényes-e (rotációs átfedés). */

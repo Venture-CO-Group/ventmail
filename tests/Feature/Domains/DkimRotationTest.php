@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Modules\Audit\Models\AuditLog;
 use App\Modules\Domains\Actions\CreateDomain;
+use App\Modules\Domains\Actions\PurgeExpiredDkimKeys;
 use App\Modules\Domains\Actions\RotateDkimKey;
 use App\Modules\Tenancy\Models\Workspace;
 use App\Modules\Tenancy\Services\WorkspaceContext;
@@ -77,4 +78,37 @@ it('a rotáció auditált, de a kulcsok nélkül', function () {
     expect($serialized)->not->toContain('PRIVATE KEY');
     // A rotáció TÉNYE viszont látszik.
     expect($log->after)->toHaveKey('dkim_selector');
+});
+
+it('a rotáció alatt még a RÉGI kulccsal írunk alá', function () {
+    // Az új selector DNS-rekordja ekkor még nem látszik: az új kulccsal aláírt levelek
+    // DKIM-je bukna — pont az, amit az átfedés elkerülni hivatott.
+    $regi = $this->domain->dkim_selector;
+
+    app(RotateDkimKey::class)($this->domain);
+
+    expect($this->domain->fresh()->signingSelector())->toBe($regi);
+});
+
+it('kettős rotáció az átfedésen belül tilos', function () {
+    // Különben a második rotáció felülírná a DNS-ben MÉG AKTUÁLIS előző kulcsot.
+    app(RotateDkimKey::class)($this->domain);
+
+    expect(fn () => app(RotateDkimKey::class)($this->domain->fresh()))
+        ->toThrow(RuntimeException::class);
+});
+
+it('a lejárt előző kulcs törölhető', function () {
+    app(RotateDkimKey::class)($this->domain);
+
+    $this->domain->fresh()->forceFill([
+        'dkim_rotated_at' => now()->subDays((int) config('domains.dkim_rotation_overlap_days') + 1),
+    ])->save();
+
+    PurgeExpiredDkimKeys::run();
+
+    $friss = $this->domain->fresh();
+
+    expect($friss->dkim_previous_private_key)->toBeNull();
+    expect($friss->dkim_previous_selector)->toBeNull();
 });

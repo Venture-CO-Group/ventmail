@@ -10,7 +10,6 @@ use App\Modules\Tenancy\Models\Workspace;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use RuntimeException;
 
 /**
  * KIZÁRÓLAG fejlesztői és teszt-környezetben élő belépési út.
@@ -26,12 +25,18 @@ final class DevLoginController
 {
     public function __invoke(Request $request): RedirectResponse
     {
-        if (! app()->environment('local', 'testing')) {
-            throw new RuntimeException('A dev-belépés kizárólag fejlesztői környezetben érhető el.');
-        }
+        // KÉT FÜGGETLEN kapcsoló: az APP_ENV önmagában nem elég, mert az `.env.example`
+        // alapértéke `local` — aki a sablonból indul egy szerveren, alapból nyitva hagyná.
+        // A `abort(404)` szándékos: a kivétel 500-zal elárulná, hogy a végpont létezik.
+        abort_unless(
+            config('identity.dev_login_enabled') && ! app()->isProduction() && app()->environment('local', 'testing'),
+            404
+        );
 
+        // Dedikált, nem létező issuer: így a dev-user SOHA nem ütközhet egy valódi
+        // ventSSO-alannyal, még akkor sem, ha valaki élesre állított providerrel indítja.
         $user = User::firstOrCreate(
-            ['sso_issuer' => (string) config('oidc.provider_url'), 'sso_subject' => 'dev-user'],
+            ['sso_issuer' => 'https://dev.invalid', 'sso_subject' => 'dev-user'],
             ['name' => 'Fejlesztői felhasználó', 'email' => 'dev@ventmail.test']
         );
 
@@ -47,6 +52,11 @@ final class DevLoginController
         $request->session()->regenerate();
         $request->session()->put('workspace_uuid', $workspace->uuid);
 
-        return redirect()->intended($request->query('to', '/'));
+        // Csak RELATÍV cél: a `?to=https://tamado.example` különben nyílt átirányítás lenne,
+        // bejelentkeztetéssel egybekötve.
+        $to = (string) $request->query('to', '/');
+        $safe = str_starts_with($to, '/') && ! str_starts_with($to, '//') ? $to : '/';
+
+        return redirect()->intended($safe);
     }
 }

@@ -6,6 +6,7 @@ namespace App\Modules\Domains\Actions;
 
 use App\Modules\Domains\Models\Domain;
 use App\Modules\Domains\Services\DkimKeyManager;
+use RuntimeException;
 
 /**
  * DKIM kulcsrotáció ÁTFEDÉSSEL (M0-4 elfogadási kritérium #27).
@@ -20,6 +21,15 @@ final class RotateDkimKey
 
     public function __invoke(Domain $domain): Domain
     {
+        // Kettős rotáció az átfedésen belül MEGSEMMISÍTENÉ a DNS-ben még aktuális előző
+        // kulcsot: a második rotáció felülírná a `dkim_previous_*` mezőket.
+        if ($domain->previousDkimIsValid()) {
+            throw new RuntimeException(
+                'Az előző kulcs átfedési ideje még tart — előbb publikáld az új selectort, '
+                .'vagy várd meg az átfedés lejártát.'
+            );
+        }
+
         $keys = $this->dkim->generate();
 
         $domain->forceFill([
@@ -30,6 +40,9 @@ final class RotateDkimKey
             'dkim_public_key' => $keys['public'],
             'dkim_private_key' => $keys['private'],
             'dkim_rotated_at' => now(),
+            // AZ ALÁÍRÁS MARAD A RÉGI KULCCSAL, amíg az új rekord meg nem jelenik a DNS-ben:
+            // különben a rotáció pillanatától a terjedés végéig MINDEN levél DKIM-je bukna.
+            'dkim_active_selector' => $domain->dkim_selector,
             // Az új selector DNS-rekordja még nincs kint: a DKIM-státusz visszaáll.
             'dkim_status' => 'pending',
         ])->save();

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { router } from '@inertiajs/vue3';
 import { VtButton, VtCard, VtField, VtGlowLine, VtInput, VtTable, type VtColumn } from '@venture/ui';
 import { computed, ref } from 'vue';
 
@@ -24,6 +25,7 @@ const props = defineProps<{
 
 const domainName = ref('');
 const checking = ref(false);
+const submitting = ref(false);
 
 const step = computed(() => {
     if (!props.domain) return 1;
@@ -51,13 +53,32 @@ const columns: VtColumn<Row>[] = [
 ];
 
 function submitDomain(): void {
-    // Az Inertia-hívást a következő lépés köti be; a mockup-verifikáció ehhez már elég.
+    if (!domainName.value.trim()) return;
+
+    submitting.value = true;
+    router.post('/domains', { name: domainName.value.trim() }, {
+        onFinish: () => (submitting.value = false),
+    });
+}
+
+function verify(): void {
+    if (!props.domain) return;
+
     checking.value = true;
+    router.post(`/domains/${props.domain.uuid}/verify`, {}, {
+        onFinish: () => (checking.value = false),
+    });
+}
+
+function rotateDkim(): void {
+    if (!props.domain) return;
+
+    router.post(`/domains/${props.domain.uuid}/dkim/rotate`);
 }
 </script>
 
 <template>
-    <main class="vt-stack">
+    <main>
         <VtGlowLine />
 
         <VtCard>
@@ -79,7 +100,9 @@ function submitDomain(): void {
                 <VtInput v-model="domainName" data-testid="domain-input" placeholder="pelda.hu" />
             </VtField>
 
-            <VtButton data-testid="domain-submit" @click="submitDomain">Domain hozzáadása</VtButton>
+            <VtButton data-testid="domain-submit" :disabled="submitting" @click="submitDomain">
+                Domain hozzáadása
+            </VtButton>
         </VtCard>
 
         <VtCard v-else>
@@ -93,7 +116,17 @@ function submitDomain(): void {
                 data-testid="dns-records"
             />
 
-            <VtButton data-testid="verify-button" :disabled="checking">Ellenőrzés indítása</VtButton>
+            <VtButton data-testid="verify-button" :disabled="checking" @click="verify">
+                Ellenőrzés indítása
+            </VtButton>
+
+            <VtButton data-testid="rotate-button" @click="rotateDkim">DKIM-kulcs rotálása</VtButton>
         </VtCard>
     </main>
 </template>
+
+<!--
+  MEGJEGYZÉS a @venture/ui felé: hiányzik egy függőleges ritmust adó layout-primitív
+  (stack/spacing). A golden rule szerint hiányzó komponenst JELENTENI kell, nem lokálisan
+  gyártani — ezért itt sincs saját osztály, a kártyák a komponensek saját margóival élnek.
+-->

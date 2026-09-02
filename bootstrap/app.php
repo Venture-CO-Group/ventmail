@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Modules\Tenancy\Http\Middleware\ResolveWorkspace;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -28,7 +29,12 @@ return Application::configure(basePath: dirname(__DIR__))
 
         // A Laravel alapból a `login` nevű route-ra irányítaná a vendéget — az nálunk nem
         // létezik (az identitás gazdája a ventSSO), és „Route [login] not defined" 500-at adna.
-        $middleware->redirectGuestsTo(fn () => route('auth.redirect'));
+        // A böngésző-kérést a ventSSO-belépésre irányítjuk; a `/v1` és a JSON-kérés
+        // viszont 401-et kap: a 302 kontraktus-változás lenne (golden rule 7), és minden
+        // ilyen kérés `url.intended` írásával járna — olcsó session-flooding vektor.
+        $middleware->redirectGuestsTo(fn ($request) => $request->expectsJson() || $request->is('v1/*')
+            ? null
+            : route('auth.redirect'));
 
         // A Laravel `api` csoportja alapból CSAK SubstituteBindings — throttle nincs benne.
         // A PreSendGate 5. kapuja (rate-limit) mellett az API-felület is limitált kell legyen.
@@ -46,6 +52,17 @@ return Application::configure(basePath: dirname(__DIR__))
         );
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        // A Laravel a BINDINGEKET behelyettesíti a QueryException üzenetébe — egy hibás
+        // INSERT így a titkosított DKIM privát kulcsot a naplóba írná. A log bizalmi
+        // szintje alacsonyabb, mint az adatbázisé: ciphertext + APP_KEY szivárgás =
+        // kulcskompromittálás.
+        $exceptions->map(fn (QueryException $e) => new QueryException(
+            $e->getConnectionName(),
+            $e->getSql(),
+            array_fill(0, count($e->getBindings()), '?'),
+            $e->getPrevious() ?? $e
+        ));
+
         // Titok soha nem kerülhet naplóba vagy exception-kontextusba.
         $exceptions->dontFlash([
             'current_password', 'password', 'password_confirmation',
