@@ -9,11 +9,11 @@
 # main-re SOHA nem pushol; csak PR-t nyit. DONE-t ember állít merge után.
 
 # ── M0 · Közös mag (nincs párhuzam) ──────────────────────────────────────────
-TODO  m0-0  M  feat/m0-0-skeleton           devops,backend            # Laravel 12 skeleton + Docker (PG17+Timescale) + CI + @venture csomagok + modulváz
-TODO  m0-1  M  feat/m0-1-tenancy-oidc        architect,backend         # Tenancy + OIDC + sub-account váz
-TODO  m0-2  M  feat/m0-2-schema-audit        backend,db                # Alap séma + Timescale + audit
-TODO  m0-3  M  feat/m0-3-sending-gate        backend,security          # SendingDriver + PreSendGate (6 kapu) + FakeDriver
-TODO  m0-4  M  feat/m0-4-domains             backend,frontend,mockup   # Domain-hitelesítés + wizard + suppression
+DONE  m0-0  M  feat/m0-0-skeleton           devops,backend            # PR #3 — mergelve
+DONE  m0-1  M  feat/m0-1-tenancy-oidc        architect,backend         # PR #8 — mergelve
+DONE  m0-2  M  feat/m0-2-schema-audit        backend,db                # PR #9 — mergelve
+DONE  m0-3  M  feat/m0-3-sending-gate        backend,security          # PR #10 — mergelve
+DONE  m0-4  M  feat/m0-4-domains             backend,frontend,mockup   # PR #11 — mergelve
 
 # ── A sáv · PLATFORM (Mailgun-kiváltás) ──────────────────────────────────────
 TODO  a1    A  feat/a1-messages-api          backend,security          # Messages API: MIME, batch, o:/h:/v:, ütemezés, testmode, tárolt sablonok
