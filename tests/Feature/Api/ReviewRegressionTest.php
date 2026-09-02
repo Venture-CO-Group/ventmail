@@ -501,3 +501,109 @@ it('az 1 MB-os HTML törzs vizsgálata is gyors', function () {
     expect(strlen($html))->toBeGreaterThan(1_000_000);
     expect($seconds)->toBeLessThan(1.0, "a törzs-vizsgálat {$seconds} másodpercig tartott");
 });
+
+/*
+ | A verifikációs kör leletei.
+ */
+
+dataset('pontosvessző-nélküli-entitások', [
+    'numerikus, pontosvessző nélkül' => ['<a href="&#106avascript:alert(1)">k</a>'],
+    'a kettőspont entitásként' => ['<a href="javascript&#58alert(1)">k</a>'],
+    'vezető nullás numerikus' => ['<a href="&#0000106;avascript:alert(1)">k</a>'],
+    'srcset deszkriptorral' => ['<img srcset="kep.png 1x, javascript:alert(1) 2x">'],
+    'CSS @import url() nélkül' => ['<style>@import "javascript:alert(1)";</style>'],
+    'moz-binding' => ['<div style="-moz-binding:url(https://evil.test/x.xml#x)">k</div>'],
+]);
+
+it('a pontosvessző nélküli entitást is dekódolja a kapu', function (string $html) {
+    // A HTML-szabvány a NUMERIKUS hivatkozást pontosvessző nélkül is kibocsátja
+    // (attribútumértékben is), a `html_entity_decode` viszont nem — így a
+    // `&#106avascript:` átment, miközben a `javascript:` fennakadt.
+    expect(app(ContentScanner::class)->firstViolation($html))->not->toBeNull();
+})->with('pontosvessző-nélküli-entitások');
+
+it('a vizsgálhatatlanul összetett levél ELUTASÍTVA, nem átengedve', function () {
+    // A korlátok (rész-darabszám, méret, mélység) túllépése korábban CSENDES kihagyás volt:
+    // az 51. rész vizsgálat nélkül ment volna ki.
+    $part = "--HATAR\r\nContent-Type: text/plain\r\n\r\nszoveg\r\n";
+
+    $eml = "From: no-reply@pelda.hu\r\nTo: cimzett@example.test\r\n"
+        ."Content-Type: multipart/mixed; boundary=\"HATAR\"\r\n\r\n"
+        .str_repeat($part, 60)
+        ."--HATAR--\r\n";
+
+    expect(app(ContentScanner::class)->firstViolationInMime($eml))->not->toBeNull();
+});
+
+it('a NUL bájt a VÁLTOZÓNÉVBEN is strukturált hibát ad', function () {
+    // A szűrő korábban csak az értékeket nézte; a kulcs ugyanúgy a jsonb-be kerül.
+    sendApi(["v:ne\0v" => 'Anna'])->assertStatus(422)->assertJsonPath('error.code', 'INVALID_REQUEST');
+
+    expect(Message::count())->toBe(0);
+});
+
+it('az ékezetes és emojis tartalom viszont átmegy', function () {
+    // A szűrő nem dobhat el legitim tartalmat.
+    sendApi(['subject' => 'Árvíztűrő tükörfúrógép 🎉', 'v:nev' => 'Ödön 😀'])->assertAccepted();
+});
+
+it('a tömb értékű h: fejléc strukturált hiba, nem GATE_ERROR', function () {
+    // A `GATE_ERROR`-t a kliens újrapróbálható BELSŐ hibának hiszi — pedig a kérés rossz.
+    sendApi(['h:X-Foo' => ['a', 'b']])
+        ->assertStatus(400)
+        ->assertJsonPath('error.code', 'VALIDATION_ERROR');
+});
+
+it('a magányos CR-rel becsempészett fejléc duplikátumként bukik', function () {
+    // Ha bármely hop CRLF-re kanonizálja, két `From` lesz a levélben, és a levélkliens az
+    // ELSŐT mutatja — idegen feladó a saját DKIM-ünkkel aláírva.
+    $raw = "From: ok@pelda.hu\r\nOrganization: a\rFrom: ceo@bank.example\r\n"
+        ."To: cimzett@example.test\r\n\r\ntorzs\r\n";
+
+    expect(fn () => app(MimeParser::class)->parseHeaders($raw))
+        ->toThrow(InvalidArgumentException::class);
+});
+
+it('a lejárat nélküli nyers MIME sem él örökké', function () {
+    $message = Message::create([
+        'channel' => 'transactional',
+        'from_email' => 'no-reply@pelda.hu',
+        'recipients' => ['cimzett@example.test'],
+        'status' => 'delivered',
+    ]);
+
+    // Nyers beszúrás: így néz ki egy, a retenciós migráció előtt keletkezett sor.
+    DB::table('raw_mime_messages')->insert([
+        'workspace_id' => $this->workspace->getKey(),
+        'message_uuid' => $message->uuid,
+        'raw' => 'From: a@b.hu',
+        'size' => 12,
+        'sha256' => hash('sha256', 'From: a@b.hu'),
+        'expires_at' => null,
+        'created_at' => now()->subDays(90),
+        'updated_at' => now()->subDays(90),
+    ]);
+
+    $this->artisan('messages:purge-raw-mime')->assertSuccessful();
+
+    app(WorkspaceContext::class)->set($this->workspace);
+
+    expect(RawMimeMessage::count())->toBe(0);
+});
+
+it('a retenciós határidő állítható, a tartalom nem', function () {
+    $message = Message::create([
+        'channel' => 'transactional',
+        'from_email' => 'no-reply@pelda.hu',
+        'recipients' => ['cimzett@example.test'],
+        'status' => 'delivered',
+    ]);
+
+    RawMimeMessage::create(['message_uuid' => $message->uuid, 'raw' => 'From: a@b.hu']);
+
+    // A plan-függő retenciós tier (C1) különben alkalmazhatatlan lenne a már beadott levélre.
+    DB::table('raw_mime_messages')->update(['expires_at' => now()->addDays(7)]);
+
+    expect(fn () => DB::table('raw_mime_messages')->update(['raw' => 'MASIK']))
+        ->toThrow(QueryException::class);
+});

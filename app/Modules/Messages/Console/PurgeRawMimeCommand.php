@@ -38,9 +38,16 @@ final class PurgeRawMimeCommand extends Command
                 foreach ($workspaces as $workspace) {
                     $context->set($workspace);
 
+                    // A lejárat nélküli sor (régi adat, nyers beszúrás) sem élhet örökké:
+                    // ott a létrehozás ideje + a retenciós ablak dönt.
+                    $fallback = now()->subDays((int) config('sending.raw_mime_retention_days'));
+
                     $deleted += RawMimeMessage::query()
-                        ->whereNotNull('expires_at')
-                        ->where('expires_at', '<=', now())
+                        ->where(fn ($query) => $query
+                            ->where('expires_at', '<=', now())
+                            ->orWhere(fn ($legacy) => $legacy
+                                ->whereNull('expires_at')
+                                ->where('created_at', '<=', $fallback)))
                         ->delete();
                 }
             });

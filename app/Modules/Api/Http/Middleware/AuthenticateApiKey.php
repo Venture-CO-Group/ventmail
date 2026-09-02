@@ -52,7 +52,7 @@ final class AuthenticateApiKey
         // KÉT vödör: a bemutatott hitelesítőé és a forrás-IP-é. Csak az IP-é önmagában
         // kizárná a szomszédokat egy közös NAT mögött; csak a hitelesítőé pedig
         // hatástalan, mert a támadó kulcsot forgat.
-        $ipKey = 'api-auth-fail:ip:'.(string) $request->ip();
+        $ipKey = 'api-auth-fail:ip:'.$this->sourceBucket((string) $request->ip());
         $credentialKey = 'api-auth-fail:key:'.hash('sha256', (string) $plain);
 
         // A fék a DRÁGA munka (kulcsolt hash + indexelt lekérdezés) ELŐTT csattan.
@@ -118,6 +118,24 @@ final class AuthenticateApiKey
         $password = $request->getPassword();
 
         return is_string($password) && $password !== '' ? $password : null;
+    }
+
+    /**
+     * A forrás azonosítója a vödörhöz.
+     *
+     * IPv6-nál a /64 prefix, nem a teljes cím: egy /64 rendszerint EGY előfizetőé, és a
+     * címek azon belül szabadon váltogathatók — cím-szintű vödörrel a fék ingyen
+     * megkerülhető lenne.
+     */
+    private function sourceBucket(string $ip): string
+    {
+        if (! str_contains($ip, ':')) {
+            return $ip;
+        }
+
+        $binary = @inet_pton($ip);
+
+        return $binary === false ? $ip : bin2hex(substr($binary, 0, 8)).'::/64';
     }
 
     /** @param list<string> $failureKeys */

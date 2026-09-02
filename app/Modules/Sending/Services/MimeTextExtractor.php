@@ -42,25 +42,33 @@ final class MimeTextExtractor
     /**
      * A levél megjeleníthető szöveges részei (dekódolva).
      *
-     * @return list<string>
+     * A `truncated` jelzi, ha a levél kimerítette valamelyik korlátot. Ilyenkor a hívónak
+     * EL KELL UTASÍTANIA: a csendes kihagyás azt jelentené, hogy az 51. rész (vagy az 1 MB
+     * utáni tartalom) vizsgálat NÉLKÜL megy ki — vagyis a kapu megkerülhető azzal, hogy a
+     * támadó elég összetett levelet állít össze.
+     *
+     * @return array{texts: list<string>, truncated: bool}
      */
     public function extract(string $raw): array
     {
         $texts = [];
         $budget = self::MAX_TEXT_BYTES;
         $parts = 0;
+        $truncated = false;
 
-        $this->walk($raw, 0, $texts, $budget, $parts);
+        $this->walk($raw, 0, $texts, $budget, $parts, $truncated);
 
-        return $texts;
+        return ['texts' => $texts, 'truncated' => $truncated];
     }
 
     /**
      * @param  list<string>  $texts
      */
-    private function walk(string $entity, int $depth, array &$texts, int &$budget, int &$parts): void
+    private function walk(string $entity, int $depth, array &$texts, int &$budget, int &$parts, bool &$truncated): void
     {
         if ($depth > self::MAX_DEPTH || $budget <= 0 || $parts >= self::MAX_PARTS) {
+            $truncated = true;
+
             return;
         }
 
@@ -80,9 +88,11 @@ final class MimeTextExtractor
             }
 
             foreach ($this->explodeParts($body, $boundary) as $part) {
-                $this->walk($part, $depth + 1, $texts, $budget, $parts);
+                $this->walk($part, $depth + 1, $texts, $budget, $parts, $truncated);
 
                 if ($budget <= 0 || $parts >= self::MAX_PARTS) {
+                    $truncated = true;
+
                     return;
                 }
             }
@@ -97,6 +107,10 @@ final class MimeTextExtractor
             || str_starts_with($contentType, 'audio/')
             || str_starts_with($contentType, 'video/')) {
             return;
+        }
+
+        if (strlen($body) > self::MAX_PART_BYTES) {
+            $truncated = true;
         }
 
         $decoded = $this->decode(substr($body, 0, self::MAX_PART_BYTES), $headers['content-transfer-encoding'] ?? '');

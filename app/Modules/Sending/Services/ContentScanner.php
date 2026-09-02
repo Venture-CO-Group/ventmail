@@ -68,7 +68,7 @@ final class ContentScanner
 
         // URL-attribútumok sémái.
         preg_match_all(
-            '/\b(?:'.self::URL_ATTRIBUTES.')\s*=\s*(?:"([^"]*)"|\'([^\']*)\'|`([^`]*)`|([^\s>]+))/i',
+            '/\b('.self::URL_ATTRIBUTES.')\s*=\s*(?:"([^"]*)"|\'([^\']*)\'|`([^`]*)`|([^\s>]+))/i',
             $normalized,
             $matches,
             PREG_SET_ORDER
@@ -76,14 +76,38 @@ final class ContentScanner
 
         foreach ($matches as $match) {
             // A backtickes alak régi IE-vektor, de egy karakterbe kerül lefedni.
-            $value = collect([$match[1] ?? '', $match[2] ?? '', $match[3] ?? '', $match[4] ?? ''])
+            $value = collect([$match[2] ?? '', $match[3] ?? '', $match[4] ?? '', $match[5] ?? ''])
                 ->first(static fn (string $candidate) => $candidate !== '') ?? '';
 
-            $scheme = $this->schemeOf($value);
+            // A `srcset` VESSZŐS lista, deszkriptorokkal (`kep.png 1x, masik.png 2x`):
+            // egyben nézve sosem lett belőle séma, tehát mindent átengedett. MINDEN MÁS
+            // attribútumnál az egész érték egy URL — ott a darabolás rontana (a sémán
+            // belüli TAB-ot vágná el).
+            $candidates = strtolower($match[1]) === 'srcset'
+                ? array_map(static fn (string $item) => (string) strtok(trim($item), " \t"), explode(',', $value))
+                : [$value];
+
+            foreach ($candidates as $candidate) {
+                $scheme = $this->schemeOf($candidate);
+
+                if ($scheme !== null && ! in_array($scheme, self::ALLOWED_SCHEMES, true)) {
+                    return 'tiltott link-séma ('.$scheme.')';
+                }
+            }
+        }
+
+        // CSS `@import` — `url()` nélküli, idézőjeles alakja is betölt.
+        if (preg_match('/@import\s+(?:url\s*\()?\s*["\']?([^"\')\s;]+)/i', $normalized, $import) === 1) {
+            $scheme = $this->schemeOf($import[1]);
 
             if ($scheme !== null && ! in_array($scheme, self::ALLOWED_SCHEMES, true)) {
-                return 'tiltott link-séma ('.$scheme.')';
+                return 'tiltott @import séma ('.$scheme.')';
             }
+        }
+
+        // `-moz-binding` és társai: CSS-ből futtatható tartalmat húznak be.
+        if (preg_match('/-moz-binding\s*:/i', $normalized) === 1) {
+            return 'CSS -moz-binding';
         }
 
         // CSS `url(...)` — `style` attribútumban és `<style>` blokkban egyaránt.
@@ -175,7 +199,9 @@ final class ContentScanner
      */
     public function firstViolationInMime(string $raw): ?string
     {
-        foreach ($this->extractor->extract($raw) as $text) {
+        ['texts' => $texts, 'truncated' => $truncated] = $this->extractor->extract($raw);
+
+        foreach ($texts as $text) {
             $violation = $this->firstViolation($text);
 
             if ($violation !== null) {
@@ -183,16 +209,39 @@ final class ContentScanner
             }
         }
 
-        return null;
+        // FAIL-CLOSED: ha a levél kimerítette a vizsgálat korlátait (túl sok rész, túl nagy
+        // rész, túl mély beágyazás), akkor NEM tudjuk, mi van benne. A csendes átengedés
+        // azt jelentené, hogy a kapu megkerülhető egy elég összetett levéllel.
+        return $truncated ? 'a levél túl összetett a tartalom-vizsgálathoz' : null;
     }
 
     /**
      * A fogadó kliens normalizálása: entitás-dekódolás, majd a URL-ekből kiszűrt
      * whitespace és C0-kontrollbájtok.
+     *
+     * A `html_entity_decode` CSAK a pontosvesszős alakot dekódolja — a HTML-szabvány
+     * viszont a NUMERIKUS hivatkozást pontosvessző NÉLKÜL is kibocsátja (attribútumban is;
+     * a „nincs pontosvessző" ott csak parse error, nem elutasítás). Ezért a
+     * `&#106avascript:` és a `javascript&#58alert(1)` átment a kapun, miközben a
+     * `javascript:` fennakadt. A numerikus hivatkozásokat itt magunk bontjuk fel.
      */
     private function normalize(string $content): string
     {
-        return html_entity_decode($content, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $decoded = (string) preg_replace_callback(
+            '/&#(x[0-9a-f]{1,6}|[0-9]{1,7});?/i',
+            static function (array $match): string {
+                $code = str_starts_with(strtolower($match[1]), 'x')
+                    ? (int) hexdec(substr($match[1], 1))
+                    : (int) $match[1];
+
+                // A vezérlő- és ASCII-tartomány a lényeg (`:` `/` `j`): a fölötte lévő
+                // kódpontokat a `html_entity_decode` amúgy is kezeli.
+                return $code > 0 && $code < 0x110000 ? (mb_chr($code, 'UTF-8') ?: $match[0]) : $match[0];
+            },
+            $content
+        );
+
+        return html_entity_decode($decoded, ENT_QUOTES | ENT_HTML5, 'UTF-8');
     }
 
     /** A séma kinyerése úgy, ahogy a kliens látja: a kontrollbájtok és a szóköz eldobva. */

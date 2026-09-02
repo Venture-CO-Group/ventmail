@@ -30,8 +30,21 @@ return new class extends Migration
             $table->timestampTz('expires_at')->nullable()->index();
         });
 
+        // A MEGLÉVŐ sorok is kapnak lejáratot: enélkül a migráció előtt beadott levelek
+        // örökre bennmaradnának — a trigger miatt pedig utólag már be sem lehetne állítani.
+        DB::statement("update raw_mime_messages
+            set expires_at = created_at + interval '30 days'
+            where expires_at is null");
+
+        // Az immutabilitás a TARTALOMRA vonatkozik. A retenciós határidő állítható marad:
+        // a plan-függő tier (C1, ventPay `log_retention_tier`) különben alkalmazhatatlan
+        // lenne a már beadott levelekre.
         DB::statement("create or replace function raw_mime_messages_immutable() returns trigger as \$\$
             begin
+                if to_jsonb(new) - 'expires_at' = to_jsonb(old) - 'expires_at' then
+                    return new;
+                end if;
+
                 raise exception 'A beadott nyers MIME nem irhato at: ez a kikuldott level maga.';
             end;
         \$\$ language plpgsql");

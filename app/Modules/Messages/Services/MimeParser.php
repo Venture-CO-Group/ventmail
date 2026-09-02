@@ -39,6 +39,13 @@ final class MimeParser
      */
     public function parseHeaders(string $raw): array
     {
+        // A magányos `\r` sortörésnek SZÁMÍT. Enélkül az `Organization: a\rFrom: ceo@bank.hu`
+        // egyetlen fejlécértéknek látszott, tehát a duplikátum-ellenőrzés nem futott rá —
+        // ha viszont bármely hop CRLF-re kanonizálja, két `From` lesz a levélben, és a
+        // levélkliens az elsőt mutatja. A vizsgálat a NORMALIZÁLT másolaton megy; a
+        // kiküldött bájtok változatlanok.
+        $raw = str_replace(["\r\n", "\r"], "\n", $raw);
+
         // A határ az ELSŐ üres sor — sorvég-fajtától függetlenül. A korábbi
         // „van-e valahol CRLFCRLF" kérdés GLOBÁLIS volt: ha a fejlécblokk `\n`-nel zárult,
         // de a TÖRZS bárhol tartalmazott CRLFCRLF-et (idézett levél, base64-blokk), a határ

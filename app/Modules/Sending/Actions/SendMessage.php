@@ -144,9 +144,12 @@ final class SendMessage
         $unstorable = $this->firstUnstorableField(Arr::except($attributes, ['raw_mime']));
 
         if ($unstorable !== null) {
+            // A MEZŐNÉV maga is tartalmazhatja a hibás bájtot (`v:"ne\0v"`), és ez a szöveg
+            // az auditba megy — ott ugyanaz a `jsonb` fogadná, tehát a hibaüzenet ölte
+            // volna meg a kérést. Ezért a névből is kitakarítjuk, amit nem lehet tárolni.
             return $this->invalid(
                 $attributes,
-                sprintf('A(z) `%s` mező NUL bájtot vagy érvénytelen UTF-8 szekvenciát tartalmaz.', $unstorable)
+                sprintf('A(z) `%s` mező NUL bájtot vagy érvénytelen UTF-8 szekvenciát tartalmaz.', $this->printable($unstorable))
             );
         }
 
@@ -190,6 +193,16 @@ final class SendMessage
         return new SendResult($message, $decision);
     }
 
+    /** Tárolható, olvasható alak: a vezérlőkarakterek és a hibás bájtok eltávolítva. */
+    private function printable(string $value): string
+    {
+        $clean = (string) preg_replace('/[\x00-\x1f\x7f]/', '', $value);
+
+        return mb_check_encoding($clean, 'UTF-8')
+            ? $clean
+            : (string) mb_convert_encoding($clean, 'UTF-8', 'UTF-8');
+    }
+
     /**
      * Az első olyan mező neve, amit az adatbázis nem tudna eltárolni — vagy `null`.
      *
@@ -199,6 +212,12 @@ final class SendMessage
     {
         foreach ($values as $key => $value) {
             $name = $path === '' ? (string) $key : $path.'.'.$key;
+
+            // A KULCS ugyanúgy a `jsonb`-be kerül: `v:"ne\0v"` vagy egy hibás UTF-8 kulcs
+            // szintén 500-at adott (a szűrő korábban csak az értékeket nézte).
+            if (is_string($key) && (str_contains($key, "\0") || ! mb_check_encoding($key, 'UTF-8'))) {
+                return $name;
+            }
 
             if (is_array($value)) {
                 $nested = $this->firstUnstorableField($value, $name);

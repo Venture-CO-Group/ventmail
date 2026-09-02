@@ -219,9 +219,22 @@ final readonly class MailgunPayload
         $result = [];
 
         foreach ($input as $key => $value) {
-            if (Str::startsWith($key, $prefix)) {
-                $result[Str::after($key, $prefix)] = is_array($value) ? $value : (string) $value;
+            if (! Str::startsWith($key, $prefix)) {
+                continue;
             }
+
+            // A `h:` fejléc ÉRTÉKE mindig egyetlen sor. A tömb korábban végigment a
+            // parseren, majd a HeaderSafetyGate `(string)` castja „Array to string
+            // conversion"-t dobott → `GATE_ERROR` (amit a kliens újrapróbálható belső
+            // hibának hisz), és az érték SOHA nem esett át a CRLF-ellenőrzésen.
+            if ($prefix === 'h:' && ! is_scalar($value)) {
+                throw new InvalidArgumentException(sprintf(
+                    'VALIDATION_ERROR|A(z) `%s` fejléc egyetlen értéket vár, nem listát.',
+                    $key
+                ));
+            }
+
+            $result[Str::after($key, $prefix)] = is_array($value) ? $value : (string) $value;
         }
 
         return $result;
