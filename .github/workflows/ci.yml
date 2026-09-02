@@ -46,6 +46,7 @@ jobs:
       DB_PASSWORD: ventmail
       DB_SSLMODE: disable
       REDIS_HOST: 127.0.0.1
+      HAS_PACKAGES_TOKEN: ${{ secrets.VENTURE_PACKAGES_TOKEN != '' }}
 
     steps:
       # Minden action commit SHA-ra pinelve: mozgó tag mellett egy retagelt action
@@ -71,10 +72,25 @@ jobs:
           php artisan key:generate
           php artisan ventmail:pepper | sed 's/^/AUDIT_PEPPER=/' >> .env
 
+      # A drift-teszt a SZOMSZÉD repó forrásából olvas. Enélkül a mező-szintű
+      # `@venture/sdk` ellenőrzés a CI-ban HANGOSAN kihagyódik (nem zöldül csendben).
+      - name: venture-sdk (drift-ellenőrzéshez)
+        # A `secrets` kontextus step-szintű `if`-ben NEM elérhető, ezért job-szinten
+        # csak egy BOOLEAN kerül env-be — maga a token soha (a teszt-stepek nem látják).
+        if: env.HAS_PACKAGES_TOKEN == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: Venture-CO-Group/venture-sdk
+          token: ${{ secrets.VENTURE_PACKAGES_TOKEN }}
+          path: .ci/venture-sdk
+          persist-credentials: false
+
       - name: pint (kód-stílus)
         run: ./vendor/bin/pint --test
 
       - name: php artisan test
+        env:
+          VENTURE_SDK_PATH: ${{ github.workspace }}/.ci/venture-sdk
         run: php artisan test --parallel
 
       - name: composer audit

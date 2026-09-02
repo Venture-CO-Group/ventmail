@@ -116,13 +116,19 @@ it('az Idempotency-Key kötelezősége dokumentált a küldő endpointokon', fun
  */
 
 /**
- * A `@venture/sdk` forrása. Két helyen keressük: a szomszédos repóban (host, CI-ban
- * symlinkelve) és a konténerbe mountolt útvonalon. Ha egyik sem elérhető, a teszt
- * HANGOSAN kihagyódik — nem csendben zöldül.
+ * A `@venture/sdk` forrása. Három helyen keressük: a CI-ban kicsekkolt útvonalon
+ * (`VENTURE_SDK_PATH`), a szomszédos repóban (host) és a konténerbe mountolt útvonalon.
+ * Ha egyik sem elérhető, a teszt HANGOSAN kihagyódik — nem csendben zöldül.
  */
 function sdkMailSource(): string
 {
-    foreach ([base_path('../venture-sdk/src/services/mail.ts'), '/venture-packages/venture-sdk/src/services/mail.ts'] as $path) {
+    $candidates = array_filter([
+        env('VENTURE_SDK_PATH') ? rtrim((string) env('VENTURE_SDK_PATH'), '/').'/src/services/mail.ts' : null,
+        base_path('../venture-sdk/src/services/mail.ts'),
+        '/venture-packages/venture-sdk/src/services/mail.ts',
+    ]);
+
+    foreach ($candidates as $path) {
         if (is_file($path)) {
             return (string) file_get_contents($path);
         }
@@ -158,7 +164,7 @@ it('az SDK állapot-uniója egyezik a szerződéssel', function () {
     $spec = openapi();
     $documented = $spec['components']['schemas']['SendAccepted']['properties']['status']['enum'];
 
-    $sdk = sdkMailSource();
+    $sdk = requireSdk();
 
     // A `toContain` a további argumentumokat KERESETT értékként érti, nem üzenetként.
     foreach ($documented as $status) {

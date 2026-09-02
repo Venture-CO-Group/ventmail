@@ -33,3 +33,4 @@ Thumbs.db
 # Minden env-variáns rejtve, az example kivételével
 .env*
 !.env.example
+/.ci
