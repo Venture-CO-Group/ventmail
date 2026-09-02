@@ -26,6 +26,10 @@ return Application::configure(basePath: dirname(__DIR__))
         // útvonalon kötelező (golden rule 6).
         $middleware->alias(['workspace' => ResolveWorkspace::class]);
 
+        // A Laravel alapból a `login` nevű route-ra irányítaná a vendéget — az nálunk nem
+        // létezik (az identitás gazdája a ventSSO), és „Route [login] not defined" 500-at adna.
+        $middleware->redirectGuestsTo(fn () => route('auth.redirect'));
+
         // A Laravel `api` csoportja alapból CSAK SubstituteBindings — throttle nincs benne.
         // A PreSendGate 5. kapuja (rate-limit) mellett az API-felület is limitált kell legyen.
         $middleware->throttleApi();

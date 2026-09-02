@@ -79,7 +79,9 @@ it('a kötelező middleware-alapot a modul nem veheti el', function () {
 it('minden modul-route hitelesített és workspace-kontextusban fut', function () {
     // A `workspace`/`auth` alias önmagában semmit nem véd, ha egyetlen route sem hivatkozik rá.
     // Kivétel csak a bejelentkezési folyamat (ott még nincs user és nincs kontextus).
-    $allowlist = ['auth/redirect', 'auth/callback', 'auth/logout', 'up', '/'];
+    // A bejelentkezési folyamat útvonalai természetüknél fogva hitelesítés előttiek.
+    // A dev-login KIZÁRÓLAG local/testing környezetben létezik (külön teszt őrzi).
+    $allowlist = ['auth/redirect', 'auth/callback', 'auth/logout', 'auth/dev-login', 'up', '/'];
 
     $offenders = [];
 

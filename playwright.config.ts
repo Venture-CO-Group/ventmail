@@ -22,8 +22,9 @@ export default defineConfig({
     webServer: process.env.APP_URL
         ? undefined
         : {
-              // Az e2e-szerver nem függ Redistől/Meilitől: a flow-hoz elég a HTTP-réteg.
-              command: 'SESSION_DRIVER=array CACHE_STORE=array QUEUE_CONNECTION=sync php artisan serve --port=8000',
+              // Az e2e-szerver nem függ Redistől/Meilitől, de a session-nek PERZISZTENSNEK
+              // kell lennie: `array` driverrel a bejelentkezés nem élné túl a következő kérést.
+              command: 'SESSION_DRIVER=file CACHE_STORE=array QUEUE_CONNECTION=sync php artisan serve --port=8000',
               url: 'http://127.0.0.1:8000/up',
               reuseExistingServer: !process.env.CI,
               timeout: 60_000,
