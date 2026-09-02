@@ -510,6 +510,9 @@ dataset('pontosvessző-nélküli-entitások', [
     'numerikus, pontosvessző nélkül' => ['<a href="&#106avascript:alert(1)">k</a>'],
     'a kettőspont entitásként' => ['<a href="javascript&#58alert(1)">k</a>'],
     'vezető nullás numerikus' => ['<a href="&#0000106;avascript:alert(1)">k</a>'],
+    'nyolcjegyű numerikus' => ['<a href="&#00000106;avascript:alert(1)">k</a>'],
+    'hosszú hexa' => ['<a href="&#x000006a;avascript:alert(1)">k</a>'],
+    'kettőspont hosszú entitással' => ['<a href="javascript&#00000058;alert(1)">k</a>'],
     'srcset deszkriptorral' => ['<img srcset="kep.png 1x, javascript:alert(1) 2x">'],
     'CSS @import url() nélkül' => ['<style>@import "javascript:alert(1)";</style>'],
     'moz-binding' => ['<div style="-moz-binding:url(https://evil.test/x.xml#x)">k</div>'],
@@ -605,5 +608,65 @@ it('a retenciós határidő állítható, a tartalom nem', function () {
     DB::table('raw_mime_messages')->update(['expires_at' => now()->addDays(7)]);
 
     expect(fn () => DB::table('raw_mime_messages')->update(['raw' => 'MASIK']))
+        ->toThrow(QueryException::class);
+});
+
+it('a legitim entitások NEM adnak hamis pozitívot', function () {
+    // A dekódolás a fogadó klienst utánozza — de nem kétszer: a `&#38;lt;script&#38;gt;`
+    // a böngészőben LÁTHATÓ szöveg (`&lt;script&gt;`), nem elem. Egy HTML-kódpéldát mutató
+    // hírlevél nem utasítható el.
+    $html = '<p>Ára: 100 &#8364; — kódpélda: &#38;lt;script&#38;gt;, horgony: #123</p>';
+
+    expect(app(ContentScanner::class)->firstViolation($html))->toBeNull();
+});
+
+it('az elrabolt boundaryjú levél nem minősül tisztának', function () {
+    // Egy korábbi, idézőjeles paraméter (`name="boundary=x"`) elrabolta a keresést: a
+    // bontás nulla részt adott, és a levél CSENDBEN átment — miközben a fogadó kliens a
+    // valódi boundaryval megjelenítette a benne lévő linket.
+    $eml = "From: no-reply@pelda.hu\r\nTo: cimzett@example.test\r\n"
+        ."Content-Type: multipart/alternative; name=\"boundary=x\"; boundary=\"BB\"\r\n\r\n"
+        ."--BB\r\nContent-Type: text/html\r\n\r\n<a href=\"javascript:alert(1)\">k</a>\r\n--BB--\r\n";
+
+    expect(app(ContentScanner::class)->firstViolationInMime($eml))->not->toBeNull();
+});
+
+it('az SVG és a beágyazott levél tartalma sem marad vizsgálatlan', function () {
+    // Az SVG `image/` típusú, de AKTÍV tartalom; a `message/rfc822` pedig nem `multipart/`,
+    // ezért a bejárás korábban kihagyta.
+    $svg = "From: no-reply@pelda.hu\r\nContent-Type: image/svg+xml\r\n\r\n"
+        .'<svg><a href="javascript:alert(1)"/></svg>';
+
+    $embedded = "From: no-reply@pelda.hu\r\nContent-Type: message/rfc822\r\n\r\n"
+        ."From: c@d.hu\r\nContent-Type: text/html\r\nContent-Transfer-Encoding: base64\r\n\r\n"
+        .chunk_split(base64_encode('<a href="javascript:alert(1)">k</a>'), 40, "\r\n");
+
+    expect(app(ContentScanner::class)->firstViolationInMime($svg))->not->toBeNull();
+    expect(app(ContentScanner::class)->firstViolationInMime($embedded))->not->toBeNull();
+});
+
+it('a boundary nélküli, óriási multipart sem csúszik át csendben', function () {
+    $eml = "From: no-reply@pelda.hu\r\nContent-Type: multipart/mixed\r\n\r\n".str_repeat('A', 2_500_000);
+
+    expect(app(ContentScanner::class)->firstViolationInMime($eml))->not->toBeNull();
+});
+
+it('a retenciós határidő nem tolható a végtelenbe', function () {
+    $message = Message::create([
+        'channel' => 'transactional',
+        'from_email' => 'no-reply@pelda.hu',
+        'recipients' => ['cimzett@example.test'],
+        'status' => 'delivered',
+    ]);
+
+    RawMimeMessage::create(['message_uuid' => $message->uuid, 'raw' => 'From: a@b.hu']);
+
+    // A rövidítés és az ésszerű hosszabbítás mehet (C1 plan-tier)…
+    DB::table('raw_mime_messages')->update(['expires_at' => now()->addDays(90)]);
+
+    // …a retenció KIKAPCSOLÁSA viszont nem (golden rule 10).
+    expect(fn () => DB::table('raw_mime_messages')->update(['expires_at' => now()->addYears(999)]))
+        ->toThrow(QueryException::class);
+    expect(fn () => DB::table('raw_mime_messages')->update(['expires_at' => null]))
         ->toThrow(QueryException::class);
 });

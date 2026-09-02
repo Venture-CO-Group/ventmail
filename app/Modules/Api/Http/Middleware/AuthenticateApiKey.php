@@ -135,7 +135,23 @@ final class AuthenticateApiKey
 
         $binary = @inet_pton($ip);
 
-        return $binary === false ? $ip : bin2hex(substr($binary, 0, 8)).'::/64';
+        if ($binary === false || strlen($binary) !== 16) {
+            return $ip;
+        }
+
+        // IPv4-mapped (`::ffff:1.2.3.4`), loopback (`::1`) és `::`: ezek első 8 bájtja
+        // csupa nulla, tehát a /64-es vödörben MIND EGYBE esne — 100 hibás hitelesítés
+        // bárkitől kizárná az összes ilyen alakban látszó klienst. A beágyazott IPv4 a
+        // valódi forrás; a többi speciális címet a teljes alakjával azonosítjuk.
+        if (str_starts_with($binary, str_repeat("\0", 10)."\xff\xff")) {
+            return (string) inet_ntop(substr($binary, 12));
+        }
+
+        if (str_starts_with($binary, str_repeat("\0", 8))) {
+            return $ip;
+        }
+
+        return bin2hex(substr($binary, 0, 8)).'::/64';
     }
 
     /** @param list<string> $failureKeys */

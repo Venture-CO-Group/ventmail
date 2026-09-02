@@ -41,11 +41,18 @@ return new class extends Migration
         // lenne a már beadott levelekre.
         DB::statement("create or replace function raw_mime_messages_immutable() returns trigger as \$\$
             begin
-                if to_jsonb(new) - 'expires_at' = to_jsonb(old) - 'expires_at' then
+                -- Az `updated_at` is kivétel: az Eloquent minden mentésnél írja, tehát
+                -- nélküle a retenciós határidő CSAK nyers query-vel lett volna állítható.
+                if to_jsonb(new) - 'expires_at' - 'updated_at' = to_jsonb(old) - 'expires_at' - 'updated_at'
+                   -- A határidő nem tolható a végtelenbe: a golden rule 10 kiskapuja lenne,
+                   -- ha a retenciót egyetlen UPDATE-tel ki lehetne kapcsolni.
+                   and new.expires_at is not null
+                   and new.expires_at <= old.created_at + interval '400 days'
+                then
                     return new;
                 end if;
 
-                raise exception 'A beadott nyers MIME nem irhato at: ez a kikuldott level maga.';
+                raise exception 'A beadott nyers MIME nem irhato at: ez a kikuldott level maga (a lejarat legfeljebb 400 napra tolhato).';
             end;
         \$\$ language plpgsql");
 

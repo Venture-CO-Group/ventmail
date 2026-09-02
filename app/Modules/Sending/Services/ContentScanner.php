@@ -219,29 +219,42 @@ final class ContentScanner
      * A fogadó kliens normalizálása: entitás-dekódolás, majd a URL-ekből kiszűrt
      * whitespace és C0-kontrollbájtok.
      *
-     * A `html_entity_decode` CSAK a pontosvesszős alakot dekódolja — a HTML-szabvány
+     * A `html_entity_decode` mindent kezel, AMI PONTOSVESSZŐVEL zárul — a HTML-szabvány
      * viszont a NUMERIKUS hivatkozást pontosvessző NÉLKÜL is kibocsátja (attribútumban is;
-     * a „nincs pontosvessző" ott csak parse error, nem elutasítás). Ezért a
-     * `&#106avascript:` és a `javascript&#58alert(1)` átment a kapun, miközben a
-     * `javascript:` fennakadt. A numerikus hivatkozásokat itt magunk bontjuk fel.
+     * ott a hiányzó pontosvessző csak parse error). Ezért a `&#106avascript:` átment a
+     * kapun, miközben a `javascript:` fennakadt.
+     *
+     * A sorrend LÉNYEGES, és egy korábbi javítás pont itt rontott: ha mi bontjuk fel
+     * ELŐBB a numerikus hivatkozásokat egy hosszkorlátos mintával, akkor a hosszabb alak
+     * (`&#00000106;` — a szabvány KORLÁTLAN számjegyet gyűjt) félbevágva ragad bent, és a
+     * `html_entity_decode` már nem tudja helyrehozni. Tehát: előbb a szabványos dekódolás,
+     * és CSAK a maradék, pontosvessző nélküli alakot bontjuk fel — korlátlan hosszon.
      */
     private function normalize(string $content): string
     {
-        $decoded = (string) preg_replace_callback(
-            '/&#(x[0-9a-f]{1,6}|[0-9]{1,7});?/i',
+        $decoded = html_entity_decode($content, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+
+        return (string) preg_replace_callback(
+            '/&#(?:x([0-9a-f]+)|([0-9]+))/i',
             static function (array $match): string {
-                $code = str_starts_with(strtolower($match[1]), 'x')
-                    ? (int) hexdec(substr($match[1], 1))
-                    : (int) $match[1];
+                // A hosszú számsor `hexdec`-en INF-et ad, az `(int)` cast pedig figyelmeztet:
+                // a kódpont-tartományon kívüli érték amúgy sem hivatkozás.
+                $digits = ltrim(($match[1] ?? '') !== '' ? $match[1] : $match[2], '0');
 
-                // A vezérlő- és ASCII-tartomány a lényeg (`:` `/` `j`): a fölötte lévő
-                // kódpontokat a `html_entity_decode` amúgy is kezeli.
-                return $code > 0 && $code < 0x110000 ? (mb_chr($code, 'UTF-8') ?: $match[0]) : $match[0];
+                if ($digits === '' || strlen($digits) > 8) {
+                    return $match[0];
+                }
+
+                $code = ($match[1] ?? '') !== '' ? (int) hexdec($digits) : (int) $digits;
+
+                if ($code <= 0 || $code >= 0x110000) {
+                    return $match[0];
+                }
+
+                return mb_chr($code, 'UTF-8') ?: $match[0];
             },
-            $content
+            $decoded
         );
-
-        return html_entity_decode($decoded, ENT_QUOTES | ENT_HTML5, 'UTF-8');
     }
 
     /** A séma kinyerése úgy, ahogy a kliens látja: a kontrollbájtok és a szóköz eldobva. */

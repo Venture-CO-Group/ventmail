@@ -80,14 +80,31 @@ final class MimeTextExtractor
             $boundary = $this->boundary($headers['content-type'] ?? '');
 
             if ($boundary === null) {
-                // Boundary nélkül a törzs értelmezhetetlen szerkezetileg — de attól még
-                // tartalmazhat linket. Fail-open helyett megnézzük nyersen.
-                $this->collect($body, $texts, $budget, $parts);
+                // Boundary nélkül a törzs szerkezetileg értelmezhetetlen — de attól még
+                // tartalmazhat linket, ezért nyersen megnézzük. Ha a törzs a büdzsénél
+                // nagyobb, azt JELEZZÜK: ez volt az egyetlen pont, ahol a csonkolás
+                // csendben maradt (2 MB fölötti törzs átment a kapun).
+                if (strlen($body) > min($budget, self::MAX_PART_BYTES)) {
+                    $truncated = true;
+                }
+
+                $this->collect(substr($body, 0, self::MAX_PART_BYTES), $texts, $budget, $parts);
 
                 return;
             }
 
-            foreach ($this->explodeParts($body, $boundary) as $part) {
+            $pieces = $this->explodeParts($body, $boundary);
+
+            // ÜRES multipart: a boundary vagy hibás, vagy „elrabolták" (egy korábbi,
+            // idézőjeles paraméter-érték tartalmazta a `boundary=` szót). Ilyenkor NEM
+            // tudjuk, mi van a levélben — a fogadó viszont tudja. Fail-closed.
+            if ($pieces === []) {
+                $truncated = true;
+
+                return;
+            }
+
+            foreach ($pieces as $part) {
                 $this->walk($part, $depth + 1, $texts, $budget, $parts, $truncated);
 
                 if ($budget <= 0 || $parts >= self::MAX_PARTS) {
@@ -100,10 +117,21 @@ final class MimeTextExtractor
             return;
         }
 
-        // Nem-szöveges rész (kép, PDF): a linkek szempontjából nem érdekes, és a
-        // dekódolása csak a büdzsét enné. A `application/*` viszont lehet SVG vagy HTML,
-        // ezért azt is nézzük.
-        if (str_starts_with($contentType, 'image/')
+        // Beágyazott levél: a törzse egy TELJES üzenet, saját fejlécekkel és kódolással.
+        // Nem `multipart/`, tehát a bejárás korábban kihagyta — a benne lévő base64-es
+        // HTML sosem dekódolódott.
+        if (str_starts_with($contentType, 'message/')) {
+            $this->walk($body, $depth + 1, $texts, $budget, $parts, $truncated);
+
+            return;
+        }
+
+        // Nem-szöveges rész (kép, hang, videó): a linkek szempontjából nem érdekes, és a
+        // dekódolása csak a büdzsét enné. AZ SVG KIVÉTEL: `image/` a típusa, de AKTÍV
+        // tartalom (`<script>`, `javascript:` href) — azt vizsgáljuk.
+        if (str_contains($contentType, 'svg')) {
+            // marad: megvizsgáljuk
+        } elseif (str_starts_with($contentType, 'image/')
             || str_starts_with($contentType, 'audio/')
             || str_starts_with($contentType, 'video/')) {
             return;
@@ -169,15 +197,82 @@ final class MimeTextExtractor
         return [$headers, substr($entity, $position + strlen($match[0][0]))];
     }
 
+    /**
+     * A boundary PARAMÉTER-PARSERREL, nem mintakereséssel.
+     *
+     * A korábbi regex bárhol illeszkedett a fejlécértékben: egy `name="boundary=x"`
+     * paraméter ELRABOLTA a keresést, a bontás nulla részt adott, és a levél csendben
+     * „tisztának" minősült — miközben a fogadó kliens a valódi boundaryval megjelenítette
+     * a benne lévő linket.
+     */
     private function boundary(string $contentType): ?string
     {
-        if (preg_match('/boundary\s*=\s*"([^"]+)"|boundary\s*=\s*([^;\s]+)/i', $contentType, $match) !== 1) {
-            return null;
+        foreach ($this->parameters($contentType) as $name => $value) {
+            if ($name === 'boundary' && $value !== '') {
+                return $value;
+            }
         }
 
-        $boundary = $match[1] !== '' ? $match[1] : ($match[2] ?? '');
+        return null;
+    }
 
-        return $boundary === '' ? null : $boundary;
+    /**
+     * Fejlécérték paraméterei, az idézőjeleket tiszteletben tartva (RFC 2045 §5.1).
+     *
+     * @return array<string, string>
+     */
+    private function parameters(string $value): array
+    {
+        $parameters = [];
+        $current = '';
+        $inQuotes = false;
+        $escaped = false;
+
+        foreach (str_split($value) as $character) {
+            if ($escaped) {
+                $current .= $character;
+                $escaped = false;
+
+                continue;
+            }
+
+            if ($inQuotes && $character === '\\') {
+                $escaped = true;
+
+                continue;
+            }
+
+            if ($character === '"') {
+                $inQuotes = ! $inQuotes;
+
+                continue;
+            }
+
+            if ($character === ';' && ! $inQuotes) {
+                $this->addParameter($parameters, $current);
+                $current = '';
+
+                continue;
+            }
+
+            $current .= $character;
+        }
+
+        $this->addParameter($parameters, $current);
+
+        return $parameters;
+    }
+
+    /** @param array<string, string> $parameters */
+    private function addParameter(array &$parameters, string $chunk): void
+    {
+        if (! str_contains($chunk, '=')) {
+            return;
+        }
+
+        [$name, $value] = explode('=', $chunk, 2);
+
+        $parameters[strtolower(trim($name))] = trim($value);
     }
 
     /**
