@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Providers;
 
 use App\Modules\Audit\Services\KeyedHash;
+use App\Modules\Events\Services\TrackingTokens;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
@@ -36,6 +37,16 @@ class AppServiceProvider extends ServiceProvider
      * kapujának alapja (M0-3).
      */
     /**
+     * A fejlesztői route-ok, amelyeknek élesben létezniük SEM szabad.
+     *
+     * Névre szóló lista, mert a védelem a route NEVÉT nézi: aki új dev-route-ot vesz fel,
+     * annak ide is fel kell vennie. A `DevRouteGuardTest` őrzi, hogy a lista teljes legyen.
+     *
+     * @var list<string>
+     */
+    private const DEVELOPMENT_ROUTES = ['auth.dev-login', 'dev.seed-logs'];
+
+    /**
      * Deploy-idejű őr: élesben a fejlesztői belépés route-ja nem is LÉTEZHET.
      *
      * Miért kell a config-kapcsoló mellé: egy `local` környezetben készült és az image-be
@@ -43,11 +54,19 @@ class AppServiceProvider extends ServiceProvider
      */
     private function assertNoDevelopmentBackdoors(): void
     {
-        if ($this->app->isProduction() && Route::has('auth.dev-login')) {
-            throw new RuntimeException(
-                'A fejlesztői belépés route-ja jelen van éles környezetben (valószínűleg beégetett '
-                .'route-cache). Töröld a cache-t és állítsd IDENTITY_DEV_LOGIN=false.'
-            );
+        if (! $this->app->isProduction()) {
+            return;
+        }
+
+        foreach (self::DEVELOPMENT_ROUTES as $name) {
+            // BÁRMELYIK jelenléte elég a leálláshoz — nem az összesé.
+            if (Route::has($name)) {
+                throw new RuntimeException(sprintf(
+                    'A fejlesztői route (%s) jelen van éles környezetben (valószínűleg beégetett '
+                    .'route-cache). Töröld a cache-t és állítsd IDENTITY_DEV_LOGIN=false.',
+                    $name,
+                ));
+            }
         }
     }
 
@@ -81,10 +100,25 @@ class AppServiceProvider extends ServiceProvider
 
         // A bejelentkezési folyamat hitelesítetlen: minden hívás session-rekordot ír és
         // kimenő HTTP-t indít a ventSSO felé, ezért IP-alapon szűkebb a keret.
-        // NYOMKÖVETÉS: a levélkliens hívja, tehát egy IP mögött egy egész vállalati
-        // levelezés állhat — a keret bőséges, de nem végtelen. Publikus endpoint sosem
-        // marad limit nélkül: enélkül a végpont az eseménytábla hizlalására lenne jó.
-        RateLimiter::for('tracking', fn (Request $request) => Limit::perMinute(300)->by((string) $request->ip()));
+        // NYOMKÖVETÉS: publikus endpoint sosem marad limit nélkül — enélkül az eseménytábla
+        // hizlalására lenne jó.
+        //
+        // A kulcs a TOKEN, nem az IP. A Gmail MINDEN képet a saját proxyján keresztül tölt
+        // be, néhány Google-IP-ről, az egész platform forgalmára összegezve: IP-kulccsal a
+        // limit pont a legnagyobb ügyfeleknél ütne be, és `opened` események vesznének el.
+        // Tokenenként viszont a limit pontosan azt fogja meg, amit akarunk — ugyanannak a
+        // pixelnek az ismételt hívását.
+        // A kulcs a KANONIKUS IGÉNY, nem a token bájtjai: azokból több ezer érvényes variáns
+        // gyártható ugyanarra az igényre, tehát token-kulccsal a fék megkerülhető lenne.
+        // Értelmezhetetlen tokennél az IP a kulcs — ott nincs mihez kötni.
+        RateLimiter::for('tracking', function (Request $request) {
+            $tokens = app(TrackingTokens::class);
+            $claim = $tokens->parse((string) $request->route('token'));
+
+            return Limit::perMinute(60)->by(
+                $claim === null ? 'ip:'.$request->ip() : 'claim:'.$tokens->fingerprint($claim),
+            );
+        });
 
         RateLimiter::for('oidc', fn (Request $request) => Limit::perMinute(20)->by((string) $request->ip()));
     }

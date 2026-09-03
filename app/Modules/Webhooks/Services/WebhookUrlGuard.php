@@ -51,6 +51,7 @@ final class WebhookUrlGuard
         '::/128',             // unspecified — a stack a loopbackra köti
         '::1/128',            // loopback
         '::ffff:0:0/96',      // IPv4-mapped — a beágyazott címet külön is megnézzük
+        '::ffff:0:0:0/96',    // IPv4-translated (RFC 2765) — SIIT/NAT64 hálón élne
         '64:ff9b::/96',       // NAT64
         '64:ff9b:1::/48',     // helyi NAT64
         '100::/64',           // discard
@@ -251,6 +252,10 @@ final class WebhookUrlGuard
 
         if ($prefixZero && $bytes[10] === 0xFF && $bytes[11] === 0xFF) {
             $embedded = array_slice($bytes, 12, 4);          // ::ffff:a.b.c.d
+        } elseif (array_slice($bytes, 0, 8) === array_fill(0, 8, 0)
+            && $bytes[8] === 0xFF && $bytes[9] === 0xFF
+            && $bytes[10] === 0 && $bytes[11] === 0) {
+            $embedded = array_slice($bytes, 12, 4);          // ::ffff:0:a.b.c.d (IPv4-translated)
         } elseif ($prefixZero && $bytes[10] === 0 && $bytes[11] === 0) {
             $embedded = array_slice($bytes, 12, 4);          // ::a.b.c.d (és `::` → 0.0.0.0)
         } elseif ($bytes[0] === 0x00 && $bytes[1] === 0x64 && $bytes[2] === 0xFF && $bytes[3] === 0x9B) {

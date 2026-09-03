@@ -9,6 +9,7 @@ use App\Modules\Tenancy\Services\WorkspaceContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
+use Symfony\Component\Yaml\Yaml;
 
 uses(RefreshDatabase::class);
 
@@ -232,4 +233,46 @@ it('idegen kulccsal kiadott kurzor érvénytelen, nem 500', function () {
 
     expect($response->status())->toBe(400);
     expect($response->json('error.code'))->toBe('VALIDATION_ERROR');
+});
+
+it('a válasz mezői EGYEZNEK az OpenAPI Event sémájával', function () {
+    // A `98cadc6a` int-ről uuid-re váltotta az `id`-t, a séma maradt `integer` — az SDK
+    // `number`-t generált volna a string mellé. A drift ITT derüljön ki, ne az integrátornál
+    // (golden rule 7: OpenAPI ↔ SDK drift = 0).
+    messageEvent(['reason' => 'HARD_BOUNCE', 'variables' => ['rendeles' => 'A-42']]);
+
+    $item = events()->json('items.0');
+
+    $spec = Yaml::parseFile(base_path('docs/openapi/ventmail-v1.yaml'));
+    $schema = $spec['components']['schemas']['Event']['properties'];
+
+    foreach ($item as $key => $value) {
+        expect(array_key_exists($key, $schema))
+            ->toBeTrue("a `{$key}` mező nincs dokumentálva az Event sémában");
+
+        $declared = $schema[$key]['type'] ?? null;
+
+        if ($declared === null || $value === null) {
+            continue;
+        }
+
+        $allowed = array_map(
+            fn (string $type) => match ($type) {
+                'integer' => 'integer',
+                'number' => 'double',
+                'string' => 'string',
+                'boolean' => 'boolean',
+                'array' => 'array',
+                'object' => 'array',
+                'null' => 'NULL',
+                default => $type,
+            },
+            (array) $declared,
+        );
+
+        // `toContain` varargs-ot vár, tehát üzenetet nem fűzhetünk hozzá — az eltérést a
+        // mező nevével együtt külön állítjuk.
+        expect(in_array(gettype($value), $allowed, true))
+            ->toBeTrue("a `{$key}` típusa (".gettype($value).') eltér a szerződéstől ('.implode('|', $allowed).')');
+    }
 });

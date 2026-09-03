@@ -79,7 +79,7 @@ final class WebhookEndpointController
         $endpoint = WebhookEndpoint::query()->where('uuid', $uuid)->first();
 
         if ($endpoint === null) {
-            return ApiError::badRequest('UNKNOWN_ENDPOINT', 'Ismeretlen webhook-végpont.');
+            return ApiError::response('UNKNOWN_ENDPOINT', 'Ismeretlen webhook-végpont.', 404);
         }
 
         $validator = Validator::make($request->all(), [
@@ -117,7 +117,7 @@ final class WebhookEndpointController
         $endpoint = WebhookEndpoint::query()->where('uuid', $uuid)->first();
 
         if ($endpoint === null) {
-            return ApiError::badRequest('UNKNOWN_ENDPOINT', 'Ismeretlen webhook-végpont.');
+            return ApiError::response('UNKNOWN_ENDPOINT', 'Ismeretlen webhook-végpont.', 404);
         }
 
         $secret = 'whsec_'.Str::random(40);
@@ -133,7 +133,7 @@ final class WebhookEndpointController
         $endpoint = WebhookEndpoint::query()->where('uuid', $uuid)->first();
 
         if ($endpoint === null) {
-            return ApiError::badRequest('UNKNOWN_ENDPOINT', 'Ismeretlen webhook-végpont.');
+            return ApiError::response('UNKNOWN_ENDPOINT', 'Ismeretlen webhook-végpont.', 404);
         }
 
         $endpoint->delete();

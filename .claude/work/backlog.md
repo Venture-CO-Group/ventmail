@@ -61,6 +61,17 @@ TODO  a6    A  feat/a6-deliverability        backend,frontend          # Blockli
 #    retenció kell rá — tulajdonosi döntéssel                                          → C1
 #  · a Timescale `add_retention_policy` ÉLES útját (drop_chunks) egyik teszt sem
 #    gyakorolja: a retenciós teszt `delete`-tel dolgozik                              → devops
+#  · a `/t/c/…` KIMONDOTT, elfogadott kockázat: bármely tenant kiválthat magának egy
+#    tetszőleges célra mutató átirányítót a SAJÁT nyomkövetési domainjén. A hoszt-kötés miatt
+#    ez NEM a mi fő domainünk, tehát a session-origin védve van — abuse-monitorozás viszont
+#    kell hozzá (Mailgun-paritás)                                                     → A6
+#  · a `SystemHostResolver` `dns_get_record`-ja timeout nélkül fut, és a végpont-mentés
+#    HTTP-kérésén BELÜL: egy blackhole-olt ügyfél-domain a rezolver teljes timeoutjáig
+#    blokkol egy php-fpm workert. Aszinkron verifikáció vagy saját, timeoutolt rezolver kell
+#                                                                                    → A6
+#  · a `BLOCKED_V4` szándékosan NEM tiltja a TEST-NET tartományokat (192.0.2.0/24,
+#    198.51.100.0/24, 203.0.113.0/24): ezek a dokumentációs címek, amikre a tesztjeink
+#    „publikus" végpontként hivatkoznak. Élesben nem routolhatók                     → nincs teendő
 #  · a nyitás-követés bot-szűrése hiányzik (Apple MPP, vírusszűrő-előtöltés): ma minden
 #    pixel-hívás `opened`. A felület kimondja a torzítást, de szűrni nem szűrünk       → A6
 #  · volumetrikus (L7) védelem az edge feladata: a trusted-proxy mögötti XFF-rotációt

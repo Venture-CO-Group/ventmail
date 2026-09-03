@@ -18,10 +18,18 @@
       futásból kizárva, a CI külön, SOROS jobban futtatja őket (group: smtp-socket).
       Így a 11. kritériumnak van valódi, hálózati bizonyítéka anélkül, hogy a napi
       teszt-futás flaky lenne.
+
+      Ugyanez a Timescale FOLYTONOS AGGREGÁTUM tesztjeire (group: timescale). Ezek
+      `DatabaseMigrations`-szel futnak — a `refresh_continuous_aggregate` nem mehet
+      tranzakción belül —, tehát tesztenként le is bontják a sémát. A materializált nézet
+      eldobása közben a Postgres katalógusa versenyez a párhuzamos workerekkel:
+      „tuple concurrently deleted", nagyjából minden harmadik futásban. A megoldás nem az
+      újrapróbálás, hanem az, hogy ez a teszt EGYEDÜL kapja a sémát.
     -->
     <groups>
         <exclude>
             <group>smtp-socket</group>
+            <group>timescale</group>
         </exclude>
     </groups>
     <source>

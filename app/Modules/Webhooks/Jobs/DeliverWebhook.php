@@ -126,6 +126,19 @@ final class DeliverWebhook implements ShouldQueue
             return;
         }
 
+        // A PINNING a cURL `CURLOPT_RESOLVE`-jára épül. Ha a Guzzle nem cURL-handlert
+        // választ (nincs kiterjesztés), az opció CSENDBEN eltűnik, és a kérés újra feloldja a
+        // nevet — vagyis a DNS-rebinding védelem nyom nélkül megszűnne. Fail-closed.
+        if (! extension_loaded('curl')) {
+            Log::error('A webhook-kézbesítéshez cURL szükséges (IP-pinning).', [
+                'workspace_id' => $this->workspaceId,
+            ]);
+
+            $this->reschedule($delivery, 'A kézbesítő futtatókörnyezete nem támogatja az IP-pinninget.', increment: false);
+
+            return;
+        }
+
         $payload = (string) json_encode($delivery->payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         $timestamp = now()->getTimestamp();
 
@@ -214,6 +227,15 @@ final class DeliverWebhook implements ShouldQueue
     private function reschedule(WebhookDelivery $delivery, string $why, bool $increment = true): void
     {
         $attempt = (int) $delivery->attempt + ($increment ? 1 : 0);
+
+        // PLAFON. Tartósan feloldhatatlan hosztnál a sor különben ÖRÖKKE `failed` maradna, az
+        // `attempt` korlátlanul nőne, és a `2 ** ($attempt - 1)` visszalépés magas értéknél
+        // floattá csúszna. A dead-letter nem vesztés: onnan az UI-ból újrajátszható.
+        if ($increment && $attempt >= self::MAX_ATTEMPTS) {
+            $this->deadLetter($delivery, $why);
+
+            return;
+        }
 
         $delivery->forceFill([
             'status' => 'failed',

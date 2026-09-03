@@ -32,6 +32,13 @@ final readonly class ApprovedTarget
     /** @return array<string, mixed> */
     public function curlOptions(): array
     {
-        return [CURLOPT_RESOLVE => [$this->resolveEntry()]];
+        return [
+            CURLOPT_RESOLVE => [$this->resolveEntry()],
+            // PROXY KIKAPCSOLVA. A `http_proxy`/`https_proxy` környezeti változó jelenlétében
+            // a cURL a proxyhoz csatlakozna, a `CURLOPT_RESOLVE` pedig figyelmen kívül
+            // maradna — a nevet a PROXY oldaná fel, és a rebinding-ablak visszanyílna. Ez ma
+            // nem élő rés (nincs proxy-env), de egy ops-változás egyetlen sor.
+            CURLOPT_PROXY => '',
+        ];
     }
 }

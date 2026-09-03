@@ -21,7 +21,7 @@ use Illuminate\Support\Facades\DB;
  | ezt a kritériumot a VALÓDI Timescale-viselkedésen mérjük, ne mockon.
  */
 
-uses(DatabaseMigrations::class);
+uses(DatabaseMigrations::class)->group('timescale');
 
 beforeEach(function () {
     $this->workspace = Workspace::factory()->create();

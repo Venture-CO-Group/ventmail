@@ -85,7 +85,10 @@ it('a publikus URL-t átengedi, és MEGADJA a jóváhagyott címet', function ()
     // A cURL ezt kapja: a kapcsolat az ELLENŐRZÖTT címre épül, a `Host` és az SNI marad a
     // hosztnév — a HTTP-kliens így nem old fel MÁSODSZOR, és a rebinding elveszti a résést.
     expect($target->resolveEntry())->toBe('hook.example.test:443:203.0.113.77');
-    expect($target->curlOptions())->toBe([CURLOPT_RESOLVE => ['hook.example.test:443:203.0.113.77']]);
+    expect($target->curlOptions()[CURLOPT_RESOLVE])->toBe(['hook.example.test:443:203.0.113.77']);
+    // …és a PROXY kikapcsolva: a `http_proxy` környezeti változó különben kiütné a pinelést
+    // (a nevet a proxy oldaná fel), és a rebinding-ablak visszanyílna.
+    expect($target->curlOptions()[CURLOPT_PROXY])->toBe('');
 });
 
 it('a nem szabványos port is a jóváhagyott címbe kerül', function () {
@@ -139,4 +142,20 @@ it('a guard a konténer VALÓDI feloldóján is használható', function () {
 
     expect($resolver->resolve('localhost'))->not->toBeEmpty();
     expect((new WebhookUrlGuard($resolver))->allows('https://localhost/hook'))->toBeFalse();
+});
+
+it('a jóváhagyott cím PORTJA a kérés portja — némán nem térhet el', function () {
+    // A pinelés `host:port:ip` alakú. Ha a port eltérne a kérés portjától, a cURL CSENDBEN
+    // figyelmen kívül hagyná a bejegyzést, és normál DNS-feloldással menne ki — a
+    // rebinding-védelem nyom nélkül megszűnne. Ma nem térhet el (mindkettő ugyanabból a
+    // `parse_url`-ből jön), és ez a teszt ezt az invariánst rögzíti.
+    $this->resolver->map('hook.example.test', ['203.0.113.77']);
+
+    foreach (['https://hook.example.test/w' => 443, 'https://hook.example.test:8443/w' => 8443] as $url => $port) {
+        $target = $this->guard->approve($url);
+
+        expect($target->port)->toBe($port);
+        expect($target->resolveEntry())->toBe('hook.example.test:'.$port.':203.0.113.77');
+        expect($target->resolveEntry())->toContain(':'.$port.':');
+    }
 });

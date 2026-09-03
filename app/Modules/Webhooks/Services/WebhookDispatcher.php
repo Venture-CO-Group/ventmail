@@ -25,6 +25,9 @@ use Illuminate\Support\Collection;
  */
 final class WebhookDispatcher
 {
+    /** Ennyi ideje van a soron következő workernek, mielőtt a söprő parancs is ránéz. */
+    private const DISPATCH_GRACE_SECONDS = 120;
+
     /** @var array<int, Collection<int, WebhookEndpoint>> */
     private array $endpoints = [];
 
@@ -43,7 +46,11 @@ final class WebhookDispatcher
                 'message_uuid' => $event->message_uuid,
                 'payload' => $this->payload($event),
                 'status' => 'pending',
-                'next_attempt_at' => now(),
+                // A söprő parancs `next_attempt_at <= now()`-ra keres. `now()`-val az ÚJ sor
+                // azonnal esedékes, tehát ha a queue-késés nagyobb, mint a söprés periódusa,
+                // MINDEN webhook kétszer menne ki — a `delivered` ellenőrzés két párhuzamos
+                // jobnál nem zár. A türelmi idő ezt a versenyt szünteti meg.
+                'next_attempt_at' => now()->addSeconds(self::DISPATCH_GRACE_SECONDS),
             ]);
 
             DeliverWebhook::dispatch((int) $delivery->workspace_id, (string) $delivery->uuid);

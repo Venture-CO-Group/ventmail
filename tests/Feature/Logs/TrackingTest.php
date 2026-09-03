@@ -27,10 +27,31 @@ beforeEach(function () {
     $this->workspace = Workspace::factory()->create();
     app(WorkspaceContext::class)->set($this->workspace);
 
-    Domain::create(['name' => 'pelda.hu', 'status' => 'verified', 'verified_at' => now()]);
+    // A nyomkövetés a tenant SAJÁT hosztján fut (`email.<domain>`), és a token ERRE a
+    // hosztra szól. A teszt-kérés hosztja `localhost`, tehát a wizard által kért CNAME-et is
+    // erre állítjuk — így a hoszt-kötést VALÓDI kérésen mérjük, nem megkerüljük.
+    Domain::create([
+        'name' => 'pelda.hu',
+        'status' => 'verified',
+        'verified_at' => now(),
+        'tracking_domain' => 'localhost',
+        'tracking_status' => 'verified',
+        'tracking_enabled' => true,
+    ]);
 
     FakeDriver::reset();
 });
+
+function trackingToken(string $messageUuid, string $recipient, ?string $destination = null, string $host = 'localhost'): string
+{
+    return app(TrackingTokens::class)->issue(
+        (int) test()->workspace->getKey(),
+        $messageUuid,
+        $recipient,
+        $host,
+        $destination,
+    );
+}
 
 /** Amit a driver LÁTOTT — nem amit az ügyfél beküldött. */
 function sentHtml(string $recipient = 'cimzett@example.test'): string
@@ -40,6 +61,12 @@ function sentHtml(string $recipient = 'cimzett@example.test'): string
 
 function sendTracked(array $overrides = []): Message
 {
+    // A helper `transactional`-t küld, ahol a nyomkövetés ALAPÉRTELMEZÉSBEN KI van kapcsolva
+    // (a jelszó-levél olvasásának ténye nem üzleti metrika). Az itteni esetek a nyomkövetés
+    // VISELKEDÉSÉT mérik, tehát explicit bekapcsoljuk — a csatornánkénti alapértéknek külön
+    // tesztje van.
+    $overrides['options'] = array_merge(['tracking' => true], (array) ($overrides['options'] ?? []));
+
     return app(SendMessage::class)(array_merge([
         'channel' => 'transactional',
         'from_email' => 'no-reply@pelda.hu',
@@ -76,6 +103,23 @@ it('a kiment levélbe bekerül a nyitás-pixel és a becsomagolt link', function
     expect((string) ($message->options['body_html'] ?? ''))
         ->toContain('href="https://ugyfel.example.test/szamla/42"')
         ->not->toContain('/t/o/');
+});
+
+it('a TRANZAKCIÓS levél alapból NEM követett', function () {
+    // Egy jelszó-visszaállító vagy számla-levél olvasásának ténye nem üzleti metrika, hanem a
+    // címzett magánügye — és a hozzájárulása ehhez nincs meg. Aki mégis akarja, egyetlen
+    // `o:tracking=yes`-szel bekapcsolja.
+    app(SendMessage::class)([
+        'channel' => 'transactional',
+        'from_email' => 'no-reply@pelda.hu',
+        'subject' => 'Jelszó',
+        'to' => ['cimzett@example.test'],
+        'html' => '<html><body><a href="https://ugyfel.example.test/reset">Új jelszó</a></body></html>',
+        'idempotency_key' => 'tr-'.bin2hex(random_bytes(5)),
+    ]);
+
+    expect(sentHtml())->not->toContain('/t/o/');
+    expect(sentHtml())->toContain('href="https://ugyfel.example.test/reset"');
 });
 
 it('az `o:tracking=no` mindent kikapcsol', function () {
@@ -135,11 +179,7 @@ it('a nyomkövetés CÍMZETTENKÉNT más — különben nem lehetne tudni, KI ny
 it('a nyitás-pixel `opened` eseményt ír', function () {
     $message = sendTracked();
 
-    $token = app(TrackingTokens::class)->issue(
-        (int) $this->workspace->getKey(),
-        (string) $message->uuid,
-        'cimzett@example.test',
-    );
+    $token = trackingToken((string) $message->uuid, 'cimzett@example.test');
 
     $response = $this->get('/t/o/'.$token);
 
@@ -155,12 +195,7 @@ it('a nyitás-pixel `opened` eseményt ír', function () {
 it('a kattintás `clicked` eseményt ír, és a CÉLRA irányít', function () {
     $message = sendTracked();
 
-    $token = app(TrackingTokens::class)->issue(
-        (int) $this->workspace->getKey(),
-        (string) $message->uuid,
-        'cimzett@example.test',
-        'https://ugyfel.example.test/szamla/42',
-    );
+    $token = trackingToken((string) $message->uuid, 'cimzett@example.test', 'https://ugyfel.example.test/szamla/42');
 
     $this->get('/t/c/'.$token)->assertRedirect('https://ugyfel.example.test/szamla/42');
 
@@ -179,11 +214,7 @@ it('a klikk-végpont NEM nyílt átirányító', function () {
     // …és cél nélküli (nyitás-) tokennel sem irányít.
     $message = sendTracked();
 
-    $nyitasToken = app(TrackingTokens::class)->issue(
-        (int) $this->workspace->getKey(),
-        (string) $message->uuid,
-        'cimzett@example.test',
-    );
+    $nyitasToken = trackingToken((string) $message->uuid, 'cimzett@example.test');
 
     $this->get('/t/c/'.$nyitasToken)->assertNotFound();
 });
@@ -205,11 +236,7 @@ it('a token nem árulja el a címzett címét', function () {
     // A link proxykon, vírusszűrőkön és böngésző-előzményeken megy át.
     $message = sendTracked();
 
-    $token = app(TrackingTokens::class)->issue(
-        (int) $this->workspace->getKey(),
-        (string) $message->uuid,
-        'cimzett@example.test',
-    );
+    $token = trackingToken((string) $message->uuid, 'cimzett@example.test');
 
     expect($token)->not->toContain('cimzett');
     expect($token)->not->toContain('example.test');
@@ -226,11 +253,7 @@ it('a percen belüli ismétlés EGY esemény', function () {
 
     $message = sendTracked();
 
-    $token = app(TrackingTokens::class)->issue(
-        (int) $this->workspace->getKey(),
-        (string) $message->uuid,
-        'cimzett@example.test',
-    );
+    $token = trackingToken((string) $message->uuid, 'cimzett@example.test');
 
     foreach (range(1, 5) as $ignored) {
         $this->get('/t/o/'.$token)->assertOk();
@@ -248,11 +271,7 @@ it('IDEGEN workspace üzenetére nem ír eseményt', function () {
 
     // A token workspace-e nem egyezik az üzenetével: a kontextus a tokenből jön, az üzenet
     // pedig a scope-olt lekérdezésből — így nem található, és nem keletkezik esemény.
-    $token = app(TrackingTokens::class)->issue(
-        (int) $masik->getKey(),
-        (string) $message->uuid,
-        'cimzett@example.test',
-    );
+    $token = app(TrackingTokens::class)->issue((int) $masik->getKey(), (string) $message->uuid, 'cimzett@example.test', 'localhost');
 
     $this->get('/t/o/'.$token)->assertOk();
 
@@ -268,15 +287,146 @@ it('a végpont nem hagy maga után tenant-kontextust', function () {
     // tartozó kérést szennyezné.
     $message = sendTracked();
 
-    $token = app(TrackingTokens::class)->issue(
-        (int) $this->workspace->getKey(),
-        (string) $message->uuid,
-        'cimzett@example.test',
-    );
+    $token = trackingToken((string) $message->uuid, 'cimzett@example.test');
 
     app(WorkspaceContext::class)->forget();
 
     $this->get('/t/o/'.$token)->assertOk();
 
     expect(app(WorkspaceContext::class)->hasWorkspace())->toBeFalse();
+});
+
+/*
+ | A NYOMKÖVETÉS A TENANT SAJÁT HOSZTJÁN FUT.
+ |
+ | Nem kényelmi kérdés. Két dolog múlik rajta:
+ |  - a link-REPUTÁCIÓ: a domain-wizard az ügyféltől kér egy `email.<domain>` CNAME-et és
+ |    verifikálja is; ha a küldés nem használná, minden ügyfél linkje egyetlen közös hosztra
+ |    folyna össze;
+ |  - a NYÍLT ÁTIRÁNYÍTÓ: a `/t/c/…` az alkalmazás domainjén azon az originen ülne, ami a
+ |    bejelentkezett session cookie-ját szolgálja ki — és bármelyik tenant kiválthatna
+ |    magának tetszőleges célra mutató linket (küld magának egy levelet, és kiolvassa a
+ |    kimenő törzsből).
+ */
+
+it('a nyomkövetési link a DOMAIN SAJÁT hosztjára mutat', function () {
+    Domain::query()->where('name', 'pelda.hu')->update([
+        'tracking_domain' => 'email.pelda.hu',
+        'tracking_status' => 'verified',
+        'tracking_enabled' => true,
+    ]);
+
+    sendTracked();
+
+    expect(sentHtml())->toContain('https://email.pelda.hu/t/o/');
+    expect(sentHtml())->toContain('https://email.pelda.hu/t/c/');
+});
+
+it('verifikálatlan nyomkövetési domainnél NINCS nyomkövetés', function () {
+    // Fail-closed: inkább hiányzik a nyitási statisztika, mint hogy nyílt átirányítót adjunk
+    // a saját domainünkön.
+    config(['sending.tracking_base_url' => '']);
+
+    Domain::query()->where('name', 'pelda.hu')->update([
+        'tracking_domain' => 'email.pelda.hu',
+        'tracking_status' => 'pending',
+    ]);
+
+    sendTracked();
+
+    expect(sentHtml())->not->toContain('/t/o/');
+    expect(sentHtml())->not->toContain('/t/c/');
+    expect(sentHtml())->toContain('href="https://ugyfel.example.test/szamla/42"');
+});
+
+it('a token MÁS hoszton nem érvényes', function () {
+    $message = sendTracked();
+
+    // Ugyanaz a token, de `email.pelda.hu`-ra kiadva: az alkalmazás domainjén (a teszt
+    // hosztja `localhost`) nem szabad működnie.
+    $idegen = trackingToken((string) $message->uuid, 'cimzett@example.test', 'https://tamado.example.test', 'email.pelda.hu');
+
+    $this->get('/t/c/'.$idegen)->assertNotFound();
+    $this->get('/t/o/'.$idegen)->assertOk();
+
+    app(WorkspaceContext::class)->set($this->workspace);
+
+    // …és eseményt sem ír.
+    expect(MessageEvent::query()->whereIn('type', ['opened', 'clicked'])->count())->toBe(0);
+});
+
+/*
+ | AZ ÁTÍRÁS CSAK `<a>` ELEMEKET ÉRINT.
+ |
+ | A dokumentum egészére engedett `href="…"` csere olyan helyeket is eltalál, ahol a szöveg
+ | csak VÉLETLENÜL néz ki linknek — és akkor az ügyfél levele MÁSKÉPP jelenik meg, mint ahogy
+ | megírta.
+ */
+
+it('a HTML-példakódot mutató tartalmat nem írja át', function () {
+    sendTracked([
+        'html' => '<html><body><pre>&lt;a href="https://kod.example/x"&gt;</pre>'
+            .'<p>Írj ilyet: href="https://tutorial.example/x" a kódba.</p>'
+            .'<img alt="kattints: href=\'https://alt.example/x\'" src="https://kep.example/k.png">'
+            .'</body></html>',
+    ]);
+
+    expect(sentHtml())->toContain('https://kod.example/x');
+    expect(sentHtml())->toContain('https://tutorial.example/x');
+    expect(sentHtml())->toContain('https://alt.example/x');
+    expect(sentHtml())->not->toContain('/t/c/');
+});
+
+it('az IDÉZŐJEL NÉLKÜLI href-et is becsomagolja', function () {
+    // Kézzel írt HTML-ben és sok sablonmotor kimenetében gyakori; enélkül a
+    // klikk-statisztika csendben hiányos lenne rájuk.
+    sendTracked(['html' => '<html><body><a href=https://ugyfel.example.test/x>Ide</a></body></html>']);
+
+    expect(sentHtml())->toContain('/t/c/');
+    expect(sentHtml())->not->toContain('href=https://ugyfel.example.test/x');
+});
+
+it('a MALLEÁLT tokennel sem lehet duplán eseményt írni', function () {
+    // A dedup a KANONIKUS igényre kulcsol, nem a token bájtjaira. Token-kulccsal egyetlen
+    // elkapott tokenből több ezer érvényes variáns lenne gyártható, mindegyik új eseménnyel —
+    // és minden injektált esemény kimenő webhookot is indítana.
+    Cache::clear();
+
+    $message = sendTracked();
+    $token = trackingToken((string) $message->uuid, 'cimzett@example.test');
+
+    $this->get('/t/o/'.$token)->assertOk();
+
+    // Ugyanaz az igény, más bájtsor (a `Crypt` IV-t használ).
+    foreach (range(1, 5) as $ignored) {
+        $this->get('/t/o/'.trackingToken((string) $message->uuid, 'cimzett@example.test'))->assertOk();
+    }
+
+    app(WorkspaceContext::class)->set($this->workspace);
+
+    expect(MessageEvent::query()->where('type', 'opened')->count())->toBe(1);
+});
+
+it('a klikk-válasz NEM tartalmaz injektált fejlécet', function () {
+    // A `href` entitás-dekódolás után valódi CR/LF-et hordozhat. Ha az eljutna a `Location`
+    // fejlécig, a mögötte álló szöveg külön fejlécsorként jelenne meg.
+    sendTracked([
+        'html' => '<html><body><a href="https://jo.example/&#13;&#10;X-Injektalt: 1">Ide</a></body></html>',
+    ]);
+
+    // A veszélyes linket BE SEM CSOMAGOLJUK — a becsomagolás és a kibontás ugyanazt az
+    // ellenőrzést futtatja.
+    expect(sentHtml())->not->toContain('/t/c/');
+});
+
+it('a nyomkövetés NEM ad session-sütit a levélkliensnek', function () {
+    // A pixelt a címzett levélkliense (és a Gmail képproxyja) tölti be: sütit tenni a
+    // levelébe semmilyen jogalap nem fedez, és minden betöltés írna egy session-rekordot is.
+    $message = sendTracked();
+
+    $response = $this->get('/t/o/'.trackingToken((string) $message->uuid, 'cimzett@example.test'));
+
+    $response->assertOk();
+
+    expect($response->headers->getCookies())->toBe([]);
 });

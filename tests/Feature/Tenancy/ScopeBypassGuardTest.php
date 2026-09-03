@@ -32,7 +32,7 @@ it('a Tenancy modulon kívül senki nem kerüli meg a global scope-ot', function
         // A folytonos aggregátum (`message_event_daily`) NÉZET: nincs rá Eloquent-modell,
         // tehát global scope sem lehet rajta. Ezért a workspace-szűrő egyetlen helyre,
         // ebbe a szolgáltatásba van bezárva — a kontextus hiánya ott KIVÉTEL, nem
-        // „minden tenant" —, és izolációs teszt fedi (TagStatisticsTest).
+        // „minden tenant" —, és izolációs teszt fedi (AggregateRetentionTest).
         $exceptions = [
             'Logs/Services/TagStatistics.php',
             'Identity/Models/ApiKey.php',

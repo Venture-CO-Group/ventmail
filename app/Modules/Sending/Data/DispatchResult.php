@@ -49,7 +49,10 @@ final readonly class DispatchResult
          * A sorok NYERSEN érkeznek, és a naplózó redaktálja őket: a hitelesítési sor
          * base64-je maga a jelszó.
          *
-         * @var list<array{direction: string, line: string}>
+         * CÍMZETTENKÉNT kulcsolva. Egyetlen közös átirattal „A" törlése után „B" naplósorában
+         * ott maradna a `RCPT TO:<A>` — a GDPR-törlés csendben hiányos lenne.
+         *
+         * @var array<string, list<array{direction: string, line: string}>>
          */
         public array $transcript = [],
     ) {}

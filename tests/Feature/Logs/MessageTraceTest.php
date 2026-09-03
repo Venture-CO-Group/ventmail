@@ -177,3 +177,59 @@ it('a párbeszéd TÖBBI sora viszont megmarad — ez a lényege', function () {
 it('ismeretlen üzenetre null a trace', function () {
     expect(app(MessageTrace::class)->for('nincs-ilyen-uuid'))->toBeNull();
 });
+
+it('a TÖBB KÖRÖS hitelesítés minden sora kiesik', function () {
+    // Az RFC 4954 SASL-párbeszéde több körös: az `AUTH PLAIN` initial-response NÉLKÜLI
+    // alakjánál és a `CRAM-MD5`-nél a hitelesítő KÜLÖN sorban, parancsszó nélkül érkezik —
+    // ártatlan base64-nek látszik. A szabály ezért nem „az AUTH LOGIN után két sor", hanem:
+    // az AUTH után MINDEN kliens-sor, amíg a szerver véglegesen le nem zárja.
+    $message = sendTraced();
+
+    app(RecordDeliveryOutcome::class)(
+        $message,
+        'cimzett@example.test',
+        451,
+        'Temporary failure',
+        null,
+        [
+            ['direction' => 'out', 'line' => 'AUTH PLAIN'],
+            ['direction' => 'in', 'line' => '334 '],
+            ['direction' => 'out', 'line' => base64_encode("user\0user\0TITKOS789")],
+            ['direction' => 'in', 'line' => '235 2.7.0 Authentication successful'],
+            ['direction' => 'out', 'line' => 'MAIL FROM:<no-reply@pelda.hu>'],
+        ],
+    );
+
+    $naplo = json_encode(app(MessageTrace::class)->for((string) $message->uuid)['smtp']);
+
+    expect($naplo)->not->toContain(base64_encode("user\0user\0TITKOS789"));
+    expect($naplo)->not->toContain('TITKOS789');
+    // …a hitelesítés UTÁNI sor viszont megmarad: a lezárás után már nincs mit rejteni.
+    expect($naplo)->toContain('MAIL FROM');
+});
+
+it('a CRAM-MD5 válasza sem marad nyersen', function () {
+    $message = sendTraced();
+
+    app(RecordDeliveryOutcome::class)(
+        $message,
+        'cimzett@example.test',
+        451,
+        'Temporary failure',
+        null,
+        [
+            ['direction' => 'out', 'line' => 'AUTH CRAM-MD5'],
+            ['direction' => 'in', 'line' => '334 PDEyMz4='],
+            ['direction' => 'out', 'line' => base64_encode('user TITKOS000')],
+            ['direction' => 'in', 'line' => '535 5.7.8 Authentication credentials invalid'],
+            ['direction' => 'out', 'line' => 'QUIT'],
+        ],
+    );
+
+    $naplo = json_encode(app(MessageTrace::class)->for((string) $message->uuid)['smtp']);
+
+    expect($naplo)->not->toContain('TITKOS000');
+    expect($naplo)->not->toContain(base64_encode('user TITKOS000'));
+    // Az 5xx is LEZÁR: a `QUIT` már nem hitelesítő.
+    expect($naplo)->toContain('QUIT');
+});

@@ -98,6 +98,12 @@ jobs:
       - name: php artisan test (socket)
         run: php artisan test --group=smtp-socket
 
+      # A folytonos aggregátum tesztjei tesztenként újraépítik a sémát (a
+      # `refresh_continuous_aggregate` nem mehet tranzakción belül). A materializált nézet
+      # eldobása párhuzamosan katalógus-versenyt okoz — soros futásban viszont stabil.
+      - name: php artisan test (timescale)
+        run: php artisan test --group=timescale
+
       - name: composer audit
         run: composer audit --no-interaction
 

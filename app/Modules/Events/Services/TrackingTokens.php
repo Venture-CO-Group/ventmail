@@ -23,15 +23,27 @@ use JsonException;
  *
  * A `Crypt` egyszerre ad titkosítást és MAC-et, tehát a hamisított token nem fejthető meg.
  * URL-biztos alakra fordítjuk: a base64 `+/=` karakterei útvonal-szegmensben nem használhatók.
+ *
+ * A TOKEN KANONIKUS — és ez nem szépészeti kérdés.
+ *
+ * A base64 nem-szigorú dekódolása átugorja a `=` karaktert a string BELSEJÉBEN is. Mivel a
+ * `~` nálunk `=`-re fordul, egyetlen elkapott tokenből TÖBB EZER olyan variáns gyártható, ami
+ * ugyanarra az igényre fejtődik meg. Ha bármi (dedup, rate-limit, replay-védelem) a token
+ * BÁJTJAIRA kulcsol, azt ezzel meg lehet kerülni — mérve: egy `~` beszúrása 370 pozícióban
+ * érvényes maradt.
+ *
+ * Ezért a `parse()` SZIGORÚAN dekódol, ÉS visszaellenőrzi, hogy a kapott token pontosan az az
+ * alak-e, amit mi adnánk ki ugyanarra az adatra. Egy igény = egy token.
  */
 final class TrackingTokens
 {
-    public function issue(int $workspaceId, string $messageUuid, string $recipient, ?string $destination = null): string
+    public function issue(int $workspaceId, string $messageUuid, string $recipient, string $host, ?string $destination = null): string
     {
         $payload = json_encode([
             'w' => $workspaceId,
             'm' => $messageUuid,
             'r' => $recipient,
+            'h' => strtolower($host),
             'd' => $destination,
         ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
@@ -40,9 +52,17 @@ final class TrackingTokens
 
     public function parse(string $token): ?TrackingClaim
     {
+        $base64 = strtr($token, '-_~', '+/=');
+
+        // SZIGORÚ base64: a nem-szigorú változat a string belsejébe szúrt `=`-t (nálunk `~`)
+        // csendben átugorja, és a malleált token ugyanarra az igényre fejtődne meg.
+        if (base64_decode($base64, true) === false) {
+            return null;
+        }
+
         try {
             $decoded = json_decode(
-                Crypt::decryptString(strtr($token, '-_~', '+/=')),
+                Crypt::decryptString($base64),
                 true,
                 flags: JSON_THROW_ON_ERROR,
             );
@@ -52,7 +72,7 @@ final class TrackingTokens
             return null;
         }
 
-        if (! is_array($decoded) || ! isset($decoded['w'], $decoded['m'], $decoded['r'])) {
+        if (! is_array($decoded) || ! isset($decoded['w'], $decoded['m'], $decoded['r'], $decoded['h'])) {
             return null;
         }
 
@@ -60,7 +80,25 @@ final class TrackingTokens
             workspaceId: (int) $decoded['w'],
             messageUuid: (string) $decoded['m'],
             recipient: (string) $decoded['r'],
+            host: (string) $decoded['h'],
             destination: isset($decoded['d']) ? (string) $decoded['d'] : null,
         );
+    }
+
+    /**
+     * Az igény KANONIKUS kulcsa — ebből képezünk dedup- és rate-limit-kulcsot.
+     *
+     * SOHA nem a token bájtjaiból: abból több ezer érvényes variáns gyártható ugyanarra az
+     * igényre, és minden ilyen fék megkerülhető lenne.
+     */
+    public function fingerprint(TrackingClaim $claim): string
+    {
+        return hash('sha256', implode('|', [
+            $claim->workspaceId,
+            $claim->messageUuid,
+            $claim->recipient,
+            $claim->host,
+            $claim->destination ?? '',
+        ]));
     }
 }

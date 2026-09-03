@@ -579,8 +579,10 @@ components:
     Event:
       type: object
       properties:
-        id: { type: integer }
-        type: { type: string, description: 'accepted · rejected · delivered · deferred · bounced · complained · unsubscribed · opened · clicked · stored' }
+        # UUID, nem sorszám: a belső `id` tenant-független szekvencia, amiből két hívásból
+        # (09:00 → 10:00) bárki megbecsülné a platform teljes esemény-volumenét.
+        id: { type: string, format: uuid }
+        type: { $ref: '#/components/schemas/EventType' }
         message_id: { type: string }
         recipient: { type: [string, 'null'] }
         channel: { type: string }

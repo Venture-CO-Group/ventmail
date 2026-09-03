@@ -158,7 +158,9 @@ it('IDEGEN workspace végpontja nem érhető el', function () {
         'Accept' => 'application/json',
     ])->json('PATCH', '/v1/webhooks/endpoints/'.$endpoint->uuid, ['name' => 'Eltérítve']);
 
-    $valasz->assertStatus(400);
+    // 404, nem 400: az idegen végpont a hívó számára NEM LÉTEZIK. Ugyanaz a válasz, mint egy
+    // sosem létezett azonosítóra — a különbség létezés-orákulum lenne.
+    $valasz->assertStatus(404);
 
     expect($valasz->json('error.code'))->toBe('UNKNOWN_ENDPOINT');
     expect($endpoint->fresh()->name)->toBe('CRM');

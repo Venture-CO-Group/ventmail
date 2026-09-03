@@ -2,9 +2,16 @@
 
 declare(strict_types=1);
 
+use App\Modules\Domains\Models\Domain;
 use App\Modules\Events\Models\MessageEvent;
+use App\Modules\Events\Services\TrackingTokens;
+use App\Modules\Logs\Models\ErasedRecipient;
 use App\Modules\Logs\Models\SmtpTransaction;
+use App\Modules\Logs\Services\MessageLogQuery;
+use App\Modules\Sending\Actions\SendMessage;
 use App\Modules\Sending\Models\DeliveryAttempt;
+use App\Modules\Sending\Models\Message;
+use App\Modules\Sending\Models\RawMimeMessage;
 use App\Modules\Tenancy\Models\Workspace;
 use App\Modules\Tenancy\Services\WorkspaceContext;
 use App\Modules\Webhooks\Contracts\HostResolver;
@@ -260,4 +267,211 @@ it('MÁS címzett adatát nem bántja', function () {
 
     expect(MessageEvent::query()->whereNotNull('recipient')->pluck('recipient')->all())
         ->toBe(['masik@example.test']);
+});
+
+it('a törlés a napló FŐTÁBLÁJÁT is elviszi', function () {
+    // A melléktáblák kiürítése önmagában nem teljesítés: a napló-képernyő a `messages`
+    // sorból olvassa a címzettet és a tárgyat. Ha az ott marad, a törlés után is kiírjuk az
+    // érintettet — és a `MessageLogQuery` meg is találja a nevére keresve.
+    Queue::fake();
+
+    Domain::create(['name' => 'pelda.hu', 'status' => 'verified', 'verified_at' => now()]);
+
+    app(SendMessage::class)([
+        'channel' => 'transactional',
+        'from_email' => 'no-reply@pelda.hu',
+        'subject' => 'Titkos tárgy: lelet',
+        'to' => ['erintett@example.test'],
+        'html' => '<p>Bizalmas</p>',
+        'idempotency_key' => 'r-'.bin2hex(random_bytes(5)),
+    ]);
+
+    $this->artisan('logs:redact-subject', ['email' => 'erintett@example.test'])->assertSuccessful();
+
+    app(WorkspaceContext::class)->set($this->workspace);
+
+    $message = Message::query()->firstOrFail();
+
+    expect($message->recipients)->toBe([]);
+    expect($message->subject)->toBeNull();
+    expect($message->options['body_html'] ?? null)->toBeNull();
+    expect($message->redacted_at)->not->toBeNull();
+
+    // A napló-képernyő fő szűrője sem találja meg többé.
+    expect(app(MessageLogQuery::class)->paginate(['recipient' => 'erintett@example.test'])->items())->toBe([]);
+
+    // A nyers MIME sem marad meg: abban a teljes `To:` fejléc és a törzs benne van.
+    expect(RawMimeMessage::query()->count())->toBe(0);
+});
+
+it('a BATCH többi címzettjének adatát nem viszi el', function () {
+    // Egy sorban ezer cím lehet. Az érintettet kivesszük a listából; a többiek megőrzésére
+    // jogalapunk van, tehát a tárgyat és a törzset is meghagyjuk.
+    Queue::fake();
+
+    Domain::create(['name' => 'pelda.hu', 'status' => 'verified', 'verified_at' => now()]);
+
+    app(SendMessage::class)([
+        'channel' => 'transactional',
+        'from_email' => 'no-reply@pelda.hu',
+        'subject' => 'Közös levél',
+        'to' => ['erintett@example.test', 'marad@example.test'],
+        'html' => '<p>Szia</p>',
+        'idempotency_key' => 'r-'.bin2hex(random_bytes(5)),
+    ]);
+
+    $this->artisan('logs:redact-subject', ['email' => 'erintett@example.test'])->assertSuccessful();
+
+    app(WorkspaceContext::class)->set($this->workspace);
+
+    $message = Message::query()->firstOrFail();
+
+    expect($message->recipients)->toBe(['marad@example.test']);
+    expect($message->subject)->toBe('Közös levél');
+});
+
+it('a törlés NEM hagy ki sorokat, ha sok van belőlük', function () {
+    // A naiv `each()` OFFSET-tel lapoz, miközben a callback épp azt a feltételt szünteti meg,
+    // amire szűrünk: a második lap offsetje már a maradék halmazba mutat, és a sorok
+    // negyede-harmada bent marad — miközben a parancs SIKERT jelent. Egy törlési kérésnél ez
+    // a legrosszabb fajta hiba: azt mondjuk, teljesítettük.
+    $rows = [];
+
+    foreach (range(1, 2500) as $i) {
+        $rows[] = [
+            'workspace_id' => $this->workspace->getKey(),
+            'uuid' => (string) Str::uuid(),
+            'message_uuid' => (string) Str::uuid(),
+            'type' => 'delivered',
+            'recipient' => 'sok@example.test',
+            'channel' => 'transactional',
+            'tags' => '[]',
+            'variables' => '{}',
+            'payload' => '{}',
+            'occurred_at' => now(),
+        ];
+    }
+
+    foreach (array_chunk($rows, 500) as $chunk) {
+        DB::table('message_events')->insert($chunk);
+    }
+
+    $this->artisan('logs:redact-subject', ['email' => 'sok@example.test'])->assertSuccessful();
+
+    app(WorkspaceContext::class)->set($this->workspace);
+
+    expect(MessageEvent::query()->whereNotNull('recipient')->count())->toBe(0);
+});
+
+it('a törlés UTÁN a nyomkövetés sem írhatja vissza a címet', function () {
+    // A már kiküldött levélben ott a pixel, ami titkosítva hordozza a címzettet. Enélkül
+    // egyetlen betöltés visszaírná a törölt címet — és a webhookon harmadik félhez is
+    // kiküldené. Az Apple MPP és a Gmail képproxyja ezt magától, felhasználói szándék nélkül
+    // megteszi: a törlés csak addig tartana, amíg a levél a postafiókban van.
+    Queue::fake();
+
+    Domain::create([
+        'name' => 'pelda.hu', 'status' => 'verified', 'verified_at' => now(),
+        'tracking_domain' => 'localhost', 'tracking_status' => 'verified', 'tracking_enabled' => true,
+    ]);
+
+    $message = app(SendMessage::class)([
+        'channel' => 'transactional',
+        'from_email' => 'no-reply@pelda.hu',
+        'subject' => 'Számla',
+        'to' => ['erintett@example.test'],
+        'html' => '<html><body><p>Szia</p></body></html>',
+        'idempotency_key' => 'r-'.bin2hex(random_bytes(5)),
+    ])->message;
+
+    $token = app(TrackingTokens::class)->issue(
+        (int) $this->workspace->getKey(),
+        (string) $message->uuid,
+        'erintett@example.test',
+        'localhost',
+    );
+
+    $this->artisan('logs:redact-subject', ['email' => 'erintett@example.test'])->assertSuccessful();
+
+    // A pixel VÁLASZA ugyanaz marad (a levélkliens ne mutasson törött képet)…
+    $this->get('/t/o/'.$token)->assertOk();
+
+    app(WorkspaceContext::class)->set($this->workspace);
+
+    // …de új esemény NEM keletkezik.
+    expect(MessageEvent::query()->whereNotNull('recipient')->count())->toBe(0);
+    expect(ErasedRecipient::erased('erintett@example.test'))->toBeTrue();
+});
+
+it('a törlési parancs AUDITÁLT, és a cím maga nem kerül az auditba', function () {
+    // Visszavonhatatlan, tenanteken átnyúló admin-művelet (golden rule 11). Egy hatósági
+    // kérdésre — „mikor és mit töröltek?" — enélkül nincs válasz; és fordítva: egy téves
+    // futtatás után sincs mit kimutatni.
+    MessageEvent::create([
+        'message_uuid' => (string) Str::uuid(),
+        'type' => 'delivered',
+        'recipient' => 'erintett@example.test',
+        'channel' => 'transactional',
+        'tags' => [],
+    ]);
+
+    $this->artisan('logs:redact-subject', ['email' => 'erintett@example.test'])->assertSuccessful();
+
+    $sor = DB::table('audit_logs')->where('action', 'logs.redact_subject')->first();
+
+    expect($sor)->not->toBeNull();
+
+    $context = json_decode((string) $sor->context, true);
+
+    expect($context['recipient_hash'])->toBe(ErasedRecipient::hash('erintett@example.test'));
+    expect($context['affected']['events'])->toBe(1);
+    // A CÍM maga nem kerül bele: különben az audit-napló lenne a legérzékenyebb címlistánk.
+    expect((string) $sor->context)->not->toContain('erintett@example.test');
+});
+
+it('a SZÁRAZ FUTÁS megszámol, de nem ír', function () {
+    MessageEvent::create([
+        'message_uuid' => (string) Str::uuid(),
+        'type' => 'delivered',
+        'recipient' => 'erintett@example.test',
+        'channel' => 'transactional',
+        'tags' => [],
+    ]);
+
+    $this->artisan('logs:redact-subject', ['email' => 'erintett@example.test', '--dry-run' => true])
+        ->expectsOutputToContain('SZÁRAZ FUTÁS')
+        ->assertSuccessful();
+
+    app(WorkspaceContext::class)->set($this->workspace);
+
+    expect(MessageEvent::query()->whereNotNull('recipient')->count())->toBe(1);
+    expect(DB::table('audit_logs')->where('action', 'logs.redact_subject')->count())->toBe(0);
+    expect(ErasedRecipient::query()->count())->toBe(0);
+});
+
+it('a --workspace kapcsoló NEM nyúl a másik tenanthoz', function () {
+    $masik = Workspace::factory()->create();
+
+    foreach ([$this->workspace, $masik] as $workspace) {
+        app(WorkspaceContext::class)->set($workspace);
+
+        MessageEvent::create([
+            'message_uuid' => (string) Str::uuid(),
+            'type' => 'delivered',
+            'recipient' => 'erintett@example.test',
+            'channel' => 'transactional',
+            'tags' => [],
+        ]);
+    }
+
+    $this->artisan('logs:redact-subject', [
+        'email' => 'erintett@example.test',
+        '--workspace' => $this->workspace->uuid,
+    ])->assertSuccessful();
+
+    app(WorkspaceContext::class)->set($this->workspace);
+    expect(MessageEvent::query()->whereNotNull('recipient')->count())->toBe(0);
+
+    app(WorkspaceContext::class)->set($masik);
+    expect(MessageEvent::query()->whereNotNull('recipient')->count())->toBe(1);
 });
