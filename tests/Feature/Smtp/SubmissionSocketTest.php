@@ -211,7 +211,6 @@ it('a tarpitolt kapcsolat NEM égeti a CPU-t és nem állítja meg a többit', f
     expect($elapsed)->toBeGreaterThan(0.1, "a tick() {$elapsed} mp alatt tért vissza: a tarpitolt socket a select-halmazban maradt");
 })->group('smtp-socket');
 
-
 it('a listener EL SEM INDUL, ha a puffer-plafon nem fér a memory_limitbe', function () {
     // A `php:8.3-fpm-alpine` nem szállít aktív `php.ini`-t: az érvényes limit a beépített
     // 128 MB. A korábbi 256 MB-os plafon így SOHA nem sült volna el — a PHP OOM-fatal
