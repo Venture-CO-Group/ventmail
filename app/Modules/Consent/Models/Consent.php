@@ -6,6 +6,7 @@ namespace App\Modules\Consent\Models;
 
 use App\Modules\Audit\Concerns\Auditable;
 use App\Modules\Audit\Services\KeyedHash;
+use App\Modules\Sending\Services\DomainNormalizer;
 use App\Modules\Tenancy\Concerns\BelongsToWorkspace;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
@@ -41,7 +42,7 @@ final class Consent extends Model
 
     public function setEmailAttribute(?string $value): void
     {
-        $normalized = strtolower(trim((string) $value));
+        $normalized = DomainNormalizer::listKey(trim((string) $value));
 
         $this->attributes['email'] = $normalized;
         $this->attributes['email_hash'] = KeyedHash::of('email', $normalized);

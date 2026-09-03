@@ -64,7 +64,20 @@ return [
     // IP-jéről érkezik, tehát a per-IP fékek egyetlen közös vödörré válnak — nem védenek,
     // viszont egyetlen rossz szomszéd mindenkit kizár. Bekapcsolva a fejléc KÖTELEZŐ:
     // hiányában bontunk (különben a kliens maga hamisíthatná a forrás-IP-t).
-    'proxy_protocol' => (bool) env('SMTP_PROXY_PROTOCOL', false),
+    'proxy_protocol' => [
+        'enabled' => (bool) env('SMTP_PROXY_PROTOCOL', false),
+
+        // CSAK EZEKTŐL a forrásoktól fogadjuk el a fejlécet (CIDR vagy pontos IP).
+        //
+        // Enélkül a feature NETTÓ ROMLÁS: aki közvetlenül eléri a portot (LB megkerülése),
+        // kapcsolatonként új, hamis forrás-IP-t hazudna — és mivel a brute-force számláló
+        // IP-kulcsú, a tiltás SOHA nem telne be. A PROXY protocol specifikációja is ezt
+        // követeli: a fejléc csak allowlistázott forrásról hihető.
+        'trusted_sources' => array_values(array_filter(array_map(
+            'trim',
+            explode(',', (string) env('SMTP_PROXY_TRUSTED_SOURCES', ''))
+        ))),
+    ],
 
     // Brute-force fék a hitelesítőn — processzek között osztott (Redis).
     'auth_throttle' => [

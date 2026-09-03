@@ -6,6 +6,7 @@ namespace App\Modules\Suppression\Models;
 
 use App\Modules\Audit\Concerns\Auditable;
 use App\Modules\Audit\Services\KeyedHash;
+use App\Modules\Sending\Services\DomainNormalizer;
 use App\Modules\Tenancy\Concerns\BelongsToWorkspaceOrPlatform;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
@@ -47,7 +48,7 @@ final class Suppression extends Model
      */
     public function setEmailAttribute(?string $value): void
     {
-        $normalized = strtolower(trim((string) $value));
+        $normalized = DomainNormalizer::listKey(trim((string) $value));
 
         $this->attributes['email'] = $normalized;
         $this->attributes['email_hash'] = KeyedHash::of('email', $normalized);

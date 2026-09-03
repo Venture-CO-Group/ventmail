@@ -144,8 +144,14 @@ final class SubmissionIngest implements SubmissionSink
         $limit = SmtpCredential::findByUuid($principal->credentialUuid)?->rate_limit_per_minute
             ?? (int) config('smtp.rate_limit.per_credential_per_minute');
 
-        if ((int) $limit <= 0) {
-            return true;
+        // A 0 TILTÁS, nem „korlátlan": a mező tömegesen kitölthető, és egy elgépelt nulla
+        // csendben kinyitná a keretet — a szigorúbb olvasat a biztonságos.
+        if ((int) $limit === 0) {
+            return false;
+        }
+
+        if ((int) $limit < 0) {
+            return true; // negatív = szándékos korlátlan (operátori beállítás)
         }
 
         $key = 'smtp-credential-rate:'.$principal->credentialUuid.':'.now()->format('YmdHi');

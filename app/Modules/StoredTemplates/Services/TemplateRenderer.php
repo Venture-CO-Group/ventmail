@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Modules\StoredTemplates\Services;
 
+use App\Modules\Sending\Services\DomainNormalizer;
+
 /**
  * Merge-tag behelyettesítés (`{{ változó }}`).
  *
@@ -53,10 +55,13 @@ final class TemplateRenderer
         $normalized = [];
 
         foreach ($recipientVariables as $email => $values) {
-            $normalized[strtolower(trim((string) $email))] = $values;
+            // KANONIKUS kulcs: a hívó unicode alakban adja meg a címet, a mentett címzett
+            // viszont punycode domainnel szerepel — enélkül a személyre szabás IDN-címnél
+            // némán elveszne (mindenki üres behelyettesítést kapna).
+            $normalized[DomainNormalizer::listKey(trim((string) $email))] = $values;
         }
 
-        $variables = array_merge($shared, (array) ($normalized[strtolower(trim($recipient))] ?? []));
+        $variables = array_merge($shared, (array) ($normalized[DomainNormalizer::listKey(trim($recipient))] ?? []));
         $variables['recipient_email'] = $recipient;
 
         // EGYETLEN PASS mindkét szintaxisra. Korábban a `%recipient.x%` EREDMÉNYE újra

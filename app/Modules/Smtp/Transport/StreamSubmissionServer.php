@@ -11,7 +11,9 @@ use App\Modules\Smtp\Models\SmtpCredential;
 use App\Modules\Smtp\Protocol\SessionState;
 use App\Modules\Smtp\Protocol\SmtpSession;
 use App\Modules\Smtp\Services\AuthThrottle;
+use Illuminate\Support\Facades\Log;
 use RuntimeException;
+use Symfony\Component\HttpFoundation\IpUtils;
 use Throwable;
 
 /**
@@ -226,9 +228,12 @@ final class StreamSubmissionServer
 
         // Forrás-IP-nkénti plafon: enélkül EGY forrás lefoglalja mind a 200 slotot, és
         // percenként egy bájttal határtalanul tartja őket (lassú-loris).
-        $fromIp = count(array_filter($this->connections, static fn (array $c) => $c['ip'] === $ip));
-
-        if ($fromIp >= (int) config('smtp.limits.max_connections_per_ip')) {
+        //
+        // PROXY protocol mellett ITT még a BALANCER IP-jét látjuk — a plafont ilyenkor a
+        // fejléc megérkezése UTÁN érvényesítjük (`consumeProxyHeader`). Ha itt ütnénk, a
+        // 11. párhuzamos kapcsolat kapna 421-et, függetlenül attól, hány ügyféltől jött:
+        // ön-DoS a saját LB-nk mögött, miközben a valódi forrásra semmi nem vonatkozna.
+        if (! (bool) config('smtp.proxy_protocol.enabled') && $this->exceedsPerIpLimit($ip)) {
             @fwrite($socket, "421 4.7.0 Too many connections from your address\r\n");
             @fclose($socket);
 
@@ -269,7 +274,7 @@ final class StreamSubmissionServer
             'handshakeStarted' => 0.0,
             'readableAfter' => 0.0,
             // PROXY protocol: amíg a fejléc meg nem jött, a kapcsolat még „névtelen".
-            'awaitingProxyHeader' => (bool) config('smtp.proxy_protocol'),
+            'awaitingProxyHeader' => (bool) config('smtp.proxy_protocol.enabled'),
         ];
 
         // PROXY protocol: a köszöntés és a TLS is VÁR a fejlécre — a valódi forrás-IP
@@ -301,6 +306,17 @@ final class StreamSubmissionServer
     {
         $connection = $this->connections[$id];
 
+        // A fejléc CSAK megbízható forrástól hihető. Enélkül bárki, aki közvetlenül eléri a
+        // portot, kapcsolatonként új forrás-IP-t hazudna — és mivel a brute-force számláló
+        // IP-kulcsú, a tiltás soha nem telne be: a feature a fék KIKAPCSOLÁSA lenne.
+        if (! $this->isTrustedProxy($connection['ip'])) {
+            Log::warning('PROXY fejléc nem megbízható forrásból', ['ip' => $connection['ip']]);
+
+            $this->close($id);
+
+            return false;
+        }
+
         try {
             $header = ProxyProtocolHeader::parse($connection['buffer']);
         } catch (InvalidProxyHeader $e) {
@@ -318,14 +334,22 @@ final class StreamSubmissionServer
             return false; // még nem jött meg a teljes fejléc
         }
 
-        $connection['ip'] = $header->sourceIp;
+        // LOCAL / UNKNOWN: nincs továbbított forrás — a socket peer-címe marad.
+        $connection['ip'] = $header->local ? $connection['ip'] : $header->sourceIp;
         $connection['buffer'] = substr($connection['buffer'], $header->consumedBytes);
         $connection['awaitingProxyHeader'] = false;
 
         $this->connections[$id] = $connection;
 
-        // A fékek MOST már a valódi forrásra vonatkoznak — innentől számít a plafon.
-        if ($this->throttle->tooManyFailures($header->sourceIp)) {
+        // A fékek MOST már a VALÓDI forrásra vonatkoznak — innentől számít a plafon.
+        if ($this->exceedsPerIpLimit($connection['ip'], $id)) {
+            $this->write($connection['socket'], '421 4.7.0 Too many connections from your address');
+            $this->close($id);
+
+            return false;
+        }
+
+        if ($this->throttle->tooManyFailures($connection['ip'])) {
             $this->write($connection['socket'], '421 4.7.0 Too many authentication failures from this address');
             $this->close($id);
 
@@ -344,6 +368,41 @@ final class StreamSubmissionServer
         $this->write($connection['socket'], $connection['session']->greeting()->toLine());
 
         return true;
+    }
+
+    /** Túllépi-e a forrás a párhuzamos kapcsolatok plafonját? */
+    private function exceedsPerIpLimit(string $ip, ?int $exceptId = null): bool
+    {
+        $count = 0;
+
+        foreach ($this->connections as $id => $connection) {
+            if ($id !== $exceptId && ($connection['ip'] ?? null) === $ip) {
+                $count++;
+            }
+        }
+
+        return $count >= (int) config('smtp.limits.max_connections_per_ip');
+    }
+
+    /** Megbízható-e a kapcsolat forrása (LB) — CIDR-listából. */
+    private function isTrustedProxy(string $ip): bool
+    {
+        $sources = (array) config('smtp.proxy_protocol.trusted_sources');
+
+        if ($sources === []) {
+            // Bekapcsolt PROXY protocol ÜRES allowlisttel: fail-closed. Ez konfigurációs
+            // hiba, nem alapértelmezés — inkább ne fogadjunk kapcsolatot, mint hamisítható
+            // forrás-IP-vel dolgozzunk.
+            return false;
+        }
+
+        foreach ($sources as $source) {
+            if (IpUtils::checkIp($ip, (string) $source)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

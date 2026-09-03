@@ -12,6 +12,8 @@ use App\Modules\Smtp\Protocol\SmtpSession;
 use App\Modules\Smtp\Services\CredentialAuthenticator;
 use App\Modules\Smtp\Transport\InvalidProxyHeader;
 use App\Modules\Smtp\Transport\ProxyProtocolHeader;
+use App\Modules\Smtp\Transport\StreamSubmissionServer;
+use App\Modules\Suppression\Models\Suppression;
 use App\Modules\Tenancy\Models\Workspace;
 use App\Modules\Tenancy\Services\WorkspaceContext;
 use Illuminate\Database\QueryException;
@@ -170,11 +172,72 @@ it('a hiányzó vagy hamis fejléc ELUTASÍTÁS — nem esünk vissza a socket I
     // Fail-closed: különben a kliens maga dönthetné el, mikor küld PROXY fejlécet, és a
     // hiánya épp a per-IP fékek kikapcsolását jelentené.
     expect(fn () => ProxyProtocolHeader::parse("EHLO kliens.test\r\n"))->toThrow(InvalidProxyHeader::class);
-    expect(fn () => ProxyProtocolHeader::parse("PROXY UNKNOWN\r\n"))->toThrow(InvalidProxyHeader::class);
+    // A `PROXY UNKNOWN` és a v2 LOCAL a load balancer SAJÁT kapcsolata (health check):
+    // ezeket eldobni azt jelentené, hogy az LB kiveszi a backendet a rotációból. Nincs
+    // továbbított forrás, tehát a socket peer-címe marad érvényes.
+    $unknown = ProxyProtocolHeader::parse("PROXY UNKNOWN\r\n");
+
+    expect($unknown?->local)->toBeTrue();
+    expect($unknown?->sourceIp)->toBe('');
     expect(fn () => ProxyProtocolHeader::parse("PROXY TCP4 nem-ip 10.0.0.1 1 2\r\n"))->toThrow(InvalidProxyHeader::class);
 });
 
 it('a félbe érkezett fejlécre VÁRUNK, nem hibázunk', function () {
     // A TCP darabolhat: a fél fejléc nem hiba, csak még nincs kész.
     expect(ProxyProtocolHeader::parse('PROXY TCP4 203.0.113.7 10.0'))->toBeNull();
+});
+
+it('a PROXY fejléc CSAK megbízható forrásból hihető', function () {
+    // Enélkül aki közvetlenül eléri a portot (LB megkerülése), kapcsolatonként új forrás-IP-t
+    // hazudna — és mivel a brute-force számláló IP-kulcsú, a tiltás SOHA nem telne be:
+    // a feature a fék KIKAPCSOLÁSA lenne.
+    config(['smtp.proxy_protocol.enabled' => true, 'smtp.proxy_protocol.trusted_sources' => ['10.0.0.0/8']]);
+
+    $server = app(StreamSubmissionServer::class);
+    $trusted = new ReflectionMethod($server, 'isTrustedProxy');
+
+    expect($trusted->invoke($server, '10.1.2.3'))->toBeTrue();
+    expect($trusted->invoke($server, '203.0.113.9'))->toBeFalse();
+
+    // ÜRES allowlist bekapcsolt protokoll mellett: fail-closed (konfigurációs hiba).
+    config(['smtp.proxy_protocol.trusted_sources' => []]);
+
+    expect($trusted->invoke($server, '10.1.2.3'))->toBeFalse();
+});
+
+it('a rövid PROXY-töredékre VÁRUNK, nem bontunk', function () {
+    // A TCP darabolhat: a `PRO` még lehet érvényes fejléc eleje. Korábban ez legitim
+    // kapcsolatot dobott el.
+    foreach (['P', 'PRO', 'PROXY'] as $fragment) {
+        expect(ProxyProtocolHeader::parse($fragment))->toBeNull();
+    }
+});
+
+it('az IDN-címre tiltott cím UNICODE alakban is tiltva marad', function () {
+    // REGRESSZIÓ-TESZT: a küldési út kanonikalizál, a suppression-lista viszont sokáig
+    // nyers `strtolower`-rel dolgozott — így a bérlő `user@példa.hu` tiltása után a
+    // `user@xn--plda-bpa.hu` címre KIMENT volna a levél.
+    Suppression::create([
+        'email' => 'user@példa.hu',
+        'reason' => 'unsubscribe',
+    ]);
+
+    Domain::create([
+        'name' => DomainNormalizer::canonical('példa.hu'),
+        'status' => 'verified',
+        'verified_at' => now(),
+    ]);
+
+    $codes = SmtpConversation::play(test()->username, test()->password, [
+        'MAIL FROM:<no-reply@példa.hu>',
+        'RCPT TO:<user@xn--plda-bpa.hu>',
+        'DATA',
+        'From: no-reply@példa.hu',
+        '',
+        'Szia',
+        '.',
+    ], test()->workspace);
+
+    expect(end($codes))->toBe(550);
+    expect(Message::firstOrFail()->reason)->toBe('SUPPRESSED');
 });

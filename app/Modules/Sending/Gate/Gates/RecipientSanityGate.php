@@ -88,11 +88,32 @@ final class RecipientSanityGate implements Gate
         $local = substr($address, 0, $position);
         $domain = DomainNormalizer::canonical(substr($address, $position + 1));
 
-        if (strlen($local) > 64 || preg_match('/[\x00-\x20\x7f<>,;:"\\@]/', $local) === 1) {
+        if ($domain === '') {
             return false;
         }
 
-        // A domaint ASCII alakban a beépített validátor nézi meg (pontok, hossz, TLD).
+        // ASCII helyi rész: a BEÉPÍTETT, szigorú validátor dönt (pontfutam, vezető pont,
+        // komment, escape — mind az ő dolga). A saját szabály csak ott lazítana, ahol nem
+        // kell: az `SMTPUTF8` a helyi részt érinti, nem a szintaxis szigorát.
+        if (mb_check_encoding($local, 'ASCII')) {
+            return filter_var($local.'@'.$domain, FILTER_VALIDATE_EMAIL) !== false;
+        }
+
+        // NEMZETKÖZI (RFC 6531) helyi rész: a `filter_var` ASCII-t vár, tehát itt saját
+        // szabály kell. Kizárjuk, ami a protokollt vagy a fejléceket törné, és az ASCII
+        // szintaxis alapszabályait is megköveteljük (nincs vezető/záró vagy dupla pont).
+        if (strlen($local) > 64 || $local === '') {
+            return false;
+        }
+
+        if (preg_match('/[\x00-\x20\x7f<>(),;:"\\@\[\]]/u', $local) === 1) {
+            return false;
+        }
+
+        if (str_starts_with($local, '.') || str_ends_with($local, '.') || str_contains($local, '..')) {
+            return false;
+        }
+
         return filter_var('validation-probe@'.$domain, FILTER_VALIDATE_EMAIL) !== false;
     }
 }

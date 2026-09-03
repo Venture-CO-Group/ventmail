@@ -23,6 +23,13 @@ final readonly class ProxyProtocolHeader
     private function __construct(
         public string $sourceIp,
         public int $consumedBytes,
+        /**
+         * `true`, ha a proxy SAJÁT kapcsolatáról van szó (health check).
+         *
+         * Ilyenkor nincs továbbított forrás — a socket peer-címe marad érvényes. Ezeket
+         * eldobni azt jelentené, hogy a load balancer kiveszi a backendet a rotációból.
+         */
+        public bool $local = false,
     ) {}
 
     /**
@@ -34,8 +41,11 @@ final readonly class ProxyProtocolHeader
      */
     public static function parse(string $buffer): ?self
     {
-        if (str_starts_with($buffer, 'PROXY ')) {
-            return self::parseText($buffer);
+        // A TCP DARABOLHAT: a néhány bájtos kezdet még lehet érvényes fejléc eleje —
+        // ilyenkor VÁRUNK, nem bontunk. (Korábban a `PRO` töredék legitim kapcsolatot
+        // dobott el.)
+        if (str_starts_with('PROXY ', substr($buffer, 0, 6))) {
+            return strlen($buffer) >= 6 ? self::parseText($buffer) : null;
         }
 
         if (str_starts_with(self::V2_SIGNATURE, substr($buffer, 0, strlen(self::V2_SIGNATURE)))) {
@@ -58,9 +68,10 @@ final readonly class ProxyProtocolHeader
 
         $parts = explode(' ', substr($buffer, 0, $end));
 
-        // `PROXY UNKNOWN` — a proxy nem tudja a forrást; ilyenkor nincs mit hinni.
+        // `PROXY UNKNOWN` — a proxy nem tudja a forrást (health check is ilyen):
+        // a socket peer-címe marad érvényes.
         if (($parts[1] ?? '') === 'UNKNOWN') {
-            throw new InvalidProxyHeader('A proxy nem adta meg a forrás-címet (UNKNOWN).');
+            return new self('', $end + 2, local: true);
         }
 
         if (count($parts) !== 6 || ! in_array($parts[1], ['TCP4', 'TCP6'], true)) {
@@ -98,9 +109,10 @@ final readonly class ProxyProtocolHeader
             throw new InvalidProxyHeader('Nem támogatott PROXY protocol verzió.');
         }
 
-        // LOCAL (health check): a kapcsolat a proxy sajátja, nincs továbbított forrás.
+        // LOCAL (health check): a kapcsolat a proxy sajátja, nincs továbbított forrás —
+        // a socket peer-címe marad. Allowlist mögött ez biztonságos.
         if (($versionCommand & 0x0F) === 0) {
-            throw new InvalidProxyHeader('LOCAL parancs: nincs továbbított forrás-cím.');
+            return new self('', 16 + $length, local: true);
         }
 
         $address = substr($buffer, 16, $length);
