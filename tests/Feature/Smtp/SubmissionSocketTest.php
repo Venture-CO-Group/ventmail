@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use App\Modules\Smtp\Data\ChannelSecurity;
+use App\Modules\Smtp\Protocol\SmtpSession;
 use App\Modules\Smtp\Services\AuthThrottle;
 use App\Modules\Smtp\Testing\FakeSmtpAuthenticator;
 use App\Modules\Smtp\Testing\RecordingSink;
@@ -31,6 +33,12 @@ use App\Modules\Smtp\Transport\StreamSubmissionServer;
  * @param  list<string>  $script  a kliens sorai
  * @return list<string> a szerver válaszai
  */
+beforeEach(function () {
+    // A teszt-futás `memory_limit`-je 128 MB: az éles alapérték (128 MB puffer-plafon) nem
+    // férne bele az indulási ellenőrzésbe. A plafon LOGIKÁJÁT külön teszt méri.
+    config(['smtp.limits.max_buffered_bytes' => 1_048_576]);
+});
+
 function socketTestPassword(): string
 {
     static $password = null;
@@ -147,4 +155,77 @@ it('a félbehagyott TLS-handshake NEM viszi el a listenert', function () {
 
     // És a listener a következő kapcsolatot is kiszolgálja.
     expect(implode('', converse(['EHLO ujabb-kliens.test', 'QUIT'])))->toContain('250');
+})->group('smtp-socket');
+
+it('a tarpitolt kapcsolat NEM égeti a CPU-t és nem állítja meg a többit', function () {
+    // A `usleep` helyett kapcsolat-szintű időbélyeg van — de ha a tarpitolt socket bent
+    // maradna a select olvasási halmazában, a ciklus minden körben azonnal visszatérne
+    // (mérve ~100% mag). A fék maga lett volna a DoS.
+    $server = new StreamSubmissionServer(
+        new FakeSmtpAuthenticator(['vm-teszt' => socketTestPassword()]),
+        new RecordingSink,
+        app(AuthThrottle::class),
+    );
+
+    $reflection = new ReflectionClass($server);
+    $connections = $reflection->getProperty('connections');
+
+    // Egy „tarpitolt" bejegyzés a jövőbe állított időbélyeggel.
+    [$a, $b] = stream_socket_pair(STREAM_PF_UNIX, STREAM_SOCK_STREAM, 0);
+
+    $connections->setValue($server, [
+        (int) $a => [
+            'socket' => $a,
+            'session' => new SmtpSession(
+                new FakeSmtpAuthenticator([]),
+                new RecordingSink,
+                ChannelSecurity::plaintext(),
+                'smtp.test',
+            ),
+            'buffer' => '',
+            'touched' => microtime(true),
+            'started' => microtime(true),
+            'ip' => '127.0.0.1',
+            'handshaking' => false,
+            'handshakeStarted' => 0.0,
+            'readableAfter' => microtime(true) + 5,
+        ],
+    ]);
+
+    // Adat a dróton, amit NEM olvasunk el: ha a socket a select-halmazban lenne, a
+    // következő `tick()` azonnal visszatérne.
+    fwrite($b, "NOOP\r\n");
+
+    $tick = $reflection->getMethod('tick');
+    $server2 = @stream_socket_server('tcp://127.0.0.1:0');
+
+    $start = microtime(true);
+    $tick->invoke($server, $server2, false);
+    $elapsed = microtime(true) - $start;
+
+    fclose($a);
+    fclose($b);
+    fclose($server2);
+
+    // A select a 200 ms-os időkorlátjáig vár — nem pörög.
+    expect($elapsed)->toBeGreaterThan(0.1, "a tick() {$elapsed} mp alatt tért vissza: a tarpitolt socket a select-halmazban maradt");
+})->group('smtp-socket');
+
+
+it('a listener EL SEM INDUL, ha a puffer-plafon nem fér a memory_limitbe', function () {
+    // A `php:8.3-fpm-alpine` nem szállít aktív `php.ini`-t: az érvényes limit a beépített
+    // 128 MB. A korábbi 256 MB-os plafon így SOHA nem sült volna el — a PHP OOM-fatal
+    // előbb jött, azt pedig try/catch nem fogja, tehát a listener meghalt.
+    config(['smtp.limits.max_buffered_bytes' => 512 * 1024 * 1024]);
+
+    $server = new StreamSubmissionServer(
+        new FakeSmtpAuthenticator([]),
+        new RecordingSink,
+        app(AuthThrottle::class),
+    );
+
+    config(['smtp.allowed_ports' => [2587]]);
+
+    expect(fn () => $server->serve('127.0.0.1', 2587, false, fn () => true))
+        ->toThrow(RuntimeException::class);
 })->group('smtp-socket');

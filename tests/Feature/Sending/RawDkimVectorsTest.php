@@ -219,6 +219,8 @@ it('a MÁSODIK From beszúrása érvényteleníti az aláírást (over-signing)'
  */
 
 it('az aláírás bájtra egyezik a független implementációval igazolt vektorral', function () {
+    // A bemenet SZÁNDÉKOSAN tartalmaz foldolt fejlécet, sorvégi whitespace-t és több záró
+    // üres sort: ezek pont azok az alakok, amiken a kanonikalizálás elcsúszhat.
     $raw = "From: no-reply@pelda.hu\r\nTo: cimzett@example.test\r\nSubject: Teszt\r\n"
         ."Date: Wed, 03 Sep 2026 10:00:00 +0200\r\nMessage-ID: <a@pelda.hu>\r\n\r\nSzia\r\n";
 

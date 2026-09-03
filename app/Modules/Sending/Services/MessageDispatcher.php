@@ -418,10 +418,7 @@ final class MessageDispatcher
             // a kézbesítés fontosabb), de HANGOSAN naplózzuk — a DKIM hiánya
             // kézbesíthetőségi hiba, amit az A6 suite jelez majd a felületen is.
             if ($domain !== null) {
-                Log::warning('DKIM-kulcs nélküli domainről ment ki levél', [
-                    'domain' => $domain->name,
-                    'message_uuid' => $message->uuid,
-                ]);
+                $this->recordUnsigned($message, $domain->name, 'no_signing_key');
             }
 
             return $rendered;
@@ -439,12 +436,8 @@ final class MessageDispatcher
                     $signed = $this->rawDkim->sign($raw->raw, $domain);
                 } catch (Throwable $e) {
                     // Ugyanaz a szabály, mint a strukturált ágon: nem állítjuk meg a
-                    // küldést, de hangosan naplózzuk.
-                    Log::warning('A nyers levél DKIM-aláírása nem készült el', [
-                        'domain' => $domain->name,
-                        'message_uuid' => $message->uuid,
-                        'error' => $e->getMessage(),
-                    ]);
+                    // küldést, de NYOMOT hagyunk.
+                    $this->recordUnsigned($message, $domain->name, 'signing_failed', $e->getMessage());
 
                     return $rendered;
                 }
@@ -469,6 +462,29 @@ final class MessageDispatcher
         }
 
         return $rendered;
+    }
+
+    /**
+     * Aláíratlanul kiment levél — NYOMMAL.
+     *
+     * A néma `Log::warning` kevés: az aláíratlan levél DMARC-bukást és IP-pool
+     * reputációromlást okoz, tehát az üzenet-trace-ben (A3) és a kézbesíthetőségi
+     * suite-ban (A6) is látszania kell. A nyom az ÜZENETEN van, nem külön eseményben:
+     * új esemény-TÍPUST nem vezetünk be (az esemény-lánc a kézbesítés állapotait írja le,
+     * és a webhookok arra épülnek), a `dkim_unsigned` viszont lekérdezhető és riasztható.
+     */
+    private function recordUnsigned(Message $message, string $domain, string $reason, ?string $detail = null): void
+    {
+        Log::warning('Aláíratlan levél ment ki', [
+            'domain' => $domain,
+            'message_uuid' => $message->uuid,
+            'reason' => $reason,
+            'error' => $detail,
+        ]);
+
+        $message->forceFill([
+            'options' => [...$message->options, 'dkim_unsigned' => $reason],
+        ])->save();
     }
 
     /** A feladó domainje — a DKIM-kulcs gazdája. */

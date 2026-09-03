@@ -83,7 +83,7 @@ final class MimeParser
         // `From: <ceo@bank.example> <hello@sajat.hu>` alakból nálunk a MÁSODIK cím lett a
         // feladó (tehát a domain-kapu és a hitelesítő domain-kötése is átment), a fogadók
         // egy része viszont az ELSŐT jeleníti meg — feladó-hamisítás a saját DKIM-ünkkel.
-        if (substr_count($from, '<') > 1 || substr_count($from, '@') > 1) {
+        if ($this->hasMultipleMailboxes($from)) {
             throw new InvalidArgumentException(
                 'MIME_MALFORMED|A `From` fejléc pontosan egy feladót tartalmazhat.'
             );
@@ -179,10 +179,32 @@ final class MimeParser
         return $headers;
     }
 
+    /**
+     * Több feladót rejt-e a fejléc?
+     *
+     * A számolás CSAK az idézőjeleken (és a kódolt szavakon) kívüli részre vonatkozik: a
+     * `"support@pelda.hu" <support@pelda.hu>` a világ legelterjedtebb display-name
+     * konvenciója (a megjelenítendő név maga a cím), és a naiv `@`-számolás ezt is
+     * elutasította volna — minden ilyen ügyfélnek 550-et adva a nyers MIME API-n ÉS az
+     * SMTP relayen.
+     */
+    private function hasMultipleMailboxes(string $from): bool
+    {
+        // Idézőjeles részek és zárójeles kommentek eltávolítása (RFC 5322 §3.2.2/§3.2.4) —
+        // a kódolt szó (`=?utf-8?Q?...?=`) is legálisan tartalmazhat `@`-ot.
+        $bare = (string) preg_replace('/"(?:\\\\.|[^"\\\\])*"/', '', $from);
+        $bare = (string) preg_replace('/\((?:[^()]|\([^()]*\))*\)/', '', $bare);
+        $bare = (string) preg_replace('/=\?[^?]*\?[BbQq]\?[^?]*\?=/', '', $bare);
+
+        return substr_count($bare, '<') > 1 || substr_count($bare, '@') > 1;
+    }
+
     /** @return array{0: string, 1: ?string} */
     private function parseAddress(string $value): array
     {
-        $value = trim($value);
+        // A zárójeles komment LEGÁLIS alak (`hello@pelda.hu (Pelda Kft)`), de nem része a
+        // címnek — bent hagyva a „cím" `hello@pelda.hu (pelda kft)` lett volna.
+        $value = trim((string) preg_replace('/\((?:[^()]|\([^()]*\))*\)/', '', $value));
 
         if (preg_match('/^(.*)<\s*([^>]+)\s*>$/', $value, $matches) === 1) {
             $name = trim($matches[1], " \t\"'");

@@ -138,17 +138,37 @@ final class RawMimeDkimSigner
      * akkor a kanonikalizálásunk egyezik a bejáratott implementációéval. Az A4 bejövő
      * oldalán ez lesz a DKIM-ellenőrzés alapja is.
      */
+    /**
+     * Egy aláírt levél ellenőrzése a PUBLIKUS kulccsal.
+     *
+     * Ugyanazt a kanonikalizálást használja, mint az aláírás — ezért alkalmas
+     * KERESZT-VERIFIKÁCIÓRA: ha egy harmadik felű (Symfony, OpenDKIM) aláíró levelét is
+     * elfogadja, akkor a kanonikalizálásunk egyezik a bejáratott implementációéval.
+     *
+     * TÖBB `DKIM-Signature` esetén MINDET megpróbálja, és igazat ad, ha BÁRMELYIK érvényes
+     * ezzel a kulccsal. Ez a mi kimenő ellenőrzésünkhöz helyes (a sajátunkat keressük); a
+     * BEJÖVŐ oldalon (A4) viszont tudni kell, MELYIK `d=`/`s=` volt érvényes — az ott
+     * külön belépési pontot kap (backlog).
+     */
     public function verify(string $signedMime, string $publicKeyPem): bool
     {
         [$headerBlock, $body] = $this->split($signedMime);
         $headers = $this->parseHeaders($headerBlock);
 
-        $signature = $this->occurrence($headers, 'dkim-signature', 0);
+        $signatures = $headers['dkim-signature'] ?? [];
 
-        if ($signature === null) {
-            return false;
+        foreach (array_keys($signatures) as $index) {
+            if ($this->verifySignature($signatures[$index], $headers, $body, $publicKeyPem)) {
+                return true;
+            }
         }
 
+        return false;
+    }
+
+    /** @param array<string, list<string>> $headers */
+    private function verifySignature(string $signature, array $headers, string $body, string $publicKeyPem): bool
+    {
         $tags = [];
 
         foreach (explode(';', $signature) as $pair) {
@@ -158,22 +178,24 @@ final class RawMimeDkimSigner
             }
         }
 
+        // A `v=` REQUIRED (RFC 6376 §3.5): a hiánya PERMFAIL, nem alapértelmezés.
+        if (($tags['v'] ?? null) !== '1' || ($tags['a'] ?? '') !== 'rsa-sha256') {
+            return false;
+        }
+
+        // ROSSZUL FORMÁLT `x=` esetén sem engedünk át: a `ctype_digit`-re épülő korábbi
+        // ellenőrzés egy `x=1000000000abc` mellett teljesen kimaradt (fail-open).
+        if (isset($tags['x'])) {
+            if (! ctype_digit($tags['x']) || (int) $tags['x'] < now()->getTimestamp()) {
+                return false;
+            }
+        }
+
         // A `from` nélküli `h=` lista ELUTASÍTVA: különben egy aláírás átvihető lenne egy
-        // másik feladóra (RFC 6376 §5.4). Az A4 bejövő ellenőrzésénél ez már közvetlen
-        // sebezhetőség lenne.
+        // másik feladóra (RFC 6376 §5.4).
         $signedNames = array_map('trim', array_map('strtolower', explode(':', $tags['h'] ?? '')));
 
         if (! in_array('from', $signedNames, true)) {
-            return false;
-        }
-
-        // Csak azt fogadjuk el, amit aláírunk: RSA + SHA-256, 1-es verzió.
-        if (($tags['v'] ?? '1') !== '1' || ($tags['a'] ?? '') !== 'rsa-sha256') {
-            return false;
-        }
-
-        // Lejárt aláírás (`x=`) nem érvényes.
-        if (isset($tags['x']) && ctype_digit($tags['x']) && (int) $tags['x'] < now()->getTimestamp()) {
             return false;
         }
 
@@ -184,11 +206,9 @@ final class RawMimeDkimSigner
         }
 
         $toVerify = '';
-
         $used = [];
 
         foreach ($signedNames as $name) {
-
             if ($name === '') {
                 continue;
             }

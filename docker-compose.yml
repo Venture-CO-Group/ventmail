@@ -175,7 +175,9 @@ services:
       dockerfile: docker/app.Dockerfile
     restart: unless-stopped
     working_dir: /var/www
-    command: ['php', 'artisan', 'smtp:serve', '--port=2587']
+    # A `memory_limit` EXPLICIT: az alap 128 MB kevesebb, mint amennyit a pufferelt
+    # levéltörzsek (25 MB/kapcsolat) igényelhetnek — a listener OOM-mal halna meg.
+    command: ['php', '-d', 'memory_limit=512M', 'artisan', 'smtp:serve', '--port=2587']
     ports: ['127.0.0.1:2587:2587']
     volumes: ['.:/var/www']
     env_file: [.env]
@@ -196,7 +198,7 @@ services:
       dockerfile: docker/app.Dockerfile
     restart: unless-stopped
     working_dir: /var/www
-    command: ['php', 'artisan', 'smtp:serve', '--port=2465']
+    command: ['php', '-d', 'memory_limit=512M', 'artisan', 'smtp:serve', '--port=2465']
     ports: ['127.0.0.1:2465:2465']
     volumes: ['.:/var/www']
     env_file: [.env]

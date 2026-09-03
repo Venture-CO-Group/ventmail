@@ -56,10 +56,20 @@ final class AuthThrottle
         }
     }
 
-    public function clear(string $ip): void
+    /**
+     * A fék SZÁNDÉKOSAN nem nullázódik sikeres hitelesítésre.
+     *
+     * Aki BÁRMILYEN érvényes hitelesítőt birtokol (tehát minden tenant), az különben
+     * korlátlanul próbálgathatna: 24 tipp → egy sikeres AUTH → újabb 24 tipp, végtelenül.
+     * A számláló a mérési ablakkal jár le magától; ez a helyes feloldás.
+     *
+     * A metódus a jövőbeli, HITELESÍTŐ-szintű vödörhöz marad meg (ADR: IP-allowlist a
+     * hitelesítőkhöz) — ott a saját sikeres bejelentkezés nullázhat.
+     */
+    public function clearForCredential(string $credentialUuid): void
     {
         try {
-            Cache::forget($this->key($ip));
+            Cache::forget('smtp-auth-fail:credential:'.$credentialUuid);
         } catch (\Throwable $e) {
             report($e);
         }

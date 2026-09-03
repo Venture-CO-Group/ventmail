@@ -42,7 +42,13 @@ return [
         // Az ÖSSZES kapcsolat pufferelt levéltörzse együtt. A kapcsolatonkénti 25 MB
         // önmagában 200 kapcsolatnál ~5 GB elvi plafont adna: egy hitelesített tenant így
         // az összes többi submissionjét kivinné.
-        'max_buffered_bytes' => (int) env('SMTP_MAX_BUFFERED_BYTES', 268_435_456),
+        //
+        // A szám a PHP `memory_limit`-hez van kötve, nem légből kapott: a törzs
+        // `.=`-összefűzése realloc-duplázással jár, tehát a valós csúcs a könyvelt bájtok
+        // KÉTSZERESE. A listener indulásnál ellenőrzi, hogy belefér-e — ha nem, EL SEM
+        // INDUL (ahogy a hiányzó TLS-tanúsítványnál is). Enélkül a plafon sosem sült volna
+        // el: a PHP OOM-fatal ELŐBB jött, azt pedig try/catch nem fogja.
+        'max_buffered_bytes' => (int) env('SMTP_MAX_BUFFERED_BYTES', 134_217_728),
         'max_connections_per_ip' => 10,
     ],
 

@@ -35,6 +35,13 @@ TODO  a6    A  feat/a6-deliverability        backend,frontend          # Blockli
 #  · a CI a `VENTURE_PACKAGES_TOKEN` hiányában KIHAGYJA a drift-tesztet; a secret
 #    beállítása után a kapu élesedjen (ma hangos skip)                                → ember
 #  · `workspace_invitations` (a tagság ma csak SSO-ból jön)                           → B1
+#  · a DKIM-verifikáló BEJÖVŐ használatra még nem kész: nincs `d=`/`s=` visszacsatolás
+#    (több aláírásnál nem tudni, melyik volt érvényes), nincs `l=`/`c=simple` kezelés    → A4
+#  · a `MimeParser` cím-értelmezője regex, nem RFC 5322 parser (a `From` egy-mailbox
+#    szabály erre épül; group-alak és exotikus komment-formák nincsenek lefedve)         → A4
+#  · a brute-force fék IP-kulcsú: közös NAT mögött a legitim tenant is bánja a szomszéd
+#    próbálgatását — hitelesítő-szintű vödör + IP-allowlist kell hozzá                   → A6
+#  · ÉLŐ TLS-füstteszt a telepítés után (a socket-tesztek TLS nélkül futnak)             → devops
 #  · a `v:*` változók NYERSEN vannak a `message_events`-ben (Mailgun-paritás), és az
 #    A3 webhook ki is küldi őket: retenció + redakció kell rájuk                       → A3
 #  · a Postal `send/message` idempotency_key támogatása NEM igazolt (élő cluster kell)  → A2

@@ -55,14 +55,26 @@ final class StreamSubmissionServer
             ));
         }
 
-        $context = stream_context_create($implicitTls ? ['ssl' => $this->tlsOptions()] : []);
+        // A hallgató socket MINDIG sima TCP — az implicit TLS-t (465) is a saját,
+        // nem-blokkoló handshake-utunkon emeljük fel.
+        //
+        // Miért: a `tlsv1.2://` wrapper a HANDSHAKE-et az `accept`-re bízza, az viszont
+        // nem-blokkoló szerver-socketen (újabb PHP/OpenSSL páron) egyszerűen nem futtatja
+        // le. Mérve: a 465-ös lábon a TLS-kliens `WRONG_VERSION_NUMBER`-t kapott, a
+        // plaintext kliens viszont KISZOLGÁLÁST — vagyis a service egyetlen levelet sem
+        // tudott kiküldeni, és egy implicit TLS-t váró porton STARTTLS-t hirdettünk.
+        if ($implicitTls) {
+            // Fail-fast: tanúsítvány nélkül a 465 nem indulhat el.
+            $this->tlsOptions();
+        }
+
+        $this->assertMemoryHeadroom();
 
         $server = @stream_socket_server(
-            ($implicitTls ? 'tlsv1.2://' : 'tcp://').$host.':'.$port,
+            'tcp://'.$host.':'.$port,
             $errorCode,
             $errorMessage,
-            STREAM_SERVER_BIND | STREAM_SERVER_LISTEN,
-            $context
+            STREAM_SERVER_BIND | STREAM_SERVER_LISTEN
         );
 
         if ($server === false) {
@@ -84,6 +96,58 @@ final class StreamSubmissionServer
         fclose($server);
     }
 
+    /**
+     * A puffer-plafon BELEFÉR-E a PHP memória-limitjébe?
+     *
+     * A `php:8.3-fpm-alpine` nem szállít aktív `php.ini`-t, tehát a limit a beépített
+     * 128 MB — a korábbi 256 MB-os plafon így SOHA nem sült volna el: a PHP OOM-fatal
+     * előbb jött, azt pedig `try/catch` nem fogja, tehát a listener meghalt. Egy
+     * hitelesített tenant hat kapcsolattal kivitte az összes többi submissionjét.
+     */
+    private function assertMemoryHeadroom(): void
+    {
+        $limit = $this->memoryLimitBytes();
+
+        if ($limit <= 0) {
+            return; // korlátlan (CLI-ban gyakori)
+        }
+
+        // A `.=` realloc-duplázás miatt a valós csúcs a könyvelt bájtok kétszerese, plusz
+        // a keretrendszer alapfoglalása.
+        $needed = ((int) config('smtp.limits.max_buffered_bytes') * 2) + 64 * 1024 * 1024;
+
+        if ($needed > $limit) {
+            throw new RuntimeException(sprintf(
+                'A puffer-plafon (%d bájt) nem fér bele a PHP memory_limitbe (%d bájt): '
+                .'a listener OOM-mal halna meg, MIELŐTT a plafon elsülne. Emeld a '
+                .'memory_limitet legalább %d bájtra, vagy csökkentsd az '
+                .'SMTP_MAX_BUFFERED_BYTES értékét.',
+                (int) config('smtp.limits.max_buffered_bytes'),
+                $limit,
+                $needed
+            ));
+        }
+    }
+
+    private function memoryLimitBytes(): int
+    {
+        $limit = trim((string) ini_get('memory_limit'));
+
+        if ($limit === '' || $limit === '-1') {
+            return 0;
+        }
+
+        $unit = strtolower(substr($limit, -1));
+        $value = (int) $limit;
+
+        return match ($unit) {
+            'g' => $value * 1024 * 1024 * 1024,
+            'm' => $value * 1024 * 1024,
+            'k' => $value * 1024,
+            default => $value,
+        };
+    }
+
     public function stop(): void
     {
         $this->running = false;
@@ -98,6 +162,13 @@ final class StreamSubmissionServer
             if (! isset($connection['socket']) || ! is_resource($connection['socket'])) {
                 unset($this->connections[$id]);
 
+                continue;
+            }
+
+            // A tarpitolt kapcsolat KIMARAD a select-halmazból: benne hagyva a select
+            // minden körben azonnal visszatérne (az adat ott van, csak nem olvassuk) —
+            // mérve ~100% mag égetése kapcsolatonként. A fék maga lett volna a DoS.
+            if (($connection['readableAfter'] ?? 0.0) > microtime(true)) {
                 continue;
             }
 
@@ -185,7 +256,9 @@ final class StreamSubmissionServer
             (string) config('smtp.hostname'),
         );
 
-        $this->connections[(int) $socket] = [
+        $id = (int) $socket;
+
+        $this->connections[$id] = [
             'socket' => $socket,
             'session' => $session,
             'buffer' => '',
@@ -196,6 +269,17 @@ final class StreamSubmissionServer
             'handshakeStarted' => 0.0,
             'readableAfter' => 0.0,
         ];
+
+        // Implicit TLS: ELŐBB a handshake, és CSAK utána köszönünk — a köszöntés
+        // plaintextben elárulná, hogy nem is titkosítunk.
+        if ($implicitTls) {
+            $this->connections[$id]['handshaking'] = true;
+            $this->connections[$id]['handshakeStarted'] = microtime(true);
+
+            $this->continueHandshake($id, greetAfterwards: true);
+
+            return;
+        }
 
         $this->write($socket, $session->greeting()->toLine());
     }
@@ -210,8 +294,12 @@ final class StreamSubmissionServer
         $meta = stream_get_meta_data($socket);
         $crypto = $meta['crypto'] ?? null;
 
-        return is_array($crypto) && ($crypto['protocol'] ?? '') !== ''
-            ? ChannelSecurity::encrypted((string) $crypto['protocol'])
+        $protocol = is_array($crypto) ? (string) ($crypto['protocol'] ?? '') : '';
+
+        // ALLOWLIST: ha a `crypto_method` valaha lazul, egy TLSv1.0/SSLv3 session is
+        // „titkosítottnak" látszana — és azon a jelszó gyakorlatilag olvasható.
+        return in_array($protocol, ['TLSv1.2', 'TLSv1.3'], true)
+            ? ChannelSecurity::encrypted($protocol)
             : ChannelSecurity::plaintext();
     }
 
@@ -265,6 +353,13 @@ final class StreamSubmissionServer
         }
 
         while (($position = strpos($this->connections[$id]['buffer'], "\n")) !== false) {
+            // A tarpit a PUFFERELT sorokra is érvényes: enélkül egyetlen TCP-szegmensbe
+            // pipeline-ozva (`AUTH ...\r\nNOOP\r\n`) a lassítás nem ért semmit — a
+            // szerver maga hirdeti a PIPELINING-et.
+            if (($this->connections[$id]['readableAfter'] ?? 0.0) > microtime(true)) {
+                return;
+            }
+
             $line = substr($this->connections[$id]['buffer'], 0, $position);
             $this->connections[$id]['buffer'] = substr($this->connections[$id]['buffer'], $position + 1);
 
@@ -320,8 +415,10 @@ final class StreamSubmissionServer
             }
 
             if ($reply->code === 235) {
-                $this->throttle->clear($connection['ip']);
-
+                // A hiba-számlálót NEM nullázzuk: aki birtokol egy érvényes hitelesítőt,
+                // különben korlátlanul próbálgathatna (24 tipp → siker → újabb 24 tipp).
+                // A számláló a mérési ablakkal jár le.
+                //
                 // Hitelesítő-szintű nyom: mikor és HONNAN használták (a nyers IP-t nem
                 // tároljuk — kulcsolt hash megy).
                 $this->recordUsage($connection['session'], $connection['ip']);
@@ -386,7 +483,7 @@ final class StreamSubmissionServer
         $this->continueHandshake($id);
     }
 
-    private function continueHandshake(int $id): void
+    private function continueHandshake(int $id, bool $greetAfterwards = false): void
     {
         $connection = $this->connections[$id];
 
@@ -406,6 +503,8 @@ final class StreamSubmissionServer
             }
 
             $this->connections[$id]['touched'] = microtime(true);
+            $this->connections[$id]['greetAfterHandshake'] = $greetAfterwards
+                || ($connection['greetAfterHandshake'] ?? false);
 
             return;
         }
@@ -417,12 +516,30 @@ final class StreamSubmissionServer
         }
 
         // A TLS-váltás után a session MINDENT elfelejt (STARTTLS command injection).
-        $connection['session']->securedWith($this->securityOf($connection['socket']));
+        $security = $this->securityOf($connection['socket']);
+
+        // Ha a handshake „sikeres", de a csatorna mégsem titkosított, NEM szolgálunk ki:
+        // az implicit TLS-t váró kliensnek plaintextet adni csendes golden rule 3 sértés.
+        if (! $security->encrypted) {
+            Log::warning('TLS-handshake után sem titkosított a csatorna — bontás', ['ip' => $connection['ip']]);
+
+            $this->close($id);
+
+            return;
+        }
+
+        $connection['session']->securedWith($security);
         $connection['handshaking'] = false;
         $connection['buffer'] = '';
         $connection['touched'] = microtime(true);
 
         $this->connections[$id] = $connection;
+
+        if ($greetAfterwards || ($connection['greetAfterHandshake'] ?? false)) {
+            $this->connections[$id]['greetAfterHandshake'] = false;
+
+            $this->write($connection['socket'], $connection['session']->greeting()->toLine());
+        }
     }
 
     /**
