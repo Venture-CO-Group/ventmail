@@ -6,15 +6,12 @@ use App\Modules\Domains\Models\Domain;
 use App\Modules\Sending\Drivers\FakeDriver;
 use App\Modules\Sending\Models\Message;
 use App\Modules\Sending\Models\RawMimeMessage;
-use App\Modules\Smtp\Contracts\SubmissionSink;
-use App\Modules\Smtp\Data\ChannelSecurity;
 use App\Modules\Smtp\Models\SmtpCredential;
-use App\Modules\Smtp\Protocol\SmtpSession;
-use App\Modules\Smtp\Services\CredentialAuthenticator;
 use App\Modules\Suppression\Models\Suppression;
 use App\Modules\Tenancy\Models\Workspace;
 use App\Modules\Tenancy\Services\WorkspaceContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Support\SmtpConversation;
 
 uses(RefreshDatabase::class);
 
@@ -36,48 +33,19 @@ beforeEach(function () {
     ['username' => $this->username, 'password' => $this->password] = SmtpCredential::issue('CI');
 });
 
-/** Egy teljes párbeszéd lejátszása a VALÓDI hitelesítővel és a VALÓDI ingesttel. */
 function submit(array $lines, ?string $username = null, ?string $password = null): array
 {
-    $session = new SmtpSession(
-        app(CredentialAuthenticator::class),
-        app(SubmissionSink::class),
-        ChannelSecurity::encrypted('TLSv1.3'),
-        'smtp.ventmail.test',
+    return SmtpConversation::play(
+        $username ?? test()->username,
+        $password ?? test()->password,
+        $lines,
+        test()->workspace
     );
-
-    $codes = [];
-
-    $script = array_merge(
-        [
-            'EHLO kliens.test',
-            'AUTH PLAIN '.base64_encode("\0".($username ?? test()->username)."\0".($password ?? test()->password)),
-        ],
-        $lines
-    );
-
-    foreach ($script as $line) {
-        foreach ($session->feed($line) as $reply) {
-            $codes[] = $reply->code;
-        }
-    }
-
-    // Az ingest ELENGEDI a kontextust (hosszan élő processz) — a teszt visszaállítja.
-    app(WorkspaceContext::class)->set(test()->workspace);
-
-    return $codes;
 }
 
-/** @param array<string, string> $headers */
 function mail_lines(array $headers = [], string $body = 'Szia'): array
 {
-    $lines = ['MAIL FROM:<no-reply@pelda.hu>', 'RCPT TO:<cimzett@example.test>', 'DATA'];
-
-    foreach (array_merge(['From' => 'no-reply@pelda.hu', 'Subject' => 'Teszt'], $headers) as $name => $value) {
-        $lines[] = $name.': '.$value;
-    }
-
-    return array_merge($lines, ['', $body, '.']);
+    return SmtpConversation::message($headers, $body);
 }
 
 it('a valódi hitelesítővel átmegy a küldés, és a levél eltárolódik', function () {

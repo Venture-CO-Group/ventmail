@@ -17,6 +17,7 @@ use App\Modules\Tenancy\Services\WorkspaceContext;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Tests\Support\SmtpConversation;
 
 uses(RefreshDatabase::class);
 
@@ -38,7 +39,7 @@ beforeEach(function () {
  */
 
 it('az SMTP-n beadott levél MINDIG tranzakciós', function () {
-    submit(mail_lines());
+    SmtpConversation::play(test()->username, test()->password, SmtpConversation::message(), test()->workspace);
 
     expect(Message::firstOrFail()->channel)->toBe('transactional');
 });
@@ -74,7 +75,7 @@ it('az IDN-domain PUNYCODE alakban keresi a hitelesített domaint', function () 
         'verified_at' => now(),
     ]);
 
-    $codes = submit([
+    $codes = SmtpConversation::play(test()->username, test()->password, [
         'MAIL FROM:<info@példa.hu>',
         'RCPT TO:<cimzett@example.test>',
         'DATA',
@@ -83,7 +84,7 @@ it('az IDN-domain PUNYCODE alakban keresi a hitelesített domaint', function () 
         '',
         'Szia',
         '.',
-    ]);
+    ], test()->workspace);
 
     expect(end($codes))->toBe(250);
     expect(Message::firstOrFail()->from_email)->toBe('info@xn--plda-bpa.hu');
@@ -91,7 +92,7 @@ it('az IDN-domain PUNYCODE alakban keresi a hitelesített domaint', function () 
 
 it('a NEM hitelesített IDN-domain sem megy át — se unicode, se punycode alakban', function () {
     foreach (['info@másik.hu', 'info@xn--msik-5qa.hu'] as $from) {
-        $codes = submit([
+        $codes = SmtpConversation::play(test()->username, test()->password, [
             'MAIL FROM:<'.$from.'>',
             'RCPT TO:<cimzett@example.test>',
             'DATA',
@@ -99,7 +100,7 @@ it('a NEM hitelesített IDN-domain sem megy át — se unicode, se punycode alak
             '',
             'Szia',
             '.',
-        ]);
+        ], test()->workspace);
 
         expect(end($codes))->toBe(550);
     }
@@ -116,10 +117,10 @@ it('a helyi rész VÁLTOZATLAN marad — azt csak a fogadó értelmezheti', func
 it('a hitelesítő perces kerete fölött 452 jön', function () {
     config(['smtp.rate_limit.per_credential_per_minute' => 2]);
 
-    submit(mail_lines(['Message-ID' => '<a@k.test>']));
-    submit(mail_lines(['Message-ID' => '<b@k.test>']));
+    SmtpConversation::play(test()->username, test()->password, SmtpConversation::message(['Message-ID' => '<a@k.test>']), test()->workspace);
+    SmtpConversation::play(test()->username, test()->password, SmtpConversation::message(['Message-ID' => '<b@k.test>']), test()->workspace);
 
-    $codes = submit(mail_lines(['Message-ID' => '<c@k.test>']));
+    $codes = SmtpConversation::play(test()->username, test()->password, SmtpConversation::message(['Message-ID' => '<c@k.test>']), test()->workspace);
 
     // Átmeneti kód: a kliens újrapróbál, a levél nem vész el.
     expect(end($codes))->toBe(452);
@@ -132,7 +133,7 @@ it('a hitelesítő SAJÁT limitje felülírja az alapértéket', function () {
     SmtpCredential::query()->update(['rate_limit_per_minute' => 5]);
 
     foreach (['a', 'b', 'c'] as $id) {
-        $codes = submit(mail_lines(['Message-ID' => "<{$id}@k.test>"]));
+        $codes = SmtpConversation::play(test()->username, test()->password, SmtpConversation::message(['Message-ID' => "<{$id}@k.test>"]), test()->workspace);
 
         expect(end($codes))->toBe(250);
     }
