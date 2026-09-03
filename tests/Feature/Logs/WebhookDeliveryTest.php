@@ -6,10 +6,12 @@ use App\Modules\Events\Models\MessageEvent;
 use App\Modules\Identity\Models\ApiKey;
 use App\Modules\Tenancy\Models\Workspace;
 use App\Modules\Tenancy\Services\WorkspaceContext;
+use App\Modules\Webhooks\Contracts\HostResolver;
 use App\Modules\Webhooks\Jobs\DeliverWebhook;
 use App\Modules\Webhooks\Models\WebhookDelivery;
 use App\Modules\Webhooks\Models\WebhookEndpoint;
 use App\Modules\Webhooks\Services\WebhookSigner;
+use App\Modules\Webhooks\Testing\FakeHostResolver;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -26,6 +28,9 @@ beforeEach(function () {
     // A sort MI hajtjuk a tesztben: így látszik, mi történik EGY kísérletnél, és a
     // dead-letter felé vezető út is lépésről lépésre mérhető.
     Queue::fake();
+
+    // A DNS determinisztikus: a „rendes" végpont publikus címre oldódik fel.
+    app()->instance(HostResolver::class, new FakeHostResolver);
 
     $this->workspace = Workspace::factory()->create();
     app(WorkspaceContext::class)->set($this->workspace);
@@ -218,4 +223,125 @@ it('a titok TITKOSÍTVA van, és nem jelenik meg a modell tömbjében', function
     expect($raw)->not->toBe($this->secret);
     expect($this->endpoint->signingSecret())->toBe($this->secret);
     expect($this->endpoint->toArray())->not->toHaveKey('secret');
+});
+
+/*
+ | SSRF — a cél-URL-t az ÜGYFÉL adja meg, a kérést MI indítjuk a saját hálózatunkból.
+ */
+
+dataset('ssrf-cimek', [
+    'loopback' => ['127.0.0.1'],
+    'felhő-metadata' => ['169.254.169.254'],
+    'privát háló' => ['10.1.2.3'],
+    'privát háló 192' => ['192.168.1.10'],
+    'CGNAT' => ['100.64.0.1'],
+    'IPv6 loopback' => ['::1'],
+    'IPv6 unique local' => ['fd00::1'],
+]);
+
+it('a nem publikus címre mutató webhook-URL ELUTASÍTVA', function (string $ip) {
+    // Védelem nélkül ez belső szkenner: a felhő-metadata a példány hitelesítőjét adja, a
+    // 127.0.0.1:5432 a saját adatbázisunk — és a válasz egy részlete még vissza is jut az
+    // ügyfélhez a kézbesítési naplóban.
+    $resolver = new FakeHostResolver;
+    $resolver->map('belso.test', [$ip]);
+
+    app()->instance(HostResolver::class, $resolver);
+
+    expect(fn () => WebhookEndpoint::issue('Belső', 'https://belso.test/hook', []))
+        ->toThrow(InvalidArgumentException::class);
+})->with('ssrf-cimek');
+
+it('a nem-https URL elutasítva', function () {
+    // A `file://`, `gopher://` sémák eleve kizárva — és a titkos aláírás sem utazhat
+    // titkosítatlan csatornán.
+    foreach (['http://ugyfel.test/h', 'file:///etc/passwd', 'gopher://ugyfel.test/'] as $url) {
+        expect(fn () => WebhookEndpoint::issue('Rossz', $url, []))->toThrow(InvalidArgumentException::class);
+    }
+});
+
+it('a TÖBBCÍMŰ hosztnév is elbukik, ha bármelyik cím belső', function () {
+    // A DNS több A-rekordot adhat: ha csak az elsőt néznénk, a második lehetne 127.0.0.1.
+    $resolver = new FakeHostResolver;
+    $resolver->map('vegyes.test', ['203.0.113.10', '127.0.0.1']);
+
+    app()->instance(HostResolver::class, $resolver);
+
+    expect(fn () => WebhookEndpoint::issue('Vegyes', 'https://vegyes.test/hook', []))
+        ->toThrow(InvalidArgumentException::class);
+});
+
+it('a KÜLDÉS ELŐTT is ellenőrzünk — DNS-rebinding ellen', function () {
+    // A rebinding épp arra épül, hogy a mentés és a küldés között változik a feloldás.
+    raiseEvent();
+
+    $delivery = WebhookDelivery::firstOrFail();
+
+    $resolver = new FakeHostResolver;
+    $resolver->map('ugyfel.test', ['169.254.169.254']);
+    app()->instance(HostResolver::class, $resolver);
+
+    Http::fake();
+
+    (new DeliverWebhook((int) $this->workspace->getKey(), (string) $delivery->uuid))
+        ->handle(app(WorkspaceContext::class), app(WebhookSigner::class));
+
+    app(WorkspaceContext::class)->set($this->workspace);
+
+    Http::assertNothingSent();
+    expect(WebhookDelivery::firstOrFail()->status)->toBe('dead_letter');
+});
+
+it('a kérés NEM követ átirányítást', function () {
+    // Egy 302 a belső hálózatra megkerülné a fenti ellenőrzést.
+    $source = file_get_contents(base_path('app/Modules/Webhooks/Jobs/DeliverWebhook.php'));
+
+    expect(str_contains((string) $source, "'allow_redirects' => false"))->toBeTrue();
+});
+
+/*
+ | KAT-vektorok az aláírásra.
+ |
+ | Rögzített titok + payload + időbélyeg → rögzített aláírás. Ha az algoritmus vagy az
+ | aláírt adat összeállítása bármikor elmozdul, MINDEN ügyfél integrációja csendben
+ | elromlana — a fogadó oldalán „érvénytelen aláírás" lenne belőle.
+ */
+
+it('az aláírás KAT-vektora', function () {
+    $signer = app(WebhookSigner::class);
+
+    // A vektor forrása: HMAC-SHA256(`timestamp.payload`) a megadott titokkal.
+    expect($signer->sign('whsec_teszt', '{"event":"delivered"}', 1_756_800_000))
+        ->toBe(hash_hmac('sha256', '1756800000.{"event":"delivered"}', 'whsec_teszt'));
+
+    // …és konkrét bájtsorként is rögzítve, hogy az összeállítás se mozdulhasson el.
+    expect($signer->sign('whsec_teszt', '{"event":"delivered"}', 1_756_800_000))
+        ->toBe('363c17654baea444d069d95204c10390972dda1d4118ed255c6d23537ec1fe24');
+});
+
+it('a payload EGYETLEN bájtjának változása más aláírást ad', function () {
+    $signer = app(WebhookSigner::class);
+    $now = now()->getTimestamp();
+
+    expect($signer->sign('titok', '{"a":1}', $now))->not->toBe($signer->sign('titok', '{"a":2}', $now));
+    expect($signer->sign('titok', '{"a":1}', $now))->not->toBe($signer->sign('titok', '{"a":1}', $now + 1));
+});
+
+it('a JÖVŐBELI időbélyeget szűkebb ablakkal fogadja el', function () {
+    // Az ablak ASZIMMETRIKUS. A múltbeli tűrés valódi igényt fed (hálózati késleltetés,
+    // újrapróbálás); a jövőbeli semmit — legfeljebb óracsúszást. Ez a `verify()` a
+    // dokumentált fogadó-oldali minta: amit itt megengedünk, azt fogják lemásolni.
+    $signer = app(WebhookSigner::class);
+    $payload = '{"event":"delivered"}';
+
+    $alair = fn (int $ts) => $signer->sign('titok', $payload, $ts);
+
+    $most = now()->getTimestamp();
+
+    expect($signer->verify('titok', $payload, $most + 30, $alair($most + 30)))->toBeTrue();
+    expect($signer->verify('titok', $payload, $most + 295, $alair($most + 295)))->toBeFalse();
+
+    // Visszafelé viszont marad az öt perc.
+    expect($signer->verify('titok', $payload, $most - 295, $alair($most - 295)))->toBeTrue();
+    expect($signer->verify('titok', $payload, $most - 305, $alair($most - 305)))->toBeFalse();
 });

@@ -146,3 +146,90 @@ it('idegen workspace eseményei nem látszanak', function () {
 
     expect($response->json('items'))->toBeEmpty();
 });
+
+/*
+ | BEMENET-VALIDÁCIÓ — a `/v1` egységes hibaformátuma (golden rule 7).
+ |
+ | Validáció nélkül ezek NYERS 500-at adnak `error.code` nélkül: a `since=tegnap` egy
+ | `InvalidFormatException`-ön, a `recipient[]=a` egy „Array to string conversion"-ön át. Az
+ | integrációk a `error.code`-ra ágaznak — egy 500-as HTML-hibaoldalra nem tudnak.
+ */
+
+it('az érvénytelen paraméter strukturált 400, nem 500', function (array $query) {
+    $response = events($query);
+
+    expect($response->status())->toBe(400);
+    expect($response->json('error.code'))->toBe('VALIDATION_ERROR');
+})->with([
+    'értelmezhetetlen dátum' => [['since' => 'tegnap']],
+    'tömb ott, ahol skalár kell' => [['recipient' => ['a', 'b']]],
+    'beágyazott tömb a típusban' => [['type' => [['x']]]],
+    'ismeretlen eseménytípus' => [['type' => 'nincs-ilyen']],
+    'ismeretlen csatorna' => [['channel' => 'akarmi']],
+    'nulla limit' => [['limit' => 0]],
+    'túl nagy limit' => [['limit' => 5000]],
+    'nem szám limit' => [['limit' => 'sok']],
+]);
+
+it('a skalár típus-szűrő továbbra is működik', function () {
+    messageEvent(['type' => 'delivered']);
+    messageEvent(['type' => 'bounced']);
+
+    expect(events(['type' => 'delivered'])->json('items'))->toHaveCount(1);
+    expect(events(['type' => ['delivered', 'bounced']])->json('items'))->toHaveCount(2);
+});
+
+it('a címzett-szűrő az ÉKEZETES alakot is megtalálja', function () {
+    // Tárolva punycode-ban van; az ügyfél az olvashatót írja be.
+    messageEvent(['recipient' => 'user@xn--plda-bpa.hu']);
+
+    expect(events(['recipient' => 'user@példa.hu'])->json('items'))->toHaveCount(1);
+});
+
+/*
+ | A KURZOR ÁTLÁTSZATLAN, és az esemény azonosítója UUID.
+ |
+ | A belső `id` egy TENANT-FÜGGETLEN szekvencia. Nyíltan kiadva bárki két hívásból (09:00 →
+ | 10:00) megbecsülné a platform teljes esemény-volumenét — és ez `/v1`-szerződés, tehát
+ | később már nem javítható.
+ */
+
+it('az esemény azonosítója UUID, nem sorszám', function () {
+    $event = messageEvent();
+
+    $id = events()->json('items.0.id');
+
+    expect($id)->toBe($event->uuid);
+    expect($id)->not->toBe((string) $event->id);
+    expect(Str::isUuid($id))->toBeTrue();
+});
+
+it('a kurzor nem árulja el a belső sorszámot', function () {
+    foreach (range(1, 3) as $ignored) {
+        messageEvent();
+    }
+
+    $cursor = (string) events(['limit' => 1])->json('paging.next');
+
+    expect($cursor)->not->toBe('');
+    // Sem nyersen, sem base64-ben nem olvasható ki belőle a szekvencia.
+    expect(base64_decode($cursor, false) ?: '')->not->toContain('|');
+
+    $ids = MessageEvent::query()->pluck('id')->map(fn ($id) => (string) $id);
+
+    foreach ($ids as $id) {
+        expect($cursor)->not->toContain($id);
+    }
+
+    // …és attól még LAPOZ.
+    expect(events(['limit' => 1, 'cursor' => $cursor])->json('items'))->toHaveCount(1);
+});
+
+it('idegen kulccsal kiadott kurzor érvénytelen, nem 500', function () {
+    messageEvent();
+
+    $response = events(['cursor' => base64_encode('2026-09-04T10:00:00+00:00|999')]);
+
+    expect($response->status())->toBe(400);
+    expect($response->json('error.code'))->toBe('VALIDATION_ERROR');
+});

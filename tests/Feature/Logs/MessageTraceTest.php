@@ -7,6 +7,7 @@ use App\Modules\IpPools\Models\IpAddress;
 use App\Modules\IpPools\Models\IpPool;
 use App\Modules\Logs\Models\SmtpTransaction;
 use App\Modules\Logs\Services\MessageTrace;
+use App\Modules\Sending\Actions\RecordDeliveryOutcome;
 use App\Modules\Sending\Actions\SendMessage;
 use App\Modules\Sending\Models\Message;
 use App\Modules\Suppression\Models\Suppression;
@@ -91,18 +92,86 @@ it('az ELUTASÍTOTT levélnél is látszik, MELYIK kapu állította meg', functi
 });
 
 it('az SMTP-párbeszéd naplója NEM tartalmaz hitelesítési sort', function () {
-    // A base64-elt AUTH sor MAGA a jelszó — a trace-be sosem kerülhet.
+    // A base64-elt AUTH sor MAGA a jelszó — nem elrejtve, csak átkódolva. A NYERS
+    // párbeszédet adjuk be, ahogy a driver látná: a redakciónak KELL megtörténnie, nem
+    // nekünk kell előre redaktálva beírni.
     $message = sendTraced();
 
-    SmtpTransaction::create([
-        'message_uuid' => $message->uuid,
-        'recipient' => 'cimzett@example.test',
-        'lines' => [['direction' => 'out', 'line' => 'AUTH PLAIN <redacted>']],
-    ]);
+    $titok = base64_encode("\0relay\0Titk0sJelsz0");
+
+    app(RecordDeliveryOutcome::class)(
+        $message,
+        'cimzett@example.test',
+        451,
+        'Temporary failure',
+        '4.3.0',
+        [
+            ['direction' => 'in', 'line' => '220 mx1.example.test ESMTP'],
+            ['direction' => 'out', 'line' => 'AUTH PLAIN '.$titok],
+            ['direction' => 'in', 'line' => '235 2.7.0 Authentication successful'],
+            ['direction' => 'out', 'line' => 'MAIL FROM:<no-reply@pelda.hu>'],
+        ],
+    );
 
     $trace = app(MessageTrace::class)->for((string) $message->uuid);
 
-    expect(json_encode($trace['smtp']))->toContain('redacted');
+    $naplo = json_encode($trace['smtp']);
+
+    expect($naplo)->not->toContain($titok);
+    expect($naplo)->not->toContain('Titk0sJelsz0');
+    // A parancs NEVE marad: a support épp azt akarja látni, hogy a hitelesítés megtörtént.
+    expect($naplo)->toContain('AUTH PLAIN');
+    expect($naplo)->toContain('redacted');
+    expect($naplo)->toContain('MAIL FROM');
+});
+
+it('az AUTH LOGIN KÖVETKEZŐ sorai is kiesnek', function () {
+    // Az `AUTH LOGIN`-nál a felhasználónév és a jelszó KÜLÖN sorban, parancsszó nélkül jön:
+    // önmagában ártatlan base64-nek látszik. Ezért tart állapotot a redakció.
+    $message = sendTraced();
+
+    app(RecordDeliveryOutcome::class)(
+        $message,
+        'cimzett@example.test',
+        451,
+        'Temporary failure',
+        null,
+        [
+            ['direction' => 'out', 'line' => 'AUTH LOGIN'],
+            ['direction' => 'in', 'line' => '334 VXNlcm5hbWU6'],
+            ['direction' => 'out', 'line' => base64_encode('relay-user')],
+            ['direction' => 'in', 'line' => '334 UGFzc3dvcmQ6'],
+            ['direction' => 'out', 'line' => base64_encode('Titk0sJelsz0')],
+            ['direction' => 'in', 'line' => '235 2.7.0 Authentication successful'],
+        ],
+    );
+
+    $naplo = json_encode(app(MessageTrace::class)->for((string) $message->uuid)['smtp']);
+
+    expect($naplo)->not->toContain(base64_encode('relay-user'));
+    expect($naplo)->not->toContain(base64_encode('Titk0sJelsz0'));
+    expect($naplo)->toContain('AUTH LOGIN');
+});
+
+it('a párbeszéd TÖBBI sora viszont megmarad — ez a lényege', function () {
+    $message = sendTraced();
+
+    app(RecordDeliveryOutcome::class)(
+        $message,
+        'cimzett@example.test',
+        550,
+        'No such user here',
+        '5.1.1',
+        [
+            ['direction' => 'out', 'line' => 'RCPT TO:<nincs-ilyen@example.test>'],
+            ['direction' => 'in', 'line' => '550 5.1.1 No such user here'],
+        ],
+    );
+
+    $smtp = app(MessageTrace::class)->for((string) $message->uuid)['smtp'][0];
+
+    expect($smtp['lines'][0]['line'])->toBe('RCPT TO:<nincs-ilyen@example.test>');
+    expect($smtp['lines'][1]['line'])->toContain('550 5.1.1');
 });
 
 it('ismeretlen üzenetre null a trace', function () {

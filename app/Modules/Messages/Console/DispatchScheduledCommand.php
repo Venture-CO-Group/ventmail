@@ -113,7 +113,16 @@ final class DispatchScheduledCommand extends Command
         $decision = $gate->evaluate($message);
 
         if (! $decision->allowed) {
-            $message->forceFill(['status' => 'rejected', 'reason' => $decision->reason])->save();
+            // Az ÚJRAÉRTÉKELT kapu-eredmény felülírja a küldéskorit. Enélkül a trace
+            // aktívan félrevezetne: a holnapra ütemezett levélnél a `decision: rejected`
+            // mellett a küldéskori „suppression: passed" állna — a support pont azt a
+            // kaput látná zöldnek, amelyik megállította a levelet.
+            $message->forceFill([
+                'status' => 'rejected',
+                'reason' => $decision->reason,
+                'gate_decided_at' => now(),
+                'options' => [...$message->options, 'gate_trace' => $decision->trace()],
+            ])->save();
 
             // MINDEN címzett kap eseményt, ahogy a küldési úton is: egy elutasított
             // 1000-es batch trace-e különben egyetlen sor lenne.
@@ -133,7 +142,11 @@ final class DispatchScheduledCommand extends Command
             return;
         }
 
-        $message->forceFill(['status' => 'accepted', 'gate_decided_at' => now()])->save();
+        $message->forceFill([
+            'status' => 'accepted',
+            'gate_decided_at' => now(),
+            'options' => [...$message->options, 'gate_trace' => $decision->trace()],
+        ])->save();
 
         if ($message->testmode) {
             return;

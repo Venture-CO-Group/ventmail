@@ -6,6 +6,7 @@ namespace App\Modules\Webhooks\Models;
 
 use App\Modules\Audit\Concerns\Auditable;
 use App\Modules\Tenancy\Concerns\BelongsToWorkspace;
+use App\Modules\Webhooks\Services\WebhookUrlGuard;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -24,12 +25,30 @@ final class WebhookEndpoint extends Model
 {
     use Auditable, BelongsToWorkspace, HasUuids, SoftDeletes;
 
-    protected $fillable = ['name', 'url', 'secret', 'events', 'active'];
+    /**
+     * A `secret` SZÁNDÉKOSAN nincs itt.
+     *
+     * A titkot mi generáljuk (`issue()`), és csak mi. Ha tömegesen kitölthető lenne, az
+     * első `create($request->validated())` engedné az ügyfélnek a saját, gyenge titkát —
+     * és az aláírásunk annyit érne, amennyit az ő „titka".
+     */
+    protected $fillable = ['name', 'url', 'events', 'active'];
 
     protected $hidden = ['secret'];
 
     /** A végpont ALAPÉRTELMEZÉSBEN aktív — a DB-alapérték a modellben nem látszana. */
     protected $attributes = ['active' => true, 'events' => '[]'];
+
+    protected static function booted(): void
+    {
+        // A VÉGPONT mentésekor is ellenőrzünk: a hibát ott kell jelezni, ahol az ügyfél
+        // beírja, nem a hatodik sikertelen kézbesítésnél.
+        self::saving(function (self $endpoint): void {
+            if ($endpoint->isDirty('url')) {
+                app(WebhookUrlGuard::class)->assertAllowed((string) $endpoint->url);
+            }
+        });
+    }
 
     public function uniqueIds(): array
     {
@@ -72,13 +91,16 @@ final class WebhookEndpoint extends Model
         $secret = 'whsec_'.Str::random(40);
 
         return [
-            'endpoint' => self::create([
+            'endpoint' => tap(self::make([
                 'name' => $name,
                 'url' => $url,
                 'events' => $events,
-                'secret' => $secret,
                 'active' => true,
-            ]),
+            ]), function (self $endpoint) use ($secret): void {
+                // A titok NEM tömegesen kitölthető: itt, explicit adjuk meg.
+                $endpoint->secret = $secret;
+                $endpoint->save();
+            }),
             'secret' => $secret,
         ];
     }

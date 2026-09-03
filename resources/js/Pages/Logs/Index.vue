@@ -36,10 +36,13 @@ const filters = reactive({
     channel: props.filters.channel ?? '',
     status: props.filters.status ?? '',
     domain: props.filters.domain ?? '',
+    since: props.filters.since ?? '',
+    until: props.filters.until ?? '',
 });
 
 type Row = {
     uuid: string;
+    trace: string;
     recipient: string;
     subject: string;
     status: string;
@@ -55,6 +58,11 @@ const columns: VtColumn<Row>[] = [
     { key: 'status', label: 'Állapot' },
     { key: 'channel', label: 'Csatorna' },
     { key: 'tags', label: 'Tagek' },
+    // A trace-hez vezető gomb SAJÁT oszlop. A `VtTable` nem emit sor-kattintást (ma nincs
+    // ilyen a @venture/ui-ban), a sorra akasztott kattintás pedig némán nem működne — a
+    // support azt hinné, hogy a trace nem létezik. A hiányt JELENTJÜK, nem gyártunk helyi
+    // táblázatot: a cella-slot + VtButton a design-rendszeren belüli megoldás.
+    { key: 'trace', label: '' },
 ];
 
 const rows = (): Row[] =>
@@ -72,6 +80,7 @@ const rows = (): Row[] =>
         channel: message.channel,
         tags: message.tags.join(', ') || '—',
         created_at: message.created_at ? new Date(message.created_at).toLocaleString('hu-HU') : '—',
+        trace: 'Trace',
     }));
 
 const search = (): void => {
@@ -81,6 +90,10 @@ const search = (): void => {
 const loadMore = (): void => {
     if (!props.messages.next_cursor) return;
 
+    // `replace: false` (alapértelmezés): a lapozás a böngésző-előzménybe kerül, tehát a
+    // VISSZA gomb tényleg visszavisz az előző oldalra. Kurzoros lapozásnál nincs „előző"
+    // kurzor, így az előzmény az egyetlen visszaút — enélkül a 2. oldalról nem lehetne
+    // visszajutni az elsőre.
     router.get('/logs', { ...filters, cursor: props.messages.next_cursor }, { preserveState: false });
 };
 
@@ -110,11 +123,26 @@ const openTrace = (row: Row): void => {
             <VtField label="Domain">
                 <VtInput v-model="filters.domain" data-testid="filter-domain" placeholder="pelda.hu" />
             </VtField>
+            <!-- Az időablak a backendben eddig is megvolt, az űrlapról hiányzott: a support
+                 leggyakoribb kérdése épp az, hogy „mi ment ki tegnap délután". -->
+            <VtField label="Ettől">
+                <VtInput v-model="filters.since" data-testid="filter-since" type="date" />
+            </VtField>
+            <VtField label="Eddig">
+                <VtInput v-model="filters.until" data-testid="filter-until" type="date" />
+            </VtField>
 
             <VtButton type="submit" data-testid="log-search">Keresés</VtButton>
         </form>
 
-        <VtTable :columns="columns" :rows="rows()" data-testid="log-table" @row-click="openTrace" />
+        <VtTable :columns="columns" :rows="rows()" data-testid="log-table">
+            <template #cell="{ row, column, value }">
+                <VtButton v-if="column.key === 'trace'" data-testid="log-trace" @click="openTrace(row)">
+                    Trace
+                </VtButton>
+                <template v-else>{{ value }}</template>
+            </template>
+        </VtTable>
 
         <VtButton v-if="props.messages.next_cursor" data-testid="log-more" @click="loadMore">
             További találatok

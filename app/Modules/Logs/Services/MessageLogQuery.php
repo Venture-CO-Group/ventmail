@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Logs\Services;
 
 use App\Modules\Sending\Models\Message;
+use App\Modules\Sending\Services\DomainNormalizer;
 use Illuminate\Contracts\Pagination\CursorPaginator;
 use Illuminate\Database\Eloquent\Builder;
 
@@ -17,16 +18,24 @@ use Illuminate\Database\Eloquent\Builder;
  *
  * A CÍMZETT-szűrés a `recipients` jsonb-tömbre megy: a batch egyetlen sorban ezer címet
  * tárol, tehát a `where('recipient', …)` nem működne.
+ *
+ * A keresett címet UGYANAZZAL a normalizálóval alakítjuk, amivel tároltuk. Ez nem
+ * kozmetika: a `whereJsonContains` PONTOS egyezést vár, a tárolt alakban pedig a helyi rész
+ * VÁLTOZATLAN, a domain viszont punycode. Naiv `mb_strtolower()`-rel a `Ugyfel@pelda.hu`-ra
+ * küldött levél a naplóban `Ugyfel@pelda.hu`-ra keresve NEM jönne elő, a `user@példa.hu`
+ * pedig soha — vagyis a 22. kritérium fő szűrője csendben rossz választ adna.
  */
 final class MessageLogQuery
 {
+    public function __construct(private readonly DomainNormalizer $normalizer) {}
+
     /** @param array<string, mixed> $filters */
     public function paginate(array $filters, int $perPage = 50, ?string $cursor = null): CursorPaginator
     {
         return Message::query()
-            ->with(['domain', 'ipAddress'])
+            ->with('domain')
             ->when(($filters['recipient'] ?? '') !== '', fn (Builder $query) => $query
-                ->whereJsonContains('recipients', mb_strtolower(trim((string) $filters['recipient']))))
+                ->whereJsonContains('recipients', $this->normalizer->email(trim((string) $filters['recipient']))))
             ->when(($filters['tag'] ?? '') !== '', fn (Builder $query) => $query
                 ->whereJsonContains('tags', (string) $filters['tag']))
             ->when(($filters['channel'] ?? '') !== '', fn (Builder $query) => $query

@@ -49,6 +49,20 @@ TODO  a6    A  feat/a6-deliverability        backend,frontend          # Blockli
 #    A3 webhook ki is küldi őket: a webhook-sor mostantól lejár (retenció), a
 #    `message_events` redakciós útja viszont még nyitott                               → A6
 #  · a Postal `send/message` idempotency_key támogatása NEM igazolt (élő cluster kell)  → A2
+#  · a `VtTable` nem emit sor-kattintást (@venture/ui): a napló-listán ezért külön
+#    „Trace" gomb áll a cella-slotban. Ha a komponens megkapja, a gomb-oszlop elhagyható
+#                                                                                    → @venture/ui
+#  · a napló Meilisearch-INDEXE hiányzik: a 22. kritérium „Meili+Timescale"-t ír, ma a
+#    szűrés tisztán SQL. Nagy naplónál a szabad szavas keresés ezt megkívánja           → A6
+#  · a napló-retenció ma FIX (90 nap): a ventPay `log_retention_tier` metering-dimenzió
+#    plan-függő retenciót jelent — a kód még nem veszi figyelembe                      → C1
+#  · a `message_event_daily` aggregátum a TAG-et örökre megőrzi; a tag ügyfél által adott
+#    szabad szöveg, tehát elvben PII kerülhet bele. Tag-validáció vagy aggregátum-
+#    retenció kell rá — tulajdonosi döntéssel                                          → C1
+#  · a Timescale `add_retention_policy` ÉLES útját (drop_chunks) egyik teszt sem
+#    gyakorolja: a retenciós teszt `delete`-tel dolgozik                              → devops
+#  · a nyitás-követés bot-szűrése hiányzik (Apple MPP, vírusszűrő-előtöltés): ma minden
+#    pixel-hívás `opened`. A felület kimondja a torzítást, de szűrni nem szűrünk       → A6
 #  · volumetrikus (L7) védelem az edge feladata: a trusted-proxy mögötti XFF-rotációt
 #    alkalmazásszinten nem lehet megfogni — Caddy/LB rate limit kell                    → devops
 

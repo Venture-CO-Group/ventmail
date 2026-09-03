@@ -12,13 +12,25 @@ namespace App\Modules\Webhooks\Services;
  * végpont), az évekig újraküldheti ugyanazt a „hiteles" eseményt. Az időbélyeg része az
  * aláírt adatnak, tehát nem cserélhető ki.
  *
- * A fogadó oldalnak ezért két dolgot kell ellenőriznie: (1) az aláírás stimmel, (2) az
- * időbélyeg friss. A második nélkül az első keveset ér.
+ * A fogadó oldalnak HÁROM dolgot kell ellenőriznie: (1) az aláírás stimmel, (2) az időbélyeg
+ * friss, (3) az `X-VentMail-Delivery` azonosítót még nem látta. A harmadik nélkül a
+ * tűréshatáron belül (5 perc) az elkapott kérés újrajátszható marad — az időbélyeg-ablak
+ * SZŰKÍTI a replay-t, de nem szünteti meg.
  */
 final class WebhookSigner
 {
     /** Ennél régebbi aláírást a fogadónak el KELL utasítania (ezt dokumentáljuk is). */
     public const TOLERANCE_SECONDS = 300;
+
+    /**
+     * Előre viszont alig tűrünk — csak annyit, amennyi óraeltérés reálisan előfordul.
+     *
+     * Az ablak ASZIMMETRIKUS, mert a két irány nem egyenrangú: a múltbeli tűrés a hálózati
+     * késleltetést és az újrapróbálást fedi (valódi igény), a jövőbeli semmit — a saját
+     * óránknál előbbre keltezett aláírás legfeljebb óracsúszás, és minden fölös másodperc
+     * csak a támadó ablakát tágítja.
+     */
+    public const FUTURE_TOLERANCE_SECONDS = 60;
 
     public function sign(string $secret, string $payload, int $timestamp): string
     {
@@ -33,7 +45,9 @@ final class WebhookSigner
      */
     public function verify(string $secret, string $payload, int $timestamp, string $signature): bool
     {
-        if (abs(now()->getTimestamp() - $timestamp) > self::TOLERANCE_SECONDS) {
+        $age = now()->getTimestamp() - $timestamp;
+
+        if ($age > self::TOLERANCE_SECONDS || $age < -self::FUTURE_TOLERANCE_SECONDS) {
             return false;
         }
 

@@ -8,6 +8,7 @@ use App\Modules\Events\Models\MessageEvent;
 use App\Modules\Webhooks\Jobs\DeliverWebhook;
 use App\Modules\Webhooks\Models\WebhookDelivery;
 use App\Modules\Webhooks\Models\WebhookEndpoint;
+use Illuminate\Support\Collection;
 
 /**
  * Egy esemény szétosztása a feliratkozott végpontokra.
@@ -15,12 +16,21 @@ use App\Modules\Webhooks\Models\WebhookEndpoint;
  * A kézbesítés SORON megy: egy lassú (vagy halott) ügyfél-végpont nem foghatja meg a
  * küldési utat. A `webhook_deliveries` sor MOST keletkezik, tehát a hívó akkor is látja a
  * függő kézbesítést, ha a worker épp áll.
+ *
+ * A VÉGPONTLISTA kérésen belül MEMOIZÁLT, és ez nem mikro-optimalizálás: egy 1000 címzettes
+ * batch címzettenként külön eseményt ír, tehát a naiv változat 1000 (eseményenként új)
+ * `select * from webhook_endpoints`-ot futtatna a `POST /v1/messages` kérésen BELÜL — és
+ * mindezt kétszer, az `accepted` és a `delivered` miatt. A küldési út ettől lassul, nem a
+ * webhookok kézbesítésétől.
  */
 final class WebhookDispatcher
 {
+    /** @var array<int, Collection<int, WebhookEndpoint>> */
+    private array $endpoints = [];
+
     public function dispatch(MessageEvent $event): void
     {
-        $endpoints = WebhookEndpoint::query()->where('active', true)->get();
+        $endpoints = $this->endpointsFor((int) $event->workspace_id);
 
         foreach ($endpoints as $endpoint) {
             if (! $endpoint->listensTo((string) $event->type)) {
@@ -38,6 +48,19 @@ final class WebhookDispatcher
 
             DeliverWebhook::dispatch((int) $delivery->workspace_id, (string) $delivery->uuid);
         }
+    }
+
+    /**
+     * A workspace aktív végpontjai — kérésenként EGYSZER lekérdezve.
+     *
+     * A kulcs a `workspace_id`, mert a worker hosszan él, és több tenant jobját futtatja
+     * egymás után: közös cache-sel az egyik tenant végpontjaira mennének a másik eseményei.
+     *
+     * @return Collection<int, WebhookEndpoint>
+     */
+    private function endpointsFor(int $workspaceId): Collection
+    {
+        return $this->endpoints[$workspaceId] ??= WebhookEndpoint::query()->where('active', true)->get();
     }
 
     /**

@@ -39,6 +39,11 @@ return [
     ],
 
     // A kézbesítési kísérletek (fogadó válasza, címzett) megőrzése — PII, tehát lejár.
+    // A nyomkövetési linkek gazdája. Külön kulcs, mert ez a cím a LEVÉLBEN megy ki: a
+    // levélkliens hívja, nem a bejelentkezett böngésző, tehát nem feltétlenül ugyanaz a
+    // hoszt, mint az alkalmazásé (külön aldomain, saját tanúsítvány, saját CDN).
+    'tracking_base_url' => env('SENDING_TRACKING_BASE_URL'),
+
     'delivery_attempt_retention_days' => (int) env('SENDING_ATTEMPT_RETENTION_DAYS', 90),
 
     // A küldés SORON megy-e (A2). Fejlesztésben és tesztben szinkron: a determinisztikus

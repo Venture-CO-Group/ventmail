@@ -30,6 +30,7 @@ final class SmtpTransaction extends Model
             'started_at' => 'datetime',
             'finished_at' => 'datetime',
             'expires_at' => 'datetime',
+            'redacted_at' => 'datetime',
         ];
     }
 

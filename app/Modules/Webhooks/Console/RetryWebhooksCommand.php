@@ -19,9 +19,18 @@ use Illuminate\Console\Command;
  */
 final class RetryWebhooksCommand extends Command
 {
+    /**
+     * A LÍZING hossza: eddig nem nyúl hozzá senki más ehhez a sorhoz.
+     *
+     * Enélkül a percenként futó parancs torlódásnál (worker-újraindulás, 200 esedékes sor)
+     * ugyanazt a kézbesítést percenként újra sorba tenné — az ügyfél végpontja többször
+     * kapná meg ugyanazt az eseményt, az `attempt` számláló pedig versenyezne.
+     */
+    private const LEASE_SECONDS = 300;
+
     protected $signature = 'webhooks:retry {--limit=200}';
 
-    protected $description = 'Az esedékes (failed) webhook-kézbesítések újrapróbálása.';
+    protected $description = 'Az esedékes webhook-kézbesítések újrapróbálása.';
 
     public function handle(WorkspaceContext $context): int
     {
@@ -32,16 +41,30 @@ final class RetryWebhooksCommand extends Command
                 foreach ($workspaces as $workspace) {
                     $context->set($workspace);
 
+                    // A `pending` IS ide tartozik: ha a job elhalt, mielőtt a HTTP-hívásig
+                    // jutott volna (worker-újraindulás, Redis-kiesés), a sor `pending`-en
+                    // ragadna — és a 28. kritérium retry-ígérete csendben megszűnne.
                     $due = WebhookDelivery::query()
-                        ->where('status', 'failed')
+                        ->whereIn('status', ['pending', 'failed'])
                         ->whereNotNull('next_attempt_at')
                         ->where('next_attempt_at', '<=', now())
                         ->orderBy('next_attempt_at')
                         ->limit((int) $this->option('limit'))
-                        ->get();
+                        ->pluck('uuid');
 
-                    foreach ($due as $delivery) {
-                        DeliverWebhook::dispatch((int) $workspace->getKey(), (string) $delivery->uuid);
+                    foreach ($due as $uuid) {
+                        // CLAIM: feltételes UPDATE. Ha két futás versenyez ugyanazon a
+                        // soron, csak az egyik kap 1-et vissza — a másik továbblép.
+                        $claimed = WebhookDelivery::query()
+                            ->where('uuid', $uuid)
+                            ->where('next_attempt_at', '<=', now())
+                            ->update(['next_attempt_at' => now()->addSeconds(self::LEASE_SECONDS)]);
+
+                        if ($claimed !== 1) {
+                            continue;
+                        }
+
+                        DeliverWebhook::dispatch((int) $workspace->getKey(), (string) $uuid);
                         $queued++;
                     }
                 }

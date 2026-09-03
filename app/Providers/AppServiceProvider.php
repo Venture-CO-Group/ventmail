@@ -81,6 +81,11 @@ class AppServiceProvider extends ServiceProvider
 
         // A bejelentkezési folyamat hitelesítetlen: minden hívás session-rekordot ír és
         // kimenő HTTP-t indít a ventSSO felé, ezért IP-alapon szűkebb a keret.
+        // NYOMKÖVETÉS: a levélkliens hívja, tehát egy IP mögött egy egész vállalati
+        // levelezés állhat — a keret bőséges, de nem végtelen. Publikus endpoint sosem
+        // marad limit nélkül: enélkül a végpont az eseménytábla hizlalására lenne jó.
+        RateLimiter::for('tracking', fn (Request $request) => Limit::perMinute(300)->by((string) $request->ip()));
+
         RateLimiter::for('oidc', fn (Request $request) => Limit::perMinute(20)->by((string) $request->ip()));
     }
 }

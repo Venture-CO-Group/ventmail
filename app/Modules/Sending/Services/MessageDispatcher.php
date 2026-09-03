@@ -6,6 +6,8 @@ namespace App\Modules\Sending\Services;
 
 use App\Modules\Domains\Models\Domain;
 use App\Modules\Events\Models\MessageEvent;
+use App\Modules\Events\Services\TrackingRewriter;
+use App\Modules\Events\Services\TrackingTokens;
 use App\Modules\IpPools\Models\IpPool;
 use App\Modules\IpPools\Services\IpPoolSelector;
 use App\Modules\Sending\Actions\RecordDeliveryOutcome;
@@ -52,6 +54,7 @@ final class MessageDispatcher
         private readonly RecordDeliveryOutcome $outcome,
         private readonly RetryPolicy $retry,
         private readonly TemplateRenderer $renderer = new TemplateRenderer,
+        private readonly TrackingRewriter $tracking = new TrackingRewriter(new TrackingTokens),
     ) {}
 
     public function dispatch(Message $message): void
@@ -271,7 +274,8 @@ final class MessageDispatcher
                     (string) $recipient,
                     $result->code,
                     (string) $result->response,
-                    $result->enhancedCode
+                    $result->enhancedCode,
+                    $result->transcript,
                 );
             }
         }
@@ -387,14 +391,54 @@ final class MessageDispatcher
         foreach ($message->recipients as $recipient) {
             $recipient = (string) $recipient;
 
+            $recipientHtml = $html === ''
+                ? null
+                : $this->renderer->renderForRecipient($html, $recipient, $recipientVariables, $shared);
+
+            // A NYOMKÖVETÉS a személyre szabás UTÁN és az ALÁÍRÁS ELŐTT kerül be: a pixel és
+            // a becsomagolt link címzettenként más (különben nem lehetne megmondani, KI
+            // nyitotta meg), a DKIM viszont a VÉGLEGES törzsre készül — fordított sorrendben
+            // minden aláírásunk érvénytelen lenne.
+            if ($recipientHtml !== null) {
+                $recipientHtml = $this->tracking->rewrite(
+                    $recipientHtml,
+                    (int) $message->workspace_id,
+                    (string) $message->uuid,
+                    $recipient,
+                    opens: $this->tracks($message, 'tracking_opens'),
+                    clicks: $this->tracks($message, 'tracking_clicks'),
+                );
+            }
+
             $rendered[$recipient] = [
-                'html' => $html === '' ? null : $this->renderer->renderForRecipient($html, $recipient, $recipientVariables, $shared),
+                'html' => $recipientHtml,
                 'text' => $text === '' ? null : $this->renderer->renderForRecipient($text, $recipient, $recipientVariables, $shared, escape: false),
                 'mime' => null,
             ];
         }
 
         return $this->sign($message, $rendered);
+    }
+
+    /**
+     * Követjük-e ezt a levelet?
+     *
+     * Az `o:tracking` a fő kapcsoló, az `o:tracking-opens` / `-clicks` finomít rajta
+     * (Mailgun-paritás). A `htmlonly` a mi esetünkben ugyanaz, mint az `igen`: a
+     * nyomkövetést amúgy is csak a HTML törzsbe írjuk — a sima szöveges változatba
+     * pixelt tenni nem lehet, linket becsomagolni pedig ott látható csúfítás lenne.
+     *
+     * Az ALAPÉRTELMEZÉS a bekapcsolt követés (ez a Mailgun viselkedése is), a hívó viszont
+     * egyetlen `o:tracking=no`-val kikapcsolhatja — tranzakciós levélnél ez gyakran jogi
+     * vagy adatvédelmi elvárás.
+     */
+    private function tracks(Message $message, string $key): bool
+    {
+        if (($message->options['tracking'] ?? true) === false) {
+            return false;
+        }
+
+        return ($message->options[$key] ?? true) !== false;
     }
 
     /**

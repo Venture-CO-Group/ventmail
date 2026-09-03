@@ -23,6 +23,15 @@ use Illuminate\Support\Str;
  */
 final class MessageTrace
 {
+    /**
+     * Egy trace-be ennyi sor fér.
+     *
+     * Korlát nélkül egy 1000 címzettes batch trace-e ezer SMTP-párbeszédet, ezer kísérletet
+     * és több ezer eseményt töltene EGYETLEN Inertia-payloadba — a „miért nem érkezett meg?"
+     * képernyő pont akkor állna meg, amikor a legnagyobb szükség lenne rá.
+     */
+    private const MAX_ROWS = 200;
+
     /** @return array<string, mixed>|null */
     public function for(string $uuid): ?array
     {
@@ -71,6 +80,7 @@ final class MessageTrace
             'smtp' => SmtpTransaction::query()
                 ->where('message_uuid', $uuid)
                 ->orderBy('id')
+                ->limit(self::MAX_ROWS)
                 ->get()
                 ->map(fn (SmtpTransaction $transaction) => [
                     'recipient' => $transaction->recipient,
@@ -84,6 +94,7 @@ final class MessageTrace
             'attempts' => DeliveryAttempt::query()
                 ->where('message_uuid', $uuid)
                 ->orderBy('id')
+                ->limit(self::MAX_ROWS)
                 ->get()
                 ->map(fn (DeliveryAttempt $attempt) => [
                     'attempt' => $attempt->attempt,
@@ -96,6 +107,7 @@ final class MessageTrace
             'events' => MessageEvent::query()
                 ->where('message_uuid', $uuid)
                 ->orderBy('occurred_at')
+                ->limit(self::MAX_ROWS)
                 ->get()
                 ->map(fn (MessageEvent $event) => [
                     'type' => $event->type,

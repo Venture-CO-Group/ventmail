@@ -39,7 +39,7 @@ return new class extends Migration
 
         // A frissítés az UTOLSÓ ÓRÁIG fut: a friss (még mozgó) ablakot a lekérdezés
         // valós időben egészíti ki (`materialized_only = false`).
-        DB::statement("alter materialized view message_event_daily set (timescaledb.materialized_only = false)");
+        DB::statement('alter materialized view message_event_daily set (timescaledb.materialized_only = false)');
 
         DB::statement("select add_continuous_aggregate_policy('message_event_daily',
             start_offset => interval '30 days',

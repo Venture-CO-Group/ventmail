@@ -38,6 +38,7 @@ final class WebhookDelivery extends Model
             'delivered_at' => 'datetime',
             'dead_lettered_at' => 'datetime',
             'expires_at' => 'datetime',
+            'redacted_at' => 'datetime',
         ];
     }
 

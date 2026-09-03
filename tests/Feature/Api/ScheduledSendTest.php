@@ -116,3 +116,53 @@ it('az ütemezett küldés tenantonként fut, kontextussal', function () {
     app(WorkspaceContext::class)->set($this->workspace);
     expect(Message::firstOrFail()->status)->toBe('delivered');
 });
+
+/*
+ | Az ÚJRAÉRTÉKELT gate-döntés a trace-be is bekerül.
+ |
+ | Enélkül a támogatás aktívan félrevezetne: a holnapra ütemezett levélnél a `rejected`
+ | döntés mellett a KÜLDÉSKORI kapu-eredmény állna — a support épp azt a kaput látná
+ | zöldnek, amelyik megállította a levelet. Ez rosszabb, mint a hiányzó adat.
+ */
+
+it('az ütemezőben elutasított levél trace-e az ÚJ kapu-eredményt mutatja', function () {
+    scheduleSend(now()->addHour()->toRfc2822String(), ['to' => 'kesobb@example.test'])->assertAccepted();
+
+    $message = Message::query()->firstOrFail();
+
+    // A küldéskori pillanatban a suppression-kapu még ÁTMENT.
+    expect($message->options['gate_trace']['suppression']['passed'])->toBeTrue();
+
+    // …estére viszont leiratkozik.
+    Suppression::create(['email' => 'kesobb@example.test', 'reason' => 'complaint']);
+
+    $this->travel(2)->hours();
+
+    runScheduler();
+
+    $message->refresh();
+
+    expect($message->status)->toBe('rejected');
+    expect($message->reason)->toBe('SUPPRESSED');
+    // A trace MOST azt mutatja, ami a döntést hozta.
+    expect($message->options['gate_trace']['suppression']['passed'])->toBeFalse();
+    expect($message->gate_decided_at)->not->toBeNull();
+});
+
+it('az ütemezőben ÁTENGEDETT levél kapu-eredménye is frissül', function () {
+    scheduleSend(now()->addHour()->toRfc2822String(), ['to' => 'rendben@example.test'])->assertAccepted();
+
+    $message = Message::query()->firstOrFail();
+
+    $eredetiDontes = $message->gate_decided_at;
+
+    $this->travel(2)->hours();
+
+    runScheduler();
+
+    $message->refresh();
+
+    expect($message->options['gate_trace'])->toBeArray()->not->toBeEmpty();
+    // A döntés IDEJE is elmozdul: a trace-en látszania kell, hogy mikor mérlegeltünk újra.
+    expect($message->gate_decided_at->gt($eredetiDontes))->toBeTrue();
+});

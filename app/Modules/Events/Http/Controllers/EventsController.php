@@ -6,9 +6,14 @@ namespace App\Modules\Events\Http\Controllers;
 
 use App\Modules\Api\Support\ApiError;
 use App\Modules\Events\Models\MessageEvent;
+use App\Modules\Sending\Services\DomainNormalizer;
+use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\Validator;
 
 /**
  * `GET /v1/events` — a Mailgun events API paritása (27. kritérium).
@@ -21,22 +26,62 @@ use Illuminate\Http\Request;
  * A kurzor az `(occurred_at, id)` PÁROS: az `occurred_at` önmagában nem egyedi (egy batch
  * ezer eseménye ugyanabban a másodpercben keletkezik), tehát azzal lapozva sorok maradnának
  * ki. A hypertable elsődleges kulcsa pontosan ez a páros.
+ *
+ * A kurzor viszont TITKOSÍTVA megy ki, és az eseményt a `uuid` azonosítja. A belső `id` egy
+ * TENANT-FÜGGETLEN szekvencia: base64-ben kiadva bárki két hívásból (09:00 → 10:00)
+ * megbecsülné a platform teljes esemény-volumenét. A rendezés maradhat a gyors `(occurred_at,
+ * id)` páros — csak épp nem a hívón keresztül utazik nyíltan.
  */
 final class EventsController
 {
     private const MAX_LIMIT = 300;
 
-    public function __invoke(Request $request): JsonResponse
-    {
-        $limit = min((int) $request->integer('limit', 100), self::MAX_LIMIT);
+    /** Az elfogadott eseménytípusok — a `/v1` szerződés zárt listája. */
+    private const TYPES = [
+        'accepted', 'rejected', 'delivered', 'deferred', 'bounced',
+        'complained', 'unsubscribed', 'opened', 'clicked', 'stored',
+    ];
 
-        if ($limit < 1) {
-            return ApiError::badRequest('VALIDATION_ERROR', 'A `limit` legalább 1 legyen.');
+    public function __invoke(Request $request, DomainNormalizer $normalizer): JsonResponse
+    {
+        // VALIDÁCIÓ ELŐSZÖR. Enélkül a `?since=tegnap` egy `InvalidFormatException`-ön át
+        // nyers 500-at ad, a `?recipient[]=a` pedig „Array to string conversion"-t — a `/v1`
+        // egységes hibaformátuma (golden rule 7) mindkét esetben megszűnne.
+        $data = $request->query();
+
+        // A `type` egy vagy több érték is lehet (`?type=delivered` és `?type[]=…`): a
+        // szabályokat EGY alakra írjuk, különben a skalár változat kiesne az `in:` alól.
+        $data['type'] = Arr::wrap($data['type'] ?? []);
+
+        $validator = Validator::make($data, [
+            'limit' => ['sometimes', 'integer', 'min:1', 'max:'.self::MAX_LIMIT],
+            'cursor' => ['sometimes', 'string'],
+            'type' => ['array'],
+            'type.*' => ['string', 'in:'.implode(',', self::TYPES)],
+            'recipient' => ['sometimes', 'string', 'max:320'],
+            'channel' => ['sometimes', 'string', 'in:transactional,marketing'],
+            'message_id' => ['sometimes', 'string', 'max:64'],
+            'tag' => ['sometimes', 'string', 'max:128'],
+            'since' => ['sometimes', 'date'],
+            'until' => ['sometimes', 'date'],
+            'variable' => ['sometimes', 'array'],
+            'variable.*' => ['string', 'max:256'],
+        ]);
+
+        if ($validator->fails()) {
+            return ApiError::response(
+                'VALIDATION_ERROR',
+                'A lekérdezés paraméterei érvénytelenek.',
+                400,
+                $validator->errors()->toArray(),
+            );
         }
+
+        $limit = (int) $request->integer('limit', 100);
 
         $query = MessageEvent::query()->orderByDesc('occurred_at')->orderByDesc('id');
 
-        $this->applyFilters($query, $request);
+        $this->applyFilters($query, $request, $normalizer);
 
         if (($cursor = $request->string('cursor')->toString()) !== '') {
             $decoded = $this->decodeCursor($cursor);
@@ -64,7 +109,7 @@ final class EventsController
 
         return response()->json([
             'items' => $items->map(fn (MessageEvent $event) => [
-                'id' => $event->id,
+                'id' => $event->uuid,
                 'type' => $event->type,
                 'message_id' => $event->message_uuid,
                 'recipient' => $event->recipient,
@@ -84,11 +129,13 @@ final class EventsController
         ]);
     }
 
-    private function applyFilters(Builder $query, Request $request): void
+    private function applyFilters(Builder $query, Request $request, DomainNormalizer $normalizer): void
     {
         $query
-            ->when($request->filled('type'), fn (Builder $q) => $q->whereIn('type', (array) $request->input('type')))
-            ->when($request->filled('recipient'), fn (Builder $q) => $q->where('recipient', $request->string('recipient')->toString()))
+            ->when($request->filled('type'), fn (Builder $q) => $q->whereIn('type', Arr::wrap($request->input('type'))))
+            // A CÍMET ugyanazzal a normalizálóval alakítjuk, amivel tároltuk: enélkül a
+            // `user@példa.hu`-ra szűrve SOHA nincs találat (tárolva punycode-ban van).
+            ->when($request->filled('recipient'), fn (Builder $q) => $q->where('recipient', $normalizer->email($request->string('recipient')->toString())))
             ->when($request->filled('channel'), fn (Builder $q) => $q->where('channel', $request->string('channel')->toString()))
             ->when($request->filled('message_id'), fn (Builder $q) => $q->where('message_uuid', $request->string('message_id')->toString()))
             ->when($request->filled('tag'), fn (Builder $q) => $q->whereJsonContains('tags', $request->string('tag')->toString()))
@@ -97,23 +144,31 @@ final class EventsController
 
         // `v:*` változóra szűrés (Mailgun-paritás): `?variable[rendeles]=A-42`.
         foreach ((array) $request->input('variable', []) as $name => $value) {
-            if (is_string($name) && is_scalar($value)) {
+            // A KULCS a kérésből jön, és JSON-útvonalként kerül a lekérdezésbe: engedélyezett
+            // karakterkészletre szorítjuk. Enélkül a `variables->…` kifejezésbe idézőjel
+            // vagy zárójel kerülhetne — a `v:*` nevek amúgy is egyszerű azonosítók.
+            if (is_string($name) && is_scalar($value) && preg_match('/^[A-Za-z0-9_-]{1,64}$/', $name) === 1) {
                 $query->where('variables->'.$name, (string) $value);
             }
         }
     }
 
+    /** A kurzor ÁTLÁTSZATLAN: a belső sorszám nem a hívó dolga. */
     private function encodeCursor(MessageEvent $event): string
     {
-        return base64_encode($event->occurred_at?->toIso8601String().'|'.$event->id);
+        return Crypt::encryptString($event->occurred_at?->toIso8601String().'|'.$event->id);
     }
 
     /** @return array{0: string, 1: int}|null */
     private function decodeCursor(string $cursor): ?array
     {
-        $decoded = base64_decode($cursor, true);
+        try {
+            $decoded = Crypt::decryptString($cursor);
+        } catch (DecryptException) {
+            return null;
+        }
 
-        if ($decoded === false || ! str_contains($decoded, '|')) {
+        if (! str_contains($decoded, '|')) {
             return null;
         }
 

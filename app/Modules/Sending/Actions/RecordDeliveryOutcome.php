@@ -6,6 +6,7 @@ namespace App\Modules\Sending\Actions;
 
 use App\Modules\Events\Models\MessageEvent;
 use App\Modules\Logs\Models\SmtpTransaction;
+use App\Modules\Logs\Services\SmtpTranscriptRedactor;
 use App\Modules\Sending\Data\BounceClass;
 use App\Modules\Sending\Models\DeliveryAttempt;
 use App\Modules\Sending\Models\Message;
@@ -27,20 +28,29 @@ final class RecordDeliveryOutcome
     /** Hány soft bounce után kerül a cím suppression-listára. */
     private const SOFT_BOUNCE_LIMIT = 5;
 
-    public function __construct(private readonly BounceClassifier $classifier) {}
+    public function __construct(
+        private readonly BounceClassifier $classifier,
+        private readonly SmtpTranscriptRedactor $redactor,
+    ) {}
 
+    /**
+     * @param  list<array{direction: string, line: string}>  $transcript
+     */
     public function __invoke(
         Message $message,
         string $recipient,
         int $code,
         string $response,
         ?string $enhanced = null,
+        array $transcript = [],
     ): BounceClass {
         $class = $this->classifier->classify($code, $response, $enhanced);
 
         // A FOGADÓ VÁLASZA a trace-be is bekerül: ez az a sor, amit a support megnéz,
         // amikor az ügyfél azt írja, „nem jött meg". A `lines` a valódi SMTP-párbeszédnél
-        // telik meg (A2 relay); API-alapú MTA-nál a kód és a szöveg az, amink van.
+        // telik meg; API-alapú MTA-nál (Postal HTTP) a kód és a szöveg az, amink van.
+        //
+        // A párbeszéd REDAKTÁLVA kerül be: az `AUTH` sor base64-je maga a jelszó.
         SmtpTransaction::create([
             'message_uuid' => $message->uuid,
             'recipient' => $recipient,
@@ -48,6 +58,7 @@ final class RecordDeliveryOutcome
             'response_code' => $code,
             'enhanced_code' => $enhanced,
             'response_text' => $response,
+            'lines' => $this->redactor->redact($transcript),
             'started_at' => now(),
             'finished_at' => now(),
         ]);
