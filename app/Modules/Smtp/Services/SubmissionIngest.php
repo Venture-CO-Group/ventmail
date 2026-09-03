@@ -7,12 +7,16 @@ namespace App\Modules\Smtp\Services;
 use App\Modules\Domains\Models\Domain;
 use App\Modules\Messages\Services\MimeParser;
 use App\Modules\Sending\Actions\SendMessage;
+use App\Modules\Sending\Enums\Channel;
+use App\Modules\Sending\Services\DomainNormalizer;
 use App\Modules\Smtp\Contracts\SubmissionSink;
 use App\Modules\Smtp\Data\SmtpEnvelope;
 use App\Modules\Smtp\Data\SubmissionPrincipal;
+use App\Modules\Smtp\Models\SmtpCredential;
 use App\Modules\Smtp\Protocol\SmtpReply;
 use App\Modules\Tenancy\Models\Workspace;
 use App\Modules\Tenancy\Services\WorkspaceContext;
+use Illuminate\Support\Facades\Cache;
 use InvalidArgumentException;
 use Throwable;
 
@@ -71,6 +75,13 @@ final class SubmissionIngest implements SubmissionSink
             return new SmtpReply(550, 'Sender domain not allowed for this credential', '5.7.1');
         }
 
+        // HITELESÍTŐ-szintű sebességkorlát. A workspace-szintű kapu (5. gate) e fölött van:
+        // ez azt akadályozza meg, hogy EGY elszabadult integráció megegye a tenant teljes
+        // keretét. Átmeneti kód, tehát a kliens újrapróbál — a levél nem vész el.
+        if (! $this->withinCredentialRate($principal)) {
+            return new SmtpReply(452, 'Credential rate limit exceeded, try again later', '4.3.2');
+        }
+
         $controls = $this->controls->extract($parsed['headers']);
 
         if ($controls->error !== null) {
@@ -84,7 +95,12 @@ final class SubmissionIngest implements SubmissionSink
 
         try {
             $result = ($this->send)([
-                'channel' => $principal->channel,
+                // MARKETING SMTP-N NINCS (tulajdonosi döntés, ADR 0001 / 1. pont). A
+                // consent-bizonyítékot SMTP-fejlécből nem lehet előállítani (golden rule 4),
+                // ezért a csatorna itt NEM a hitelesítő beállításából jön: fix érték. Az
+                // oszlopot DB-check is a tranzakciósra szorítja — kettős zár, mert egy
+                // „csak indokolt esetben" állítható kapcsoló előbb-utóbb átbillen.
+                'channel' => Channel::Transactional->value,
                 'from_email' => $parsed['from_email'],
                 'from_name' => $parsed['from_name'],
                 'subject' => $parsed['subject'],
@@ -117,13 +133,46 @@ final class SubmissionIngest implements SubmissionSink
         return new SmtpReply(250, 'Ok: queued as '.$result->message->uuid, '2.0.0');
     }
 
+    /**
+     * Belefér-e a hitelesítő a saját perces keretébe?
+     *
+     * ATOMI számláló: a `get`+`put` páros mellett két listener-processz (587 és 465)
+     * ugyanazt az értéket olvasná, és mindkettő átengedné a kérést.
+     */
+    private function withinCredentialRate(SubmissionPrincipal $principal): bool
+    {
+        $limit = SmtpCredential::findByUuid($principal->credentialUuid)?->rate_limit_per_minute
+            ?? (int) config('smtp.rate_limit.per_credential_per_minute');
+
+        if ((int) $limit <= 0) {
+            return true;
+        }
+
+        $key = 'smtp-credential-rate:'.$principal->credentialUuid.':'.now()->format('YmdHi');
+
+        try {
+            Cache::add($key, 0, now()->addMinutes(2));
+
+            return (int) Cache::increment($key) <= (int) $limit;
+        } catch (Throwable $e) {
+            // A fék tára nem elérhető. Itt FAIL-OPEN a helyes: a sebességkorlát kényelmi
+            // védelem, nem biztonsági kapu (az a PreSendGate) — a Redis kiesése miatt nem
+            // állítjuk meg az összes tenant tranzakciós levelét.
+            report($e);
+
+            return true;
+        }
+    }
+
     private function sendsFromOwnDomain(SubmissionPrincipal $principal, string $fromEmail): bool
     {
-        $name = substr(strrchr($fromEmail, '@') ?: '@', 1);
+        // KANONIKUS alak: `SMTPUTF8` mellett ugyanaz a domain unicode és punycode formában
+        // is érkezhet — a kettő közti eltérés különben megkerülné a kötést.
+        $name = DomainNormalizer::ofEmail($fromEmail);
 
         return $name !== '' && Domain::query()
             ->whereKey($principal->domainId)
-            ->where('name', strtolower($name))
+            ->where('name', $name)
             ->exists();
     }
 

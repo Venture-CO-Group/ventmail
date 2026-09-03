@@ -153,7 +153,7 @@ final class MessageDispatcher
         // DOMAINENKÉNT egy token, nem címzettenként: egy vegyes batch különben a saját maga
         // elé húzta volna a limitet, és az újrapróbálás mindet ÚJRA elhasználta volna.
         $domains = collect($message->recipients)
-            ->map(fn ($recipient) => substr(strrchr((string) $recipient, '@') ?: '@', 1))
+            ->map(fn ($recipient) => DomainNormalizer::ofEmail((string) $recipient))
             ->filter()
             ->unique();
 
@@ -490,7 +490,7 @@ final class MessageDispatcher
     /** A feladó domainje — a DKIM-kulcs gazdája. */
     private function domainOf(Message $message): ?Domain
     {
-        $name = substr(strrchr((string) $message->from_email, '@') ?: '@', 1);
+        $name = DomainNormalizer::ofEmail((string) $message->from_email);
 
         return $name === '' ? null : Domain::query()->where('name', $name)->first();
     }

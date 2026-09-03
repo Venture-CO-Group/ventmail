@@ -18,7 +18,7 @@ final class DomainThrottle
 {
     public function allow(string $domain): bool
     {
-        $domain = strtolower(trim($domain));
+        $domain = DomainNormalizer::canonical($domain);
         $key = $this->key($domain);
         $limit = $this->limitFor($domain);
 
@@ -39,7 +39,7 @@ final class DomainThrottle
     /** Megnézi a keretet a token elfogyasztása NÉLKÜL (pl. előzetes ellenőrzéshez). */
     public function remaining(string $domain): int
     {
-        $domain = strtolower(trim($domain));
+        $domain = DomainNormalizer::canonical($domain);
 
         return max(0, $this->limitFor($domain) - (int) Cache::get($this->key($domain), 0));
     }
@@ -48,7 +48,7 @@ final class DomainThrottle
     {
         $limits = (array) config('sending.domain_throttle.limits', []);
 
-        return (int) ($limits[strtolower($domain)] ?? config('sending.domain_throttle.default', 60));
+        return (int) ($limits[DomainNormalizer::canonical($domain)] ?? config('sending.domain_throttle.default', 60));
     }
 
     /**

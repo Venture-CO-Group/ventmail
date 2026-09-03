@@ -185,7 +185,7 @@ final class StreamSubmissionServer
             try {
                 $stream === $server
                     ? $this->accept($server, $implicitTls)
-                    : $this->readFrom($stream);
+                    : $this->readFrom($stream, $implicitTls);
             } catch (Throwable $e) {
                 // Egyetlen romlott kapcsolat SOHA nem viheti el a processzt: a listener
                 // minden más tenant submissionjét is kiszolgálja.
@@ -268,7 +268,15 @@ final class StreamSubmissionServer
             'handshaking' => false,
             'handshakeStarted' => 0.0,
             'readableAfter' => 0.0,
+            // PROXY protocol: amíg a fejléc meg nem jött, a kapcsolat még „névtelen".
+            'awaitingProxyHeader' => (bool) config('smtp.proxy_protocol'),
         ];
+
+        // PROXY protocol: a köszöntés és a TLS is VÁR a fejlécre — a valódi forrás-IP
+        // nélkül a kapcsolat-limit és a brute-force fék rossz vödörbe könyvelne.
+        if ($this->connections[$id]['awaitingProxyHeader']) {
+            return;
+        }
 
         // Implicit TLS: ELŐBB a handshake, és CSAK utána köszönünk — a köszöntés
         // plaintextben elárulná, hogy nem is titkosítunk.
@@ -282,6 +290,60 @@ final class StreamSubmissionServer
         }
 
         $this->write($socket, $session->greeting()->toLine());
+    }
+
+    /**
+     * A PROXY protocol fejléc feldolgozása.
+     *
+     * @return bool feldolgozható-e már a puffer többi része
+     */
+    private function consumeProxyHeader(int $id, bool $implicitTls): bool
+    {
+        $connection = $this->connections[$id];
+
+        try {
+            $header = ProxyProtocolHeader::parse($connection['buffer']);
+        } catch (InvalidProxyHeader $e) {
+            // FAIL-CLOSED: bekapcsolt PROXY protocol mellett a fejléc kötelező. Enélkül a
+            // kliens maga dönthetné el, mikor küld ilyet — és a hiánya épp a per-IP fékek
+            // kikapcsolását jelentené.
+            Log::warning('Érvénytelen PROXY protocol fejléc', ['error' => $e->getMessage()]);
+
+            $this->close($id);
+
+            return false;
+        }
+
+        if ($header === null) {
+            return false; // még nem jött meg a teljes fejléc
+        }
+
+        $connection['ip'] = $header->sourceIp;
+        $connection['buffer'] = substr($connection['buffer'], $header->consumedBytes);
+        $connection['awaitingProxyHeader'] = false;
+
+        $this->connections[$id] = $connection;
+
+        // A fékek MOST már a valódi forrásra vonatkoznak — innentől számít a plafon.
+        if ($this->throttle->tooManyFailures($header->sourceIp)) {
+            $this->write($connection['socket'], '421 4.7.0 Too many authentication failures from this address');
+            $this->close($id);
+
+            return false;
+        }
+
+        if ($implicitTls) {
+            $this->connections[$id]['handshaking'] = true;
+            $this->connections[$id]['handshakeStarted'] = microtime(true);
+
+            $this->continueHandshake($id, greetAfterwards: true);
+
+            return false;
+        }
+
+        $this->write($connection['socket'], $connection['session']->greeting()->toLine());
+
+        return true;
     }
 
     /**
@@ -304,7 +366,7 @@ final class StreamSubmissionServer
     }
 
     /** @param resource $socket */
-    private function readFrom(mixed $socket): void
+    private function readFrom(mixed $socket, bool $implicitTls = false): void
     {
         $id = (int) $socket;
         $connection = $this->connections[$id] ?? null;
@@ -340,6 +402,10 @@ final class StreamSubmissionServer
         $connection['buffer'] .= $chunk;
         $connection['touched'] = microtime(true);
         $this->connections[$id] = $connection;
+
+        if ($connection['awaitingProxyHeader'] && ! $this->consumeProxyHeader($id, $implicitTls)) {
+            return;
+        }
 
         // A parancssor-limit CSAK akkor érvényesül, ha van `\n`. Újsor nélkül öntött adat
         // korlátlanul növelte volna a puffert — a hosszúsor-védelem sosem futott volna le.

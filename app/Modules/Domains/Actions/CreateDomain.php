@@ -6,6 +6,7 @@ namespace App\Modules\Domains\Actions;
 
 use App\Modules\Domains\Models\Domain;
 use App\Modules\Domains\Services\DkimKeyManager;
+use App\Modules\Sending\Services\DomainNormalizer;
 
 /**
  * Domain felvétele a wizard első lépéseként.
@@ -22,7 +23,7 @@ final class CreateDomain
         $keys = $this->dkim->generate();
 
         return Domain::create([
-            'name' => strtolower(trim($name)),
+            'name' => DomainNormalizer::canonical($name),
             'dkim_selector' => $keys['selector'],
             'dkim_private_key' => $keys['private'],
             'dkim_public_key' => $keys['public'],

@@ -52,6 +52,20 @@ return [
         'max_connections_per_ip' => 10,
     ],
 
+    // HITELESÍTŐ-szintű küldési sebesség (tulajdonosi döntés: 60/perc az alapérték).
+    // A workspace-szintű 300/perc megmarad fölötte: egy elszabadult legacy integráció ne
+    // egye meg a tenant teljes keretét. Hitelesítőnként felülírható
+    // (`smtp_credentials.rate_limit_per_minute`).
+    'rate_limit' => [
+        'per_credential_per_minute' => (int) env('SMTP_CREDENTIAL_RATE_LIMIT', 60),
+    ],
+
+    // PROXY protocol (v1 és v2). LB mögött KÖTELEZŐ: enélkül minden kapcsolat a balancer
+    // IP-jéről érkezik, tehát a per-IP fékek egyetlen közös vödörré válnak — nem védenek,
+    // viszont egyetlen rossz szomszéd mindenkit kizár. Bekapcsolva a fejléc KÖTELEZŐ:
+    // hiányában bontunk (különben a kliens maga hamisíthatná a forrás-IP-t).
+    'proxy_protocol' => (bool) env('SMTP_PROXY_PROTOCOL', false),
+
     // Brute-force fék a hitelesítőn — processzek között osztott (Redis).
     'auth_throttle' => [
         'failures_per_window' => 10,
