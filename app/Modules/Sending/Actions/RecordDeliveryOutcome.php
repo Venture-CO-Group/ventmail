@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Sending\Actions;
 
 use App\Modules\Events\Models\MessageEvent;
+use App\Modules\Logs\Models\SmtpTransaction;
 use App\Modules\Sending\Data\BounceClass;
 use App\Modules\Sending\Models\DeliveryAttempt;
 use App\Modules\Sending\Models\Message;
@@ -36,6 +37,20 @@ final class RecordDeliveryOutcome
         ?string $enhanced = null,
     ): BounceClass {
         $class = $this->classifier->classify($code, $response, $enhanced);
+
+        // A FOGADÓ VÁLASZA a trace-be is bekerül: ez az a sor, amit a support megnéz,
+        // amikor az ügyfél azt írja, „nem jött meg". A `lines` a valódi SMTP-párbeszédnél
+        // telik meg (A2 relay); API-alapú MTA-nál a kód és a szöveg az, amink van.
+        SmtpTransaction::create([
+            'message_uuid' => $message->uuid,
+            'recipient' => $recipient,
+            'ip_address_id' => $message->ip_address_id,
+            'response_code' => $code,
+            'enhanced_code' => $enhanced,
+            'response_text' => $response,
+            'started_at' => now(),
+            'finished_at' => now(),
+        ]);
 
         DeliveryAttempt::create([
             'message_uuid' => $message->uuid,

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Events\Models;
 
 use App\Modules\Tenancy\Concerns\BelongsToWorkspace;
+use App\Modules\Webhooks\Services\WebhookDispatcher;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 
@@ -59,6 +60,13 @@ final class MessageEvent extends Model
 
     protected static function booted(): void
     {
+        // Minden rögzített esemény kimegy a feliratkozott webhook-végpontokra (A3).
+        // MODELL-EVENTBEN, mert így nincs olyan út, ami elfelejtené: a küldési lánc, az
+        // ütemező és a bounce-feldolgozó mind ugyanezen a modellen ír.
+        self::created(function (self $event): void {
+            app(WebhookDispatcher::class)->dispatch($event);
+        });
+
         self::updating(function (self $event): void {
             // Egyetlen engedélyezett módosítás: a GDPR-redakció (PII-mezők nullázása).
             // Minden más átírás tiltott — a naplónak hitelesnek kell maradnia.

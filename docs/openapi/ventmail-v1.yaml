@@ -132,8 +132,16 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/SendAccepted' }
-        '400': { $ref: '#/components/responses/BadRequest' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
+        '400':
+          description: Ismeretlen vagy már kézbesített sor
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401':
+          description: Hiányzó vagy érvénytelen API-kulcs
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '422': { $ref: '#/components/responses/Rejected' }
 
@@ -230,6 +238,95 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
+
+  /events:
+    get:
+      summary: Események lekérdezése (kurzoros lapozással)
+      description: |
+        A Mailgun events API paritása. A LAPOZÁS KURZOROS, és ez nem stílus kérdése: az
+        eseménytábla folyamatosan nő, tehát offset-lapozásnál a második oldal lekérésekor a
+        sorok elcsúsznak — a hívó ugyanazt az eseményt kétszer kapja meg, vagy sosem látja.
+        Egy suppression-szinkron ebből csendben rossz adatot építene.
+
+        A kurzor az `(occurred_at, id)` páros: az `occurred_at` önmagában nem egyedi, egy
+        batch ezer eseménye ugyanabban a másodpercben keletkezik.
+      operationId: listEvents
+      security: [{ bearerAuth: [] }, { basicAuth: [] }]
+      parameters:
+        - { name: type, in: query, schema: { type: string }, description: 'esemény-típus (többször is megadható)' }
+        - { name: recipient, in: query, schema: { type: string } }
+        - { name: channel, in: query, schema: { type: string, enum: [transactional, marketing] } }
+        - { name: message_id, in: query, schema: { type: string } }
+        - { name: tag, in: query, schema: { type: string } }
+        - { name: since, in: query, schema: { type: string, format: date-time } }
+        - { name: until, in: query, schema: { type: string, format: date-time } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 300, default: 100 } }
+        - { name: cursor, in: query, schema: { type: string }, description: 'az előző válasz `paging.next` értéke' }
+      responses:
+        '200':
+          description: Események
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: { type: array, items: { $ref: '#/components/schemas/Event' } }
+                  paging:
+                    type: object
+                    properties:
+                      next: { type: [string, 'null'], description: 'a következő oldal kurzora' }
+        '401':
+          description: Hiányzó vagy érvénytelen API-kulcs
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /webhooks/deliveries:
+    get:
+      summary: Webhook-kézbesítések (a dead-letter sorral együtt)
+      operationId: listWebhookDeliveries
+      security: [{ bearerAuth: [] }, { basicAuth: [] }]
+      parameters:
+        - { name: status, in: query, schema: { type: string, enum: [pending, delivered, failed, dead_letter] } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+      responses:
+        '200':
+          description: Kézbesítések
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: { type: array, items: { $ref: '#/components/schemas/WebhookDelivery' } }
+        '401':
+          description: Hiányzó vagy érvénytelen API-kulcs
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /webhooks/deliveries/{uuid}/replay:
+    post:
+      summary: Egy kézbesítés újrajátszása a dead-letter sorból
+      description: |
+        A dead-letter sor csak akkor ér valamit, ha van belőle kivezető út: az ügyfél
+        megjavítja a végpontot, és újraküldeti, ami nem jutott el. A sikeres replay
+        `delivered`-re állítja a sort, tehát a lista magától ürül.
+      operationId: replayWebhookDelivery
+      security: [{ bearerAuth: [] }, { basicAuth: [] }]
+      parameters:
+        - { name: uuid, in: path, required: true, schema: { type: string } }
+      responses:
+        '202':
+          description: Sorba téve
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string }
+                  status: { type: string, enum: [queued] }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
 
 components:
   securitySchemes:
@@ -364,6 +461,32 @@ components:
             message: { type: string, description: 'Emberi magyarázat. A KÓD a szerződés, ez segítség.' }
             details: { type: object, additionalProperties: true }
 
+    Event:
+      type: object
+      properties:
+        id: { type: integer }
+        type: { type: string, description: 'accepted · rejected · delivered · deferred · bounced · complained · unsubscribed · opened · clicked · stored' }
+        message_id: { type: string }
+        recipient: { type: [string, 'null'] }
+        channel: { type: string }
+        reason: { type: [string, 'null'], description: 'a gate strukturált oka vagy a bounce osztálya' }
+        tags: { type: array, items: { type: string } }
+        variables: { type: object, additionalProperties: true, description: 'a `v:*` változók — az integrációk ebből azonosítják a saját rekordjaikat' }
+        occurred_at: { type: string, format: date-time }
+
+    WebhookDelivery:
+      type: object
+      properties:
+        id: { type: string }
+        event: { type: string }
+        message_id: { type: [string, 'null'] }
+        status: { type: string, enum: [pending, delivered, failed, dead_letter] }
+        attempt: { type: integer }
+        response_code: { type: [integer, 'null'] }
+        response_excerpt: { type: [string, 'null'], description: 'a válasz eleje (max 500 karakter)' }
+        next_attempt_at: { type: [string, 'null'], format: date-time }
+        dead_lettered_at: { type: [string, 'null'], format: date-time }
+
     ErrorCode:
       type: string
       description: |
@@ -411,4 +534,6 @@ components:
         - UNSUPPORTED_MIME_OPTION
         - TEMPLATE_VERSION_CONFLICT
         - INVALID_MIME_UPLOAD
+        - UNKNOWN_DELIVERY
+        - ALREADY_DELIVERED
         - IN_PROGRESS

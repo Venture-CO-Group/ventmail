@@ -4,9 +4,18 @@ declare(strict_types=1);
 
 namespace App\Modules\Logs\Providers;
 
+use App\Modules\Logs\Console\PurgeLogsCommand;
 use App\Modules\Support\ModuleServiceProvider;
 
 /**
- * Logs modul — Kereshető napló és üzenet-trace (SMTP-párbeszéddel), retenció-kezelés.
+ * Logs modul — kereshető napló, üzenet-trace, SMTP-párbeszéd.
  */
-final class LogsServiceProvider extends ModuleServiceProvider {}
+final class LogsServiceProvider extends ModuleServiceProvider
+{
+    protected function bootModule(): void
+    {
+        if ($this->app->runningInConsole()) {
+            $this->commands([PurgeLogsCommand::class]);
+        }
+    }
+}

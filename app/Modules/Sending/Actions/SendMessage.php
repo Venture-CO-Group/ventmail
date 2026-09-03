@@ -98,7 +98,11 @@ final class SendMessage
         $decision = $this->gate->evaluate($message);
 
         if (! $decision->allowed) {
-            $message->forceFill(['status' => 'rejected', 'reason' => $decision->reason])->save();
+            $message->forceFill([
+                'status' => 'rejected',
+                'reason' => $decision->reason,
+                'options' => [...$message->options, 'gate_trace' => $decision->trace()],
+            ])->save();
 
             $this->event($message, 'rejected', $decision->reason);
 
@@ -111,6 +115,11 @@ final class SendMessage
         $message->forceFill([
             'status' => 'accepted',
             'gate_decided_at' => now(),
+            // A gate MINDEN kapujának eredménye az üzenetre kerül: az A3 trace-nek nem
+            // csak az elutasítás okára van szüksége, hanem arra is, hogy MIÉRT MENT KI.
+            // Az audit-sor erre nem alkalmas: az tenant-független és nem lekérdezhető
+            // üzenetenként.
+            'options' => [...$message->options, 'gate_trace' => $decision->trace()],
         ])->save();
         $this->event($message, 'accepted');
 
