@@ -201,3 +201,49 @@ it('a MÁSODIK From beszúrása érvényteleníti az aláírást (over-signing)'
     expect($signer->verify($hasitott, (string) $this->domain->dkim_public_key))
         ->toBeFalse('a beszúrt második From nem érvénytelenítette az aláírást');
 });
+
+/*
+ | ARANY VEKTOR — független implementációval igazolva.
+ |
+ | A többi teszt a saját kódunkat méri a saját kódunkkal; ez a literál viszont egy KÜLSŐ
+ | referencia-implementációval (Python `dkimpy`, ugyanaz a szabálykészlet, amit az
+ | OpenDKIM és a nagy fogadók használnak) VERIFIKÁLT aláírás. Ha a kanonikalizálás bárhol
+ | elcsúszik, ez a bájtsor nem jön ki.
+ |
+ | Miért nem volt elég a többi bizonyíték: a §3.4.5 vektor csak a két kanonikalizáló
+ | függvényt méri izoláltan, a Symfony-kereszthivatkozás pedig fordított irányú (a Symfony
+ | nem over-signel, tehát a hiányzó-előfordulás ágát sosem aktiválta). Az RFC 6376 §3.5
+ | szabálya („a nem létező fejléc NULL bemenet — a nevével és a kettősponttal együtt")
+ | ezért csúszott át: minden aláírásunkban ott volt egy `from:` fantomsor, és MINDEN
+ | levelünk `dkim=fail`-lel érkezett volna a Gmailhez.
+ */
+
+it('az aláírás bájtra egyezik a független implementációval igazolt vektorral', function () {
+    $raw = "From: no-reply@pelda.hu\r\nTo: cimzett@example.test\r\nSubject: Teszt\r\n"
+        ."Date: Wed, 03 Sep 2026 10:00:00 +0200\r\nMessage-ID: <a@pelda.hu>\r\n\r\nSzia\r\n";
+
+    $signed = (new RawMimeDkimSigner)->sign($raw, $this->domain, 1_756_800_000);
+
+    expect(dkimTag($signed, 'h'))->toBe('from:from:to:subject:date:message-id');
+    expect(dkimTag($signed, 'bh'))->toBe('EBy5IK6ZGp8zVx7hAjRZhoiyQ+pu+wnx5osP7UdbxSA=');
+    expect(dkimTag($signed, 'b'))->toBe('pj1tP7zezoM1uteVS8VK3L5NILF5sSrkgIefRtwSZYgL+BZs+aOGGXmrZ1PErNVysqiLdwiRO5QnOy+aDvhTRrudejMsSeZwRce4hcEGJOyz7PVbPNh1Ewh8wplphUk5/ikbCBP11iVfILJUdPem4RAEhy1TwUF9IJZKrv8+93uJUEtQJTTVosLJEdHvTveb7dUOogF06FcUUdFabE98E3/fR2rNLCHtV3bFs3dy4Sd0vcPBtwCqTJoswzpOz5O5VuF94eZ0ho+ITbXSsh6HyvmcpzyMx5GkH6zh3n6tLLZHQtiRTcCSI58DMDnRidZI15XqPV3zUQPf8RE5e1iQRg==');
+});
+
+it('a From nélküli levelet NEM írjuk alá', function () {
+    // Az aláírás különben ÁTVIHETŐ lenne: a támadó a mi érvényes aláírásunk mellé beszúrna
+    // egy saját `From`-ot, és a levél idegen feladóval, a mi domainünk hitelességével
+    // jelenne meg (RFC 6376 §5.4).
+    expect(fn () => (new RawMimeDkimSigner)->sign("To: a@example.test\r\n\r\nSzia\r\n", $this->domain))
+        ->toThrow(RuntimeException::class);
+});
+
+it('a from nélküli h= listát a verifikáló elutasítja', function () {
+    $raw = "From: no-reply@pelda.hu\r\nTo: cimzett@example.test\r\nSubject: Teszt\r\n\r\nSzia\r\n";
+
+    $signed = (new RawMimeDkimSigner)->sign($raw, $this->domain);
+
+    // A `h=` lista megcsonkítása: a `from` kiszedésével az aláírás átvihető lenne.
+    $csonka = (string) preg_replace('/h=from:\s*from:\s*/', 'h=', $signed, 1);
+
+    expect((new RawMimeDkimSigner)->verify($csonka, (string) $this->domain->dkim_public_key))->toBeFalse();
+});

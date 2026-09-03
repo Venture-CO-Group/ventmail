@@ -413,6 +413,17 @@ final class MessageDispatcher
         $domain = $this->domainOf($message);
 
         if ($domain === null || $domain->signingSelector() === null) {
+            // Aszimmetria elkerülve: a nyers ág korábban KIVÉTELT dobott, a strukturált
+            // némán aláíratlanul küldött. Egységesen: a levél kimegy (a domain hitelesített,
+            // a kézbesítés fontosabb), de HANGOSAN naplózzuk — a DKIM hiánya
+            // kézbesíthetőségi hiba, amit az A6 suite jelez majd a felületen is.
+            if ($domain !== null) {
+                Log::warning('DKIM-kulcs nélküli domainről ment ki levél', [
+                    'domain' => $domain->name,
+                    'message_uuid' => $message->uuid,
+                ]);
+            }
+
             return $rendered;
         }
 
@@ -424,7 +435,19 @@ final class MessageDispatcher
             $raw = RawMimeMessage::query()->where('message_uuid', $message->uuid)->first();
 
             if ($raw !== null) {
-                $signed = $this->rawDkim->sign($raw->raw, $domain);
+                try {
+                    $signed = $this->rawDkim->sign($raw->raw, $domain);
+                } catch (Throwable $e) {
+                    // Ugyanaz a szabály, mint a strukturált ágon: nem állítjuk meg a
+                    // küldést, de hangosan naplózzuk.
+                    Log::warning('A nyers levél DKIM-aláírása nem készült el', [
+                        'domain' => $domain->name,
+                        'message_uuid' => $message->uuid,
+                        'error' => $e->getMessage(),
+                    ]);
+
+                    return $rendered;
+                }
 
                 foreach ($rendered as $recipient => $bodies) {
                     $rendered[$recipient]['mime'] = $signed;

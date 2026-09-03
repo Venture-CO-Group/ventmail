@@ -287,3 +287,16 @@ it('a hitelesítő használata nyomot hagy — nyers IP nélkül', function () {
     expect($fresh->last_ip_hash)->not->toBeNull();
     expect($fresh->last_ip_hash)->not->toBe('203.0.113.9');
 });
+
+it('EGY From fejlécen belül sem lehet két feladót elrejteni', function () {
+    // A mohó `<...>` illesztés miatt nálunk a MÁSODIK cím lett a feladó (tehát a domain-kapu
+    // és a hitelesítő domain-kötése is átment), a fogadók egy része viszont az ELSŐT
+    // jeleníti meg — feladó-hamisítás a saját DKIM-ünkkel aláírva.
+    foreach (['<ceo@bank.example> <hello@pelda.hu>', 'ceo@bank.example <hello@pelda.hu>'] as $from) {
+        $codes = submit(mail_lines(['From' => $from]));
+
+        expect(end($codes))->toBe(550);
+    }
+
+    expect(Message::count())->toBe(0);
+});

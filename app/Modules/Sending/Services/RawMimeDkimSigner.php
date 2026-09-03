@@ -58,6 +58,21 @@ final class RawMimeDkimSigner
         [$headerBlock, $body] = $this->split($rawMime);
         $headers = $this->parseHeaders($headerBlock);
 
+        // RFC 6376 §5.4: a `From` aláírása KÖTELEZŐ. Enélkül az aláírás ÁTVIHETŐ lenne:
+        // a támadó a mi érvényes aláírásunk mellé beszúrna egy saját `From`-ot, és a levél
+        // idegen feladóval, a mi domainünk hitelességével jelenne meg.
+        if (! isset($headers['from'])) {
+            throw new RuntimeException('A levélből hiányzik a `From` fejléc — aláíratlanul nem küldünk ki.');
+        }
+
+        // A tag-értékek nem tartalmazhatnak elválasztót: enélkül egy „domain" nevű érték
+        // további tageket csempészhetne az aláírás-fejlécbe.
+        foreach (['domain' => (string) $domain->name, 'selector' => $selector] as $label => $value) {
+            if (preg_match('/^[A-Za-z0-9._-]+$/', $value) !== 1) {
+                throw new RuntimeException(sprintf('Érvénytelen DKIM-%s: %s', $label, $value));
+            }
+        }
+
         $bodyHash = base64_encode(hash('sha256', $this->canonicalizeBody($body), true));
 
         // Csak azokat a fejléceket soroljuk fel, amelyek TÉNYLEG jelen vannak: egy nem
@@ -90,8 +105,18 @@ final class RawMimeDkimSigner
             $index = $used[$name] ?? 0;
             $used[$name] = $index + 1;
 
-            // Az over-signelt második előfordulás nem létezik → üres sztring (§5.4.2).
-            $toSign .= $this->canonicalizeHeader($name, $this->occurrence($headers, $name, $index) ?? '');
+            $value = $this->occurrence($headers, $name, $index);
+
+            // RFC 6376 §3.5: a NEM LÉTEZŐ fejléc „null input" — vagyis SEMMIT nem ad a
+            // hash-bemenethez, még a nevet és a kettőspontot sem. Egy `from:\r\n`
+            // fantomsor mellett minden aláírásunk `dkim=fail` lenne a fogadóknál (az
+            // over-signing miatt MINDIG van hiányzó második `from`) — a levél a saját
+            // domainünkről érkezne hamisítványként.
+            if ($value === null) {
+                continue;
+            }
+
+            $toSign .= $this->canonicalizeHeader($name, $value);
         }
 
         // Az aláírás-fejléc MAGA is aláírva van, `b=` nélkül és záró CRLF nélkül —
@@ -133,6 +158,25 @@ final class RawMimeDkimSigner
             }
         }
 
+        // A `from` nélküli `h=` lista ELUTASÍTVA: különben egy aláírás átvihető lenne egy
+        // másik feladóra (RFC 6376 §5.4). Az A4 bejövő ellenőrzésénél ez már közvetlen
+        // sebezhetőség lenne.
+        $signedNames = array_map('trim', array_map('strtolower', explode(':', $tags['h'] ?? '')));
+
+        if (! in_array('from', $signedNames, true)) {
+            return false;
+        }
+
+        // Csak azt fogadjuk el, amit aláírunk: RSA + SHA-256, 1-es verzió.
+        if (($tags['v'] ?? '1') !== '1' || ($tags['a'] ?? '') !== 'rsa-sha256') {
+            return false;
+        }
+
+        // Lejárt aláírás (`x=`) nem érvényes.
+        if (isset($tags['x']) && ctype_digit($tags['x']) && (int) $tags['x'] < now()->getTimestamp()) {
+            return false;
+        }
+
         $expectedBodyHash = base64_encode(hash('sha256', $this->canonicalizeBody($body), true));
 
         if (! hash_equals($tags['bh'] ?? '', $expectedBodyHash)) {
@@ -143,8 +187,7 @@ final class RawMimeDkimSigner
 
         $used = [];
 
-        foreach (explode(':', $tags['h'] ?? '') as $name) {
-            $name = strtolower(trim($name));
+        foreach ($signedNames as $name) {
 
             if ($name === '') {
                 continue;
@@ -153,7 +196,14 @@ final class RawMimeDkimSigner
             $index = $used[$name] ?? 0;
             $used[$name] = $index + 1;
 
-            $toVerify .= $this->canonicalizeHeader($name, $this->occurrence($headers, $name, $index) ?? '');
+            $value = $this->occurrence($headers, $name, $index);
+
+            // Ugyanaz a §3.5 szabály: a hiányzó előfordulás kimarad a bemenetből.
+            if ($value === null) {
+                continue;
+            }
+
+            $toVerify .= $this->canonicalizeHeader($name, $value);
         }
 
         $toVerify .= $this->canonicalizeHeader(

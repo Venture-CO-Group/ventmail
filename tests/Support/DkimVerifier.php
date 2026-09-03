@@ -79,7 +79,15 @@ final class DkimVerifier
             $index = count($occurrences) - 1 - ($used[$name] ?? 0);
             $used[$name] = ($used[$name] ?? 0) + 1;
 
-            $value = preg_replace('/[ \t]+/', ' ', trim((string) ($occurrences[$index] ?? '')));
+            // RFC 6376 §3.5: a NEM LÉTEZŐ fejléc-előfordulás semmit nem ad a bemenethez —
+            // se nevet, se kettőspontot, se CRLF-et. Ez a verifikáló korábban ugyanazt a
+            // hibát követte el, mint az aláíró, ezért „független" létére elfogadta a
+            // hibás aláírást is.
+            if ($index < 0) {
+                continue;
+            }
+
+            $value = preg_replace('/[ \t]+/', ' ', trim((string) $occurrences[$index]));
             $canonicalHeaders .= $name.':'.$value."\r\n";
         }
 

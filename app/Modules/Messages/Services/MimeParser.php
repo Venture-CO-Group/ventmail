@@ -78,6 +78,17 @@ final class MimeParser
             'MIME_MISSING_FROM|A MIME-levélből hiányzik a `From:` fejléc.'
         );
 
+        // A `From` PONTOSAN EGY postafiókot tartalmazhat (RFC 5322 §3.6.2 — több feladó
+        // esetén `Sender` is kötelező lenne). Enélkül a mohó `<...>` illesztés miatt a
+        // `From: <ceo@bank.example> <hello@sajat.hu>` alakból nálunk a MÁSODIK cím lett a
+        // feladó (tehát a domain-kapu és a hitelesítő domain-kötése is átment), a fogadók
+        // egy része viszont az ELSŐT jeleníti meg — feladó-hamisítás a saját DKIM-ünkkel.
+        if (substr_count($from, '<') > 1 || substr_count($from, '@') > 1) {
+            throw new InvalidArgumentException(
+                'MIME_MALFORMED|A `From` fejléc pontosan egy feladót tartalmazhat.'
+            );
+        }
+
         [$fromEmail, $fromName] = $this->parseAddress($from);
 
         // A `Bcc` a MIME-ban rejtett címzett: ha csendben eldobnánk, a feladó azt hinné,

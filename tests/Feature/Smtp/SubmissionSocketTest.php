@@ -131,3 +131,20 @@ it('a valódi socketen a plaintext AUTH 538', function () {
 
     expect(implode('', $lines))->toContain('538');
 })->group('smtp-socket');
+
+it('a félbehagyott TLS-handshake NEM viszi el a listenert', function () {
+    // Egyetlen hitelesítetlen kapcsolat: `STARTTLS`, majd csonka handshake. A handshake
+    // időkorlátja korábban `close()`-t hívott, UTÁNA viszont egy értékadás ÚJRA létrehozta
+    // a bejegyzést socket és session nélkül — a következő körben a processz meghalt, és a
+    // `restart: unless-stopped` végtelen újraindulási ciklust adott.
+    config(['smtp.limits.command_timeout_seconds' => 1]);
+
+    $lines = converse(['EHLO kliens.test', 'STARTTLS', 'ez-nem-tls-handshake', 'EHLO ujra', 'QUIT']);
+
+    // A lényeg nem a válasz, hanem hogy a ciklus TÚLÉLTE: a `converse()` a saját
+    // határidejéig fut, és visszatér — összeomlás esetén végzetes hibával szállna el.
+    expect($lines)->not->toBeEmpty();
+
+    // És a listener a következő kapcsolatot is kiszolgálja.
+    expect(implode('', converse(['EHLO ujabb-kliens.test', 'QUIT'])))->toContain('250');
+})->group('smtp-socket');

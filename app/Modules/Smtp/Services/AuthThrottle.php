@@ -32,14 +32,25 @@ final class AuthThrottle
     public function recordFailure(string $ip): void
     {
         $key = $this->key($ip);
-        $window = (int) config('smtp.auth_throttle.window_seconds');
+
+        // A TILTÁS hossza (`ban_seconds`) hosszabb, mint a mérési ablak: ha a kulcs TTL-je
+        // csak az ablak lenne, a tiltás magától feloldódna az ablakkal együtt — a
+        // beállított egy óra pedig halott konfiguráció maradna.
+        $window = $this->failures($ip) + 1 >= (int) config('smtp.auth_throttle.ban_threshold')
+            ? (int) config('smtp.auth_throttle.ban_seconds')
+            : (int) config('smtp.auth_throttle.window_seconds');
 
         // ATOMI növelés: két listener-processz (587 és 465) ugyanazon a kulcson versenyez,
         // és a `get`+`put` páros mellett a fék pont a párhuzamos próbálgatásnál lyukas.
         // Az `add` állítja be a TTL-t, az `increment` utána már csak számol.
         try {
             Cache::add($key, 0, $window);
-            Cache::increment($key);
+            $count = Cache::increment($key);
+
+            // A tiltási küszöb átlépésekor a TTL-t is meghosszabbítjuk.
+            if ((int) $count >= (int) config('smtp.auth_throttle.ban_threshold')) {
+                Cache::put($key, $count, (int) config('smtp.auth_throttle.ban_seconds'));
+            }
         } catch (\Throwable $e) {
             report($e);
         }

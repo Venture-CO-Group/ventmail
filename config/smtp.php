@@ -38,6 +38,11 @@ return [
         // örökre újraindítaná. Bőven a `data_timeout` fölött, hogy a nagy levél beférjen.
         'session_timeout_seconds' => 1200,
         'max_connections' => 200,
+
+        // Az ÖSSZES kapcsolat pufferelt levéltörzse együtt. A kapcsolatonkénti 25 MB
+        // önmagában 200 kapcsolatnál ~5 GB elvi plafont adna: egy hitelesített tenant így
+        // az összes többi submissionjét kivinné.
+        'max_buffered_bytes' => (int) env('SMTP_MAX_BUFFERED_BYTES', 268_435_456),
         'max_connections_per_ip' => 10,
     ],
 

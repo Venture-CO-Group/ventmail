@@ -80,6 +80,12 @@ final class SmtpSession
         return $this->state;
     }
 
+    /** Mennyi levéltörzset tart épp a memóriában ez a session (globális plafonhoz). */
+    public function bufferedBytes(): int
+    {
+        return strlen($this->data);
+    }
+
     public function principal(): ?SubmissionPrincipal
     {
         return $this->principal;

@@ -29,7 +29,7 @@ use Throwable;
  */
 final class StreamSubmissionServer
 {
-    /** @var array<int, array{socket: resource, session: SmtpSession, buffer: string, touched: float, started: float, ip: string, handshaking: bool, handshakeStarted: float}> */
+    /** @var array<int, array{socket: resource, session: SmtpSession, buffer: string, touched: float, started: float, ip: string, handshaking: bool, handshakeStarted: float, readableAfter: float}> */
     private array $connections = [];
 
     private bool $running = false;
@@ -94,7 +94,13 @@ final class StreamSubmissionServer
     {
         $read = [$server];
 
-        foreach ($this->connections as $connection) {
+        foreach ($this->connections as $id => $connection) {
+            if (! isset($connection['socket']) || ! is_resource($connection['socket'])) {
+                unset($this->connections[$id]);
+
+                continue;
+            }
+
             $read[] = $connection['socket'];
         }
 
@@ -105,12 +111,26 @@ final class StreamSubmissionServer
         }
 
         foreach ($read as $stream) {
-            $stream === $server
-                ? $this->accept($server, $implicitTls)
-                : $this->readFrom($stream);
+            try {
+                $stream === $server
+                    ? $this->accept($server, $implicitTls)
+                    : $this->readFrom($stream);
+            } catch (Throwable $e) {
+                // Egyetlen romlott kapcsolat SOHA nem viheti el a processzt: a listener
+                // minden más tenant submissionjét is kiszolgálja.
+                report($e);
+
+                if ($stream !== $server) {
+                    $this->close((int) $stream);
+                }
+            }
         }
 
-        $this->expire();
+        try {
+            $this->expire();
+        } catch (Throwable $e) {
+            report($e);
+        }
     }
 
     /** @param resource $server */
@@ -153,10 +173,15 @@ final class StreamSubmissionServer
 
         stream_set_blocking($socket, false);
 
+        // A titkosítottság TÉNY, nem szándék: a socket meta-adatából olvassuk ki, nem a
+        // `--port` kapcsolóból. Mérve: egy másik PHP/OpenSSL páron a nem-blokkoló accept
+        // NEM futtatta le a handshake-et, és a listener sima plaintext SMTP-vé
+        // degradálódott — a kapcsoló szerint viszont „titkosított" volt, tehát base64
+        // jelszóval hitelesített volna a dróton (golden rule 3).
         $session = new SmtpSession(
             $this->authenticator,
             $this->sink,
-            $implicitTls ? ChannelSecurity::encrypted('tls') : ChannelSecurity::plaintext(),
+            $this->securityOf($socket),
             (string) config('smtp.hostname'),
         );
 
@@ -169,9 +194,25 @@ final class StreamSubmissionServer
             'ip' => $ip,
             'handshaking' => false,
             'handshakeStarted' => 0.0,
+            'readableAfter' => 0.0,
         ];
 
         $this->write($socket, $session->greeting()->toLine());
+    }
+
+    /**
+     * A csatorna tényleges kripto-állapota.
+     *
+     * @param  resource  $socket
+     */
+    private function securityOf(mixed $socket): ChannelSecurity
+    {
+        $meta = stream_get_meta_data($socket);
+        $crypto = $meta['crypto'] ?? null;
+
+        return is_array($crypto) && ($crypto['protocol'] ?? '') !== ''
+            ? ChannelSecurity::encrypted((string) $crypto['protocol'])
+            : ChannelSecurity::plaintext();
     }
 
     /** @param resource $socket */
@@ -181,6 +222,11 @@ final class StreamSubmissionServer
         $connection = $this->connections[$id] ?? null;
 
         if ($connection === null) {
+            return;
+        }
+
+        // Tarpit: ennek a kapcsolatnak még várnia kell. A ciklus közben másokat szolgál ki.
+        if (($connection['readableAfter'] ?? 0.0) > microtime(true)) {
             return;
         }
 
@@ -246,6 +292,16 @@ final class StreamSubmissionServer
             return;
         }
 
+        // GLOBÁLIS puffer-plafon: a kapcsolatonkénti méretlimit önmagában nem véd, mert a
+        // kapcsolatok SZÁMÁVAL szorzódik. Túllépésnél ezt a tranzakciót dobjuk el —
+        // átmeneti kóddal, hogy a kliens újrapróbálhassa.
+        if ($this->bufferedBytes() > (int) config('smtp.limits.max_buffered_bytes')) {
+            $this->write($connection['socket'], '452 4.3.1 Insufficient system storage, try again later');
+            $this->close($id);
+
+            return;
+        }
+
         foreach ($replies as $reply) {
             // A sikertelen hitelesítés a PROCESSZEK KÖZÖTT osztott fékbe is beszámít:
             // a session-szintű három hiba önmagában semmit nem ér, mert a támadó új
@@ -253,10 +309,13 @@ final class StreamSubmissionServer
             if ($reply->code === 535) {
                 $this->throttle->recordFailure($connection['ip']);
 
-                // TARPIT: a próbálgatás legolcsóbb fékje a LASSÍTÁS. Egy jóhiszemű
-                // kliensnek egy másodperc semmi, a szótár-támadásnak viszont minden.
+                // TARPIT: a próbálgatás legolcsóbb fékje a LASSÍTÁS — de NEM `usleep`-pel.
+                // Az egyszálas ciklusban egyetlen rossz jelszó egy MÁSODPERCRE megállította
+                // volna az összes többi kapcsolatot is (mérve: 1010 ms), vagyis a fék maga
+                // lett volna a DoS. Helyette a KAPCSOLAT kap egy „nem előbb, mint"
+                // időbélyeget: csak ez a kliens vár, a ciklus fut tovább.
                 if ($this->throttle->shouldTarpit($connection['ip'])) {
-                    usleep(1_000_000);
+                    $this->connections[$id]['readableAfter'] = microtime(true) + 1.0;
                 }
             }
 
@@ -337,6 +396,13 @@ final class StreamSubmissionServer
             // Még tart. Csak a HATÁRIDŐT nézzük — a lassú-loris itt is ugyanolyan olcsó.
             if (microtime(true) - $connection['handshakeStarted'] > (int) config('smtp.limits.command_timeout_seconds')) {
                 $this->close($id);
+
+                // RETURN, nem esés tovább: a `close()` UTÁNI értékadás korábban
+                // ÚJRA LÉTREHOZTA a bejegyzést — `socket` és `session` kulcs nélkül. A
+                // következő körben a `stream_select` vagy az `expire()` végzetes hibára
+                // futott, és mivel semmi nem védte, a PROCESSZ MEGHALT. Egyetlen
+                // hitelesítetlen, félbehagyott TLS-handshake elvitte az egész listenert.
+                return;
             }
 
             $this->connections[$id]['touched'] = microtime(true);
@@ -351,7 +417,7 @@ final class StreamSubmissionServer
         }
 
         // A TLS-váltás után a session MINDENT elfelejt (STARTTLS command injection).
-        $connection['session']->securedWith(ChannelSecurity::encrypted('tls'));
+        $connection['session']->securedWith($this->securityOf($connection['socket']));
         $connection['handshaking'] = false;
         $connection['buffer'] = '';
         $connection['touched'] = microtime(true);
@@ -367,6 +433,18 @@ final class StreamSubmissionServer
      * `touched`-ot. Ezért van ABSZOLÚT session-életkor is, és a `DATA` fázisnak saját,
      * hosszabb korlátja (egy 25 MB-os levél lassú vonalon legitim módon percekig tart).
      */
+    /** Az összes kapcsolat által pufferelt levéltörzs. */
+    private function bufferedBytes(): int
+    {
+        $total = 0;
+
+        foreach ($this->connections as $connection) {
+            $total += $connection['session']->bufferedBytes() + strlen($connection['buffer']);
+        }
+
+        return $total;
+    }
+
     private function expire(): void
     {
         $now = microtime(true);
