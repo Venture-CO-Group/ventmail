@@ -217,6 +217,12 @@ it('a listener EL SEM INDUL, ha a puffer-plafon nem fér a memory_limitbe', func
     // előbb jött, azt pedig try/catch nem fogja, tehát a listener meghalt.
     config(['smtp.limits.max_buffered_bytes' => 512 * 1024 * 1024]);
 
+    // A limitet a teszt ÁLLÍTJA BE: a CI-ban a CLI `memory_limit`-je jellemzően korlátlan,
+    // tehát a környezet alapértékére építve a teszt vagy vakon zöld lenne, vagy csak
+    // néhány gépen futna le.
+    $original = ini_get('memory_limit');
+    ini_set('memory_limit', '128M');
+
     $server = new StreamSubmissionServer(
         new FakeSmtpAuthenticator([]),
         new RecordingSink,
@@ -225,6 +231,10 @@ it('a listener EL SEM INDUL, ha a puffer-plafon nem fér a memory_limitbe', func
 
     config(['smtp.allowed_ports' => [2587]]);
 
-    expect(fn () => $server->serve('127.0.0.1', 2587, false, fn () => true))
-        ->toThrow(RuntimeException::class);
+    try {
+        expect(fn () => $server->serve('127.0.0.1', 2587, false, fn () => true))
+            ->toThrow(RuntimeException::class);
+    } finally {
+        ini_set('memory_limit', (string) $original);
+    }
 })->group('smtp-socket');
