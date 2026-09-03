@@ -16,7 +16,7 @@ DONE  m0-3  M  feat/m0-3-sending-gate        backend,security          # PR #10 
 DONE  m0-4  M  feat/m0-4-domains             backend,frontend,mockup   # PR #11 — mergelve
 
 # ── A sáv · PLATFORM (Mailgun-kiváltás) ──────────────────────────────────────
-TODO  a1    A  feat/a1-messages-api          backend,security          # Messages API: MIME, batch, o:/h:/v:, ütemezés, testmode, tárolt sablonok
+DONE  a1    A  feat/a1-messages-api          backend,security          # PR #13 — mergelve # Messages API: MIME, batch, o:/h:/v:, ütemezés, testmode, tárolt sablonok
 TODO  a2    A  feat/a2-smtp-ip-queues        backend,security,devops   # SMTP relay 587/465, IP-poolok, warmup, sorok, retry, bounce-osztályozó
 TODO  a3    A  feat/a3-logs-events           backend,frontend          # Napló, üzenet-trace (SMTP-párbeszéd), retenció, tag-stat, Events API, webhook replay+DLQ
 TODO  a4    A  feat/a4-inbound-routing       backend,security,frontend # MX-fogadás, route-motor, MIME-parse sandbox, stripped-text, csatolmány, FBL/ARF

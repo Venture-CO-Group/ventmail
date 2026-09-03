@@ -30,6 +30,15 @@ final readonly class DispatchResult
          * @var list<string>
          */
         public array $acceptedRecipients = [],
+        /**
+         * A fogadó VÁLASZA, ha van: kód + enhanced + szöveg.
+         *
+         * Enélkül a bounce-osztályozó vak: a `deferred`-ből nem derülne ki, hogy a cím nem
+         * létezik (hard, azonnali suppression) vagy csak tele a postafiók (soft).
+         */
+        public ?int $code = null,
+        public ?string $enhancedCode = null,
+        public ?string $response = null,
     ) {}
 
     /** Az MTA átvette (de még nem kézbesítette). */
@@ -44,9 +53,9 @@ final readonly class DispatchResult
         return new self(true, $providerMessageId, delivered: true);
     }
 
-    public static function failed(string $error): self
+    public static function failed(string $error, ?int $code = null, ?string $response = null, ?string $enhanced = null): self
     {
-        return new self(false, '', $error);
+        return new self(false, '', $error, code: $code, enhancedCode: $enhanced, response: $response ?? $error);
     }
 
     /**
@@ -54,8 +63,8 @@ final readonly class DispatchResult
      *
      * @param  list<string>  $acceptedRecipients
      */
-    public static function partial(string $error, array $acceptedRecipients): self
+    public static function partial(string $error, array $acceptedRecipients, ?int $code = null, ?string $response = null): self
     {
-        return new self(false, '', $error, acceptedRecipients: $acceptedRecipients);
+        return new self(false, '', $error, acceptedRecipients: $acceptedRecipients, code: $code, response: $response ?? $error);
     }
 }

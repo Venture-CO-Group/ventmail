@@ -38,6 +38,27 @@ return [
         'api_key' => env('POSTAL_API_KEY', ''),
     ],
 
+    // A kézbesítési kísérletek (fogadó válasza, címzett) megőrzése — PII, tehát lejár.
+    'delivery_attempt_retention_days' => (int) env('SENDING_ATTEMPT_RETENTION_DAYS', 90),
+
+    // A küldés SORON megy-e (A2). Fejlesztésben és tesztben szinkron: a determinisztikus
+    // teszt fontosabb, mint a sor gyakorlása. Élesben a sor a prioritás (golden rule 4)
+    // egyetlen érvényesítési helye — a Horizon `queue` sorrendje adja.
+    'dispatch_via_queue' => (bool) env('SENDING_DISPATCH_VIA_QUEUE', false),
+
+    // Per-FOGADÓ-domain sebességkorlát (A2, 19. kritérium). A nagy fogadók saját
+    // küszöbökkel dolgoznak: túl gyors forgalomra előbb 4xx-eznek, aztán blokkolnak.
+    'domain_throttle' => [
+        'default' => (int) env('SENDING_DOMAIN_THROTTLE', 60),
+        'limits' => [
+            'gmail.com' => (int) env('SENDING_THROTTLE_GMAIL', 100),
+            'googlemail.com' => (int) env('SENDING_THROTTLE_GMAIL', 100),
+            'outlook.com' => (int) env('SENDING_THROTTLE_OUTLOOK', 60),
+            'hotmail.com' => (int) env('SENDING_THROTTLE_OUTLOOK', 60),
+            'yahoo.com' => (int) env('SENDING_THROTTLE_YAHOO', 60),
+        ],
+    ],
+
     // 5. kapu — workspace-enkénti küldési sebesség.
     'rate_limit' => [
         'per_minute' => (int) env('SENDING_RATE_LIMIT_PER_MINUTE', 300),

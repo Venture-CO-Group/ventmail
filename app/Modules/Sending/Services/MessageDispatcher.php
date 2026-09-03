@@ -4,10 +4,15 @@ declare(strict_types=1);
 
 namespace App\Modules\Sending\Services;
 
+use App\Modules\Domains\Models\Domain;
 use App\Modules\Events\Models\MessageEvent;
+use App\Modules\IpPools\Models\IpPool;
+use App\Modules\IpPools\Services\IpPoolSelector;
+use App\Modules\Sending\Actions\RecordDeliveryOutcome;
 use App\Modules\Sending\Contracts\SendingDriver;
 use App\Modules\Sending\Data\DispatchResult;
 use App\Modules\Sending\Models\Message;
+use App\Modules\Sending\Models\RawMimeMessage;
 use App\Modules\StoredTemplates\Services\TemplateRenderer;
 use App\Modules\Tenancy\Services\WorkspaceContext;
 use Illuminate\Support\Facades\Log;
@@ -39,6 +44,13 @@ final class MessageDispatcher
     public function __construct(
         private readonly SendingDriver $driver,
         private readonly WorkspaceContext $context,
+        private readonly IpPoolSelector $pools,
+        private readonly OutboundMimeBuilder $mime,
+        private readonly DkimSigner $dkim,
+        private readonly RawMimeDkimSigner $rawDkim,
+        private readonly DomainThrottle $throttle,
+        private readonly RecordDeliveryOutcome $outcome,
+        private readonly RetryPolicy $retry,
         private readonly TemplateRenderer $renderer = new TemplateRenderer,
     ) {}
 
@@ -84,11 +96,36 @@ final class MessageDispatcher
             return; // más futás nyerte meg
         }
 
-        // A személyre szabott törzs EGYSZER készül el, és ugyanaz megy a drivernek és az
-        // esemény-lenyomatnak. Korábban kétszer-háromszor renderelt ugyanaz a küldés.
-        $rendered = $this->renderAll($message);
+        // A `claim()` az ADATBÁZISBAN növelte a számlálót: a memóriabeli példány különben
+        // eggyel kevesebbet mutatna, és a visszalépés meg a feladás-plafon MÁS eredményre
+        // jutna, mint a job oldali számítás.
+        $message->attempts = (int) $message->attempts + 1;
+
+        // A FOGADÓ-DOMAIN sebességkorlátja. A nagy fogadók előbb lassítanak (4xx), aztán
+        // blokkolnak: jobb nekünk visszafogni, mint tőlük 4xx-et gyűjteni.
+        if (! $this->withinDomainThrottle($message)) {
+            return;
+        }
+
+        // A KÜLDŐ IP lefoglalása. A warmup napi kerete nem tanács: egy friss IP-ről
+        // kiengedett tízezer levél azonnali blocklist. Ha nincs szabad keret, az üzenet
+        // NEM megy ki — SORBAN MARAD (`deferred`), és a következő futás újrapróbálja.
+        $rendered = [];
 
         try {
+            if (! $this->assignIp($message)) {
+                return;
+            }
+
+            // A személyre szabott törzs EGYSZER készül el, és ugyanaz megy a drivernek és
+            // az esemény-lenyomatnak. Korábban kétszer-háromszor renderelt ugyanaz a küldés.
+            //
+            // A RENDERELÉS ÉS AZ ALÁÍRÁS IS A TRY-BAN VAN: hibás címzett-szintaxis vagy
+            // hiányzó DKIM-kulcs esetén a kivétel korábban a `dispatch()`-ból szállt ki,
+            // az üzenet `sending` állapotban ragadt (esemény és ok nélkül, tehát a trace
+            // vakon maradt) — a napi IP-keret viszont már elfogyott.
+            $rendered = $this->renderAll($message);
+
             // A driver a SZEMÉLYRE SZABOTT törzset kapja címzettenként — a batch lényege,
             // hogy mindenki a sajátját kapja. (A címzettenkénti ÚJRAPRÓBÁLÁS granularitása
             // az A2 sorkezelőjének a feladata; itt üzenet-szintű a claim.)
@@ -103,6 +140,75 @@ final class MessageDispatcher
         }
 
         $this->recordOutcome($message, $result, $rendered);
+    }
+
+    /**
+     * Beleférünk-e a fogadó domain percenkénti keretébe?
+     *
+     * Ha nem, az üzenet VÁR — a `next_attempt_at`-ot a `RetryPolicy` adja, tehát az
+     * újrapróbálás nem azonnal jön (az csak tovább terhelné ugyanazt a fogadót).
+     */
+    private function withinDomainThrottle(Message $message): bool
+    {
+        // DOMAINENKÉNT egy token, nem címzettenként: egy vegyes batch különben a saját maga
+        // elé húzta volna a limitet, és az újrapróbálás mindet ÚJRA elhasználta volna.
+        $domains = collect($message->recipients)
+            ->map(fn ($recipient) => substr(strrchr((string) $recipient, '@') ?: '@', 1))
+            ->filter()
+            ->unique();
+
+        foreach ($domains as $domain) {
+            if (! $this->throttle->allow($domain)) {
+                $message->forceFill([
+                    'status' => 'deferred',
+                    'reason' => 'DOMAIN_THROTTLED',
+                    'next_attempt_at' => now()->addSeconds($this->retry->delaySeconds((int) $message->attempts + 1)),
+                ])->save();
+
+                $this->events($message, 'deferred', [], ['reason' => 'DOMAIN_THROTTLED']);
+
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Küldő IP lefoglalása a warmup keretéből.
+     *
+     * Ha nincs szabad IP (napi limit elfogyott, vagy minden IP karanténban), akkor a levél
+     * VÁR — nem megy ki „valamivel". A karanténba tett IP-t hajtani pont a legrosszabb:
+     * azzal a domain reputációját is elvinné.
+     */
+    private function assignIp(Message $message): bool
+    {
+        // Ha a poolokat még nem konfigurálták (fejlesztés, fake driver), a küldés megy —
+        // a warmup akkor kezd számítani, amikor valódi IP-k vannak.
+        if (IpPool::query()->count() === 0) {
+            return true;
+        }
+
+        $address = $this->pools->claim($message);
+
+        if ($address === null) {
+            $message->forceFill([
+                'status' => 'deferred',
+                'reason' => 'NO_SENDING_IP',
+                'next_attempt_at' => now()->addMinutes(15),
+            ])->save();
+
+            $this->events($message, 'deferred', [], ['reason' => 'NO_SENDING_IP']);
+
+            return false;
+        }
+
+        $message->forceFill([
+            'ip_address_id' => $address->getKey(),
+            'ip_pool_id' => $message->ip_pool_id ?? $address->ip_pool_id,
+        ])->save();
+
+        return true;
     }
 
     private function claim(Message $message): bool
@@ -156,6 +262,20 @@ final class MessageDispatcher
             'options' => [...$message->options, 'delivered_recipients' => $delivered],
         ])->save();
 
+        // A fogadó VÁLASZA feldolgozva: hard bounce → azonnali suppression, soft → N próba
+        // után. Enélkül a bounce-osztályozó egy sosem hívott, tiszta függvény lenne.
+        if (! $result->accepted && $result->code !== null) {
+            foreach (array_diff($message->recipients, $delivered) as $recipient) {
+                ($this->outcome)(
+                    $message,
+                    (string) $recipient,
+                    $result->code,
+                    (string) $result->response,
+                    $result->enhancedCode
+                );
+            }
+        }
+
         $successful = $status === 'delivered' ? 'delivered' : 'accepted';
 
         if ($result->accepted) {
@@ -190,7 +310,17 @@ final class MessageDispatcher
             'error' => $e->getMessage(),
         ]);
 
-        $message->forceFill(['status' => 'deferred', 'reason' => 'DRIVER_ERROR'])->save();
+        $attempt = (int) $message->attempts;
+
+        $message->forceFill([
+            // A `failed` VÉGLEGES: a korlátlan újrapróbálás a sort sosem ürítené ki, és a
+            // fogadó felé is agresszió lenne.
+            'status' => $this->retry->shouldGiveUp($attempt) ? 'failed' : 'deferred',
+            'reason' => 'DRIVER_ERROR',
+            'next_attempt_at' => $this->retry->shouldGiveUp($attempt)
+                ? null
+                : now()->addSeconds($this->retry->delaySeconds($attempt)),
+        ])->save();
 
         $this->events($message, 'deferred', $rendered, ['attempt' => $message->attempts]);
     }
@@ -260,10 +390,70 @@ final class MessageDispatcher
             $rendered[$recipient] = [
                 'html' => $html === '' ? null : $this->renderer->renderForRecipient($html, $recipient, $recipientVariables, $shared),
                 'text' => $text === '' ? null : $this->renderer->renderForRecipient($text, $recipient, $recipientVariables, $shared, escape: false),
+                'mime' => null,
             ];
         }
 
+        return $this->sign($message, $rendered);
+    }
+
+    /**
+     * DKIM-aláírás a küldés előtt (21. kritérium).
+     *
+     * A levél a MI nevünkben megy ki: aláírás nélkül a fogadó nem tudja megkülönböztetni a
+     * hamisítványtól, és a DMARC-politika elutasítja. A kulcsot a `signingSelector()` (M0-4)
+     * választja — rotáció alatt szándékosan a RÉGIT, mert az újnak a DNS-rekordja még nem
+     * propagált.
+     *
+     * @param  array<string, array{html: ?string, text: ?string, mime: ?string}>  $rendered
+     * @return array<string, array{html: ?string, text: ?string, mime: ?string}>
+     */
+    private function sign(Message $message, array $rendered): array
+    {
+        $domain = $this->domainOf($message);
+
+        if ($domain === null || $domain->signingSelector() === null) {
+            return $rendered;
+        }
+
+        // NYERS MIME: a levelet a feladó állította össze, azt NEM építjük újra (bármilyen
+        // újraszerkesztés megváltoztatná a tartalmát). Az aláírás a nyers bájtokra megy.
+        // Enélkül az SMTP-n beadott levél ALÁÍRÁS NÉLKÜL ment volna ki — pont azon az úton,
+        // amiről ez a packet szól.
+        if (($message->options['raw_mime'] ?? false) === true) {
+            $raw = RawMimeMessage::query()->where('message_uuid', $message->uuid)->first();
+
+            if ($raw !== null) {
+                $signed = $this->rawDkim->sign($raw->raw, $domain);
+
+                foreach ($rendered as $recipient => $bodies) {
+                    $rendered[$recipient]['mime'] = $signed;
+                }
+            }
+
+            return $rendered;
+        }
+
+        foreach ($rendered as $recipient => $bodies) {
+            // CSAK az adott címzett törzsét adjuk át. A teljes tömb átadása minden
+            // iterációban másolatot csinált egy egyre nagyobb tömbről (ami már tartalmazta
+            // a korábban aláírt MIME-okat is) — ezer címzettnél gigabájtos, fölösleges
+            // memóriamozgatás küldésenként.
+            $rendered[$recipient]['mime'] = $this->dkim->sign(
+                $this->mime->build($message->withRenderedBodies([$recipient => $bodies]), (string) $recipient),
+                $domain
+            );
+        }
+
         return $rendered;
+    }
+
+    /** A feladó domainje — a DKIM-kulcs gazdája. */
+    private function domainOf(Message $message): ?Domain
+    {
+        $name = substr(strrchr((string) $message->from_email, '@') ?: '@', 1);
+
+        return $name === '' ? null : Domain::query()->where('name', $name)->first();
     }
 
     private function decisionStale(Message $message): bool

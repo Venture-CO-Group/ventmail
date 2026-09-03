@@ -4,9 +4,18 @@ declare(strict_types=1);
 
 namespace App\Modules\IpPools\Providers;
 
+use App\Modules\IpPools\Console\UpdateIpReputationCommand;
 use App\Modules\Support\ModuleServiceProvider;
 
 /**
  * IpPools modul — Dedikált IP-k poolokba szervezve, warmup-motor, rotáció, karantén, reputáció.
  */
-final class IpPoolsServiceProvider extends ModuleServiceProvider {}
+final class IpPoolsServiceProvider extends ModuleServiceProvider
+{
+    protected function bootModule(): void
+    {
+        if ($this->app->runningInConsole()) {
+            $this->commands([UpdateIpReputationCommand::class]);
+        }
+    }
+}

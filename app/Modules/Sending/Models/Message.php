@@ -21,11 +21,11 @@ final class Message extends Model
     use BelongsToWorkspace, HasUuids;
 
     protected $fillable = [
-        'domain_id', 'ip_pool_id', 'channel', 'from_email', 'from_name', 'subject',
+        'domain_id', 'ip_pool_id', 'ip_address_id', 'channel', 'from_email', 'from_name', 'subject',
         'recipients', 'tags', 'variables', 'headers', 'options', 'deliverytime',
         'testmode', 'status', 'reason', 'idempotency_key', 'request_fingerprint',
         'queued_at', 'sent_at',
-        'sending_started_at', 'attempts', 'gate_decided_at',
+        'sending_started_at', 'attempts', 'next_attempt_at', 'gate_decided_at',
     ];
 
     public function uniqueIds(): array
@@ -48,6 +48,7 @@ final class Message extends Model
             'sent_at' => 'datetime',
             'sending_started_at' => 'datetime',
             'gate_decided_at' => 'datetime',
+            'next_attempt_at' => 'datetime',
             'testmode' => 'boolean',
         ];
     }

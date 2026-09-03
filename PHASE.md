@@ -6,7 +6,7 @@
 ## Cél
 **Mailgun + Mailchimp egyidejű kiváltása.** Két pillér (Platform / Studio) egy közös motoron.
 
-## Aktuális milestone: **M1 — A sáv (PLATFORM)** *(az M0 lezárva: 2026-09-02)*
+## Aktuális milestone: **M1 — A sáv (PLATFORM)** · aktív packet: **A2** *(az M0 lezárva: 2026-09-02)*
 
 > **Fázis-névhasználat.** A roadmap sávokban gondolkodik, a napi munka fázisokban. A kettő
 > leképezése: **M1 = A sáv** (Platform, a Mailgun kiváltása) · **M2 = B sáv** (Studio, a
@@ -136,7 +136,7 @@ a ventMailre (bázis-URL + kulcs csere), és a „miért nem érkezett meg?" ké
 válaszol — a bejövő levél pedig route-motoron át kezelhető.
 
 ### M1 packetek — sorrend kötelező (A4 kivételével, ami A3 után bárhol)
-- [ ] **A1 · Messages API** — architect → test → backend → security → docs
+- [x] **A1 · Messages API** — PR #13 (3 review-kör: reviewer + security, minden blokkoló javítva)
 - [ ] **A2 · SMTP relay + IP-poolok + sorok** — architect → test → backend → security → devops
 - [ ] **A3 · Napló + üzenet-trace + Events API + webhookok** — test → backend → db → frontend
 - [ ] **A4 · Inbound routing (MX)** — architect → test → backend → **security (kötelező)** → frontend
