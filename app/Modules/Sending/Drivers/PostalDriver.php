@@ -51,6 +51,18 @@ final class PostalDriver implements SendingDriver
     /** A nyers MIME VÁLTOZATLANUL megy ki — ez a `/v1/messages.mime` szerződése. */
     private function sendRaw(Message $message, string $endpoint, string $key): DispatchResult
     {
+        // Ha aláírtuk, az ALÁÍRT bájtok mennek: az aláírás a nyers levélre szól, tehát a
+        // tárolt (aláíratlan) változat kiküldése érvénytelen aláírást jelentene.
+        $signed = collect($message->renderedBodies)->pluck('mime')->filter()->first();
+
+        if (is_string($signed)) {
+            return $this->result($this->request($key)->post($endpoint.'/api/v1/send/raw', [
+                'mail_from' => $message->from_email,
+                'rcpt_to' => $message->recipients,
+                'data' => base64_encode($signed),
+            ]), $message);
+        }
+
         $raw = RawMimeMessage::query()->where('message_uuid', $message->uuid)->first();
 
         if ($raw === null) {
@@ -89,6 +101,33 @@ final class PostalDriver implements SendingDriver
             }
             $bodies = $message->renderedBodies[$recipient] ?? ['html' => null, 'text' => null];
 
+            // Ha MI írtuk alá (DKIM), akkor a kész, ALÁÍRT levél megy ki — az MTA nem
+            // nyúlhat hozzá. Bármilyen újraszerkesztés (fejléc-átrendezés, újrakódolás)
+            // érvénytelenné tenné az aláírást, és a fogadó hamisítványnak látná.
+            if (($bodies['mime'] ?? null) !== null) {
+                $response = $this->request($key)->post($endpoint.'/api/v1/send/raw', [
+                    'mail_from' => $message->from_email,
+                    'rcpt_to' => [$recipient],
+                    'data' => base64_encode((string) $bodies['mime']),
+                ]);
+
+                if (! $response->successful()) {
+                    return DispatchResult::partial(
+                        'Postal hiba: '.$response->status(),
+                        $accepted,
+                        // A fogadó SMTP-kódját a Postal a válaszban adja vissza; hiányában az
+                        // 5xx/4xx különbség marad az egyetlen jel.
+                        (int) ($response->json('data.code') ?? ($response->status() >= 500 ? 451 : 550)),
+                        (string) ($response->json('data.message') ?? 'Postal '.$response->status())
+                    );
+                }
+
+                $accepted[] = $recipient;
+                $ids[] = (string) $response->json('data.message_id', '');
+
+                continue;
+            }
+
             if (($bodies['html'] ?? null) === null && ($bodies['text'] ?? null) === null) {
                 throw new RuntimeException(sprintf(
                     'A(z) %s üzenetnek nincs kirenderelt törzse a(z) %s címzettre — '
@@ -116,7 +155,14 @@ final class PostalDriver implements SendingDriver
             if (! $response->successful()) {
                 // A már kiment címzettek NEM vesznek el a jelentésből: enélkül a trace
                 // mindenkire `deferred`-et írna, az újrapróbálás pedig duplán kézbesítene.
-                return DispatchResult::partial('Postal hiba: '.$response->status(), $accepted);
+                return DispatchResult::partial(
+                    'Postal hiba: '.$response->status(),
+                    $accepted,
+                    // A fogadó SMTP-kódját a Postal a válaszban adja vissza; hiányában az
+                    // 5xx/4xx különbség marad az egyetlen jel.
+                    (int) ($response->json('data.code') ?? ($response->status() >= 500 ? 451 : 550)),
+                    (string) ($response->json('data.message') ?? 'Postal '.$response->status())
+                );
             }
 
             $accepted[] = $recipient;
@@ -130,7 +176,11 @@ final class PostalDriver implements SendingDriver
     private function result(Response $response, Message $message): DispatchResult
     {
         if (! $response->successful()) {
-            return DispatchResult::failed('Postal hiba: '.$response->status());
+            return DispatchResult::failed(
+                'Postal hiba: '.$response->status(),
+                (int) ($response->json('data.code') ?? ($response->status() >= 500 ? 451 : 550)),
+                (string) ($response->json('data.message') ?? 'Postal '.$response->status())
+            );
         }
 
         return DispatchResult::accepted((string) $response->json('data.message_id', ''));

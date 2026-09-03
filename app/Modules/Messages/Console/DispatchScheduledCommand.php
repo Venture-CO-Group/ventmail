@@ -8,6 +8,7 @@ use App\Modules\Events\Models\MessageEvent;
 use App\Modules\Sending\Gate\PreSendGate;
 use App\Modules\Sending\Models\Message;
 use App\Modules\Sending\Services\MessageDispatcher;
+use App\Modules\Sending\Services\RetryPolicy;
 use App\Modules\Tenancy\Models\Workspace;
 use App\Modules\Tenancy\Services\WorkspaceContext;
 use Illuminate\Console\Command;
@@ -31,10 +32,10 @@ final class DispatchScheduledCommand extends Command
 
     protected $description = 'Esedékes ütemezett és félbemaradt üzenetek kiküldése, a kapuk újraértékelésével.';
 
-    /** Hány próbálkozás után hagyjuk abba — különben egy tartósan hibás levél örökké forogna. */
-    private const MAX_ATTEMPTS = 5;
+    // A plafon és a visszalépés a `RetryPolicy`-ból jön: két, egymásnak ellentmondó
+    // újrapróbálás-szabály ugyanazokon a sorokon garantált meglepetés.
 
-    public function handle(PreSendGate $gate, MessageDispatcher $dispatcher, WorkspaceContext $context): int
+    public function handle(PreSendGate $gate, MessageDispatcher $dispatcher, WorkspaceContext $context, RetryPolicy $retry): int
     {
         $sent = 0;
         $rejected = 0;
@@ -46,30 +47,31 @@ final class DispatchScheduledCommand extends Command
             // `chunkById`, nem `each()`: az offset-lapozás rendezés nélkül Postgresen
             // sorokat hagyhat ki vagy duplázhat, és a kihagyott tenant esedékes levele
             // ebben a futásban nem ment volna ki.
-            Workspace::query()->orderBy('id')->chunkById(100, function ($workspaces) use ($gate, $dispatcher, $context, &$sent, &$rejected, &$failed): void {
+            Workspace::query()->orderBy('id')->chunkById(100, function ($workspaces) use ($gate, $dispatcher, $context, $retry, &$sent, &$rejected, &$failed): void {
                 foreach ($workspaces as $workspace) {
                     $context->set($workspace);
 
                     // Kétféle esedékes üzenet:
                     //  1. `scheduled`, aminek eljött az ideje (`o:deliverytime`);
-                    //  2. `deferred`, aminek a lízingje lejárt — a driver hibára futott.
+                    //  2. `deferred`, aminek elérkezett a `next_attempt_at`-ja.
                     //
                     // A második nélkül a hívó 202 „Queued"-ot kapott olyan levélre, amit
-                    // EGYETLEN tranziens hiba után SENKI nem vett elő többé: a repóban nem
-                    // volt más `deferred`-feldolgozó, tehát a levél véglegesen elveszett.
-                    $lease = now()->subSeconds((int) config('sending.lease_seconds'));
-
+                    // EGYETLEN tranziens hiba után SENKI nem vett elő többé. A KORÁBBI
+                    // változat fix ötperces lízing alapján szedte elő őket, tehát a 19.
+                    // kritérium exponenciális visszalépése élesben NEM létezett: egy
+                    // `DOMAIN_THROTTLED` levél ötpercenként ment neki ugyanannak a fogadónak.
                     $due = Message::query()
-                        ->where(function ($query) use ($lease): void {
+                        ->where(function ($query) use ($retry): void {
                             $query->where(fn ($scheduled) => $scheduled
                                 ->where('status', 'scheduled')
                                 ->where('deliverytime', '<=', now()))
                                 ->orWhere(fn ($deferred) => $deferred
                                     ->where('status', 'deferred')
-                                    ->where('attempts', '<', self::MAX_ATTEMPTS)
-                                    ->where('updated_at', '<=', $lease));
+                                    ->where('attempts', '<=', $retry->maxAttempts())
+                                    ->whereNotNull('next_attempt_at')
+                                    ->where('next_attempt_at', '<=', now()));
                         })
-                        ->orderByRaw('coalesce(deliverytime, updated_at)')
+                        ->orderByRaw('coalesce(deliverytime, next_attempt_at)')
                         ->limit((int) $this->option('limit'))
                         ->get();
 

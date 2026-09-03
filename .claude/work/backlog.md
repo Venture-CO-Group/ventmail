@@ -16,7 +16,7 @@ DONE  m0-3  M  feat/m0-3-sending-gate        backend,security          # PR #10 
 DONE  m0-4  M  feat/m0-4-domains             backend,frontend,mockup   # PR #11 — mergelve
 
 # ── A sáv · PLATFORM (Mailgun-kiváltás) ──────────────────────────────────────
-TODO  a1    A  feat/a1-messages-api          backend,security          # Messages API: MIME, batch, o:/h:/v:, ütemezés, testmode, tárolt sablonok
+DONE  a1    A  feat/a1-messages-api          backend,security          # PR #13 — mergelve # Messages API: MIME, batch, o:/h:/v:, ütemezés, testmode, tárolt sablonok
 TODO  a2    A  feat/a2-smtp-ip-queues        backend,security,devops   # SMTP relay 587/465, IP-poolok, warmup, sorok, retry, bounce-osztályozó
 TODO  a3    A  feat/a3-logs-events           backend,frontend          # Napló, üzenet-trace (SMTP-párbeszéd), retenció, tag-stat, Events API, webhook replay+DLQ
 TODO  a4    A  feat/a4-inbound-routing       backend,security,frontend # MX-fogadás, route-motor, MIME-parse sandbox, stripped-text, csatolmány, FBL/ARF
@@ -35,6 +35,13 @@ TODO  a6    A  feat/a6-deliverability        backend,frontend          # Blockli
 #  · a CI a `VENTURE_PACKAGES_TOKEN` hiányában KIHAGYJA a drift-tesztet; a secret
 #    beállítása után a kapu élesedjen (ma hangos skip)                                → ember
 #  · `workspace_invitations` (a tagság ma csak SSO-ból jön)                           → B1
+#  · a DKIM-verifikáló BEJÖVŐ használatra még nem kész: nincs `d=`/`s=` visszacsatolás
+#    (több aláírásnál nem tudni, melyik volt érvényes), nincs `l=`/`c=simple` kezelés    → A4
+#  · a `MimeParser` cím-értelmezője regex, nem RFC 5322 parser (a `From` egy-mailbox
+#    szabály erre épül; group-alak és exotikus komment-formák nincsenek lefedve)         → A4
+#  · a brute-force fék IP-kulcsú: közös NAT mögött a legitim tenant is bánja a szomszéd
+#    próbálgatását — hitelesítő-szintű vödör + IP-allowlist kell hozzá                   → A6
+#  · ÉLŐ TLS-füstteszt a telepítés után (a socket-tesztek TLS nélkül futnak)             → devops
 #  · a `v:*` változók NYERSEN vannak a `message_events`-ben (Mailgun-paritás), és az
 #    A3 webhook ki is küldi őket: retenció + redakció kell rájuk                       → A3
 #  · a Postal `send/message` idempotency_key támogatása NEM igazolt (élő cluster kell)  → A2

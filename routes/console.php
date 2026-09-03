@@ -24,5 +24,9 @@ Schedule::command('domains:purge-dkim')->daily();
 // leiratkozásnak számítania kell).
 Schedule::command('messages:dispatch-scheduled')->everyMinute()->withoutOverlapping();
 
+// Warmup-léptetés és reputáció-alapú visszafogás (A2, 17. kritérium). Enélkül a napi limit
+// az maradna, amit valaki kézzel beírt, és a romló reputáció nem járna következménnyel.
+Schedule::command('ip:reputation')->hourly();
+
 // A lejárt nyers MIME-levelek törlése (golden rule 10): a levéltest a legsűrűbb PII-tárolónk.
 Schedule::command('messages:purge-raw-mime')->dailyAt('03:20');

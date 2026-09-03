@@ -22,13 +22,16 @@ final class IpAddress extends Model
 
     protected $fillable = [
         'ip_pool_id', 'address', 'hostname', 'warmup_state', 'warmup_started_at',
-        'daily_limit', 'sent_today', 'reputation_score', 'status',
+        'daily_limit', 'sent_today', 'sent_on', 'reputation_score', 'status',
+        'quarantined_at', 'quarantine_reason',
     ];
 
     protected function casts(): array
     {
         return [
             'warmup_started_at' => 'datetime',
+            'quarantined_at' => 'datetime',
+            'sent_on' => 'date',
             'reputation_score' => 'float',
         ];
     }
@@ -38,8 +41,21 @@ final class IpAddress extends Model
         return $this->belongsTo(IpPool::class, 'ip_pool_id');
     }
 
+    /**
+     * Kaphat-e MA forgalmat?
+     *
+     * A napi számláló DÁTUMHOZ kötött: ha a `sent_on` nem a mai nap, akkor ma még nem
+     * küldtünk erről az IP-ről — nincs szükség éjféli reset-jobra, aminek az elmaradása
+     * csendben megállítaná a küldést.
+     */
     public function isAvailable(): bool
     {
-        return $this->status === 'active' && $this->sent_today < $this->daily_limit;
+        if ($this->status !== 'active') {
+            return false;
+        }
+
+        $usedToday = $this->sent_on?->isToday() === true ? (int) $this->sent_today : 0;
+
+        return $usedToday < (int) $this->daily_limit;
     }
 }

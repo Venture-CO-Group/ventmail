@@ -93,6 +93,11 @@ jobs:
           VENTURE_SDK_PATH: ${{ github.workspace }}/.ci/venture-sdk
         run: php artisan test --parallel
 
+      # A socket-tesztek portot foglalnak: KÜLÖN, SOROS futás. Enélkül a 11. kritériumnak
+      # nem lenne hálózati bizonyítéka — a napi futást viszont flaky-vá tennék.
+      - name: php artisan test (socket)
+        run: php artisan test --group=smtp-socket
+
       - name: composer audit
         run: composer audit --no-interaction
 

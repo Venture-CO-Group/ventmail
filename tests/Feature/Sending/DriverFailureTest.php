@@ -4,13 +4,20 @@ declare(strict_types=1);
 
 use App\Modules\Domains\Models\Domain;
 use App\Modules\Events\Models\MessageEvent;
+use App\Modules\IpPools\Services\IpPoolSelector;
+use App\Modules\Sending\Actions\RecordDeliveryOutcome;
 use App\Modules\Sending\Actions\SendMessage;
 use App\Modules\Sending\Contracts\SendingDriver;
 use App\Modules\Sending\Data\DispatchResult;
 use App\Modules\Sending\Data\DriverCapabilities;
 use App\Modules\Sending\Data\DriverHealth;
 use App\Modules\Sending\Models\Message;
+use App\Modules\Sending\Services\DkimSigner;
+use App\Modules\Sending\Services\DomainThrottle;
 use App\Modules\Sending\Services\MessageDispatcher;
+use App\Modules\Sending\Services\OutboundMimeBuilder;
+use App\Modules\Sending\Services\RawMimeDkimSigner;
+use App\Modules\Sending\Services\RetryPolicy;
 use App\Modules\Tenancy\Models\Workspace;
 use App\Modules\Tenancy\Services\WorkspaceContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -69,7 +76,7 @@ function failingDriver(): SendingDriver
 it('a driver kivétele nem tünteti el az üzenetet', function () {
     $message = acceptedMessage();
 
-    $dispatcher = new MessageDispatcher(failingDriver(), app(WorkspaceContext::class));
+    $dispatcher = new MessageDispatcher(failingDriver(), app(WorkspaceContext::class), app(IpPoolSelector::class), app(OutboundMimeBuilder::class), app(DkimSigner::class), app(RawMimeDkimSigner::class), app(DomainThrottle::class), app(RecordDeliveryOutcome::class), app(RetryPolicy::class));
 
     expect(fn () => $dispatcher->dispatch($message))->toThrow(RuntimeException::class);
 
@@ -83,7 +90,7 @@ it('a hibára futott üzenet ÚJRAPRÓBÁLHATÓ', function () {
     $message = acceptedMessage();
 
     try {
-        (new MessageDispatcher(failingDriver(), app(WorkspaceContext::class)))->dispatch($message);
+        (new MessageDispatcher(failingDriver(), app(WorkspaceContext::class), app(IpPoolSelector::class), app(OutboundMimeBuilder::class), app(DkimSigner::class), app(RawMimeDkimSigner::class), app(DomainThrottle::class), app(RecordDeliveryOutcome::class), app(RetryPolicy::class)))->dispatch($message);
     } catch (RuntimeException) {
         // várt
     }
@@ -117,7 +124,7 @@ it('a driver hibaüzenete nem szivárog az üzenet reason mezőjébe', function 
     $message = acceptedMessage();
 
     try {
-        (new MessageDispatcher(failingDriver(), app(WorkspaceContext::class)))->dispatch($message);
+        (new MessageDispatcher(failingDriver(), app(WorkspaceContext::class), app(IpPoolSelector::class), app(OutboundMimeBuilder::class), app(DkimSigner::class), app(RawMimeDkimSigner::class), app(DomainThrottle::class), app(RecordDeliveryOutcome::class), app(RetryPolicy::class)))->dispatch($message);
     } catch (RuntimeException) {
         // várt
     }

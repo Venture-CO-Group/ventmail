@@ -12,6 +12,18 @@
             <directory>tests/Feature</directory>
         </testsuite>
     </testsuites>
+
+    <!--
+      A socket-tesztek portot foglalnak és külön processzt indítanak: a párhuzamos alap
+      futásból kizárva, a CI külön, SOROS jobban futtatja őket (group: smtp-socket).
+      Így a 11. kritériumnak van valódi, hálózati bizonyítéka anélkül, hogy a napi
+      teszt-futás flaky lenne.
+    -->
+    <groups>
+        <exclude>
+            <group>smtp-socket</group>
+        </exclude>
+    </groups>
     <source>
         <include>
             <directory>app</directory>

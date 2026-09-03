@@ -6,12 +6,14 @@ namespace App\Modules\Sending\Actions;
 
 use App\Modules\Audit\Services\AuditLogger;
 use App\Modules\Events\Models\MessageEvent;
+use App\Modules\Sending\Data\SendQueue;
 use App\Modules\Sending\Data\SendResult;
 use App\Modules\Sending\Enums\Channel;
 use App\Modules\Sending\Gate\GateDecision;
 use App\Modules\Sending\Gate\GateReason;
 use App\Modules\Sending\Gate\GateResult;
 use App\Modules\Sending\Gate\PreSendGate;
+use App\Modules\Sending\Jobs\DeliverMessage;
 use App\Modules\Sending\Models\Message;
 use App\Modules\Sending\Models\RawMimeMessage;
 use App\Modules\Sending\Services\MessageDispatcher;
@@ -122,7 +124,7 @@ final class SendMessage
 
         // A testmode naplóz, de NEM küld (Mailgun-paritás: o:testmode).
         if (! $message->testmode) {
-            $this->dispatcher->dispatch($message);
+            $this->deliver($message);
         }
 
         return new SendResult($message->fresh(), $decision);
@@ -235,6 +237,26 @@ final class SendMessage
         }
 
         return null;
+    }
+
+    /**
+     * Kiküldés — soron vagy szinkron.
+     *
+     * A SOR a prioritás egyetlen érvényesítési helye: a `campaign` sosem előzheti meg a
+     * `transactional`-t (golden rule 4). Szinkron úton ilyen prioritás nem létezik, ezért
+     * élesben a sor a helyes mód; fejlesztésben és tesztben viszont a determinisztikus
+     * lefutás többet ér, mint a sor gyakorlása.
+     */
+    private function deliver(Message $message): void
+    {
+        if (! config('sending.dispatch_via_queue')) {
+            $this->dispatcher->dispatch($message);
+
+            return;
+        }
+
+        DeliverMessage::dispatch((int) $message->workspace_id, (string) $message->uuid)
+            ->onQueue(SendQueue::forChannel((string) $message->channel)->value);
     }
 
     /**

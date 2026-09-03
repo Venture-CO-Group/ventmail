@@ -22,7 +22,18 @@ it('a Tenancy modulon kívül senki nem kerüli meg a global scope-ot', function
         // Dokumentált kivétel: az API-kulcs feloldása a kontextus FORRÁSA — lookup-időben
         // még nincs workspace. A kikapcsolás ott egyetlen, szűk, hash-egyezésre korlátozott
         // lekérdezésre szól, és teszt fedi (ApiKeyLookupTest).
-        $exceptions = ['Identity/Models/ApiKey.php'];
+        // Ugyanez a precedens az SMTP-hitelesítőre: AUTH-időben még nincs workspace, a
+        // kontextus MAGÁBÓL a hitelesítőből származik. Mindkettő egyetlen, szűk, pontos
+        // egyezésre korlátozott lekérdezés, izolációs teszttel fedve.
+        // Az IP-reputáció SZÁNDÉKOSAN tenant-független: egy megosztott IP-ről sok tenant
+        // küld, és a bounce-arány CSAK az összes forgalomra értelmes. Tenantonként számolva
+        // egyetlen kis ügyfél két bounce-a 100%-os aránynak látszana. A parancs kizárólag
+        // DARABSZÁMOT olvas (címzettet, tartalmat nem), és nem ír tenant-adatot.
+        $exceptions = [
+            'Identity/Models/ApiKey.php',
+            'Smtp/Models/SmtpCredential.php',
+            'IpPools/Console/UpdateIpReputationCommand.php',
+        ];
 
         if (str_starts_with($relative, 'Tenancy/') || in_array($relative, $exceptions, true)) {
             continue;
