@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Smtp\Protocol;
 
+use App\Modules\Sending\Services\DomainNormalizer;
 use App\Modules\Smtp\Contracts\SmtpAuthenticator;
 use App\Modules\Smtp\Contracts\SubmissionSink;
 use App\Modules\Smtp\Data\ChannelSecurity;
@@ -209,6 +210,11 @@ final class SmtpSession
             'SIZE '.$this->limit('max_message_bytes'),
             '8BITMIME',
             'ENHANCEDSTATUSCODES',
+            // Nemzetközi címek (RFC 6531). A helyi részt SOHA nem alakítjuk át — azt
+            // kizárólag a fogadó értelmezheti (RFC 5321 §2.4); a DOMAINT viszont kanonikus
+            // (punycode) alakra hozzuk, különben a `példa.hu` és a `xn--plda-bpa.hu`
+            // két külön domainnek látszana, és a hitelesített domain kapuja megkerülhető.
+            'SMTPUTF8',
         ];
 
         // Titkosítatlan csatornán az AUTH-ot NEM hirdetjük (és megkísérelve is 538) —
@@ -406,7 +412,7 @@ final class SmtpSession
         }
 
         $this->envelope->reset();
-        $this->envelope->sender = strtolower(trim($match[1]));
+        $this->envelope->sender = $this->normalizeAddress($match[1]);
         $this->envelope->declaredSize = $size;
         $this->state = SessionState::Mail;
 
@@ -432,7 +438,7 @@ final class SmtpSession
             return [new SmtpReply(452, 'Too many recipients', '4.5.3')];
         }
 
-        $this->envelope->recipients[] = strtolower(trim($match[1]));
+        $this->envelope->recipients[] = $this->normalizeAddress($match[1]);
         $this->state = SessionState::Rcpt;
 
         return [new SmtpReply(250, 'OK', '2.1.5')];
@@ -553,6 +559,18 @@ final class SmtpSession
         $this->state = SessionState::Closed;
 
         return [new SmtpReply($code, $text, $enhanced)];
+    }
+
+    /**
+     * Boríték-cím normalizálása.
+     *
+     * A HELYI RÉSZ érintetlen marad (kis/nagybetű is): azt csak a fogadó értelmezheti, és
+     * az `SMTPUTF8` óta unicode is lehet. A DOMAIN viszont kanonikus punycode alakra megy,
+     * mert azt MI hasonlítjuk össze (domain-kapu, hitelesítő-kötés, throttle).
+     */
+    private function normalizeAddress(string $address): string
+    {
+        return DomainNormalizer::email(trim($address));
     }
 
     /** @return array{0: string, 1: string} */

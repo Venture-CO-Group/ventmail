@@ -8,6 +8,7 @@ use App\Modules\Domains\Actions\CreateDomain;
 use App\Modules\Domains\Actions\RotateDkimKey;
 use App\Modules\Domains\Jobs\VerifyDomainDns;
 use App\Modules\Domains\Models\Domain;
+use App\Modules\Sending\Services\DomainNormalizer;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -27,7 +28,19 @@ final class DomainController
 
         $validated = $request->validate([
             // RFC 1035: címkénként max 63, összesen max 253 karakter; legalább egy pont.
-            'name' => ['required', 'string', 'max:253', 'regex:/^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/i'],
+            // A validáció NEM ASCII-only: a tulajdonosi döntés szerint az IDN kell (a bérlő
+            // a `példa.hu`-t akarja beírni, nem a punycode-ját). Az érdemi ellenőrzés a
+            // `DomainNormalizer`-é — ő az egyetlen hely, ahol a kanonikus alak eldől.
+            'name' => [
+                'required',
+                'string',
+                'max:253',
+                function (string $attribute, mixed $value, callable $fail): void {
+                    if (DomainNormalizer::canonical(trim((string) $value)) === '') {
+                        $fail('Érvénytelen domain-név.');
+                    }
+                },
+            ],
         ]);
 
         $domain = $createDomain($validated['name']);

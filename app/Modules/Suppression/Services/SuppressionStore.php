@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Suppression\Services;
 
 use App\Modules\Identity\Models\ApiKey;
+use App\Modules\Sending\Services\DomainNormalizer;
 use App\Modules\Suppression\Enums\SuppressionReason;
 use App\Modules\Suppression\Enums\SuppressionScope;
 use App\Modules\Suppression\Models\Suppression;
@@ -38,7 +39,7 @@ final class SuppressionStore
         $scopeEnum = SuppressionScope::tryFrom($appliesTo)
             ?? throw new InvalidArgumentException("Ismeretlen suppression-hatókör: {$appliesTo}");
 
-        $email = strtolower(trim($email));
+        $email = DomainNormalizer::listKey(trim($email));
 
         $this->assertNotPlatformWide($email);
 
@@ -96,7 +97,7 @@ final class SuppressionStore
     {
         $this->authorize($key, 'suppressions:write');
 
-        $email = strtolower(trim($email));
+        $email = DomainNormalizer::listKey(trim($email));
 
         $this->assertNotPlatformWide($email);
 

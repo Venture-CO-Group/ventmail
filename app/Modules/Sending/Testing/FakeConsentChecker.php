@@ -6,6 +6,7 @@ namespace App\Modules\Sending\Testing;
 
 use App\Modules\Consent\Models\Consent;
 use App\Modules\Sending\Contracts\ConsentChecker;
+use App\Modules\Sending\Services\DomainNormalizer;
 
 /**
  * A consent-kontraktus teszttel fedett megvalósítása, amíg a B1 (Consent modul) nem él.
@@ -39,7 +40,7 @@ final class FakeConsentChecker implements ConsentChecker
             return $this->confirmed ? [] : array_values($emails);
         }
 
-        $normalized = array_map(fn (string $email) => strtolower(trim($email)), $emails);
+        $normalized = array_map(fn (string $email) => DomainNormalizer::listKey(trim($email)), $emails);
 
         $consented = Consent::query()->usable()
             ->whereIn('email', $normalized)

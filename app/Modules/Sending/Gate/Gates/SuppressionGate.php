@@ -8,6 +8,7 @@ use App\Modules\Sending\Enums\Channel;
 use App\Modules\Sending\Gate\GateReason;
 use App\Modules\Sending\Gate\GateResult;
 use App\Modules\Sending\Models\Message;
+use App\Modules\Sending\Services\DomainNormalizer;
 use App\Modules\Suppression\Models\Suppression;
 
 /**
@@ -33,7 +34,7 @@ final class SuppressionGate implements Gate
         $scope = $channel->suppressionScope();
 
         $recipients = collect($message->recipients)
-            ->map(fn ($recipient) => strtolower(trim((string) $recipient)));
+            ->map(fn ($recipient) => DomainNormalizer::listKey(trim((string) $recipient)));
 
         // Egyetlen lekérdezés: 1000 címzettnél a címzettenkénti query 1000 körutazás lenne.
         $suppressed = Suppression::query()

@@ -8,7 +8,7 @@ use App\Modules\Domains\Models\Domain;
 use App\Modules\Sending\Gate\GateReason;
 use App\Modules\Sending\Gate\GateResult;
 use App\Modules\Sending\Models\Message;
-use Illuminate\Support\Str;
+use App\Modules\Sending\Services\DomainNormalizer;
 
 /**
  * 1. kapu — „Deliverability nem alku": verifikálatlan domainről NINCS küldés
@@ -24,9 +24,11 @@ final class DomainVerifiedGate implements Gate
 
     public function check(Message $message): GateResult
     {
-        // A domain az UTOLSÓ @ után van (RFC), és kisbetűsítve keresendő: a nagybetűs
-        // feladó különben hitelesített domainen is DOMAIN_UNVERIFIED-et kapott.
-        $host = strtolower(trim(Str::afterLast((string) $message->from_email, '@')));
+        // A domain az UTOLSÓ @ után van (RFC), és KANONIKUS (punycode, kisbetűs) alakban
+        // keresendő: a nagybetűs feladó különben hitelesített domainen is
+        // DOMAIN_UNVERIFIED-et kapott, az `SMTPUTF8` óta pedig a `példa.hu` és a
+        // `xn--plda-bpa.hu` két külön domainnek látszana — az egyikkel a kapu megkerülhető.
+        $host = DomainNormalizer::ofEmail((string) $message->from_email);
 
         $domain = Domain::query()->where('name', $host)->first();
 

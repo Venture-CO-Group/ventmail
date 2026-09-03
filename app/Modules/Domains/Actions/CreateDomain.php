@@ -6,6 +6,8 @@ namespace App\Modules\Domains\Actions;
 
 use App\Modules\Domains\Models\Domain;
 use App\Modules\Domains\Services\DkimKeyManager;
+use App\Modules\Sending\Services\DomainNormalizer;
+use InvalidArgumentException;
 
 /**
  * Domain felvétele a wizard első lépéseként.
@@ -19,10 +21,21 @@ final class CreateDomain
 
     public function __invoke(string $name): Domain
     {
+        // A FELHASZNÁLÓI bemenet körüli whitespace elnézhető (űrlapból jön); a domain
+        // BELSEJÉBEN lévő eltérés (vezető pont, kompatibilitási karakter) viszont nem —
+        // azt a normalizáló elutasítja, mert két különböző domaint mosna össze.
+        $canonical = DomainNormalizer::canonical(trim($name));
+
+        if ($canonical === '') {
+            throw new InvalidArgumentException(
+                'INVALID_DOMAIN|Érvénytelen domain-név: '.$name
+            );
+        }
+
         $keys = $this->dkim->generate();
 
         return Domain::create([
-            'name' => strtolower(trim($name)),
+            'name' => $canonical,
             'dkim_selector' => $keys['selector'],
             'dkim_private_key' => $keys['private'],
             'dkim_public_key' => $keys['public'],

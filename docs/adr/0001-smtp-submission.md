@@ -28,7 +28,13 @@ A küldési lánc tehát kész és megkerülhetetlen — az A2-ben már csak egy
 
 ### D1 · Transzport és processz
 
-- `react/socket` + `react/event-loop` (pure PHP, a meglévő image futtatja). **Nem Swoole:** kiterjesztést és külön image-et kérne.
+- Transzport: **natív PHP stream-ek** (`stream_socket_server` + `stream_select` +
+  `stream_socket_enable_crypto`), külső csomag NÉLKÜL. *(Módosítás az eredeti döntéshez
+  képest, 2026-09-03: az ADR `react/socket`-et írt elő; a megvalósításnál kiderült, hogy a
+  select-ciklus, a TLS és a STARTTLS-emelés is benne van a nyelvben. Amit ez MEGKÖVETEL —
+  és amit az első implementáció el is rontott, a review pedig elkapott: nem-blokkoló
+  TLS-handshake, nyers bájt-plafon a beolvasó pufferre, és három külön időkorlát.)*
+  **Nem Swoole:** kiterjesztést és külön image-et kérne.
 - Belépési pont: `php artisan smtp:serve --port=587|465`. Egy processz egy portot szolgál ki; két compose-service.
 - A listener nem web-worker: submissionönként állítja és elfelejti a workspace-kontextust.
 - A listener **soha nem küld levelet**: nem ismeri a `SendingDriver`-t, a `MessageDispatcher`-t, az IP-poolt, a DKIM-et. A `DATA` végén `SendMessage`-t hív, a választ SMTP-kódra fordítja.
@@ -73,7 +79,12 @@ Kiegészítő szabályok: a hitelesítő feloldása `username` alapján `without
 ### D4 · Protokoll-felület és limitek
 
 Hirdetett: `PIPELINING`, `SIZE 26214400`, `8BITMIME`, `ENHANCEDSTATUSCODES`, `STARTTLS` (csak 587), `AUTH PLAIN LOGIN` (**kizárólag titkosított csatornán**).
-Nem támogatott: `CHUNKING`/`BDAT`, `DSN`, `SMTPUTF8` (backlog), `CRAM-MD5` (visszafejthető tárolást kérne), `VRFY`/`EXPN` (`252`, illetve `502`).
+Hirdetett még: **`SMTPUTF8`** (tulajdonosi döntés, 2026-09-03) — nemzetközi helyi rész és
+IDN-domain elfogadva. A domain-ÖSSZEHASONLÍTÁS mindig punycode alakon megy (különben a
+`példa.hu` és a `xn--plda-tta.hu` két külön domain lenne, és a hitelesített domain kapuja
+megkerülhető).
+Nem támogatott: `CHUNKING`/`BDAT`, `DSN`, `CRAM-MD5` (visszafejthető tárolást kérne),
+`VRFY`/`EXPN` (`252`, illetve `502`).
 
 | Limit | Érték | Viselkedés |
 |---|---|---|
@@ -187,15 +198,31 @@ A felszabás egyetlen csuklóra épül: **az állapotgép nem tud a transzportr�
 5. **A globálisan unique `username` + scope-kikapcsolás** — egyetlen felelősség, pontos egyezés, izolációs teszt.
 6. **Dev- és prod-portok különbsége** — indulási assertion + healthcheck.
 
-## Nyitott kérdések (tulajdonosi döntés)
+## Eldöntött kérdések (tulajdonosi döntés, 2026-09-03)
 
-1. Marketing SMTP-n: végleg tiltva, vagy marad a `channel_restriction` operátori kiskapu? Az ADR a szigorúbbat javasolja.
-2. `SMTPUTF8` / IDN szükséges-e az induló ügyfélkörben? (ma backlog)
-3. ~~`react/socket` mint függőség jóváhagyása~~ — **tárgytalan:** natív stream-ekkel oldottuk meg, nincs új csomag (lásd D1).
-4. Hitelesítő-szintű rate limit alapértéke (300/workspace elég, vagy 60/perc per credential?).
-5. PROXY protocol + TCP load balancer prodban.
-6. A 465-ös port szükségessége az induláshoz (a 11. kritérium mindkettőt kéri — a szűkítés kritérium-módosítás).
+1. **Marketing SMTP-n: VÉGLEG TILTVA.** A `channel_restriction` operátori kiskapu megszűnik —
+   az oszlop DB-szintű check-constraintet kap (`transactional`), az ingest pedig a
+   principal csatornájától függetlenül tranzakciósként küld. Indok: consent-bizonyítékot
+   SMTP-fejlécből nem lehet előállítani (golden rule 4), egy „csak indokolt esetben"
+   állítható oszlop pedig előbb-utóbb támogatási kérésre átbillen.
+2. **`SMTPUTF8` / IDN: KELL az induló ügyfélkörnek.** A listener hirdeti az `SMTPUTF8`
+   kiterjesztést, elfogadja a nem-ASCII helyi részt és a nemzetközi domaint. A
+   DOMAIN-ÖSSZEHASONLÍTÁS (domain-hitelesítés, hitelesítő domain-kötése, per-domain
+   throttle) mindig a PUNYCODE alakon megy — különben a `példa.hu` és a `xn--plda-tta.hu`
+   két különböző domainnek látszana, és a hitelesített domain kapuja megkerülhető lenne.
+3. **Hitelesítő-szintű rate limit: 60/perc az alapérték.** A workspace-szintű 300/perc
+   megmarad fölötte. Indok: egy elszabadult legacy integráció ne egye meg a tenant teljes
+   keretét. Hitelesítőnként felülírható (`smtp_credentials.rate_limit_per_minute`).
+4. **PROXY protocol: KELL** (v1 és v2 is). Enélkül LB mögött minden kapcsolat a balancer
+   IP-jéről érkezik, tehát a per-IP fékek (kapcsolat-limit, brute-force) EGYETLEN közös
+   vödörré válnak — vagyis nem védenek, viszont egyetlen rossz szomszéd mindenkit kizár.
+   Bekapcsolva a fejléc KÖTELEZŐ: hiányában a kapcsolatot bontjuk (fail-closed), különben
+   a kliens maga hamisíthatná a forrás-IP-t.
+5. **A 465-ös port KELL az induláshoz.** Marad mindkét láb: 587 STARTTLS és 465 implicit TLS.
+
+*(A `react/socket` függőség kérdése tárgytalan: natív stream-ekkel oldottuk meg, nincs új
+composer-csomag — lásd D1.)*
 
 ## Backlog (NEM ebben a packetben)
 
-`CHUNKING`/`BDAT`, `DSN`, `SMTPUTF8` · `smtp_transactions` + SMTP-párbeszéd a trace-ben (A3) · bounce-osztályozó és per-domain throttle (A2 másik fele / A3) · MX-fogadás, rspamd + ClamAV, sandboxolt inbound parser (A4) · mailbox-szonda (A5) · MTA-STS / TLS-RPT a submission-lábon (A6) · IP-allowlist a hitelesítőkhöz.
+`CHUNKING`/`BDAT`, `DSN` · `smtp_transactions` + SMTP-párbeszéd a trace-ben (A3) · bounce-osztályozó és per-domain throttle (A2 másik fele / A3) · MX-fogadás, rspamd + ClamAV, sandboxolt inbound parser (A4) · mailbox-szonda (A5) · MTA-STS / TLS-RPT a submission-lábon (A6) · IP-allowlist a hitelesítőkhöz.

@@ -16,6 +16,7 @@ use App\Modules\Sending\Gate\PreSendGate;
 use App\Modules\Sending\Jobs\DeliverMessage;
 use App\Modules\Sending\Models\Message;
 use App\Modules\Sending\Models\RawMimeMessage;
+use App\Modules\Sending\Services\DomainNormalizer;
 use App\Modules\Sending\Services\MessageDispatcher;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Arr;
@@ -287,11 +288,14 @@ final class SendMessage
     {
         $payload = [
             'channel' => Arr::get($attributes, 'channel', Channel::Transactional->value),
-            'from_email' => strtolower(trim((string) Arr::get($attributes, 'from_email'))),
+            // A DOMAIN kanonikus (punycode) alakban tárolódik, a helyi rész változatlanul:
+            // enélkül a `példa.hu` és a `xn--plda-bpa.hu` két külön feladónak látszana a
+            // domain-kapunak, a suppressionnek és a statisztikának is.
+            'from_email' => DomainNormalizer::email(trim((string) Arr::get($attributes, 'from_email'))),
             'from_name' => Arr::get($attributes, 'from_name'),
             'subject' => Arr::get($attributes, 'subject'),
             'recipients' => array_map(
-                fn ($recipient) => is_string($recipient) ? strtolower(trim($recipient)) : $recipient,
+                fn ($recipient) => is_string($recipient) ? DomainNormalizer::email(trim($recipient)) : $recipient,
                 Arr::wrap(Arr::get($attributes, 'to', []))
             ),
             'tags' => Arr::get($attributes, 'tags', []),
