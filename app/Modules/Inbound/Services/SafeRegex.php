@@ -36,7 +36,16 @@ final class SafeRegex
 
         // A bemenetet VÁGJUK, nem utasítjuk el: egy hosszú tárgysor legitim, csak nem kell az
         // egészére illeszteni.
-        $subject = mb_substr($subject, 0, self::MAX_SUBJECT_BYTES);
+        //
+        // BÁJTRA vágunk, nem karakterre: az `mb_substr` UTF-8-ban akár négyszer ennyit
+        // engedne be a PCRE-be, és a korlát a nevével ellentétben nem korlátozna. A vágás
+        // eltörhet egy többbájtos karaktert — ezért utána helyreállítjuk az érvényes UTF-8-at,
+        // különben a `u` módosítós minta hibára futna.
+        $subject = substr($subject, 0, self::MAX_SUBJECT_BYTES);
+
+        if (! mb_check_encoding($subject, 'UTF-8')) {
+            $subject = (string) mb_convert_encoding($subject, 'UTF-8', 'UTF-8');
+        }
 
         $previous = ini_get('pcre.backtrack_limit');
         ini_set('pcre.backtrack_limit', '100000');

@@ -25,6 +25,10 @@ Route::patch('/routes/{uuid}', [InboundRouteController::class, 'update'])
     ->middleware('api.scope:routes:write')
     ->name('v1.routes.update');
 
+Route::post('/routes/{uuid}/rotate-secret', [InboundRouteController::class, 'rotate'])
+    ->middleware('api.scope:routes:write')
+    ->name('v1.routes.rotate');
+
 Route::delete('/routes/{uuid}', [InboundRouteController::class, 'destroy'])
     ->middleware('api.scope:routes:write')
     ->name('v1.routes.destroy');

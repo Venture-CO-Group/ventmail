@@ -43,7 +43,13 @@ final class InboundRouteController
             return ApiError::badRequest('INVALID_ROUTE', $error);
         }
 
-        return response()->json($this->present(InboundRoute::query()->create($validator->validated())), 201);
+        $route = InboundRoute::query()->create($validator->validated());
+
+        // A `forward(url)` ALÁÍRÓ TITKA — EGYSZER látszik, itt. Enélkül a fogadó nem tudná
+        // ellenőrizni az aláírásunkat, és egy ellenőrizhetetlen aláírás nem aláírás.
+        $secret = $route->rotateSecret();
+
+        return response()->json([...$this->present($route), 'signing_secret' => $secret], 201);
     }
 
     public function update(Request $request, string $uuid): JsonResponse
@@ -71,6 +77,23 @@ final class InboundRouteController
         $route->fill($validator->validated())->save();
 
         return response()->json($this->present($route->fresh()));
+    }
+
+    /**
+     * Titok-csere.
+     *
+     * A régi AZONNAL érvénytelen: a rotációt jellemzően szivárgás váltja ki, olyankor pedig a
+     * „még pár percig érvényes" a támadónak kedvez.
+     */
+    public function rotate(string $uuid): JsonResponse
+    {
+        $route = InboundRoute::query()->where('uuid', $uuid)->first();
+
+        if ($route === null) {
+            return ApiError::response('UNKNOWN_ROUTE', 'Ismeretlen route-szabály.', 404);
+        }
+
+        return response()->json([...$this->present($route), 'signing_secret' => $route->rotateSecret()]);
     }
 
     public function destroy(string $uuid): JsonResponse
@@ -131,10 +154,19 @@ final class InboundRouteController
                 return 'A `forward` akcióhoz cél kell (URL vagy e-mail-cím).';
             }
 
-            // A `http`-vel kezdődő cél URL: az `https` kényszerítése a küldés előtt is
-            // megtörténik (SSRF-guard), de a hibát ITT kell jelezni, ahol az ügyfél beírja.
-            if ($type === 'forward' && str_starts_with($target, 'http') && ! str_starts_with($target, 'https://')) {
-                return 'A `forward` URL-je csak https lehet.';
+            // A CÉL vagy érvényes e-mail-cím, vagy `https://` URL. HARMADIK NINCS.
+            //
+            // A korábbi „csak akkor kell https, ha `http`-vel kezdődik" szabály átengedte a
+            // `file:///etc/passwd`-t, a `gopher://…`-t és a kukac nélküli `support`-ot is —
+            // azok aztán a küldési úton némán elhaltak, és az ügyfél sosem tudta meg, miért
+            // nem működik a szabálya.
+            if ($type === 'forward' || ($type === 'store' && $target !== '')) {
+                $isEmail = filter_var($target, FILTER_VALIDATE_EMAIL) !== false;
+                $isHttps = str_starts_with($target, 'https://') && filter_var($target, FILTER_VALIDATE_URL) !== false;
+
+                if ($target !== '' && ! $isEmail && ! $isHttps) {
+                    return 'A cél vagy érvényes e-mail-cím, vagy `https://` URL lehet.';
+                }
             }
         }
 

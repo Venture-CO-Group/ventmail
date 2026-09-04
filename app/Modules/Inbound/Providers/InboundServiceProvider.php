@@ -6,6 +6,7 @@ namespace App\Modules\Inbound\Providers;
 
 use App\Modules\Inbound\Console\PurgeInboundCommand;
 use App\Modules\Inbound\Console\ServeMxCommand;
+use App\Modules\Inbound\Console\VerifyInboundMxCommand;
 use App\Modules\Inbound\Contracts\InboundRecipientResolver;
 use App\Modules\Inbound\Contracts\InboundSink;
 use App\Modules\Inbound\Contracts\RawMailStore;
@@ -44,7 +45,7 @@ final class InboundServiceProvider extends ModuleServiceProvider
     protected function bootModule(): void
     {
         if ($this->app->runningInConsole()) {
-            $this->commands([PurgeInboundCommand::class, ServeMxCommand::class]);
+            $this->commands([PurgeInboundCommand::class, ServeMxCommand::class, VerifyInboundMxCommand::class]);
         }
     }
 }

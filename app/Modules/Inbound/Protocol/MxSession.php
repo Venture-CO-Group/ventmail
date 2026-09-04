@@ -67,7 +67,16 @@ final class MxSession implements SmtpConnection
     /** Hány címzettet utasítottunk el — a címfelderítés fékje. */
     private int $rejectedRecipients = 0;
 
-    /** @var list<array{direction: string, line: string}> */
+    /**
+     * A párbeszéd naplója.
+     *
+     * A bejövő oldalon MA nincs olvasója (az A3 `smtp_transactions` a KIMENŐ trace-é). Azért
+     * gyűjtjük mégis, mert a fogadás hibakeresése enélkül vak — és mert a bekötés egy sor
+     * lesz, ha a bejövő trace-képernyő elkészül. A korlát viszont MOST kell: korlátlan
+     * gyűjtéssel egy hosszú session memóriát enne.
+     *
+     * @var list<array{direction: string, line: string}>
+     */
     private array $transcript = [];
 
     public function __construct(
@@ -273,9 +282,16 @@ final class MxSession implements SmtpConnection
             return $this->reply(552, 'Message size exceeds fixed maximum message size', '5.3.4');
         }
 
+        $sender = $this->normalizeAddress($match[1]);
+
+        // A null-sender (`<>`) LEGITIM; minden MÁS címnek érvényesnek kell lennie.
+        if ($sender !== '' && ! self::validMailbox($sender)) {
+            return $this->reply(501, 'Syntax: MAIL FROM:<address>', '5.5.4');
+        }
+
         $this->envelope->reset();
         $this->resolved = [];
-        $this->envelope->sender = $this->normalizeAddress($match[1]);
+        $this->envelope->sender = $sender;
         $this->state = SessionState::Mail;
 
         return $this->reply(250, 'OK', '2.1.0');
@@ -297,7 +313,19 @@ final class MxSession implements SmtpConnection
         }
 
         $address = $this->normalizeAddress($match[1]);
-        $recipient = $address === '' ? null : $this->resolver->resolve($address);
+
+        if (! self::validMailbox($address)) {
+            // A VEZÉRLŐKARAKTER a legveszélyesebb. Mérve: `RCPT TO:<in\x00fo@pelda.hu>` a
+            // feloldásnál még a helyes `info@pelda.hu` volt (jó tenant), a Postgres viszont
+            // a NUL-nál elvágta, és a TÁROLT címzett `in` lett — a tenant `match_recipient`
+            // szabályai (pl. egy karanténba terelő `stop()`) nem illeszkedtek, a
+            // feladó-attribúció megsemmisült, és a továbbított levél `Reply-To`-ja is
+            // csonka lett. Az RFC 5321 amúgy is tiltja; a protokoll-rétegben utasítjuk el,
+            // nem az adatbázisra bízzuk.
+            return $this->reply(501, 'Syntax: RCPT TO:<address>', '5.5.4');
+        }
+
+        $recipient = $this->resolver->resolve($address);
 
         // A MÁSODIK ZÁR — és az MX-oldal legfontosabb sora. Idegen domainre címzett levelet
         // NEM veszünk át: az elfogadott idegen levél pontosan az, amit a világ nyílt
@@ -446,6 +474,32 @@ final class MxSession implements SmtpConnection
         return $space === false
             ? [strtoupper($trimmed), '']
             : [strtoupper(substr($trimmed, 0, $space)), trim(substr($trimmed, $space + 1))];
+    }
+
+    /**
+     * Érvényes-e egyáltalán ez a boríték-cím?
+     *
+     * Négy dolgot zár:
+     *  - VEZÉRLŐKARAKTER (NUL, CR, LF, TAB): az RFC 5321 tiltja, a Postgres pedig a NUL-nál
+     *    csendben elvágja a sztringet — a tárolt cím más lenne, mint amit feloldottunk;
+     *  - HOSSZ: az RFC 5321 §4.5.3.1 szerint a path legfeljebb 256 oktett. Enélkül egy
+     *    hosszú cím az oszlop-limitbe ütközne, és a küldő 451-en örökké újrapróbálna;
+     *  - TÖBBES CÍM és SOURCE ROUTE (`<@a:b@c>`, `<a@b, c@d>`): egy `RCPT` egy címzett;
+     *  - a `@` és a két rész megléte.
+     */
+    public static function validMailbox(string $address): bool
+    {
+        if ($address === '' || strlen($address) > 254) {
+            return false;
+        }
+
+        if (preg_match('/[\x00-\x20\x7F,:;<>\\"]/', $address) === 1) {
+            return false;
+        }
+
+        $at = strrpos($address, '@');
+
+        return $at !== false && $at > 0 && $at < strlen($address) - 1;
     }
 
     /**

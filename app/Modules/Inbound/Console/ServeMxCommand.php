@@ -51,6 +51,23 @@ final class ServeMxCommand extends Command
 
         $port = (int) $this->option('port');
 
+        // A KÉT PORTLISTA DISZJUNKTSÁGA futásidőben kikényszerítve, nem tesztben remélve.
+        // Az `INBOUND_ALLOWED_PORTS` env-ből jön: egy `INBOUND_ALLOWED_PORTS=587` mellett a
+        // port-őr átengedné a HITELESÍTÉS NÉLKÜLI MX-állapotgépet a submission portjára.
+        $overlap = array_intersect(
+            (array) config('inbound.allowed_ports'),
+            (array) config('smtp.allowed_ports'),
+        );
+
+        if ($overlap !== []) {
+            $this->error(sprintf(
+                'A bejövő és a submission portlista átfedi egymást (%s). A két bizalmi modell nem osztozhat porton.',
+                implode(', ', $overlap),
+            ));
+
+            return self::FAILURE;
+        }
+
         $server = new StreamSubmissionServer(
             $authenticator,
             // A submission-sink SOHA nem hívódik meg ezen a listeneren: az `MxSession` nem
@@ -65,6 +82,10 @@ final class ServeMxCommand extends Command
                 (string) config('inbound.hostname'),
             ),
             allowedPorts: (array) config('inbound.allowed_ports'),
+            // SAJÁT limit-készlet: a bejövő oldal elé nem a mi terheléselosztónk áll, hanem
+            // a világ összes MTA-ja. A submission PROXY-protokoll beállítása itt minden
+            // valódi küldőt elutasítana.
+            configPrefix: 'inbound',
         );
 
         $this->info("ventMail MX — {$this->option('host')}:{$port}");

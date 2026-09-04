@@ -6,6 +6,8 @@ namespace App\Modules\Logs\Console;
 
 use App\Modules\Audit\Services\AuditLogger;
 use App\Modules\Events\Models\MessageEvent;
+use App\Modules\Inbound\Contracts\RawMailStore;
+use App\Modules\Inbound\Models\InboundAttachment;
 use App\Modules\Inbound\Models\InboundMessage;
 use App\Modules\Logs\Models\ErasedRecipient;
 use App\Modules\Logs\Models\SmtpTransaction;
@@ -297,8 +299,26 @@ final class RedactSubjectCommand extends Command
                 ->whereRaw('lower(sender) = ?', [$key])
                 ->orWhereRaw('lower(recipient) = ?', [$key]))
             ->whereNull('redacted_at')
+            ->with('attachments')
             ->eachById(function (InboundMessage $message) use (&$count): void {
-                $message->attachments()->delete();
+                // A FÁJLTÁRAT IS. Enélkül a nyers MIME és minden csatolmány (a karanténba
+                // tett is) a tárolóban maradna, a `storage_key` nullázásával pedig az
+                // `inbound:purge` sem találná meg többé — a fájlok VÉGLEGESEN árván
+                // maradnának. Egy törlési kérésre „teljesítettük"-et jelentenénk, miközben a
+                // legtöbb személyes adatot tartalmazó bájtok ott maradnak.
+                $store = app(RawMailStore::class);
+
+                $message->attachments->each(function (InboundAttachment $attachment) use ($store): void {
+                    if (($attachment->storage_key ?? '') !== '') {
+                        $store->delete((string) $attachment->storage_key);
+                    }
+
+                    $attachment->delete();
+                });
+
+                if (($message->storage_key ?? '') !== '') {
+                    $store->delete((string) $message->storage_key);
+                }
 
                 $message->forceFill([
                     'sender' => null,

@@ -44,7 +44,16 @@ final class MailAuthenticationReader
     {
         $value = $headers['x-ventmail-spam-score'] ?? $headers['x-spam-score'] ?? null;
 
-        return $value === null || ! is_numeric(trim($value)) ? null : (float) trim($value);
+        if ($value === null || ! is_numeric(trim($value))) {
+            return null;
+        }
+
+        // A TARTOMÁNYRA SZORÍTVA. A fejlécet a küldő is beírhatja: egy `X-Spam-Score: 1e12`
+        // a `decimal(6,2)` oszlopon `SQLSTATE[22003] numeric field overflow`-t adott, az
+        // üzenet `PARSE_FAILED` lett, és a route-motor el sem indult — vagyis egyetlen
+        // fejléccel, távolról ki lehetett kapcsolni egy tenant teljes bejövő
+        // feldolgozását.
+        return max(-9999.99, min(9999.99, round((float) trim($value), 2)));
     }
 
     /** @param array<string, string> $headers */

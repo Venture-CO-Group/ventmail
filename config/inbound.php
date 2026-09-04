@@ -9,6 +9,14 @@ return [
 
     'hostname' => env('INBOUND_HOSTNAME', 'mx.ventmail.app'),
 
+    // Az MX-rekord CÉLJA, amit az ügyféltől kérünk. A `VerifyInboundMx` ezt keresi a
+    // domain MX-rekordjai között — ez a bejövő fogadás bizalmi horgonya.
+    'mx_target' => env('INBOUND_MX_TARGET', 'mx.ventmail.app'),
+
+    // Hány szabály értékelődhet ki EGY levélre. A bejövő forgalom forró útja: korlát nélkül
+    // minden aktív szabály betöltődne levelenként.
+    'max_routes' => (int) env('INBOUND_MAX_ROUTES', 200),
+
     // A listener KIZÁRÓLAG ezeken indulhat. A submission portjai (587/465) SZÁNDÉKOSAN nincsenek
     // köztük: egy elgépelt `--port` nem cserélheti fel a két bizalmi modellt.
     'allowed_ports' => array_map('intval', explode(',', (string) env('INBOUND_ALLOWED_PORTS', '25,2525'))),
@@ -30,9 +38,36 @@ return [
      | Az MX-oldal SMTP-korlátai. Ismeretlen küldő, hitelesítés nélkül: minden korlát nélkül
      | hagyott dimenzió egy DoS-vektor.
      */
+    /*
+     | A TRANSZPORT limitjei — a submissiontől FÜGGETLENÜL.
+     |
+     | A bejövő oldal elé nem a mi terheléselosztónk áll, hanem a világ összes MTA-ja: a
+     | PROXY protokoll itt alapból KI, és a per-IP keret is bőségesebb (egy nagy szolgáltató
+     | sok kapcsolatot nyit egyszerre).
+     */
+    'limits' => [
+        'max_auth_bytes' => (int) env('INBOUND_MAX_COMMAND_BYTES', 4096),
+        'max_buffered_bytes' => (int) env('INBOUND_MAX_BUFFERED_BYTES', 134_217_728),
+        'max_connections_per_ip' => (int) env('INBOUND_MAX_CONNECTIONS_PER_IP', 50),
+        'max_connections' => (int) env('INBOUND_MAX_CONNECTIONS', 400),
+        // A küldő MTA-k türelmesek, de nem végtelenül: a nyitva felejtett kapcsolat a mi
+        // erőforrásunkat köti.
+        'command_timeout_seconds' => (int) env('INBOUND_COMMAND_TIMEOUT', 60),
+        'data_timeout_seconds' => (int) env('INBOUND_DATA_TIMEOUT', 600),
+        'session_timeout_seconds' => (int) env('INBOUND_SESSION_TIMEOUT', 900),
+    ],
+
+    'proxy_protocol' => [
+        'enabled' => (bool) env('INBOUND_PROXY_PROTOCOL', false),
+        'trusted_sources' => array_filter(explode(',', (string) env('INBOUND_PROXY_TRUSTED_SOURCES', ''))),
+    ],
+
     'smtp' => [
         'max_command_bytes' => (int) env('INBOUND_MAX_COMMAND_BYTES', 4096),
-        'max_commands' => (int) env('INBOUND_MAX_COMMANDS', 100),
+        // A parancs-plafon a CÍMZETT-plafon fölött: 100 `RCPT` + `EHLO` + `MAIL` + `DATA`
+        // már 103 parancs, tehát 100-as plafonnal a session a címzett-limit ELŐTT bomlana —
+        // a két szám összehangolatlansága egy nagy terjesztési lista kézbesítését ölné meg.
+        'max_commands' => (int) env('INBOUND_MAX_COMMANDS', 160),
         'max_transactions' => (int) env('INBOUND_MAX_TRANSACTIONS', 20),
         'max_recipients' => (int) env('INBOUND_MAX_RECIPIENTS', 100),
         // Címfelderítés elleni fék: aki találgatással térképezi fel, melyik cím létezik
@@ -52,6 +87,14 @@ return [
         'max_parts' => (int) env('INBOUND_PARSER_MAX_PARTS', 500),
         // Falióra-korlát a parse-ra. A sandbox ennél előbb megszakít.
         'max_seconds' => (int) env('INBOUND_PARSER_MAX_SECONDS', 15),
+        // MEMÓRIA. Az idő önmagában nem elég: a `memory_limit` túllépése FATAL ERROR, amit
+        // a hívó `catch (Throwable)` ága NEM fog el — a worker meghalna.
+        // A worker `memory_limit`-jének BIZTONSÁGOS hányada. A 25 MB-os levél dekódolása
+        // önmagában ~100 MB — az inbound worker ezért 512 MB-tal indul (compose).
+        'max_memory_bytes' => (int) env('INBOUND_PARSER_MAX_MEMORY_BYTES', 268_435_456),
+        // A fejléc-blokk önmagában is lehet 25 MB; a `preg_split` egy ekkorára sok
+        // százmegányi tömböt épít.
+        'max_header_bytes' => (int) env('INBOUND_PARSER_MAX_HEADER_BYTES', 262_144),
     ],
 
     'attachments' => [

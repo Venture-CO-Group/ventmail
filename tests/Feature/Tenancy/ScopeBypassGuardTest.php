@@ -17,6 +17,12 @@ it('a Tenancy modulon kívül senki nem kerüli meg a global scope-ot', function
             continue;
         }
 
+        // A MIGRÁCIÓK nem futásidejű lekérdezések: ott a `DB::statement` a séma nyelve
+        // (részleges index, trigger, Timescale-hívás), nem a global scope megkerülése.
+        if (str_contains($file->getPathname(), '/Database/Migrations/')) {
+            continue;
+        }
+
         $relative = $file->getRelativePathname();
 
         // Dokumentált kivétel: az API-kulcs feloldása a kontextus FORRÁSA — lookup-időben

@@ -89,7 +89,11 @@ services:
       dockerfile: docker/app.Dockerfile
     restart: unless-stopped
     working_dir: /var/www
-    command: ['php', 'artisan', 'horizon']
+    # A `memory_limit` EXPLICIT: a bejövő MIME-parse (25 MB-os levél base64 csatolmánnyal)
+    # önmagában ~100 MB-ot igényel. Az alap 128 MB-on a worker FATAL ERRORRAL halna meg —
+    # az pedig nem `Throwable`, tehát a job `catch` ága le sem futna: az üzenet örökre
+    # `received` maradna, a worker pedig újraindulna, újra és újra, ugyanarra a levélre.
+    command: ['php', '-d', 'memory_limit=512M', 'artisan', 'horizon']
     volumes: ['.:/var/www']
     env_file: [.env]
     environment:
@@ -191,6 +195,44 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+
+  # BEJÖVŐ (MX) fogadó — A4. Dev-ben nem privilegizált porton (2525).
+  #
+  # KÜLÖN service és KÜLÖN port-politika: a submission-listener a 25-ösön nem indulhat, ez
+  # pedig a 587/465-ön nem. A két bizalmi modell nem cserélhető fel egy elgépelt kapcsolóval.
+  inbound-mx:
+    build:
+      context: .
+      dockerfile: docker/app.Dockerfile
+    restart: unless-stopped
+    working_dir: /var/www
+    command: ['php', '-d', 'memory_limit=512M', 'artisan', 'inbound:serve', '--port=2525']
+    ports: ['127.0.0.1:2525:2525']
+    volumes: ['.:/var/www']
+    env_file: [.env]
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # Vírusszűrés a bejövő csatolmányokra (35. kritérium). A `ClamAvScanner` FAIL-CLOSED:
+  # ha ez a service nem fut, a csatolmányok `unavailable`-ök maradnak és NEM tölthetők le.
+  clamav:
+    image: clamav/clamav:1.4
+    restart: unless-stopped
+    ports: ['127.0.0.1:3310:3310']
+    healthcheck:
+      test: ['CMD', 'clamdcheck.sh']
+      interval: 60s
+      timeout: 30s
+      retries: 5
+      start_period: 300s
 
   smtp-tls:
     build:

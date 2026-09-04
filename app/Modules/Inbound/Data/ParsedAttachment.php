@@ -11,11 +11,18 @@ final readonly class ParsedAttachment
         public string $filename,
         public string $contentType,
         public string $contents,
+        /**
+         * A KÓDOLT méret, ha a tartalmat el sem dekódoltuk.
+         *
+         * A plafon fölötti csatolmányt nem dekódoljuk (a memória miatt), de a méretét
+         * ismerjük — és a hívónak épp arra van szüksége, hogy elutasíthassa.
+         */
+        public ?int $declaredSize = null,
     ) {}
 
     public function size(): int
     {
-        return strlen($this->contents);
+        return $this->declaredSize ?? strlen($this->contents);
     }
 
     public function sha256(): string

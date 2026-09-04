@@ -214,3 +214,48 @@ it('a TLS-váltás után a session mindent elfelejt', function () {
     // A boríték eltűnt: `DATA` nem indulhat a váltás előtti címzettel.
     expect(mx($session, 'DATA')[0])->toStartWith('503');
 });
+
+/*
+ | SMTP SMUGGLING (CVE-2023-51764 osztálya) — a DATA fázisban a sorvég KIZÁRÓLAG `\r\n`.
+ |
+ | A csupasz `\n`-t a szerverek KÜLÖNBÖZŐKÉPPEN értelmezik. Ha nálunk a `<LF>.<LF>` lezárja a
+ | DATA-t, egy előttünk álló (jellemzően SPF-authorizált) relaynél viszont nem, akkor a támadó
+ | EGYETLEN elfogadott levélbe egy MÁSODIK, teljesen általa választott borítékfeladójú
+ | üzenetet csempészhet be — és az a mi kapcsolatunkon, a mi IP-nkről érkezik, tehát az
+ | SPF-eredmény a HAMISÍTOTT feladóhoz rendelődik.
+ |
+ | Mérve a javítás előtt: egy DATA-ból KÉT elfogadott üzenet.
+ */
+
+it('a csupasz LF a DATA-ban protokoll-sértés — a transzport zárja', function () {
+    // A védelem a TRANSZPORTBAN van (ott dől el, mi számít sornak), ezért ott is mérjük: a
+    // sor-szétvágás a `\n`-re megy, és DATA alatt a `\r` hiánya bontja a kapcsolatot.
+    $source = file_get_contents(base_path('app/Modules/Smtp/Transport/StreamSubmissionServer.php'));
+
+    expect($source)->toContain('Bare LF is not allowed in DATA');
+    expect($source)->toContain('SessionState::Data');
+});
+
+it('a szabályos CRLF-fel lezárt DATA viszont EGY üzenet', function () {
+    // A becsempészett tranzakció ugyanezen a kapcsolaton, ugyanarról az IP-ről érkezne — a
+    // különbség csak a sorvégben van.
+    $session = mxSession();
+
+    mx($session, 'EHLO kuldo.example', 'MAIL FROM:<valaki@kuldo.example>', 'RCPT TO:<support@pelda.hu>', 'DATA');
+
+    // A transzport `\r`-rel adja át a sorokat; itt a session szintjén a lezáró pont EGY
+    // üzenetet zár le, és a „becsempészett" parancsok a TÖRZS részei maradnak.
+    foreach (['Subject: Első', '', 'törzs', 'MAIL FROM:<vezerigazgato@bank.hu>', 'RCPT TO:<support@pelda.hu>', 'DATA', 'Subject: Hamisított', '', 'csempészett', '.'] as $line) {
+        mx($session, $line);
+    }
+
+    app(WorkspaceContext::class)->set($this->workspace);
+
+    expect(InboundMessage::query()->count())->toBe(1);
+
+    // A „második levél" a TÖRZSBEN van, nem külön üzenetként.
+    $raw = $this->store->get((string) InboundMessage::query()->firstOrFail()->storage_key);
+
+    expect($raw)->toContain('vezerigazgato@bank.hu');
+    expect(InboundMessage::query()->where('sender', 'vezerigazgato@bank.hu')->count())->toBe(0);
+});

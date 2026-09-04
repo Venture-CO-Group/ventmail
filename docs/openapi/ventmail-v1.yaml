@@ -478,10 +478,17 @@ paths:
             schema: { $ref: '#/components/schemas/InboundRouteInput' }
       responses:
         '201':
-          description: Létrehozva
+          description: |
+            Létrehozva — az ALÁÍRÓ TITOKKAL együtt. A titok csak MOST látszik; a
+            `forward(url)` ezzel írja alá a POST-ot, és a fogadó ezzel ellenőrzi.
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/InboundRoute' }
+              schema:
+                allOf:
+                  - { $ref: '#/components/schemas/InboundRoute' }
+                  - type: object
+                    properties:
+                      signing_secret: { type: string, description: 'Csak MOST látszik.' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
@@ -522,6 +529,32 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  /routes/{uuid}/rotate-secret:
+    post:
+      tags: [inbound]
+      summary: A route `forward(url)` aláíró titkának cseréje
+      description: |
+        A RÉGI titok AZONNAL érvénytelen. A titok a szabály létrehozásakor egyszer látszik;
+        ha elveszett, itt lehet újat kérni.
+      operationId: rotateInboundRouteSecret
+      security: [{ bearerAuth: [] }, { basicAuth: [] }]
+      parameters:
+        - { name: uuid, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Az ÚJ titok — csak most látszik
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - { $ref: '#/components/schemas/InboundRoute' }
+                  - type: object
+                    properties:
+                      signing_secret: { type: string }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
   /inbound/messages:
     get:
       tags: [inbound]
@@ -534,7 +567,7 @@ paths:
       security: [{ bearerAuth: [] }, { basicAuth: [] }]
       parameters:
         - { name: recipient, in: query, schema: { type: string } }
-        - { name: status, in: query, schema: { type: string, enum: [received, parsed, routed, failed] } }
+        - { name: status, in: query, schema: { type: string, enum: [received, parsed, routed, failed, forward_failed] } }
         - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
       responses:
         '200':
@@ -813,7 +846,7 @@ components:
         sender: { type: [string, 'null'], description: 'null = null-sender (bounce)' }
         recipient: { type: string }
         subject: { type: [string, 'null'] }
-        status: { type: string, enum: [received, parsed, routed, failed] }
+        status: { type: string, enum: [received, parsed, routed, failed, forward_failed] }
         size: { type: integer }
         received_at: { type: [string, 'null'], format: date-time }
         expires_at: { type: [string, 'null'], format: date-time }
@@ -942,6 +975,7 @@ components:
         - UNKNOWN_ATTACHMENT
         - RAW_UNAVAILABLE
         - ATTACHMENT_NOT_DOWNLOADABLE
+        - RAW_CONTAINS_INFECTED_ATTACHMENT
         - INVALID_WEBHOOK_URL
         - UNRESOLVABLE_WEBHOOK_URL
         - IN_PROGRESS

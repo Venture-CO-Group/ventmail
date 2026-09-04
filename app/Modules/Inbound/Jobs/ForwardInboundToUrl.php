@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Inbound\Jobs;
 
 use App\Modules\Inbound\Models\InboundMessage;
+use App\Modules\Inbound\Models\InboundRoute;
 use App\Modules\Inbound\Services\InboundPayload;
 use App\Modules\Tenancy\Models\Workspace;
 use App\Modules\Tenancy\Services\WorkspaceContext;
@@ -43,6 +44,7 @@ final class ForwardInboundToUrl implements ShouldQueue
         private readonly int $workspaceId,
         private readonly string $messageUuid,
         private readonly string $url,
+        private readonly ?string $routeUuid = null,
         private readonly int $attempt = 1,
     ) {
         $this->afterCommit();
@@ -92,7 +94,7 @@ final class ForwardInboundToUrl implements ShouldQueue
             $response = Http::withHeaders([
                 'Content-Type' => 'application/json',
                 'X-VentMail-Timestamp' => (string) $timestamp,
-                'X-VentMail-Signature' => $signer->sign($this->secret($workspace), $payload, $timestamp),
+                'X-VentMail-Signature' => $signer->sign($this->secret(), $payload, $timestamp),
                 'X-VentMail-Event' => 'inbound.message',
                 'X-VentMail-Delivery' => (string) $message->uuid,
             ])
@@ -125,6 +127,12 @@ final class ForwardInboundToUrl implements ShouldQueue
     private function retryLater(): void
     {
         if ($this->attempt >= (int) config('inbound.forward.max_attempts')) {
+            // DEAD-LETTER, nem csak egy naplósor: az ügyfélnek látnia kell, hogy egy levele
+            // nem jutott el hozzá. Egy `Log::warning`-ról sosem tudna róla.
+            InboundMessage::query()
+                ->where('uuid', $this->messageUuid)
+                ->update(['status' => 'forward_failed', 'reason' => 'FORWARD_DEAD_LETTER']);
+
             Log::warning('A bejövő levél továbbítása véglegesen elhasalt.', [
                 'inbound_message' => $this->messageUuid,
             ]);
@@ -132,18 +140,26 @@ final class ForwardInboundToUrl implements ShouldQueue
             return;
         }
 
-        self::dispatch($this->workspaceId, $this->messageUuid, $this->url, $this->attempt + 1)
+        self::dispatch($this->workspaceId, $this->messageUuid, $this->url, $this->routeUuid, $this->attempt + 1)
             ->delay(now()->addSeconds(60 * (2 ** ($this->attempt - 1))));
     }
 
     /**
-     * A TENANT aláíró titka.
+     * A ROUTE aláíró titka.
      *
-     * A workspace-hez kötött, `APP_KEY`-jel származtatott érték: így a fogadó ellenőrizni
-     * tudja, hogy tőlünk jött, és két tenant nem tudja egymás payloadját aláírni.
+     * Korábban egy `APP_KEY`-ből származtatott érték volt, amit SEHOL nem adtunk ki — egy
+     * aláírás, amit a fogadó nem tud ellenőrizni, nem aláírás. És rotálni sem lehetett volna
+     * az `APP_KEY` cseréje nélkül, ami az összes többi titkosított oszlopot is elvinné.
+     *
+     * Most a szabályhoz tartozik: a létrehozás válaszában EGYSZER megjelenik, külön
+     * rotálható, és ugyanazzal a `WebhookSigner`-rel ellenőrizhető, mint az A3 webhookjai.
      */
-    private function secret(Workspace $workspace): string
+    private function secret(): string
     {
-        return hash_hmac('sha256', 'inbound-forward:'.$workspace->uuid, (string) config('app.key'));
+        $route = $this->routeUuid === null
+            ? null
+            : InboundRoute::query()->where('uuid', $this->routeUuid)->first();
+
+        return $route?->signingSecret() ?? '';
     }
 }

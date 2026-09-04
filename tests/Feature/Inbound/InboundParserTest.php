@@ -258,3 +258,95 @@ it('a NYERS UTF-8 fejlécet nem csonkolja meg', function () {
 
     expect($this->parser->parse($raw)->subject)->toBe('Árvíztűrő tükörfúrógép');
 });
+
+/*
+ | A ZIP-BOMBA a KÖZPONTI KÖNYVTÁRBÓL derül ki, nem a helyi fejlécekből.
+ |
+ | A streaming zip-írók (minden „zip on the fly" szerver, a Java `ZipOutputStream`, a legtöbb
+ | nyelvi standard könyvtár) a helyi fejlécbe NULLÁT írnak, és a valós méretet a data
+ | descriptorba meg a központi könyvtárba teszik. A helyi fejlécekből dolgozó ellenőrzés
+ | ezekre `deklarált = 0`-t lát — mérve: egy 48 kB-os, 50 MB-ra bomló archívum „rendben"-t
+ | kapott. A kicsomagolók viszont MIND a központi könyvtárból dolgoznak.
+ */
+
+function bombaZip(int $bytes = 5_000_000): string
+{
+    $path = (string) tempnam(sys_get_temp_dir(), 'zip');
+
+    $archive = new ZipArchive;
+    $archive->open($path, ZipArchive::OVERWRITE);
+    $archive->addFromString('bomba.txt', str_repeat('A', $bytes));
+    $archive->close();
+
+    $contents = (string) file_get_contents($path);
+
+    unlink($path);
+
+    return $contents;
+}
+
+it('felismeri a bombát a KÖZPONTI könyvtárból', function (string $eset) {
+    config(['inbound.attachments.max_compression_ratio' => 100]);
+
+    $bomba = bombaZip();
+
+    $minta = match ($eset) {
+        'sima' => $bomba,
+        // Streaming: a helyi fejlécben CRC/méret = 0, a general purpose bit 3 be van állítva.
+        'streaming' => substr_replace(substr_replace($bomba, chr(0x08), 6, 1), str_repeat("\0", 12), 14, 12),
+        // SFX stub: a fájl NEM `PK`-val kezdődik.
+        'prefixelt' => str_repeat("\0", 1000).$bomba,
+        // Beágyazott, TÁROLT belső archívum.
+        'beágyazott' => (function () use ($bomba) {
+            $path = (string) tempnam(sys_get_temp_dir(), 'zip');
+            $archive = new ZipArchive;
+            $archive->open($path, ZipArchive::OVERWRITE);
+            $archive->addFromString('belso.zip', $bomba);
+            $archive->setCompressionName('belso.zip', ZipArchive::CM_STORE);
+            $archive->close();
+            $contents = (string) file_get_contents($path);
+            unlink($path);
+
+            return $contents;
+        })(),
+        // A gzip az utolsó négy bájtban tárolja a kicsomagolt méretet.
+        'gzip' => (string) gzencode(str_repeat('A', 5_000_000), 9),
+        default => $bomba,
+    };
+
+    $inspection = (new ArchiveInspector)->inspect($minta);
+
+    expect($inspection['bomb'])->toBeTrue("a `{$eset}` eset átcsúszott");
+})->with(['sima', 'streaming', 'prefixelt', 'beágyazott', 'gzip']);
+
+it('a LEGITIM archívumokat átengedi', function () {
+    // Egy `.docx` és egy `.jar` is zip: a téves riasztás itt valódi levelet blokkolna.
+    $path = (string) tempnam(sys_get_temp_dir(), 'zip');
+    $archive = new ZipArchive;
+    $archive->open($path, ZipArchive::OVERWRITE);
+    $archive->addFromString('szamla.txt', str_repeat('adat ', 200));
+    $archive->close();
+    $rendes = (string) file_get_contents($path);
+    unlink($path);
+
+    expect((new ArchiveInspector)->inspect($rendes)['bomb'])->toBeFalse();
+
+    // Zipbe tett zip — a `.docx`/`.xlsx` pontosan ilyen.
+    $path = (string) tempnam(sys_get_temp_dir(), 'zip');
+    $archive = new ZipArchive;
+    $archive->open($path, ZipArchive::OVERWRITE);
+    $archive->addFromString('doc.docx', $rendes);
+    $archive->setCompressionName('doc.docx', ZipArchive::CM_STORE);
+    $archive->close();
+    $agyazott = (string) file_get_contents($path);
+    unlink($path);
+
+    expect((new ArchiveInspector)->inspect($agyazott)['bomb'])->toBeFalse();
+});
+
+it('a nem ellenőrizhető formátumot NEM utasítja el, a vírusirtóra bízza', function () {
+    // A bzip2/xz nem tárol kicsomagolt méretet. A tiltás itt csak annyit érne el, hogy a
+    // legitim `.bz2` melléklet se működjön — a clamd viszont épp ilyen bemenetre készült,
+    // és a szkennerünk fail-closed: amit nem tud átvizsgálni, az nem tölthető le.
+    expect((new ArchiveInspector)->inspect('BZh91AY&SYakarmi')['bomb'])->toBeFalse();
+});

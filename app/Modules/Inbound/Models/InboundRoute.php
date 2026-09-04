@@ -9,6 +9,8 @@ use App\Modules\Tenancy\Concerns\BelongsToWorkspace;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Str;
 
 /**
  * Egy bejövő route-szabály (30. kritérium).
@@ -25,7 +27,14 @@ final class InboundRoute extends Model
 
     public const ACTION_TYPES = ['forward', 'store', 'stop'];
 
+    /**
+     * A `signing_secret` SZÁNDÉKOSAN nincs itt: a titkot MI generáljuk, és csak mi. Ha
+     * tömegesen kitölthető lenne, az ügyfél a saját gyenge titkát tehetné be — és az
+     * aláírásunk annyit érne, amennyit az ő „titka".
+     */
     protected $fillable = ['description', 'priority', 'match_type', 'match_field', 'expression', 'actions', 'active'];
+
+    protected $hidden = ['signing_secret'];
 
     protected $attributes = ['priority' => 100, 'active' => true, 'actions' => '[]'];
 
@@ -42,6 +51,34 @@ final class InboundRoute extends Model
             'priority' => 'integer',
             'last_matched_at' => 'datetime',
         ];
+    }
+
+    /**
+     * A `forward(url)` ALÁÍRÓ TITKA.
+     *
+     * Titkosítva tárolva, nem hash-elve: az aláíráshoz a NYERS érték kell (HMAC). Ugyanaz a
+     * minta, mint az A3 webhook-végpontjainál — és ugyanazzal az indokkal: egy aláírás, amit
+     * a fogadó nem tud ellenőrizni, nem aláírás.
+     */
+    public function signingSecret(): string
+    {
+        return Crypt::decryptString((string) ($this->getAttributes()['signing_secret'] ?? ''));
+    }
+
+    public function setSigningSecretAttribute(string $value): void
+    {
+        $this->attributes['signing_secret'] = Crypt::encryptString($value);
+    }
+
+    /** Új titok — a hívó kapja meg EGYSZER, utána már csak az aláírásainkban él. */
+    public function rotateSecret(): string
+    {
+        $secret = 'rsec_'.Str::random(40);
+
+        $this->signing_secret = $secret;
+        $this->save();
+
+        return $secret;
     }
 
     public function messages(): mixed

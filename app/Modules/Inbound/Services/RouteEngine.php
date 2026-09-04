@@ -30,10 +30,13 @@ final class RouteEngine
 
     public function run(InboundMessage $message): void
     {
+        // LIMITTEL: a bejövő forgalom forró útja. Korlát nélkül minden aktív szabály
+        // betöltődne LEVELENKÉNT — ötszáz szabálynál ötszáz sor, minden egyes levélre.
         $routes = InboundRoute::query()
             ->where('active', true)
             ->orderBy('priority')
             ->orderBy('id')
+            ->limit((int) config('inbound.max_routes'))
             ->get();
 
         $executed = 0;
@@ -43,7 +46,11 @@ final class RouteEngine
                 continue;
             }
 
-            $route->forceFill(['last_matched_at' => now()])->save();
+            // A találat IDEJE óránként frissül, nem levelenként: a pontos másodperc senkinek
+            // nem kell, egy forgalmas route-nál viszont levelenkénti UPDATE lenne belőle.
+            if ($route->last_matched_at === null || $route->last_matched_at->lt(now()->subHour())) {
+                $route->forceFill(['last_matched_at' => now()])->saveQuietly();
+            }
 
             foreach ((array) $route->actions as $action) {
                 $type = (string) ($action['type'] ?? '');
@@ -56,8 +63,10 @@ final class RouteEngine
                     return;
                 }
 
-                $this->execute($type, (string) ($action['target'] ?? ''), $message);
-                $executed++;
+                // A számláló CSAK akkor nő, ha valóban történt valami: enélkül a `reason`
+                // `null` lenne egy ismeretlen típusú vagy cél nélküli akciónál is, és az
+                // ügyfél a naplóból azt látná, hogy a szabály lefutott — pedig nem.
+                $executed += $this->execute($type, (string) ($action['target'] ?? ''), $message, $route) ? 1 : 0;
             }
         }
 
@@ -94,24 +103,28 @@ final class RouteEngine
         return $result['matched'];
     }
 
-    private function execute(string $type, string $target, InboundMessage $message): void
+    private function execute(string $type, string $target, InboundMessage $message, InboundRoute $route): bool
     {
         if ($type === 'forward' && $target !== '') {
             // A CÉL alakja dönt: URL vagy e-mail-cím. A kettő teljesen más úton megy — az
             // egyik aláírt HTTP POST, a másik a PreSendGate-en át kiküldött levél.
             str_contains($target, '@') && ! str_starts_with($target, 'http')
                 ? ForwardInboundToEmail::dispatch((int) $message->workspace_id, (string) $message->uuid, $target)
-                : ForwardInboundToUrl::dispatch((int) $message->workspace_id, (string) $message->uuid, $target);
+                : ForwardInboundToUrl::dispatch((int) $message->workspace_id, (string) $message->uuid, $target, (string) $route->uuid);
 
-            return;
+            return true;
         }
 
-        if ($type === 'store') {
+        if ($type === 'store' && $target !== '') {
             // A `store()` maga NEM csinál semmit: a levél már el van tárolva. Ha van
             // értesítési URL, azt hívjuk.
-            if ($target !== '') {
-                ForwardInboundToUrl::dispatch((int) $message->workspace_id, (string) $message->uuid, $target);
-            }
+            ForwardInboundToUrl::dispatch((int) $message->workspace_id, (string) $message->uuid, $target, (string) $route->uuid);
+
+            return true;
         }
+
+        // A puszta `store()` LEGITIM akció (a levél tárolva marad), tehát „lefutottnak"
+        // számít — csak nem indít semmit.
+        return $type === 'store';
     }
 }

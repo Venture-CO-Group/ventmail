@@ -39,5 +39,9 @@ Schedule::command('logs:purge')->dailyAt('03:40');
 // mint a saját naplónkat, és a fájltárat is ürítjük vele.
 Schedule::command('inbound:purge')->hourly();
 
+// A bejövő fogadás BIZALMI HORGONYA: az MX-rekord bármikor eltűnhet (domain-átvitel,
+// DNS-hiba, az ügyfél átállt máshova), és onnantól nem a mi dolgunk levelet fogadni rá.
+Schedule::command('inbound:verify-mx')->hourly();
+
 // A lejárt nyers MIME-levelek törlése (golden rule 10): a levéltest a legsűrűbb PII-tárolónk.
 Schedule::command('messages:purge-raw-mime')->dailyAt('03:20');

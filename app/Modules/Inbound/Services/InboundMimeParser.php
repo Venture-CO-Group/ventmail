@@ -15,12 +15,18 @@ use App\Modules\Inbound\Data\ParsedMail;
  * mélységi rekurzió, exponenciális részszám, kvadratikus visszalépés — mind abból élnek,
  * hogy valamelyik dimenzió korlátlan maradt.
  *
- * NÉGY KORLÁT, mindegyik külön dimenzióra:
+ * ÖT KORLÁT, mindegyik külön dimenzióra:
  *  1. MÉLYSÉG (`max_depth`): a beágyazott `message/rfc822`/`multipart` matrjoska;
  *  2. RÉSZSZÁM (`max_parts`): az „ezer üres rész" ugyanúgy DoS, mint egy mély fa;
  *  3. IDŐ (`max_seconds`): falióra-korlát, ami a fenti kettőtől függetlenül is megfog egy
  *     olyan bemenetet, amire nem gondoltunk;
- *  4. MÉRET: a hívó már a fogadásnál levágta, itt a részenkénti dekódolás is korlátozott.
+ *  4. MEMÓRIA (`max_memory_bytes`): az idő önmagában NEM elég. Mérve: egy 24 MB-os levél
+ *     (a fogadási limit ALATT, tehát az MX átveszi) egyetlen hosszú fejléccel 211 MB
+ *     csúcsot vitt, és a 128 MB-os `memory_limit`-en FATAL ERRORRAL állt meg — az pedig nem
+ *     `Throwable`, tehát a job `catch` ága le sem futott: az üzenet örökre `received`
+ *     maradt, a worker meghalt. Pontosan az, amit a 36. kritérium tilt;
+ *  5. FEJLÉC-BLOKK (`max_header_bytes`): saját korlát, mert a fejléc a törzstől függetlenül
+ *     is lehet 25 MB.
  *
  * A parser NEM DOB a malformált bemenetre: figyelmeztetést gyűjt, és visszaadja, amit ki
  * tudott olvasni. Egy szemetes levél nem hiba, hanem a valóság — a 36. kritérium épp azt
@@ -36,6 +42,9 @@ final class InboundMimeParser
 
     private float $deadline = 0.0;
 
+    /** Ennél többet ez a parse nem foglalhat — a FATAL ERROR nem elkapható. */
+    private int $memoryCeiling = 0;
+
     /** @var list<string> */
     private array $warnings = [];
 
@@ -48,6 +57,7 @@ final class InboundMimeParser
         $this->warnings = [];
         $this->attachments = [];
         $this->deadline = microtime(true) + (float) config('inbound.parser.max_seconds');
+        $this->memoryCeiling = memory_get_usage(true) + (int) config('inbound.parser.max_memory_bytes');
 
         [$headerBlock, $body] = $this->split($raw);
 
@@ -85,9 +95,21 @@ final class InboundMimeParser
         return [$raw, ''];
     }
 
-    /** @return array<string, string> */
+    /**
+     * @return array<string, string>
+     */
     private function headers(string $block): array
     {
+        $maxBytes = (int) config('inbound.parser.max_header_bytes');
+
+        if (strlen($block) > $maxBytes) {
+            // A fejléc-blokk ÖNMAGÁBAN is lehet 25 MB. A `preg_split` egy ekkora blokkra
+            // sok százmegányi tömböt épít — a vágás ELŐBB jön, mint a feldolgozás.
+            $this->warn('A fejléc-blokk hosszabb, mint az engedélyezett korlát.');
+
+            $block = substr($block, 0, $maxBytes);
+        }
+
         $headers = [];
         $name = null;
 
@@ -138,8 +160,29 @@ final class InboundMimeParser
             return;
         }
 
+        // A MEMÓRIA-plafon: a `memory_limit` túllépése FATAL ERROR, amit a hívó `catch`
+        // ága NEM fog el — a worker meghalna, az üzenet pedig örökre `received` maradna.
+        if (memory_get_usage(true) > $this->memoryCeiling) {
+            $this->warn('Az értelmezés memória-korlátba ütközött.');
+
+            return;
+        }
+
         $contentType = strtolower($headers['content-type'] ?? 'text/plain');
         $disposition = strtolower($headers['content-disposition'] ?? '');
+
+        // BEÁGYAZOTT LEVÉL (`message/rfc822`): a továbbított levél törzse és csatolmányai
+        // enélkül LÁTHATATLANOK lennének a parsernek, a routernek és a vírusirtónak — pont
+        // az a forma, amiben a kártevő a leggyakrabban érkezik. A mélységi korlát ugyanaz.
+        if (str_starts_with($contentType, 'message/rfc822')) {
+            $decodedInner = $this->decodeBody($body, strtolower($headers['content-transfer-encoding'] ?? ''));
+
+            [$innerHeaders, $innerBody] = $this->split($decodedInner);
+
+            $this->walk($this->headers($innerHeaders), $innerBody, $depth + 1, $plain, $html);
+
+            return;
+        }
 
         if (str_starts_with($contentType, 'multipart/')) {
             $boundary = $this->boundary($headers['content-type'] ?? '');
@@ -159,12 +202,34 @@ final class InboundMimeParser
             return;
         }
 
-        $decoded = $this->decodeBody($body, strtolower($headers['content-transfer-encoding'] ?? ''));
-
         // Csatolmány: vagy explicit `attachment`, vagy van fájlneve.
         $filename = $this->filename($headers);
 
-        if (str_contains($disposition, 'attachment') || $filename !== null) {
+        $isAttachment = str_contains($disposition, 'attachment') || $filename !== null;
+
+        // A PLAFON FÖLÖTTI csatolmányt EL SEM DEKÓDOLJUK. A hívó úgyis elutasítja a mérete
+        // miatt — a dekódolás csak a memóriát vinné el ugyanazért az eredményért. A
+        // base64 négy bájtból hármat ad, tehát a kódolt méret ~4/3-a a nyersnek.
+        $ceiling = (int) (config('inbound.attachments.max_bytes') * 1.4);
+
+        if ($isAttachment && strlen($body) > $ceiling) {
+            $this->warn('A csatolmány mérete meghaladja a korlátot — nem dekódoltuk.');
+
+            $this->attachments[] = new ParsedAttachment(
+                filename: $filename ?? 'csatolmany.bin',
+                contentType: trim(explode(';', $contentType)[0]),
+                // ÜRES tartalom, de a MÉRET a valós: a hívó ebből dönt, és az ügyfél is
+                // látja, mi érkezett.
+                contents: '',
+                declaredSize: strlen($body),
+            );
+
+            return;
+        }
+
+        $decoded = $this->decodeBody($body, strtolower($headers['content-transfer-encoding'] ?? ''));
+
+        if ($isAttachment) {
             $this->attachments[] = new ParsedAttachment(
                 filename: $filename ?? 'csatolmany.bin',
                 contentType: trim(explode(';', $contentType)[0]),
@@ -190,24 +255,62 @@ final class InboundMimeParser
         }
     }
 
-    /** @return list<string> */
+    /**
+     * A boundary CSAK SOR ELEJÉN határol (RFC 2046 §5.1.1), és KORLÁTOZOTT darabszámban.
+     *
+     * Két hiba javul itt egyszerre:
+     *
+     * 1. A naiv `explode('--'.$boundary, $body)` a határolót BÁRHOL felismeri. Mérve: egy
+     *    ártatlan mondat közepére írt `X--HATAR--` hatására a parser NULLA csatolmányt talált
+     *    egy háromrészes levélben — a `kartevo.exe` így soha nem került volna a vírusirtó
+     *    elé, miközben a címzett levélkliense (ami a szabvány szerint sor elejét vár) szépen
+     *    megmutatja. Ez a csempészés legolcsóbb formája.
+     *
+     * 2. Az `explode()` a RÉSZSZÁM-ELLENŐRZÉS ELŐTT építette fel a tömböt. Mérve: egy 6 MB-os,
+     *    sok határolós levél a `max_parts` figyelmeztetés MELLETT is 128 MB fölé vitte a
+     *    memóriát — és a `memory_limit` túllépése FATAL ERROR, amit a hívó `catch` ága nem
+     *    fog el: a worker meghal, az üzenet örökre `received` marad. Ezért itt már a
+     *    KERESÉSKOR megállunk a korlátnál, és offsetekkel vágunk, nem tömböt építünk.
+     *
+     * @return list<string>
+     */
     private function segments(string $body, string $boundary): array
     {
-        $marker = '--'.$boundary;
+        $pattern = '/(?:\r\n|\n|^)--'.preg_quote($boundary, '/').'([ \t]*--)?[ \t]*(?=\r\n|\n|$)/';
+
+        if (preg_match_all($pattern, $body, $matches, PREG_OFFSET_CAPTURE) === false) {
+            return [];
+        }
+
+        $limit = (int) config('inbound.parser.max_parts');
         $segments = [];
+        $previousEnd = null;
 
-        $parts = explode($marker, $body);
+        foreach ($matches[0] as $index => [$marker, $offset]) {
+            // Az ELŐZŐ határoló és a mostani közti szakasz egy rész. Az első határoló előtti
+            // darab a preambulum (a MIME-t nem értő kliensek szövege) — nem MIME-rész.
+            if ($previousEnd !== null) {
+                $segments[] = ltrim(substr($body, $previousEnd, $offset - $previousEnd), "\r\n");
 
-        // Az ELSŐ darab a boundary előtti preambulum (a MIME-t nem értő kliensek szövege),
-        // az UTOLSÓ a záró `--` utáni epilógus. Egyik sem MIME-rész.
-        array_shift($parts);
+                if (count($segments) >= $limit) {
+                    $this->warn('A MIME-részek száma meghaladta a korlátot.');
 
-        foreach ($parts as $part) {
-            if (str_starts_with(ltrim($part), '--')) {
-                break;
+                    return $segments;
+                }
             }
 
-            $segments[] = ltrim($part, "\r\n");
+            // A ZÁRÓ határoló (`--HATAR--`) után minden epilógus.
+            if (($matches[1][$index][0] ?? '') !== '') {
+                return $segments;
+            }
+
+            $previousEnd = $offset + strlen($marker);
+        }
+
+        if ($previousEnd !== null) {
+            // Lezáratlan multipart: ami maradt, még lehet rész — a malformált levél sem
+            // veszhet el csendben.
+            $segments[] = ltrim(substr($body, $previousEnd), "\r\n");
         }
 
         return $segments;
@@ -258,13 +361,55 @@ final class InboundMimeParser
         return mb_substr($name === '' ? 'csatolmany.bin' : $name, 0, 200);
     }
 
+    /**
+     * A rész dekódolása — MÁSOLAT-TAKARÉKOSAN.
+     *
+     * A naiv `base64_decode(preg_replace('/\s+/', '', $body))` HÁROM teljes méretű másolatot
+     * tart egyszerre: a nyers törzset, a whitespace nélküli változatot és a dekódolt
+     * eredményt. Mérve, 128 MB-os `memory_limit` mellett: egy 16 MB-os base64 csatolmány
+     * FATAL ERRORT adott — az pedig nem `Throwable`, tehát a job `catch` ága le sem futott,
+     * a worker meghalt, az üzenet örökre `received` maradt. És ez nem támadás: egy
+     * hétköznapi nagy PDF-melléklet is ekkora.
+     *
+     * Ezért blokkokban dolgozunk: a whitespace nélküli teljes másolat sosem áll elő.
+     */
     private function decodeBody(string $body, string $encoding): string
     {
-        return match (true) {
-            str_contains($encoding, 'base64') => (string) base64_decode(preg_replace('/\s+/', '', $body) ?? '', false),
-            str_contains($encoding, 'quoted-printable') => (string) quoted_printable_decode($body),
-            default => $body,
-        };
+        if (str_contains($encoding, 'base64')) {
+            return $this->decodeBase64($body);
+        }
+
+        if (str_contains($encoding, 'quoted-printable')) {
+            return (string) quoted_printable_decode($body);
+        }
+
+        return $body;
+    }
+
+    private function decodeBase64(string $body): string
+    {
+        $out = '';
+        $carry = '';
+        $length = strlen($body);
+
+        for ($offset = 0; $offset < $length; $offset += 65536) {
+            if (microtime(true) > $this->deadline || memory_get_usage(true) > $this->memoryCeiling) {
+                $this->warn('A dekódolás korlátba ütközött.');
+
+                return $out;
+            }
+
+            $chunk = $carry.(string) preg_replace('/\s+/', '', substr($body, $offset, 65536));
+
+            // A base64 NÉGYES csoportokban dekódolható: a maradékot átvisszük a következő
+            // blokkba, különben a blokkhatáron csonka csoport keletkezne.
+            $usable = intdiv(strlen($chunk), 4) * 4;
+            $carry = substr($chunk, $usable);
+
+            $out .= (string) base64_decode(substr($chunk, 0, $usable), false);
+        }
+
+        return $out.($carry === '' ? '' : (string) base64_decode($carry, false));
     }
 
     private function charset(string $contentType): string

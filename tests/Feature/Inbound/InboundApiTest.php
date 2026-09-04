@@ -404,3 +404,91 @@ it('a bejövő képernyő BEJELENTKEZÉS nélkül nem érhető el', function () 
 
     $this->get('/inbound')->assertRedirect();
 });
+
+it('a NYERS levél sem kerüli meg a karantént', function () {
+    // A nyers MIME a csatolmányokat is TARTALMAZZA, base64-ben: a `downloadable()` zárat ez
+    // a végpont megkerülné, és a 409-cel tiltott melléklet a levél törzsében kijönne.
+    $message = InboundMessage::query()->create([
+        'domain_id' => $this->domain->getKey(),
+        'recipient' => 'support@pelda.hu',
+        'status' => 'routed',
+        'received_at' => now(),
+    ]);
+
+    $message->forceFill(['storage_key' => 'inbound/f.eml'])->save();
+    $this->store->put('inbound/f.eml', 'nyers levél a kártevővel');
+
+    InboundAttachment::query()->create([
+        'inbound_message_id' => $message->getKey(),
+        'filename' => 'virus.exe',
+        'content_type' => 'application/octet-stream',
+        'size' => 10,
+        'sha256' => hash('sha256', 'x'),
+        'storage_key' => 'inbound/quarantine/f.bin',
+        'scan_result' => 'infected',
+    ]);
+
+    $response = api('GET', '/v1/inbound/messages/'.$message->uuid.'/raw');
+
+    $response->assertStatus(409);
+
+    expect($response->json('error.code'))->toBe('RAW_CONTAINS_INFECTED_ATTACHMENT');
+});
+
+it('a TISZTA levél nyers MIME-ja letölthető, de nem renderelhető', function () {
+    $message = InboundMessage::query()->create([
+        'domain_id' => $this->domain->getKey(),
+        'recipient' => 'support@pelda.hu',
+        'status' => 'routed',
+        'received_at' => now(),
+    ]);
+
+    $message->forceFill(['storage_key' => 'inbound/t.eml'])->save();
+    $this->store->put('inbound/t.eml', 'Subject: rendben');
+
+    $response = $this->withHeaders(['Authorization' => 'Bearer '.$this->plain])
+        ->get('/v1/inbound/messages/'.$message->uuid.'/raw');
+
+    $response->assertOk();
+    // Idegen tartalom: a böngésző ne találgassa a típust, és ne rendereljen.
+    $response->assertHeader('X-Content-Type-Options', 'nosniff');
+    expect($response->headers->get('Content-Disposition'))->toContain('attachment');
+});
+
+it('a route ALÁÍRÓ TITKA egyszer látszik, és rotálható', function () {
+    // Egy aláírás, amit a fogadó nem tud ellenőrizni, nem aláírás. A korábbi változat egy
+    // `APP_KEY`-ből származtatott értékkel írt alá, amit sehol nem adtunk ki.
+    $created = api('POST', '/v1/routes', [
+        'match_type' => 'catch_all',
+        'actions' => [['type' => 'forward', 'target' => 'https://hook.example.test/mail']],
+    ]);
+
+    $created->assertStatus(201);
+
+    $secret = (string) $created->json('signing_secret');
+
+    expect($secret)->toStartWith('rsec_');
+
+    // A listában MÁR NEM.
+    expect(json_encode(api('GET', '/v1/routes')->json()))->not->toContain($secret);
+
+    $uj = (string) api('POST', '/v1/routes/'.$created->json('id').'/rotate-secret')->json('signing_secret');
+
+    expect($uj)->not->toBe($secret);
+    expect(InboundRoute::query()->firstOrFail()->signingSecret())->toBe($uj);
+});
+
+it('a forward célja csak e-mail-cím vagy https URL lehet', function (string $target) {
+    // A korábbi „csak akkor kell https, ha `http`-vel kezdődik" szabály átengedte ezeket,
+    // aztán a küldési úton némán elhaltak — az ügyfél sosem tudta meg, miért nem működik.
+    expect(api('POST', '/v1/routes', [
+        'match_type' => 'catch_all',
+        'actions' => [['type' => 'forward', 'target' => $target]],
+    ])->json('error.code'))->toBe('INVALID_ROUTE');
+})->with([
+    'file' => 'file:///etc/passwd',
+    'gopher' => 'gopher://belso.example/',
+    'http' => 'http://hook.example.test/mail',
+    'kukac nélkül' => 'support',
+    'szemét' => 'nem-url-nem-email',
+]);

@@ -14,6 +14,8 @@ use App\Modules\Smtp\Protocol\SmtpReply;
 use App\Modules\Tenancy\Models\Workspace;
 use App\Modules\Tenancy\Services\WorkspaceContext;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
+use RuntimeException;
 use Throwable;
 
 /**
@@ -44,7 +46,21 @@ final class InboundIngest implements InboundSink
         } catch (Throwable $e) {
             // A KÜLDŐ ÚJRAPRÓBÁLHAT: a 4xx azt jelenti, „nálam most nem megy, gyere vissza".
             // Az 5xx-szel a levél végleg elveszne egy MI hibánk miatt.
-            Log::error('A bejövő levél letétele nem sikerült.', ['error' => $e::class, 'message' => $e->getMessage()]);
+            //
+            // A KIVÉTEL SZÖVEGE NEM MEGY A NAPLÓBA. A Laravel `QueryException` üzenete a
+            // teljes SQL-t tartalmazza behelyettesített értékekkel — mérve: a feladó és a
+            // címzett címe is bekerült, hitelesítés nélküli távoli féltől, tetszőlegesen
+            // ismételhetően (a válasz 451, tehát a küldő újrapróbál). A hibát az osztálya és
+            // a korrelációs azonosító azonosítja, a részletek a kivétel-követőbe mennek.
+            $correlation = (string) Str::uuid();
+
+            Log::error('A bejövő levél letétele nem sikerült.', [
+                'error' => $e::class,
+                'correlation' => $correlation,
+                'workspace_id' => $recipients[0]->workspaceId ?? null,
+            ]);
+
+            report($e);
 
             return new SmtpReply(451, 'Temporary failure storing message', '4.3.0');
         }
@@ -64,7 +80,10 @@ final class InboundIngest implements InboundSink
         $workspace = Workspace::query()->whereKey($recipient->workspaceId)->first();
 
         if ($workspace === null) {
-            return;
+            // NEM csendes visszatérés: a hívó 250-et adna, a küldő kézbesítettnek hinné, és
+            // a levél nyomtalanul eltűnne. Az átvétellel a felelősség hozzánk kerül — ha nem
+            // tudjuk vállalni, azt MEG KELL MONDANI.
+            throw new RuntimeException('A címzetthez tartozó workspace nem elérhető.');
         }
 
         $previous = $this->context->hasWorkspace() ? $this->context->workspace() : null;

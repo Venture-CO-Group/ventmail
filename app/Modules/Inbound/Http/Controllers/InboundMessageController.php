@@ -67,10 +67,23 @@ final class InboundMessageController
      */
     public function raw(string $uuid, RawMailStore $store): mixed
     {
-        $message = InboundMessage::query()->where('uuid', $uuid)->first();
+        $message = InboundMessage::query()->where('uuid', $uuid)->with('attachments')->first();
 
         if ($message === null) {
             return ApiError::response('UNKNOWN_MESSAGE', 'Ismeretlen bejövő üzenet.', 404);
+        }
+
+        // A NYERS MIME a csatolmányokat is TARTALMAZZA, base64-ben. A karantén-logikát
+        // (`downloadable()`) ez a végpont megkerülné: egy fertőzött melléklet, amit a
+        // csatolmány-végponton 409-cel tiltunk, itt szépen kijönne a levél törzsében.
+        $blocked = $message->attachments->first(fn ($attachment) => $attachment->scan_result === 'infected');
+
+        if ($blocked !== null) {
+            return ApiError::response(
+                'RAW_CONTAINS_INFECTED_ATTACHMENT',
+                'A nyers levél fertőzött csatolmányt tartalmaz, ezért nem adható ki.',
+                409,
+            );
         }
 
         $raw = $store->get((string) $message->storage_key);
@@ -79,7 +92,12 @@ final class InboundMessageController
             return ApiError::response('RAW_UNAVAILABLE', 'A nyers levél már nem érhető el (retenció).', 404);
         }
 
-        return response($raw, 200, ['Content-Type' => 'message/rfc822']);
+        return response($raw, 200, [
+            'Content-Type' => 'message/rfc822',
+            // Idegen tartalom: a böngésző ne találgassa a típust, és ne rendereljen.
+            'X-Content-Type-Options' => 'nosniff',
+            'Content-Disposition' => 'attachment; filename="'.$message->uuid.'.eml"',
+        ]);
     }
 
     /**

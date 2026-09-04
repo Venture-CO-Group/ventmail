@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Modules\Domains\Models\Domain;
+use App\Modules\Inbound\Contracts\InboundRecipientResolver;
 use App\Modules\Inbound\Contracts\RawMailStore;
 use App\Modules\Inbound\Contracts\VirusScanner;
 use App\Modules\Inbound\Jobs\ForwardInboundToEmail;
@@ -79,6 +80,23 @@ function received(string $raw, array $overrides = []): InboundMessage
     $message->forceFill(['storage_key' => $key])->save();
 
     return $message;
+}
+
+/** Valódi ZIP-bomba: 5 MB azonos bájt, ami néhány kilobájtra tömörödik. */
+function zipBomb(): string
+{
+    $path = (string) tempnam(sys_get_temp_dir(), 'zip');
+
+    $archive = new ZipArchive;
+    $archive->open($path, ZipArchive::OVERWRITE);
+    $archive->addFromString('bomba.txt', str_repeat('A', 5_000_000));
+    $archive->close();
+
+    $contents = (string) file_get_contents($path);
+
+    unlink($path);
+
+    return $contents;
 }
 
 function runParse(InboundMessage $message): InboundMessage
@@ -210,38 +228,9 @@ it('a ZIP-BOMBÁT elutasítja — szkennelés ELŐTT', function () {
 
     config(['inbound.attachments.max_compression_ratio' => 100]);
 
-    $bomba = "PK\x03\x04".str_repeat("\x00", 18).pack('V', 1_073_741_824).str_repeat("\x00", 4).str_repeat('x', 50);
-
     $raw = "Content-Type: multipart/mixed; boundary=\"H\"\r\n\r\n"
         ."--H\r\nContent-Disposition: attachment; filename=\"bomba.zip\"\r\n"
-        ."Content-Transfer-Encoding: base64\r\n\r\n".base64_encode($bomba)."\r\n--H--\r\n";
-
-    runParse(received($raw));
-
-    $attachment = InboundAttachment::query()->firstOrFail();
-
-    expect($attachment->scan_result)->toBe('rejected');
-    // A DEKLARÁLT 1 GB az ABSZOLÚT plafonba ütközik. Az arány-korlát a másik zár: az
-    // önmagában nem elég, mert egy 10 GB-ra bomló, 200 MB-os archívum aránya „csak" 50.
-    expect($attachment->scan_detail)->toContain('kicsomagolt méret');
-    expect($attachment->storage_key)->toBeNull();
-});
-
-it('a ZIP-BOMBÁT az ARÁNY alapján is elutasítja', function () {
-    Queue::fake();
-
-    config([
-        'inbound.attachments.max_compression_ratio' => 20,
-        'inbound.attachments.max_uncompressed_bytes' => 1_073_741_824,
-    ]);
-
-    // 10 MB deklarált kicsomagolt méret ~200 bájtból: az abszolút plafon ALATT van, az arány
-    // viszont 50 000:1.
-    $bomba = "PK\x03\x04".str_repeat("\x00", 18).pack('V', 10_485_760).str_repeat("\x00", 4).str_repeat('x', 50);
-
-    $raw = "Content-Type: multipart/mixed; boundary=\"H\"\r\n\r\n"
-        ."--H\r\nContent-Disposition: attachment; filename=\"bomba.zip\"\r\n"
-        ."Content-Transfer-Encoding: base64\r\n\r\n".base64_encode($bomba)."\r\n--H--\r\n";
+        ."Content-Transfer-Encoding: base64\r\n\r\n".base64_encode(zipBomb())."\r\n--H--\r\n";
 
     runParse(received($raw));
 
@@ -249,6 +238,7 @@ it('a ZIP-BOMBÁT az ARÁNY alapján is elutasítja', function () {
 
     expect($attachment->scan_result)->toBe('rejected');
     expect($attachment->scan_detail)->toContain('arány');
+    expect($attachment->storage_key)->toBeNull();
 });
 
 it('a MALFORMÁLT MIME nem dönti el a workert — az üzenet failed lesz, nem tűnik el', function () {
@@ -279,7 +269,16 @@ it('a forward(url) ALÁÍRT payloadot POSTol', function () {
 
     $message = runParse(received("Subject: Kérdés\r\n\r\nSzia"));
 
-    (new ForwardInboundToUrl((int) $this->workspace->getKey(), (string) $message->uuid, 'https://hook.example.test/mail'))
+    // A titok a SZABÁLYHOZ tartozik, és az ügyfél EGYSZER kapja meg (a létrehozás
+    // válaszában). Egy aláírás, amit a fogadó nem tud ellenőrizni, nem aláírás.
+    $route = InboundRoute::query()->create([
+        'match_type' => 'catch_all',
+        'actions' => [['type' => 'forward', 'target' => 'https://hook.example.test/mail']],
+    ]);
+
+    $this->routeSecret = $route->rotateSecret();
+
+    (new ForwardInboundToUrl((int) $this->workspace->getKey(), (string) $message->uuid, 'https://hook.example.test/mail', (string) $route->uuid))
         ->handle(
             app(WorkspaceContext::class),
             app(InboundPayload::class),
@@ -292,11 +291,9 @@ it('a forward(url) ALÁÍRT payloadot POSTol', function () {
         $timestamp = (int) $request->header('X-VentMail-Timestamp')[0];
         $signature = $request->header('X-VentMail-Signature')[0];
 
-        $secret = hash_hmac('sha256', 'inbound-forward:'.test()->workspace->uuid, (string) config('app.key'));
-
         // Ugyanaz az aláírás-séma, mint a webhookoké: az integrátornak nem kell két
-        // különböző ellenőrzőt írnia.
-        expect(app(WebhookSigner::class)->verify($secret, $payload, $timestamp, $signature))->toBeTrue();
+        // különböző ellenőrzőt írnia — és a titkot TÉNYLEG megkapja.
+        expect(app(WebhookSigner::class)->verify(test()->routeSecret, $payload, $timestamp, $signature))->toBeTrue();
 
         $data = json_decode($payload, true);
 
@@ -318,7 +315,7 @@ it('a forward(url) NEM megy belső címre', function () {
 
     $message = runParse(received("Subject: x\r\n\r\ny"));
 
-    (new ForwardInboundToUrl((int) $this->workspace->getKey(), (string) $message->uuid, 'https://metadata.example/latest/'))
+    (new ForwardInboundToUrl((int) $this->workspace->getKey(), (string) $message->uuid, 'https://metadata.example/latest/', null))
         ->handle(
             app(WorkspaceContext::class),
             app(InboundPayload::class),
@@ -352,8 +349,12 @@ it('a payloadban a FERTŐZÖTT csatolmányhoz nincs letöltési URL', function (
 it('a forward(email) a PreSendGate-en megy át', function () {
     $message = runParse(received("Subject: Kérdés\r\n\r\nSzia"));
 
-    (new ForwardInboundToEmail((int) $this->workspace->getKey(), (string) $message->uuid, 'ops@pelda.hu'))
-        ->handle(app(WorkspaceContext::class), app(SendMessage::class));
+    (new ForwardInboundToEmail((int) $this->workspace->getKey(), (string) $message->uuid, 'ops@ugyfel.example'))
+        ->handle(
+            app(WorkspaceContext::class),
+            app(SendMessage::class),
+            app(InboundRecipientResolver::class),
+        );
 
     app(WorkspaceContext::class)->set($this->workspace);
 
@@ -372,12 +373,16 @@ it('a forward(email) a PreSendGate-en megy át', function () {
 it('a forward(email) a SUPPRESSION-listán megáll', function () {
     // Ha a továbbításnak lenne „belső" útja a gate mellett, egy route-szabállyal bárki
     // küldhetne suppression-listás címre.
-    Suppression::create(['email' => 'ops@pelda.hu', 'reason' => 'complaint']);
+    Suppression::create(['email' => 'ops@ugyfel.example', 'reason' => 'complaint']);
 
     $message = runParse(received("Subject: Kérdés\r\n\r\nSzia"));
 
-    (new ForwardInboundToEmail((int) $this->workspace->getKey(), (string) $message->uuid, 'ops@pelda.hu'))
-        ->handle(app(WorkspaceContext::class), app(SendMessage::class));
+    (new ForwardInboundToEmail((int) $this->workspace->getKey(), (string) $message->uuid, 'ops@ugyfel.example'))
+        ->handle(
+            app(WorkspaceContext::class),
+            app(SendMessage::class),
+            app(InboundRecipientResolver::class),
+        );
 
     app(WorkspaceContext::class)->set($this->workspace);
 
@@ -391,8 +396,12 @@ it('a KÉTSZER futó továbbítás nem küld kétszer', function () {
     $message = runParse(received("Subject: Kérdés\r\n\r\nSzia"));
 
     foreach (range(1, 2) as $ignored) {
-        (new ForwardInboundToEmail((int) $this->workspace->getKey(), (string) $message->uuid, 'ops@pelda.hu'))
-            ->handle(app(WorkspaceContext::class), app(SendMessage::class));
+        (new ForwardInboundToEmail((int) $this->workspace->getKey(), (string) $message->uuid, 'ops@ugyfel.example'))
+            ->handle(
+                app(WorkspaceContext::class),
+                app(SendMessage::class),
+                app(InboundRecipientResolver::class),
+            );
 
         app(WorkspaceContext::class)->set($this->workspace);
     }
@@ -426,4 +435,89 @@ it('a bejövő üzenetnek RETENCIÓJA van — idegen tartalom', function () {
 
     expect($message->expires_at)->not->toBeNull();
     expect($message->expires_at->diffInDays(now()))->toBeLessThanOrEqual(3);
+});
+
+/*
+ | LEVÉL-HUROK (a review egyik blokkolója).
+ |
+ | Egy `catch_all → forward("archiv@sajat-domain.hu")` szabály VÉGTELEN, erősítő ciklust
+ | indít: a továbbított levél a saját MX-ünkre érkezik vissza, új bejövő üzenet lesz, újra
+ | illeszkedik, újra továbbít. Minden kör egy tárolt objektum, egy DB-sor, egy számlázott
+ | küldés és egy DKIM-aláírt levél a saját IP-nkről.
+ */
+
+function forwardTo(InboundMessage $message, string $target): void
+{
+    (new ForwardInboundToEmail((int) test()->workspace->getKey(), (string) $message->uuid, $target))
+        ->handle(
+            app(WorkspaceContext::class),
+            app(SendMessage::class),
+            app(InboundRecipientResolver::class),
+        );
+
+    app(WorkspaceContext::class)->set(test()->workspace);
+}
+
+it('a SAJÁT inbound-domainre nem továbbít — a szabály önmagát hívná', function () {
+    $message = runParse(received("Subject: Kérdés\r\n\r\nSzia"));
+
+    forwardTo($message, 'archiv@pelda.hu');
+
+    expect(Message::query()->count())->toBe(0);
+});
+
+it('a HOP-SZÁMLÁLÓ megállítja a körbe-körbe járó levelet', function () {
+    // A saját `X-VentMail-Hops` fejlécünket mi írjuk ÉS mi olvassuk. A korábbi változat
+    // kiírta, de sosem nézte meg.
+    $message = runParse(received("Subject: Kérdés\r\n\r\nSzia"));
+
+    $message->forceFill(['headers' => [...$message->headers, 'x-ventmail-hops' => '8']])->save();
+
+    forwardTo($message, 'ops@ugyfel.example');
+
+    expect(Message::query()->count())->toBe(0);
+});
+
+it('az ELSŐ körben viszont továbbít, és beírja a számlálót', function () {
+    $message = runParse(received("Subject: Kérdés\r\n\r\nSzia"));
+
+    forwardTo($message, 'ops@ugyfel.example');
+
+    $sent = Message::query()->firstOrFail();
+
+    expect($sent->headers['X-VentMail-Hops'])->toBe('1');
+});
+
+it('a BOUNCE-t nem továbbítja', function () {
+    // A null-sender kézbesítési értesítés; továbbítva a válasz-lánc a mi címünkre menne —
+    // a levél-vihar klasszikus receptje.
+    $message = runParse(received("Subject: Undelivered\r\n\r\nNem sikerült", ['sender' => null]));
+
+    forwardTo($message, 'ops@ugyfel.example');
+
+    expect(Message::query()->count())->toBe(0);
+});
+
+it('a PARSE-OLATLAN levelet nem továbbítja', function () {
+    $message = received('akarmi');
+
+    $message->forceFill(['status' => 'failed', 'reason' => 'PARSE_FAILED'])->save();
+
+    forwardTo($message, 'ops@ugyfel.example');
+
+    expect(Message::query()->count())->toBe(0);
+});
+
+it('a CSONKA feladóból nem lesz Reply-To', function () {
+    // A boríték-feladó jöhetett csonkán vagy többesben. A saját DKIM-aláírásunkkal kimenő,
+    // hamis válasz-című levél adathalász-erősítés.
+    $message = runParse(received("Subject: Kérdés\r\n\r\nSzia", ['sender' => 'nem-ervenyes-cim']));
+
+    forwardTo($message, 'ops@ugyfel.example');
+
+    $sent = Message::query()->firstOrFail();
+
+    expect($sent->headers)->not->toHaveKey('Reply-To');
+    // …a továbbítás TÉNYE viszont látszik.
+    expect($sent->headers['X-VentMail-Forwarded-For'])->toBe('support@pelda.hu');
 });

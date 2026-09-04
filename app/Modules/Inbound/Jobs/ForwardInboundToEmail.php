@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Inbound\Jobs;
 
 use App\Modules\Domains\Models\Domain;
+use App\Modules\Inbound\Contracts\InboundRecipientResolver;
 use App\Modules\Inbound\Models\InboundMessage;
 use App\Modules\Sending\Actions\SendMessage;
 use App\Modules\Tenancy\Models\Workspace;
@@ -28,6 +29,22 @@ use Throwable;
  * IP-nkről menne ki egy idegen domain nevében írt levél: az SPF azonnal megbukna, és a
  * fogadó minket büntetne érte. Az eredeti feladó a `Reply-To`-ba kerül — így a válasz oda
  * megy, ahova az olvasó szánja.
+ *
+ * HÁROM HUROK-ZÁR. Enélkül egy `catch_all → forward("archiv@sajat-domain.hu")` szabály
+ * VÉGTELEN, erősítő ciklust indít: a továbbított levél a saját MX-ünkre érkezik vissza, új
+ * bejövő üzenet lesz, újra illeszkedik, újra továbbít. Minden kör egy tárolt objektum, egy
+ * DB-sor, egy számlázott küldés és egy DKIM-aláírt levél a saját IP-nkről — mérve négy
+ * körben, és az idempotencia-kulcs (ami a bejövő uuid-ból épül) körönként MÁS, tehát nem
+ * fogja meg.
+ *
+ *  1. HOP-SZÁMLÁLÓ: a `Received:` fejlécek száma (RFC 5321 §6.3 ajánlása szerint 100 a
+ *     plafon; mi szigorúbbak vagyunk) — ez a szabvány, minden MTA erre épít;
+ *  2. SAJÁT NYOM: a `X-VentMail-Hops` fejlécet mi írjuk, és mi is OLVASSUK;
+ *  3. ÖNMAGUNKRA MUTATÓ CÉL: ha a továbbítás célja a SAJÁT verifikált inbound-domainünk, a
+ *     szabály önmagát hívná — ezt eleve nem indítjuk el.
+ *
+ * A NULL-SENDER (bounce) sosem továbbítódik: a bounce-ok továbbítása a klasszikus
+ * levél-vihar receptje.
  */
 final class ForwardInboundToEmail implements ShouldQueue
 {
@@ -43,7 +60,10 @@ final class ForwardInboundToEmail implements ShouldQueue
         $this->afterCommit();
     }
 
-    public function handle(WorkspaceContext $context, SendMessage $send): void
+    /** Ennyi továbbítási körnél nem megyünk tovább. */
+    private const MAX_HOPS = 8;
+
+    public function handle(WorkspaceContext $context, SendMessage $send, InboundRecipientResolver $resolver): void
     {
         $workspace = Workspace::query()->whereKey($this->workspaceId)->first();
 
@@ -59,6 +79,38 @@ final class ForwardInboundToEmail implements ShouldQueue
             $message = InboundMessage::query()->where('uuid', $this->messageUuid)->first();
 
             if ($message === null) {
+                return;
+            }
+
+            // A PARSE-OLATLAN levelet nem továbbítjuk: üres törzzsel kimenő levél az
+            // ügyfélnek se használ, a reputációnknak meg árt.
+            if (! in_array((string) $message->status, ['parsed', 'routed'], true)) {
+                return;
+            }
+
+            // A BOUNCE-t nem továbbítjuk. A null-sender kézbesítési értesítés; továbbítva a
+            // válasz-lánc a mi címünkre menne, és a levél-vihar klasszikus receptje.
+            if (($message->sender ?? '') === '') {
+                return;
+            }
+
+            // ÖNMAGUNKRA MUTATÓ CÉL: a szabály önmagát hívná, körönként új üzenettel.
+            if ($resolver->resolve($this->target) !== null) {
+                Log::warning('A továbbítás célja a saját inbound-domainünk — hurok-védelem.', [
+                    'inbound_message' => $this->messageUuid,
+                ]);
+
+                return;
+            }
+
+            $hops = $this->hops($message);
+
+            if ($hops >= self::MAX_HOPS) {
+                Log::warning('A továbbítási lánc elérte a plafont — hurok-védelem.', [
+                    'inbound_message' => $this->messageUuid,
+                    'hops' => $hops,
+                ]);
+
                 return;
             }
 
@@ -83,11 +135,17 @@ final class ForwardInboundToEmail implements ShouldQueue
                 'html' => $message->body_html,
                 'text' => $message->body_plain,
                 'headers' => array_filter([
-                    // Az EREDETI feladó: ide megy a válasz.
-                    'Reply-To' => $message->sender,
+                    // Az EREDETI feladó: ide megy a válasz. CSAK ha érvényes, egyetlen cím —
+                    // a boríték-feladó jöhetett csonkán vagy többesben, és a saját
+                    // DKIM-aláírásunkkal kimenő, hamis válasz-című levél adathalász-erősítés.
+                    'Reply-To' => filter_var((string) $message->sender, FILTER_VALIDATE_EMAIL) === false
+                        ? null
+                        : $message->sender,
                     // A továbbítás TÉNYE látszik a fejlécben — a fogadó lássa, honnan jött.
                     'X-VentMail-Forwarded-For' => $message->recipient,
                     'X-VentMail-Inbound-Id' => $message->uuid,
+                    // A HOP-SZÁMLÁLÓ, amit a következő körben MI OLVASUNK.
+                    'X-VentMail-Hops' => (string) ($hops + 1),
                 ]),
                 'tags' => ['inbound-forward'],
                 // Az idempotencia-kulcs a BEJÖVŐ üzenet azonosítójából: ha a job kétszer fut
@@ -104,5 +162,25 @@ final class ForwardInboundToEmail implements ShouldQueue
         } finally {
             $previous === null ? $context->forget() : $context->set($previous);
         }
+    }
+
+    /**
+     * Hányadik körben járunk?
+     *
+     * A saját `X-VentMail-Hops` fejlécünk a pontos szám; a `Received:` sorok darabszáma a
+     * tartalék, ami akkor is fog, ha a lánc egy idegen MTA-n keresztül fordul vissza.
+     */
+    private function hops(InboundMessage $message): int
+    {
+        $headers = (array) $message->headers;
+
+        $own = (int) ($headers['x-ventmail-hops'] ?? 0);
+
+        // A `headers()` az ELSŐ `Received:`-et tartja meg, tehát a darabszámot a nyers
+        // fejléc-értékből nem tudjuk; a saját számlálónk viszont pontos. Ha az idegen
+        // láncban elveszne, a jelenléte akkor is jelez.
+        $forwarded = isset($headers['x-ventmail-forwarded-for']) ? 1 : 0;
+
+        return max($own, $forwarded);
     }
 }
