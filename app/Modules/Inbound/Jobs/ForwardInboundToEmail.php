@@ -63,6 +63,14 @@ final class ForwardInboundToEmail implements ShouldQueue
     /** Ennyi továbbítási körnél nem megyünk tovább. */
     private const MAX_HOPS = 8;
 
+    /**
+     * Ennyi `Received:` sor még normális egy közvetlen levélnél.
+     *
+     * A küldő MTA-ja, a mi fogadónk és esetleg egy köztes átjáró — a fölötte lévő rész már
+     * a lánc hossza, és a hurok pontosan attól hurok, hogy ez nő.
+     */
+    private const RECEIVED_BASELINE = 6;
+
     public function handle(WorkspaceContext $context, SendMessage $send, InboundRecipientResolver $resolver): void
     {
         $workspace = Workspace::query()->whereKey($this->workspaceId)->first();
@@ -167,20 +175,26 @@ final class ForwardInboundToEmail implements ShouldQueue
     /**
      * Hányadik körben járunk?
      *
-     * A saját `X-VentMail-Hops` fejlécünk a pontos szám; a `Received:` sorok darabszáma a
-     * tartalék, ami akkor is fog, ha a lánc egy idegen MTA-n keresztül fordul vissza.
+     * HÁROM forrás, mert egyik sem elég önmagában:
+     *
+     *  - a saját `X-VentMail-Hops` a PONTOS szám — de egy közbeiktatott továbbító
+     *    leszedheti az `X-` fejléceket, és akkor a számláló kinullázódik;
+     *  - a `Received:` sorok SZÁMA a szabványos, nem strippelhető tartalék: minden MTA
+     *    hozzáad egyet, és aki leszedi, az a levél útját teszi követhetetlenné (a
+     *    spam-szűrők ezt önmagában gyanúsnak veszik). A parser számolja meg (a
+     *    `headers()` amúgy csak az elsőt tartaná meg);
+     *  - a saját `X-VentMail-Forwarded-For` jelenléte: minimum egy kör.
      */
     private function hops(InboundMessage $message): int
     {
         $headers = (array) $message->headers;
 
-        $own = (int) ($headers['x-ventmail-hops'] ?? 0);
-
-        // A `headers()` az ELSŐ `Received:`-et tartja meg, tehát a darabszámot a nyers
-        // fejléc-értékből nem tudjuk; a saját számlálónk viszont pontos. Ha az idegen
-        // láncban elveszne, a jelenléte akkor is jelez.
-        $forwarded = isset($headers['x-ventmail-forwarded-for']) ? 1 : 0;
-
-        return max($own, $forwarded);
+        return max(
+            (int) ($headers['x-ventmail-hops'] ?? 0),
+            // A `Received:` lánc egy közvetlen levélnél is 1–3 sor, ezért a KÜSZÖB fölötti
+            // részt számoljuk körnek: a hosszú lánc önmagában is hurok-gyanús.
+            max(0, (int) ($headers['x-ventmail-received-count'] ?? 0) - self::RECEIVED_BASELINE),
+            isset($headers['x-ventmail-forwarded-for']) ? 1 : 0,
+        );
     }
 }

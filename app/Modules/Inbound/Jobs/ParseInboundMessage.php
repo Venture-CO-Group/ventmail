@@ -85,6 +85,16 @@ final class ParseInboundMessage implements ShouldQueue
 
             $parsed = $parser->parse($raw);
 
+            // A parser MEGSZAKÍTHATTA magát (memória, idő, mélység). Ez nem hiba — épp az a
+            // védelem, ami miatt a worker életben maradt —, de az üzeneten LÁTSZANIA kell:
+            // a támogatás különben azt hinné, hogy a levél egyszerűen üres volt.
+            if ($parsed->warnings !== []) {
+                Log::info('A bejövő levél értelmezése korlátba ütközött.', [
+                    'inbound_message' => $this->messageUuid,
+                    'warnings' => $parsed->warnings,
+                ]);
+            }
+
             $message->forceFill([
                 'subject' => $parsed->subject,
                 'message_id' => $parsed->messageId,

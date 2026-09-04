@@ -181,7 +181,13 @@ final class ArchiveInspector
             ];
         }
 
-        if ($uncompressed / $compressed > $maxRatio) {
+        // Az ARÁNY csak ÉRTELMES MÉRET fölött számít. Egy 100 000 üres, formázott sorból
+        // álló `.xlsx` 2 MB-ra bomlik ki 388:1 aránnyal — fizikailag ártalmatlan, mégis
+        // bombának minősült volna. Exportált táblázatok reálisan ütik ezt a küszöböt, és a
+        // téves riasztás itt VALÓDI levelet blokkolna.
+        $floor = (int) config('inbound.attachments.ratio_floor_bytes');
+
+        if ($uncompressed > $floor && $uncompressed / $compressed > $maxRatio) {
             return [
                 'bomb' => true,
                 'reason' => sprintf('A tömörítési arány (%.0f:1) meghaladja a korlátot.', $uncompressed / $compressed),

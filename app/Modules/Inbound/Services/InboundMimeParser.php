@@ -51,13 +51,60 @@ final class InboundMimeParser
     /** @var list<ParsedAttachment> */
     private array $attachments = [];
 
+    /**
+     * A memória-plafon — a PROCESSZ limitjéhez igazítva.
+     *
+     * A konfigurált érték önmagában hazug lehet: ha a `max_memory_bytes` (256 MB) MAGASABB a
+     * `memory_limit`-nél (pl. az alap 128 MB), a saját plafonunk sosem sül el, és a FATAL
+     * ERROR — ami nem `Throwable`, tehát a job `catch` ága nem fogja — visszahozza az egész
+     * problémát. Ezért a kettő közül a SZIGORÚBBAT vesszük, biztonsági kerettel.
+     */
+    private function ceiling(): int
+    {
+        $ceiling = memory_get_usage(true) + (int) config('inbound.parser.max_memory_bytes');
+
+        $limit = $this->processLimitBytes();
+
+        if ($limit > 0) {
+            // ABSZOLÚT plafon, nem a pillanatnyi használathoz mért ráhagyás.
+            //
+            // A különbség lényeges: ha a worker már 70 MB-ot használ, a „jelenlegi + 70 MB"
+            // számítás 140 MB-os plafont adna egy 128 MB-os limiten — vagyis a saját
+            // védelmünk sosem sülne el. A 25%-os tartalék pedig azért kell, mert a `.=`
+            // újrafoglalás egyetlen lépésben is átmásolja a teljes puffert (mérve: 18 MB-os
+            // foglalás egy 16 MB-os csatolmánynál).
+            $ceiling = min($ceiling, (int) ($limit * 0.75));
+        }
+
+        return $ceiling;
+    }
+
+    private function processLimitBytes(): int
+    {
+        $limit = trim((string) ini_get('memory_limit'));
+
+        if ($limit === '' || $limit === '-1') {
+            return 0;
+        }
+
+        $unit = strtolower(substr($limit, -1));
+        $value = (int) $limit;
+
+        return match ($unit) {
+            'g' => $value * 1_073_741_824,
+            'm' => $value * 1_048_576,
+            'k' => $value * 1024,
+            default => $value,
+        };
+    }
+
     public function parse(string $raw): ParsedMail
     {
         $this->parts = 0;
         $this->warnings = [];
         $this->attachments = [];
         $this->deadline = microtime(true) + (float) config('inbound.parser.max_seconds');
-        $this->memoryCeiling = memory_get_usage(true) + (int) config('inbound.parser.max_memory_bytes');
+        $this->memoryCeiling = $this->ceiling();
 
         [$headerBlock, $body] = $this->split($raw);
 
@@ -126,6 +173,14 @@ final class InboundMimeParser
             }
 
             $name = strtolower($match[1]);
+
+            // A `Received:` sorok SZÁMA a levél útjának hossza — ez a hurok-védelem
+            // szabványos, NEM STRIPPELHETŐ tartaléka. Minden MTA hozzáad egyet, és a saját
+            // `X-VentMail-Hops` fejlécünkkel ellentétben ezt egy közbeiktatott továbbító sem
+            // szedheti le anélkül, hogy a levél útja követhetetlenné válna.
+            if ($name === 'received') {
+                $headers['x-ventmail-received-count'] = (string) (1 + (int) ($headers['x-ventmail-received-count'] ?? 0));
+            }
 
             // ISMÉTELT fejléc: az ELSŐ marad. A levélkliensek is az elsőt mutatják, tehát
             // ha a másodikat vennénk, a route-illesztés MÁST látna, mint az olvasó.
@@ -290,6 +345,14 @@ final class InboundMimeParser
             // Az ELŐZŐ határoló és a mostani közti szakasz egy rész. Az első határoló előtti
             // darab a preambulum (a MIME-t nem értő kliensek szövege) — nem MIME-rész.
             if ($previousEnd !== null) {
+                // A MÁSOLÓ ciklus is nézi a plafont: minden `substr` egy új sztring, és a
+                // részszám-korlát egy 6 MB-os levélnél is elkésett volna.
+                if (memory_get_usage(true) > $this->memoryCeiling) {
+                    $this->warn('Az értelmezés memória-korlátba ütközött.');
+
+                    return $segments;
+                }
+
                 $segments[] = ltrim(substr($body, $previousEnd, $offset - $previousEnd), "\r\n");
 
                 if (count($segments) >= $limit) {
@@ -395,6 +458,14 @@ final class InboundMimeParser
         for ($offset = 0; $offset < $length; $offset += 65536) {
             if (microtime(true) > $this->deadline || memory_get_usage(true) > $this->memoryCeiling) {
                 $this->warn('A dekódolás korlátba ütközött.');
+
+                return $out;
+            }
+
+            // A KÖVETKEZŐ foglalás is beleférjen: a `.=` újrafoglaláskor a teljes puffert
+            // átmásolja, tehát a csúcs a duplája lehet.
+            if (memory_get_usage(true) + strlen($out) > $this->memoryCeiling) {
+                $this->warn('A dekódolás memória-korlátba ütközött.');
 
                 return $out;
             }

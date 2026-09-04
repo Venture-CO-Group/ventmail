@@ -286,7 +286,12 @@ function bombaZip(int $bytes = 5_000_000): string
 }
 
 it('felismeri a bombát a KÖZPONTI könyvtárból', function (string $eset) {
-    config(['inbound.attachments.max_compression_ratio' => 100]);
+    // A küszöböt a teszt SZŰKÍTI: a viselkedést mérjük, nem a gigabájtos fixtúrát. A
+    // valóságban a padló 8 MB, és a bomba tízezerszeres arányú — a logika ugyanaz.
+    config([
+        'inbound.attachments.max_compression_ratio' => 100,
+        'inbound.attachments.ratio_floor_bytes' => 1_000_000,
+    ]);
 
     $bomba = bombaZip();
 
@@ -349,4 +354,64 @@ it('a nem ellenőrizhető formátumot NEM utasítja el, a vírusirtóra bízza',
     // legitim `.bz2` melléklet se működjön — a clamd viszont épp ilyen bemenetre készült,
     // és a szkennerünk fail-closed: amit nem tud átvizsgálni, az nem tölthető le.
     expect((new ArchiveInspector)->inspect('BZh91AY&SYakarmi')['bomb'])->toBeFalse();
+});
+
+it('a KIS méretre kibomló archívum nem bomba, akármilyen az aránya', function () {
+    // Egy 100 000 üres, formázott sorból álló `.xlsx` néhány megabájtra bomlik ki, több száz
+    // az arány — fizikailag ártalmatlan. Exportált táblázatok reálisan ütik ezt a küszöböt,
+    // és a téves riasztás itt VALÓDI levelet blokkolna.
+    config([
+        'inbound.attachments.max_compression_ratio' => 150,
+        'inbound.attachments.ratio_floor_bytes' => 8_388_608,
+    ]);
+
+    $kicsi = bombaZip(2_000_000);
+
+    $inspection = (new ArchiveInspector)->inspect($kicsi);
+
+    expect($inspection['uncompressed'])->toBeGreaterThan(1_000_000);
+    expect($inspection['bomb'])->toBeFalse();
+});
+
+/*
+ | A MEMÓRIA-PLAFON — a negyedik korlát.
+ |
+ | Az idő, a mélység és a részszám önmagában nem elég: a `memory_limit` túllépése FATAL
+ | ERROR, ami NEM `Throwable`, tehát a job `catch` ága nem fogja el. A worker meghalna, az
+ | üzenet pedig örökre `received` maradna — és egy ismeretlen feladó ezzel az ÖSSZES tenant
+ | bejövő feldolgozását megállíthatná.
+ */
+
+it('a memória-plafon MEGSZAKÍTJA a dekódolást, nem hagyja elszállni', function () {
+    // A plafont a konfigból szűkítjük, hogy a viselkedést a teszt memória-limitjének
+    // felborítása nélkül mérhessük.
+    config(['inbound.parser.max_memory_bytes' => 1_048_576]);
+
+    $raw = "Content-Type: text/plain\r\nContent-Transfer-Encoding: base64\r\n\r\n"
+        .chunk_split(base64_encode(str_repeat('y', 8 * 1024 * 1024)), 76, "\r\n");
+
+    $parsed = (new InboundMimeParser)->parse($raw);
+
+    // NEM dobott, és JELEZTE — a támogatás különben azt hinné, hogy a levél üres volt.
+    expect($parsed->warnings)->not->toBeEmpty();
+    expect(implode(' ', $parsed->warnings))->toContain('memória');
+});
+
+it('a plafon a PROCESSZ limitjéhez igazodik, nem csak a confighoz', function () {
+    // Ha a konfigurált érték MAGASABB a `memory_limit`-nél, a saját plafonunk sosem sülne el
+    // — és a FATAL ERROR visszahozná az egész problémát. A kettő közül a szigorúbb érvényes.
+    config(['inbound.parser.max_memory_bytes' => 8 * 1024 * 1024 * 1024]);
+
+    $parser = new InboundMimeParser;
+
+    $ceiling = (new ReflectionMethod($parser, 'ceiling'))->invoke($parser);
+    $limit = (new ReflectionMethod($parser, 'processLimitBytes'))->invoke($parser);
+
+    if ($limit === 0) {
+        expect(true)->toBeTrue('korlátlan memory_limit — nincs mit mérni');
+
+        return;
+    }
+
+    expect($ceiling)->toBeLessThan($limit);
 });

@@ -102,6 +102,10 @@ return [
         'max_bytes' => (int) env('INBOUND_ATTACHMENT_MAX_BYTES', 26_214_400),
         // ZIP-BOMBA: a kicsomagolt/tömörített arány felső határa.
         'max_compression_ratio' => (int) env('INBOUND_MAX_COMPRESSION_RATIO', 150),
+        // Az ARÁNY-korlát alatta nem érvényes: egy pár megabájtra kibomló fájl fizikailag
+        // ártalmatlan, akármilyen az aránya. Enélkül a sok üres sort tartalmazó, exportált
+        // táblázatok (`.xlsx`) tévesen bombának minősülnének.
+        'ratio_floor_bytes' => (int) env('INBOUND_RATIO_FLOOR_BYTES', 8_388_608),
         // A kicsomagolt méret abszolút plafonja — az arány önmagában nem elég egy nagy
         // archívumnál.
         'max_uncompressed_bytes' => (int) env('INBOUND_MAX_UNCOMPRESSED_BYTES', 268_435_456),

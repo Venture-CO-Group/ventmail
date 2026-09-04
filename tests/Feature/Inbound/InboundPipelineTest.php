@@ -226,7 +226,10 @@ it('a TÚL NAGY csatolmány tartalmát el sem tesszük', function () {
 it('a ZIP-BOMBÁT elutasítja — szkennelés ELŐTT', function () {
     Queue::fake();
 
-    config(['inbound.attachments.max_compression_ratio' => 100]);
+    config([
+        'inbound.attachments.max_compression_ratio' => 100,
+        'inbound.attachments.ratio_floor_bytes' => 1_000_000,
+    ]);
 
     $raw = "Content-Type: multipart/mixed; boundary=\"H\"\r\n\r\n"
         ."--H\r\nContent-Disposition: attachment; filename=\"bomba.zip\"\r\n"
@@ -520,4 +523,38 @@ it('a CSONKA feladóból nem lesz Reply-To', function () {
     expect($sent->headers)->not->toHaveKey('Reply-To');
     // …a továbbítás TÉNYE viszont látszik.
     expect($sent->headers['X-VentMail-Forwarded-For'])->toBe('support@pelda.hu');
+});
+
+it('a hosszú Received-lánc is megállítja a hurkot', function () {
+    // A saját `X-VentMail-Hops` fejlécünket egy közbeiktatott továbbító leszedheti. A
+    // `Received:` sorok száma a szabványos, NEM strippelhető tartalék: minden MTA hozzáad
+    // egyet, és aki leszedi, az a levél útját teszi követhetetlenné.
+    $received = '';
+
+    // Hat `Received:` még normális egy közvetlen levélnél (küldő MTA + a mi fogadónk +
+    // köztes átjárók); a fölötte lévő rész a lánc hossza — és a hurok pontosan attól hurok,
+    // hogy ez nő.
+    foreach (range(1, 20) as $i) {
+        $received .= "Received: from mta{$i}.example by mta".($i + 1).".example; Thu, 4 Sep 2026 10:00:00 +0000\r\n";
+    }
+
+    $message = runParse(received($received."Subject: Körbe-körbe\r\n\r\ntörzs"));
+
+    // A parser MEGSZÁMOLTA a láncot (a `headers()` amúgy csak az elsőt tartaná meg).
+    expect((int) $message->headers['x-ventmail-received-count'])->toBe(20);
+
+    forwardTo($message, 'ops@ugyfel.example');
+
+    expect(Message::query()->count())->toBe(0);
+});
+
+it('a RÖVID Received-lánc viszont nem akadály', function () {
+    $received = "Received: from mta1.example by mx.ventmail.app; Thu, 4 Sep 2026 10:00:00 +0000\r\n"
+        ."Received: from kuldo.example by mta1.example; Thu, 4 Sep 2026 09:59:00 +0000\r\n";
+
+    $message = runParse(received($received."Subject: Rendes levél\r\n\r\ntörzs"));
+
+    forwardTo($message, 'ops@ugyfel.example');
+
+    expect(Message::query()->count())->toBe(1);
 });

@@ -522,27 +522,50 @@ final class StreamSubmissionServer
             $this->connections[$id]['buffer'] = substr($this->connections[$id]['buffer'], $position + 1);
 
             // SMTP SMUGGLING (CVE-2023-51764 osztálya). A DATA fázisban a sorvég KIZÁRÓLAG
-            // `\r\n` lehet.
+            // `\r\n` lehet, és PONTOSAN EGY `\r`.
             //
-            // Miért: a csupasz `\n`-t a szerverek KÜLÖNBÖZŐKÉPPEN értelmezik. Ha nálunk a
-            // `<LF>.<LF>` lezárja a DATA-t, egy előttünk álló (jellemzően SPF-authorizált)
+            // Miért: a sorvég-variánsokat a szerverek KÜLÖNBÖZŐKÉPPEN értelmezik. Ha nálunk
+            // valami lezárja a DATA-t, egy előttünk álló (jellemzően SPF-authorizált)
             // relaynél viszont nem, akkor a támadó EGYETLEN elfogadott levélbe egy MÁSODIK,
             // teljesen általa választott borítékfeladójú üzenetet csempészhet be — és az a
-            // mi hitelesített kapcsolatunkon, a mi IP-nkről érkezik, tehát a `spf_result` a
-            // hamisított feladóhoz rendelődik. Mérve: egy DATA-ból két elfogadott üzenet.
+            // mi kapcsolatunkon, a mi IP-nkről érkezik, tehát a hitelesítési eredmény a
+            // HAMISÍTOTT feladóhoz rendelődik.
             //
-            // A Postfix/Exim/Sendmail 2023 decemberében pontosan ezért kapott
-            // `smtpd_forbid_bare_newline`-t. Mi is szigorúan zárunk: a csupasz LF a DATA-ban
-            // PROTOKOLL-SÉRTÉS, nem adat.
-            if ($this->connections[$id]['session']->state() === SessionState::Data
-                && ! str_ends_with($line, "\r")) {
-                $this->write($socket, '500 5.5.2 Bare LF is not allowed in DATA (RFC 5321)');
-                $this->close($id);
+            // KÉT variáns, két zár. Mindkettőt mérve találtuk:
+            //  - `<LF>.<LF>`: csupasz LF. A Postfix/Exim/Sendmail 2023 decemberében ezért
+            //    kapott `smtpd_forbid_bare_newline`-t;
+            //  - `.\r\r\n`: TÖBB záró CR. Az első javításunk `rtrim`-mel vágta a záró
+            //    `\r`-eket, tehát a `.\r\r` is `.`-tá vált és lezárt — miközben egy szigorú
+            //    upstream a `\r\n.\r\n` terminátort NEM találja meg benne, és EGY üzenetet
+            //    lát. Ugyanaz a differenciál, csak a másik irányból.
+            $inData = $this->connections[$id]['session']->state() === SessionState::Data;
 
-                return;
+            if ($inData) {
+                if (! str_ends_with($line, "\r")) {
+                    $this->write($socket, '500 5.5.2 Bare LF is not allowed in DATA (RFC 5321)');
+                    $this->close($id);
+
+                    return;
+                }
+
+                // PONTOSAN EGY `\r`-t vágunk le, nem az összeset.
+                $line = substr($line, 0, -1);
+
+                // Ami utána MÉG MINDIG `\r`-re végződik, az a `X\r\r\n` alak: ez sosem
+                // legitim tartalom, viszont pontosan a csempészés formája.
+                if (str_ends_with($line, "\r")) {
+                    $this->write($socket, '500 5.5.2 Malformed line ending in DATA (RFC 5321)');
+                    $this->close($id);
+
+                    return;
+                }
+            } else {
+                // Parancssorban engedékenyebbek vagyunk: ott a csempészésnek nincs értelme,
+                // és a régi kliensek sorvége változatos.
+                $line = rtrim($line, "\r");
             }
 
-            $this->handle($id, rtrim($line, "\r"));
+            $this->handle($id, $line);
 
             if (! isset($this->connections[$id])) {
                 return;
