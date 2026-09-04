@@ -8,6 +8,7 @@ use App\Modules\Inbound\Contracts\InboundRecipientResolver;
 use App\Modules\Inbound\Contracts\InboundSink;
 use App\Modules\Inbound\Data\InboundRecipient;
 use App\Modules\Sending\Services\DomainNormalizer;
+use App\Modules\Smtp\Contracts\SmtpConnection;
 use App\Modules\Smtp\Data\ChannelSecurity;
 use App\Modules\Smtp\Data\SmtpEnvelope;
 use App\Modules\Smtp\Protocol\SessionState;
@@ -38,7 +39,7 @@ use App\Modules\Smtp\Protocol\SmtpReply;
  *  3. a `DATA` csak akkor indul, ha VAN feloldott címzett;
  *  4. a sink szignatúrája nem-üres feloldott listát követel — típus-szinten.
  */
-final class MxSession
+final class MxSession implements SmtpConnection
 {
     private SessionState $state = SessionState::Greeting;
 

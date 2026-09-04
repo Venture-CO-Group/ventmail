@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Smtp\Transport;
 
 use App\Modules\Smtp\Contracts\SmtpAuthenticator;
+use App\Modules\Smtp\Contracts\SmtpConnection;
 use App\Modules\Smtp\Contracts\SubmissionSink;
 use App\Modules\Smtp\Data\ChannelSecurity;
 use App\Modules\Smtp\Models\SmtpCredential;
@@ -31,15 +32,28 @@ use Throwable;
  */
 final class StreamSubmissionServer
 {
-    /** @var array<int, array{socket: resource, session: SmtpSession, buffer: string, touched: float, started: float, ip: string, handshaking: bool, handshakeStarted: float, readableAfter: float}> */
+    /** @var array<int, array{socket: resource, session: SmtpConnection, buffer: string, touched: float, started: float, ip: string, handshaking: bool, handshakeStarted: float, readableAfter: float}> */
     private array $connections = [];
 
     private bool $running = false;
 
+    /**
+     * A SESSION-GYÁR opcionális, és ez a bejövő (MX) oldal miatt van.
+     *
+     * A transzport mindkét oldalon UGYANAZ: socket, TLS, időkorlát, per-IP keret, tarpit.
+     * Ami különbözik, az a PROTOKOLL-SZABÁLY — és épp azt nem szabad összemosni (ADR 0002).
+     * Ezért a transzport csak egy `SmtpConnection`-t lát, és hogy melyiket, azt a hívó dönti
+     * el. Gyár nélkül a viselkedés VÁLTOZATLAN: submission-session, az eddigi függőségekkel.
+     *
+     * @param  (callable(ChannelSecurity): SmtpConnection)|null  $sessionFactory
+     * @param  list<int>|null  $allowedPorts  null = a `config('smtp.allowed_ports')`
+     */
     public function __construct(
         private readonly SmtpAuthenticator $authenticator,
         private readonly SubmissionSink $sink,
         private readonly AuthThrottle $throttle,
+        private $sessionFactory = null,
+        private readonly ?array $allowedPorts = null,
     ) {}
 
     /**
@@ -48,12 +62,15 @@ final class StreamSubmissionServer
      */
     public function serve(string $host, int $port, bool $implicitTls, ?callable $shouldStop = null): void
     {
-        if (! in_array($port, (array) config('smtp.allowed_ports'), true)) {
-            // A port 25 a BEJÖVŐ (MX) oldalé — más parser, más bizalmi modell (A4).
+        $allowed = $this->allowedPorts ?? (array) config('smtp.allowed_ports');
+
+        if (! in_array($port, $allowed, true)) {
+            // A port 25 a BEJÖVŐ (MX) oldalé — más protokoll-szabály, más bizalmi modell.
+            // A submission-listener sosem indulhat rajta, és fordítva.
             throw new RuntimeException(sprintf(
-                'A(z) %d port nem engedélyezett submissionre (engedélyezett: %s). A 25-ös port az A4 (MX) dolga.',
+                'A(z) %d port nem engedélyezett ezen a listeneren (engedélyezett: %s).',
                 $port,
-                implode(', ', (array) config('smtp.allowed_ports'))
+                implode(', ', $allowed)
             ));
         }
 
@@ -254,12 +271,16 @@ final class StreamSubmissionServer
         // NEM futtatta le a handshake-et, és a listener sima plaintext SMTP-vé
         // degradálódott — a kapcsoló szerint viszont „titkosított" volt, tehát base64
         // jelszóval hitelesített volna a dróton (golden rule 3).
-        $session = new SmtpSession(
-            $this->authenticator,
-            $this->sink,
-            $this->securityOf($socket),
-            (string) config('smtp.hostname'),
-        );
+        $security = $this->securityOf($socket);
+
+        $session = $this->sessionFactory !== null
+            ? ($this->sessionFactory)($security)
+            : new SmtpSession(
+                $this->authenticator,
+                $this->sink,
+                $security,
+                (string) config('smtp.hostname'),
+            );
 
         $id = (int) $socket;
 
@@ -574,9 +595,18 @@ final class StreamSubmissionServer
      * Nem-blokkoló módban a hívás `0`-t ad, ha a handshake még tart: visszatérünk a
      * ciklusba, és a következő olvasható eseménynél folytatjuk — abszolút határidővel.
      */
-    /** A hitelesítő utolsó használata — nyers IP nélkül. */
-    private function recordUsage(SmtpSession $session, string $ip): void
+    /**
+     * A hitelesítő utolsó használata — nyers IP nélkül.
+     *
+     * CSAK a submission-oldalon értelmezett: az MX-en nincs hitelesítő, amit használni
+     * lehetne. A típus-ellenőrzés ezért nem óvatoskodás, hanem a két oldal szétválasztása.
+     */
+    private function recordUsage(SmtpConnection $session, string $ip): void
     {
+        if (! $session instanceof SmtpSession) {
+            return;
+        }
+
         $principal = $session->principal();
 
         if ($principal === null) {

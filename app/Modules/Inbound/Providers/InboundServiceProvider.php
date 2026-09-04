@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Modules\Inbound\Providers;
 
+use App\Modules\Inbound\Console\PurgeInboundCommand;
+use App\Modules\Inbound\Console\ServeMxCommand;
 use App\Modules\Inbound\Contracts\InboundRecipientResolver;
 use App\Modules\Inbound\Contracts\InboundSink;
 use App\Modules\Inbound\Contracts\RawMailStore;
@@ -19,6 +21,11 @@ use App\Modules\Support\ModuleServiceProvider;
  */
 final class InboundServiceProvider extends ModuleServiceProvider
 {
+    // A `/v1` API-KULCCSAL hitelesít, nem böngésző-session-nel: a kontextus magából a
+    // kulcsból származik, tehát az `auth` + `workspace` páros itt nem értelmezett. A saját
+    // őrt (`api.auth`) viszont kötelező megadni — teszt kényszeríti ki.
+    protected bool $routesPrecedeAuthentication = true;
+
     protected array $apiMiddleware = ['api.auth'];
 
     protected string $apiPrefix = 'v1';
@@ -32,5 +39,12 @@ final class InboundServiceProvider extends ModuleServiceProvider
 
         $this->app->bind(InboundRecipientResolver::class, VerifiedInboundResolver::class);
         $this->app->bind(InboundSink::class, InboundIngest::class);
+    }
+
+    protected function bootModule(): void
+    {
+        if ($this->app->runningInConsole()) {
+            $this->commands([PurgeInboundCommand::class, ServeMxCommand::class]);
+        }
     }
 }

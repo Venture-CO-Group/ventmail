@@ -3,6 +3,16 @@
 declare(strict_types=1);
 
 return [
+    // A bejövő fogadás fő kapcsolója. Alapból KI: MX-rekord nélkül úgysincs mit fogadni, és
+    // egy véletlenül nyitva hagyott 25-ös port a legrosszabb fajta meglepetés.
+    'enabled' => (bool) env('INBOUND_ENABLED', false),
+
+    'hostname' => env('INBOUND_HOSTNAME', 'mx.ventmail.app'),
+
+    // A listener KIZÁRÓLAG ezeken indulhat. A submission portjai (587/465) SZÁNDÉKOSAN nincsenek
+    // köztük: egy elgépelt `--port` nem cserélheti fel a két bizalmi modellt.
+    'allowed_ports' => array_map('intval', explode(',', (string) env('INBOUND_ALLOWED_PORTS', '25,2525'))),
+
     /*
      | A beérkezett levél retenciója. IDEGEN TARTALOM: nem mi írtuk, és nem a mi
      | jogalapunkon tároljuk — a rövid alapérték szándékos (spec 10.4).

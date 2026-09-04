@@ -6,6 +6,7 @@ namespace App\Modules\Smtp\Protocol;
 
 use App\Modules\Sending\Services\DomainNormalizer;
 use App\Modules\Smtp\Contracts\SmtpAuthenticator;
+use App\Modules\Smtp\Contracts\SmtpConnection;
 use App\Modules\Smtp\Contracts\SubmissionSink;
 use App\Modules\Smtp\Data\ChannelSecurity;
 use App\Modules\Smtp\Data\SmtpEnvelope;
@@ -25,7 +26,7 @@ use App\Modules\Smtp\Data\SubmissionPrincipal;
  * A másik kettő (kontextus-szintű fail-closed a `PreSendGate`-ben, és az arch-teszt, hogy
  * ez a modul nem ismeri a `SendingDriver`-t) a modulon kívül él.
  */
-final class SmtpSession
+final class SmtpSession implements SmtpConnection
 {
     private SessionState $state = SessionState::Greeting;
 
