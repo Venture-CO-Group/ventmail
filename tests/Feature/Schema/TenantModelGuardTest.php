@@ -5,6 +5,8 @@ declare(strict_types=1);
 use App\Modules\Audit\Concerns\Auditable;
 use App\Modules\Audit\Models\AuditLog;
 use App\Modules\Events\Models\MessageEvent;
+use App\Modules\Inbound\Models\InboundAttachment;
+use App\Modules\Inbound\Models\InboundMessage;
 use App\Modules\Logs\Models\SmtpTransaction;
 use App\Modules\Sending\Models\DeliveryAttempt;
 use App\Modules\Sending\Models\Message;
@@ -92,6 +94,11 @@ it('minden admin-felületű modell auditált', function () {
         WebhookDelivery::class, // egy kimenő kézbesítés sorsa — gépi adat
         Workspace::class,     // a workspace-műveleteket a SuperAdmin (C2) auditálja
         WorkspaceMember::class, // az AssignWorkspaceRoles explicit auditot ír
+        // A BEÉRKEZETT levél és a csatolmánya: idegen fél írta, gépi úton érkezett — nem
+        // admin-művelet. Az admin-műveletet (a route-szabály szerkesztését) az
+        // `InboundRoute` auditálja, és a törlési kérést a `logs:redact-subject`.
+        InboundMessage::class,
+        InboundAttachment::class,
     ];
 
     $offenders = [];

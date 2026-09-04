@@ -14,25 +14,28 @@ Közben az A2-ben megírtuk a SAJÁT SMTP-implementációnkat: egy I/O-mentes pr
 per-IP kerettel, tarpittal, PROXY protokoll-támogatással és négy független nyílt-relay zárral.
 Ez a kód ma a SUBMISSION oldalt (587/465) szolgálja ki.
 
-## 1. döntés — az MX-fogadó UGYANAZON az állapotgépen épül
+## 1. döntés — nem hozunk be harmadik SMTP-implementációt, de KÜLÖN session-osztályt igen
 
-Nem hozunk be harmadik SMTP-implementációt.
+Az MX-fogadó a MI kódunk: ugyanaz a transzport (`StreamSubmissionServer`), ugyanazok a
+protokoll-primitívek (`SmtpReply`, `SessionState`, `SmtpEnvelope`) — de SAJÁT session-osztály
+(`MxSession`), saját invariánssal.
 
-**Miért:**
-- Egy SMTP-felület helyett kettő (Postal inbound + a miénk) két külön támadási felület, két
-  külön konfigurációs hibaforrás, és két külön hely, ahol a nyílt relay tiltását bizonyítani
-  kell. A golden rule 3 nem arról szól, hogy az EGYIK felületünk nem nyílt relay.
-- Az állapotgép már ma is megkülönbözteti a hitelesített és a nem hitelesített munkamenetet
-  (`SubmissionPrincipal`). Az MX-fogadás pontosan a másik ág: hitelesítés NINCS, viszont a
-  `RCPT TO` csak SAJÁT, verifikált inbound-domainre mehet. Ez egy szabály, nem egy új szerver.
-- A Postal marad a KIMENŐ MTA. A `SendingDriver`-határ változatlan.
+**Miért nem Postal inbound / Haraka:** két idegen SMTP-felület két külön támadási felület, két
+külön konfigurációs hibaforrás, és két külön hely, ahol a nyílt relay tiltását bizonyítani
+kell. A golden rule 3 nem arról szól, hogy az EGYIK felületünk nem nyílt relay.
 
-**Következmény:** az `SmtpSession` kap egy `mode` fogalmat — `submission` (AUTH kötelező,
-relay tiltva) és `mx` (AUTH TILTVA, csak saját domainre fogad). A kettő közti átjárás
-lehetetlensége ÁLLAPOTGÉP-INVARIÁNS, nem futásidejű ellenőrzés: ugyanaz a bizonyítási minta,
-amit az A2 nyílt-relay zárainál használtunk.
+**Miért nem „mode" a meglévő `SmtpSession`-ön:** a submission-session kulcs-invariánsa az,
+hogy a sink hívása HITELESÍTÉS NÉLKÜL MEG SEM FOGALMAZHATÓ — a `SubmissionSink::accept()`
+első paramétere nem-nullable `SubmissionPrincipal`, és ezt reflection-teszt őrzi (12.
+kritérium). Egy `mx` mód ehhez nullable principalt vagy második sink-utat követelne, vagyis
+pont azt a típus-szintű zárat gyengítené, ami a nyílt relay ellen a legerősebb védelmünk.
 
-A 25-ös port SOHA nem hirdet AUTH-ot, és sosem relayel.
+A két oldal invariánsa KÜLÖNBÖZŐ, tehát külön is kell bizonyítani:
+- **submission (587/465):** „nincs `MAIL FROM` principal nélkül";
+- **MX (25):** „nincs elfogadás olyan címzettre, aki nem a MI verifikált inbound-domainünk" —
+  és `AUTH` egyáltalán nem létezik ezen a porton.
+
+A Postal marad a KIMENŐ MTA. A `SendingDriver`-határ változatlan.
 
 ## 2. döntés — a MIME-parse NEM a fogadó folyamatban fut
 
