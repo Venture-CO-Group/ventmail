@@ -29,7 +29,12 @@ it('a Tenancy modulon kívül senki nem kerüli meg a global scope-ot', function
         // küld, és a bounce-arány CSAK az összes forgalomra értelmes. Tenantonként számolva
         // egyetlen kis ügyfél két bounce-a 100%-os aránynak látszana. A parancs kizárólag
         // DARABSZÁMOT olvas (címzettet, tartalmat nem), és nem ír tenant-adatot.
+        // A folytonos aggregátum (`message_event_daily`) NÉZET: nincs rá Eloquent-modell,
+        // tehát global scope sem lehet rajta. Ezért a workspace-szűrő egyetlen helyre,
+        // ebbe a szolgáltatásba van bezárva — a kontextus hiánya ott KIVÉTEL, nem
+        // „minden tenant" —, és izolációs teszt fedi (AggregateRetentionTest).
         $exceptions = [
+            'Logs/Services/TagStatistics.php',
             'Identity/Models/ApiKey.php',
             'Smtp/Models/SmtpCredential.php',
             'IpPools/Console/UpdateIpReputationCommand.php',

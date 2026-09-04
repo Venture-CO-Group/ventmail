@@ -7,7 +7,8 @@ paths: ["app/Modules/Api/**", "app/Modules/Webhooks/**", "app/Modules/StoredTemp
 - **Idempotency-Key KÖTELEZŐ** minden küldő POST-on (`/v1/messages`, `/v1/messages.mime`).
 - API-kulcs: hash-elve, workspace-hez kötve, rotálható, rate-limit a planből.
   Scope-ok: `messages:send`, `templates:read`, `templates:write`, `events:read`, `suppressions:write`,
-  `validate:run`, `routes:write`, `logs:read`.
+  `validate:run`, `routes:write`, `logs:read`, **`webhooks:write`** (végpont-CRUD, titok-rotáció,
+  DLQ-replay — a webhook-kézbesítések OLVASÁSA `logs:read`).
 - Webhook: eseménytípusonként konfigurálható endpoint; **HMAC-SHA256 + timestamp** (replay-védelem);
   exponenciális retry; **dead-letter**; **UI-ból replay**; utolsó 100 kézbesítés naplója.
 - **Tárolt sablonok:** verziózott, `active` verzióval; változó-behelyettesítés auto-escape-pel és

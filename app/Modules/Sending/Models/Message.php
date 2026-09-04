@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Sending\Models;
 
 use App\Modules\Domains\Models\Domain;
+use App\Modules\IpPools\Models\IpAddress;
 use App\Modules\Tenancy\Concerns\BelongsToWorkspace;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
@@ -56,6 +57,12 @@ final class Message extends Model
     public function domain(): BelongsTo
     {
         return $this->belongsTo(Domain::class);
+    }
+
+    /** A KIVÁLASZTOTT küldő IP — az A3 trace kötelező eleme („melyik IP-ről ment?"). */
+    public function ipAddress(): BelongsTo
+    {
+        return $this->belongsTo(IpAddress::class, 'ip_address_id');
     }
 
     /**

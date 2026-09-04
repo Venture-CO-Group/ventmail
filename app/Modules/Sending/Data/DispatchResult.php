@@ -39,6 +39,22 @@ final readonly class DispatchResult
         public ?int $code = null,
         public ?string $enhancedCode = null,
         public ?string $response = null,
+        /**
+         * A VALÓDI SMTP-párbeszéd sorai, ha a driver látja őket.
+         *
+         * A 23–24. kritérium ezt kéri a trace-be: a support a fogadó szerver saját
+         * szavaiból tudja megmondani, miért nem ment át a levél. API-alapú MTA-nál (Postal
+         * HTTP) ez üres marad — ott a kód és a szöveg az, amink van.
+         *
+         * A sorok NYERSEN érkeznek, és a naplózó redaktálja őket: a hitelesítési sor
+         * base64-je maga a jelszó.
+         *
+         * CÍMZETTENKÉNT kulcsolva. Egyetlen közös átirattal „A" törlése után „B" naplósorában
+         * ott maradna a `RCPT TO:<A>` — a GDPR-törlés csendben hiányos lenne.
+         *
+         * @var array<string, list<array{direction: string, line: string}>>
+         */
+        public array $transcript = [],
     ) {}
 
     /** Az MTA átvette (de még nem kézbesítette). */

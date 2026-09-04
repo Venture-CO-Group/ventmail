@@ -28,5 +28,12 @@ Schedule::command('messages:dispatch-scheduled')->everyMinute()->withoutOverlapp
 // az maradna, amit valaki kézzel beírt, és a romló reputáció nem járna következménnyel.
 Schedule::command('ip:reputation')->hourly();
 
+// Az esedékes webhook-újrapróbálások (A3): a halott végpont felé nem másodpercenként
+// próbálkozunk, de a pillanatnyi hiba után igen.
+Schedule::command('webhooks:retry')->everyMinute()->withoutOverlapping();
+
+// A lejárt napló-melléktáblák (SMTP-párbeszéd, kísérletek, webhook-sorok) takarítása.
+Schedule::command('logs:purge')->dailyAt('03:40');
+
 // A lejárt nyers MIME-levelek törlése (golden rule 10): a levéltest a legsűrűbb PII-tárolónk.
 Schedule::command('messages:purge-raw-mime')->dailyAt('03:20');

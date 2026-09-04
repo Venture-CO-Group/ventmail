@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Modules\Audit\Concerns\Auditable;
 use App\Modules\Audit\Models\AuditLog;
 use App\Modules\Events\Models\MessageEvent;
+use App\Modules\Logs\Models\SmtpTransaction;
 use App\Modules\Sending\Models\DeliveryAttempt;
 use App\Modules\Sending\Models\Message;
 use App\Modules\Sending\Models\RawMimeMessage;
@@ -12,6 +13,7 @@ use App\Modules\Tenancy\Concerns\BelongsToWorkspace;
 use App\Modules\Tenancy\Concerns\BelongsToWorkspaceOrPlatform;
 use App\Modules\Tenancy\Models\Workspace;
 use App\Modules\Tenancy\Models\WorkspaceMember;
+use App\Modules\Webhooks\Models\WebhookDelivery;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Schema;
@@ -86,6 +88,8 @@ it('minden admin-felületű modell auditált', function () {
         Message::class,       // üzenet-adat; a küldést a gate auditálja
         RawMimeMessage::class, // a beadott levél MAGA (megváltoztathatatlan, nem admin-művelet)
         DeliveryAttempt::class, // a fogadó válasza — gépi adat, nem admin-művelet
+        SmtpTransaction::class, // az SMTP-párbeszéd — gépi adat, nem admin-művelet
+        WebhookDelivery::class, // egy kimenő kézbesítés sorsa — gépi adat
         Workspace::class,     // a workspace-műveleteket a SuperAdmin (C2) auditálja
         WorkspaceMember::class, // az AssignWorkspaceRoles explicit auditot ír
     ];

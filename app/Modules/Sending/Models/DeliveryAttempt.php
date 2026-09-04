@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Sending\Models;
 
 use App\Modules\IpPools\Models\IpAddress;
+use App\Modules\Logs\Models\ErasedRecipient;
 use App\Modules\Tenancy\Concerns\BelongsToWorkspace;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -32,6 +33,16 @@ final class DeliveryAttempt extends Model
 
     protected static function booted(): void
     {
+        // Törlési kérés után ebbe a táblába sem kerülhet a cím: a kései bounce ugyanezen az
+        // úton érkezik, hetekkel a törlés után. A kézbesítés TÉNYE marad, a SZEMÉLY nem.
+        self::creating(function (self $model): void {
+            if ($model->recipient !== null && ErasedRecipient::erased((string) $model->recipient)) {
+                $model->recipient = null;
+                $model->response = null;
+                $model->redacted_at = now();
+            }
+        });
+
         self::creating(function (self $attempt): void {
             $attempt->expires_at ??= now()->addDays((int) config('sending.delivery_attempt_retention_days'));
         });

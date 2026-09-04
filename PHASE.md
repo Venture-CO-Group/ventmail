@@ -138,7 +138,7 @@ válaszol — a bejövő levél pedig route-motoron át kezelhető.
 ### M1 packetek — sorrend kötelező (A4 kivételével, ami A3 után bárhol)
 - [x] **A1 · Messages API** — PR #13 (3 review-kör: reviewer + security, minden blokkoló javítva)
 - [x] **A2 · SMTP relay + IP-poolok + sorok** — PR #14 (ADR 0001; 3 review-kör: reviewer + security ×2, minden blokkoló javítva)
-- [ ] **A3 · Napló + üzenet-trace + Events API + webhookok** — test → backend → db → frontend
+- [x] **A3 · Napló + üzenet-trace + Events API + webhookok** — PR #16 (reviewer + security, 2 blokkoló + 3 magas javítva)
 - [ ] **A4 · Inbound routing (MX)** — architect → test → backend → **security (kötelező)** → frontend
 - [ ] **A5 · Címellenőrzés** — test → backend → frontend
 - [ ] **A6 · Kézbesíthetőségi suite** — test → backend → frontend → mockup

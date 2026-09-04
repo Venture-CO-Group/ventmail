@@ -80,8 +80,16 @@ it('egyetlen modul-route sem hitelesítetlen', function () {
     // Két legitim hitelesítési út van, és MINDEN modul-route-nak az egyiken kell lennie:
     //   - böngésző-session:  `auth` + `workspace` (a kontextus a tagságból jön)
     //   - `/v1` API-kulcs:   `api.auth`           (a kontextus MAGÁBÓL a kulcsból jön)
-    // Kivétel csak a bejelentkezési folyamat, ahol még nincs se user, se kulcs.
-    $allowlist = ['auth/redirect', 'auth/callback', 'auth/logout', 'auth/dev-login', 'up', '/'];
+    // Kivétel csak a bejelentkezési folyamat, ahol még nincs se user, se kulcs — és a
+    // NYOMKÖVETÉS, amit a címzett LEVÉLKLIENSE hív, nem a bejelentkezett böngésző.
+    //
+    // Ez utóbbi nem gyengítés: a hozzáférést maga a token adja, ami TITKOSÍTOTT (tehát
+    // hamisíthatatlan ÉS olvashatatlan), a tenant-kontextus is belőle származik, a kimenet
+    // pedig egy 1×1 GIF, illetve egy átirányítás a tokenbe ZÁRT célra. Rate-limit van rajta.
+    $allowlist = [
+        'auth/redirect', 'auth/callback', 'auth/logout', 'auth/dev-login', 'up', '/',
+        't/o/{token}', 't/c/{token}',
+    ];
 
     $offenders = [];
 

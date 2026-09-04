@@ -18,19 +18,22 @@ DONE  m0-4  M  feat/m0-4-domains             backend,frontend,mockup   # PR #11 
 # ── A sáv · PLATFORM (Mailgun-kiváltás) ──────────────────────────────────────
 DONE  a1    A  feat/a1-messages-api          backend,security          # PR #13 — mergelve # Messages API: MIME, batch, o:/h:/v:, ütemezés, testmode, tárolt sablonok
 TODO  a2    A  feat/a2-smtp-ip-queues        backend,security,devops   # SMTP relay 587/465, IP-poolok, warmup, sorok, retry, bounce-osztályozó
-TODO  a3    A  feat/a3-logs-events           backend,frontend          # Napló, üzenet-trace (SMTP-párbeszéd), retenció, tag-stat, Events API, webhook replay+DLQ
+DONE  a3    A  feat/a3-logs-events           backend,frontend          # PR #16 # Napló, üzenet-trace (SMTP-párbeszéd), retenció, tag-stat, Events API, webhook replay+DLQ
 TODO  a4    A  feat/a4-inbound-routing       backend,security,frontend # MX-fogadás, route-motor, MIME-parse sandbox, stripped-text, csatolmány, FBL/ARF
 TODO  a5    A  feat/a5-validation            backend,frontend          # Címellenőrzés: szintaxis/MX/szerep/eldobható/catch-all/szonda/kockázat + bulk
 TODO  a6    A  feat/a6-deliverability        backend,frontend          # Blocklist, DMARC RUA, seed/inbox placement, spam-score, MTA-STS/TLS-RPT/BIMI
 
 # ── Review-ból jövő adósságok (nevesített gazdával) ──────────────────────────
 # Nem külön packet: a nevesített packet DoD-jába tartozik.
-#  · a `stored_template_versions` DELETE-je nincs triggerrel fogva (az UPDATE igen)   → A3
+#  · a `stored_template_versions` DELETE-je nincs triggerrel fogva (az UPDATE igen)   → A6
+#  · a nyers MIME Wasabira költöztetése (ma bytea-ban van)                             → A6
 #  · a `From` display-name hamisítható (`"bank@x" <ok@sajat.hu>`) — Mailgun-paritás   → A6
-#  · a nyers MIME Wasabira költöztetése (ma bytea-ban van)                            → A3
 #  · audit hash-lánc; DB-szerep szeparáció (ventmail_owner/ventmail_app)              → C2
 #  · DoH/DNSSEC resolver, `_ventmail-verify` tulajdon-token                           → A6
-#  · a `messages` tábla retenciója és redakciós útja (a nyers MIME-é kész)            → A3
+#  · a `messages` tábla retenciója és redakciós útja (a nyers MIME-é és a napló-
+#    melléktábláké kész: `logs:purge`)                                                 → A6
+#  · a napló Meilisearch-indexe (ma DB-szűrés; nagy volumennél kell)                   → A6
+#  · a webhook-VÉGPONTOK kezelő felülete (ma csak a kézbesítések listája + replay)     → C2
 #  · címzettenkénti újrapróbálás-granularitás (ma üzenet-szintű a claim)              → A2
 #  · a CI a `VENTURE_PACKAGES_TOKEN` hiányában KIHAGYJA a drift-tesztet; a secret
 #    beállítása után a kapu élesedjen (ma hangos skip)                                → ember
@@ -43,8 +46,34 @@ TODO  a6    A  feat/a6-deliverability        backend,frontend          # Blockli
 #    próbálgatását — hitelesítő-szintű vödör + IP-allowlist kell hozzá                   → A6
 #  · ÉLŐ TLS-füstteszt a telepítés után (a socket-tesztek TLS nélkül futnak)             → devops
 #  · a `v:*` változók NYERSEN vannak a `message_events`-ben (Mailgun-paritás), és az
-#    A3 webhook ki is küldi őket: retenció + redakció kell rájuk                       → A3
+#    A3 webhook ki is küldi őket: a webhook-sor mostantól lejár (retenció), a
+#    `message_events` redakciós útja viszont még nyitott                               → A6
 #  · a Postal `send/message` idempotency_key támogatása NEM igazolt (élő cluster kell)  → A2
+#  · a `VtTable` nem emit sor-kattintást (@venture/ui): a napló-listán ezért külön
+#    „Trace" gomb áll a cella-slotban. Ha a komponens megkapja, a gomb-oszlop elhagyható
+#                                                                                    → @venture/ui
+#  · a napló Meilisearch-INDEXE hiányzik: a 22. kritérium „Meili+Timescale"-t ír, ma a
+#    szűrés tisztán SQL. Nagy naplónál a szabad szavas keresés ezt megkívánja           → A6
+#  · a napló-retenció ma FIX (90 nap): a ventPay `log_retention_tier` metering-dimenzió
+#    plan-függő retenciót jelent — a kód még nem veszi figyelembe                      → C1
+#  · a `message_event_daily` aggregátum a TAG-et örökre megőrzi; a tag ügyfél által adott
+#    szabad szöveg, tehát elvben PII kerülhet bele. Tag-validáció vagy aggregátum-
+#    retenció kell rá — tulajdonosi döntéssel                                          → C1
+#  · a Timescale `add_retention_policy` ÉLES útját (drop_chunks) egyik teszt sem
+#    gyakorolja: a retenciós teszt `delete`-tel dolgozik                              → devops
+#  · a `/t/c/…` KIMONDOTT, elfogadott kockázat: bármely tenant kiválthat magának egy
+#    tetszőleges célra mutató átirányítót a SAJÁT nyomkövetési domainjén. A hoszt-kötés miatt
+#    ez NEM a mi fő domainünk, tehát a session-origin védve van — abuse-monitorozás viszont
+#    kell hozzá (Mailgun-paritás)                                                     → A6
+#  · a `SystemHostResolver` `dns_get_record`-ja timeout nélkül fut, és a végpont-mentés
+#    HTTP-kérésén BELÜL: egy blackhole-olt ügyfél-domain a rezolver teljes timeoutjáig
+#    blokkol egy php-fpm workert. Aszinkron verifikáció vagy saját, timeoutolt rezolver kell
+#                                                                                    → A6
+#  · a `BLOCKED_V4` szándékosan NEM tiltja a TEST-NET tartományokat (192.0.2.0/24,
+#    198.51.100.0/24, 203.0.113.0/24): ezek a dokumentációs címek, amikre a tesztjeink
+#    „publikus" végpontként hivatkoznak. Élesben nem routolhatók                     → nincs teendő
+#  · a nyitás-követés bot-szűrése hiányzik (Apple MPP, vírusszűrő-előtöltés): ma minden
+#    pixel-hívás `opened`. A felület kimondja a torzítást, de szűrni nem szűrünk       → A6
 #  · volumetrikus (L7) védelem az edge feladata: a trusted-proxy mögötti XFF-rotációt
 #    alkalmazásszinten nem lehet megfogni — Caddy/LB rate limit kell                    → devops
 

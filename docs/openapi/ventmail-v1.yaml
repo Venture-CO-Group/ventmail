@@ -231,6 +231,218 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
 
+  /events:
+    get:
+      summary: Események lekérdezése (kurzoros lapozással)
+      description: |
+        A Mailgun events API paritása. A LAPOZÁS KURZOROS, és ez nem stílus kérdése: az
+        eseménytábla folyamatosan nő, tehát offset-lapozásnál a második oldal lekérésekor a
+        sorok elcsúsznak — a hívó ugyanazt az eseményt kétszer kapja meg, vagy sosem látja.
+        Egy suppression-szinkron ebből csendben rossz adatot építene.
+
+        A kurzor az `(occurred_at, id)` páros: az `occurred_at` önmagában nem egyedi, egy
+        batch ezer eseménye ugyanabban a másodpercben keletkezik.
+      operationId: listEvents
+      security: [{ bearerAuth: [] }, { basicAuth: [] }]
+      parameters:
+        - { name: type, in: query, schema: { type: string }, description: 'esemény-típus (többször is megadható)' }
+        - { name: recipient, in: query, schema: { type: string } }
+        - { name: channel, in: query, schema: { type: string, enum: [transactional, marketing] } }
+        - { name: message_id, in: query, schema: { type: string } }
+        - { name: tag, in: query, schema: { type: string } }
+        - { name: since, in: query, schema: { type: string, format: date-time } }
+        - { name: until, in: query, schema: { type: string, format: date-time } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 300, default: 100 } }
+        - { name: cursor, in: query, schema: { type: string }, description: 'az előző válasz `paging.next` értéke' }
+      responses:
+        '200':
+          description: Események
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: { type: array, items: { $ref: '#/components/schemas/Event' } }
+                  paging:
+                    type: object
+                    properties:
+                      next: { type: [string, 'null'], description: 'a következő oldal kurzora' }
+        '401':
+          description: Hiányzó vagy érvénytelen API-kulcs
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /webhooks/deliveries:
+    get:
+      summary: Webhook-kézbesítések (a dead-letter sorral együtt)
+      operationId: listWebhookDeliveries
+      security: [{ bearerAuth: [] }, { basicAuth: [] }]
+      parameters:
+        - { name: status, in: query, schema: { type: string, enum: [pending, delivered, failed, dead_letter] } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+      responses:
+        '200':
+          description: Kézbesítések
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: { type: array, items: { $ref: '#/components/schemas/WebhookDelivery' } }
+        '401':
+          description: Hiányzó vagy érvénytelen API-kulcs
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /webhooks/deliveries/{uuid}/replay:
+    post:
+      summary: Egy kézbesítés újrajátszása a dead-letter sorból
+      description: |
+        A dead-letter sor csak akkor ér valamit, ha van belőle kivezető út: az ügyfél
+        megjavítja a végpontot, és újraküldeti, ami nem jutott el. A sikeres replay
+        `delivered`-re állítja a sort, tehát a lista magától ürül.
+      operationId: replayWebhookDelivery
+      security: [{ bearerAuth: [] }, { basicAuth: [] }]
+      parameters:
+        - { name: uuid, in: path, required: true, schema: { type: string } }
+      responses:
+        '202':
+          description: Sorba téve
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string }
+                  status: { type: string, enum: [queued] }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /webhooks/endpoints:
+    get:
+      tags: [webhooks]
+      summary: A webhook-végpontok listája
+      operationId: listWebhookEndpoints
+      security: [{ bearerAuth: [] }, { basicAuth: [] }]
+      responses:
+        '200':
+          description: A végpontok
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: { type: array, items: { $ref: '#/components/schemas/WebhookEndpoint' } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [webhooks]
+      summary: Webhook-végpont létrehozása
+      description: |
+        A titok EGYSZER, ebben a válaszban látszik — utána már csak az aláírásunkban él.
+        Az URL-nek `https`-nek kell lennie, és publikus címre kell mutatnia: a belső háló,
+        a loopback és a felhő-metadata tartománya tiltott (`INVALID_WEBHOOK_URL`).
+      operationId: createWebhookEndpoint
+      security: [{ bearerAuth: [] }, { basicAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, url]
+              properties:
+                name: { type: string, maxLength: 120 }
+                url: { type: string, maxLength: 2048 }
+                events:
+                  type: array
+                  description: Üres vagy hiányzó lista = MINDEN esemény.
+                  items: { $ref: '#/components/schemas/EventType' }
+      responses:
+        '201':
+          description: Létrehozva — a titokkal együtt
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - { $ref: '#/components/schemas/WebhookEndpoint' }
+                  - type: object
+                    properties:
+                      secret: { type: string, description: 'Csak MOST látszik.' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /webhooks/endpoints/{uuid}:
+    patch:
+      tags: [webhooks]
+      summary: Webhook-végpont módosítása
+      operationId: updateWebhookEndpoint
+      security: [{ bearerAuth: [] }, { basicAuth: [] }]
+      parameters:
+        - { name: uuid, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string, maxLength: 120 }
+                url: { type: string, maxLength: 2048 }
+                events: { type: array, items: { $ref: '#/components/schemas/EventType' } }
+                active: { type: boolean }
+      responses:
+        '200':
+          description: Módosítva
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WebhookEndpoint' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    delete:
+      tags: [webhooks]
+      summary: Webhook-végpont törlése
+      operationId: deleteWebhookEndpoint
+      security: [{ bearerAuth: [] }, { basicAuth: [] }]
+      parameters:
+        - { name: uuid, in: path, required: true, schema: { type: string } }
+      responses:
+        '204': { description: Törölve }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /webhooks/endpoints/{uuid}/rotate-secret:
+    post:
+      tags: [webhooks]
+      summary: A végpont aláíró titkának cseréje
+      description: |
+        A RÉGI titok AZONNAL érvénytelen — nincs átfedési ablak. A rotációt jellemzően
+        szivárgás váltja ki, olyankor pedig a „még pár percig érvényes" a támadónak kedvez.
+      operationId: rotateWebhookEndpointSecret
+      security: [{ bearerAuth: [] }, { basicAuth: [] }]
+      parameters:
+        - { name: uuid, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Az ÚJ titok — csak most látszik
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - { $ref: '#/components/schemas/WebhookEndpoint' }
+                  - type: object
+                    properties:
+                      secret: { type: string }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -364,6 +576,52 @@ components:
             message: { type: string, description: 'Emberi magyarázat. A KÓD a szerződés, ez segítség.' }
             details: { type: object, additionalProperties: true }
 
+    Event:
+      type: object
+      properties:
+        # UUID, nem sorszám: a belső `id` tenant-független szekvencia, amiből két hívásból
+        # (09:00 → 10:00) bárki megbecsülné a platform teljes esemény-volumenét.
+        id: { type: string, format: uuid }
+        type: { $ref: '#/components/schemas/EventType' }
+        message_id: { type: string }
+        recipient: { type: [string, 'null'] }
+        channel: { type: string }
+        reason: { type: [string, 'null'], description: 'a gate strukturált oka vagy a bounce osztálya' }
+        tags: { type: array, items: { type: string } }
+        variables: { type: object, additionalProperties: true, description: 'a `v:*` változók — az integrációk ebből azonosítják a saját rekordjaikat' }
+        occurred_at: { type: string, format: date-time }
+
+    EventType:
+      type: string
+      enum: [accepted, rejected, delivered, deferred, bounced, complained, unsubscribed, opened, clicked, stored]
+
+    WebhookEndpoint:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        url: { type: string }
+        events:
+          type: array
+          description: Üres lista = MINDEN esemény.
+          items: { $ref: '#/components/schemas/EventType' }
+        active: { type: boolean }
+        last_success_at: { type: [string, 'null'], format: date-time }
+        last_failure_at: { type: [string, 'null'], format: date-time }
+
+    WebhookDelivery:
+      type: object
+      properties:
+        id: { type: string }
+        event: { type: string }
+        message_id: { type: [string, 'null'] }
+        status: { type: string, enum: [pending, delivered, failed, dead_letter] }
+        attempt: { type: integer }
+        response_code: { type: [integer, 'null'] }
+        response_excerpt: { type: [string, 'null'], description: 'a válasz eleje (max 500 karakter)' }
+        next_attempt_at: { type: [string, 'null'], format: date-time }
+        dead_lettered_at: { type: [string, 'null'], format: date-time }
+
     ErrorCode:
       type: string
       description: |
@@ -411,4 +669,9 @@ components:
         - UNSUPPORTED_MIME_OPTION
         - TEMPLATE_VERSION_CONFLICT
         - INVALID_MIME_UPLOAD
+        - UNKNOWN_DELIVERY
+        - ALREADY_DELIVERED
+        - UNKNOWN_ENDPOINT
+        - INVALID_WEBHOOK_URL
+        - UNRESOLVABLE_WEBHOOK_URL
         - IN_PROGRESS
