@@ -47,6 +47,25 @@ return [
             'report' => false,
         ],
 
+        /*
+         | A BEJÖVŐ levelek és csatolmányok tárolója (A4).
+         |
+         | Külön disk, nem a közös `s3`: a bejövő tartalom idegen, rövid retencióval él, és
+         | SOSEM publikus. A `visibility: private` és a `throw: true` szándékos — egy néma
+         | írási hiba azt jelentené, hogy a levelet elfogadtuk, de nem tettük el.
+         */
+        'inbound' => [
+            'driver' => 's3',
+            'key' => env('INBOUND_S3_KEY', env('AWS_ACCESS_KEY_ID')),
+            'secret' => env('INBOUND_S3_SECRET', env('AWS_SECRET_ACCESS_KEY')),
+            'region' => env('INBOUND_S3_REGION', env('AWS_DEFAULT_REGION', 'eu-central-1')),
+            'bucket' => env('INBOUND_S3_BUCKET'),
+            'endpoint' => env('INBOUND_S3_ENDPOINT', env('AWS_ENDPOINT')),
+            'use_path_style_endpoint' => (bool) env('INBOUND_S3_PATH_STYLE', false),
+            'visibility' => 'private',
+            'throw' => true,
+        ],
+
         's3' => [
             'driver' => 's3',
             'key' => env('AWS_ACCESS_KEY_ID'),

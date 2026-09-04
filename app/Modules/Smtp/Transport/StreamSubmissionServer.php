@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Smtp\Transport;
 
 use App\Modules\Smtp\Contracts\SmtpAuthenticator;
+use App\Modules\Smtp\Contracts\SmtpConnection;
 use App\Modules\Smtp\Contracts\SubmissionSink;
 use App\Modules\Smtp\Data\ChannelSecurity;
 use App\Modules\Smtp\Models\SmtpCredential;
@@ -31,16 +32,41 @@ use Throwable;
  */
 final class StreamSubmissionServer
 {
-    /** @var array<int, array{socket: resource, session: SmtpSession, buffer: string, touched: float, started: float, ip: string, handshaking: bool, handshakeStarted: float, readableAfter: float}> */
+    /** @var array<int, array{socket: resource, session: SmtpConnection, buffer: string, touched: float, started: float, ip: string, handshaking: bool, handshakeStarted: float, readableAfter: float}> */
     private array $connections = [];
 
     private bool $running = false;
 
+    /**
+     * A SESSION-GYÁR opcionális, és ez a bejövő (MX) oldal miatt van.
+     *
+     * A transzport mindkét oldalon UGYANAZ: socket, TLS, időkorlát, per-IP keret, tarpit.
+     * Ami különbözik, az a PROTOKOLL-SZABÁLY — és épp azt nem szabad összemosni (ADR 0002).
+     * Ezért a transzport csak egy `SmtpConnection`-t lát, és hogy melyiket, azt a hívó dönti
+     * el. Gyár nélkül a viselkedés VÁLTOZATLAN: submission-session, az eddigi függőségekkel.
+     *
+     * @param  (callable(ChannelSecurity): SmtpConnection)|null  $sessionFactory
+     * @param  list<int>|null  $allowedPorts  null = a `config('smtp.allowed_ports')`
+     * @param  string  $configPrefix  MELYIK konfigurációs ágból jönnek a limitek. A bejövő
+     *                                oldalnak SAJÁT készlete van: ha a submission elé
+     *                                terheléselosztó kerül és bekapcsol a PROXY protokoll, az
+     *                                MX-listener minden VALÓDI küldő MTA-tól is PROXY fejlécet
+     *                                várna — és minden bejövő levél elhasalna.
+     */
     public function __construct(
         private readonly SmtpAuthenticator $authenticator,
         private readonly SubmissionSink $sink,
         private readonly AuthThrottle $throttle,
+        private $sessionFactory = null,
+        private readonly ?array $allowedPorts = null,
+        private readonly string $configPrefix = 'smtp',
     ) {}
+
+    /** A limit-készlet gyökere: `smtp.*` a submissionnek, `inbound.*` az MX-nek. */
+    private function setting(string $key, mixed $default = null): mixed
+    {
+        return config($this->configPrefix.'.'.$key, $default);
+    }
 
     /**
      * @param  int  $port  a `config('smtp.allowed_ports')` egyike — a 25 SZÁNDÉKOSAN nincs köztük
@@ -48,12 +74,15 @@ final class StreamSubmissionServer
      */
     public function serve(string $host, int $port, bool $implicitTls, ?callable $shouldStop = null): void
     {
-        if (! in_array($port, (array) config('smtp.allowed_ports'), true)) {
-            // A port 25 a BEJÖVŐ (MX) oldalé — más parser, más bizalmi modell (A4).
+        $allowed = $this->allowedPorts ?? (array) config('smtp.allowed_ports');
+
+        if (! in_array($port, $allowed, true)) {
+            // A port 25 a BEJÖVŐ (MX) oldalé — más protokoll-szabály, más bizalmi modell.
+            // A submission-listener sosem indulhat rajta, és fordítva.
             throw new RuntimeException(sprintf(
-                'A(z) %d port nem engedélyezett submissionre (engedélyezett: %s). A 25-ös port az A4 (MX) dolga.',
+                'A(z) %d port nem engedélyezett ezen a listeneren (engedélyezett: %s).',
                 $port,
-                implode(', ', (array) config('smtp.allowed_ports'))
+                implode(', ', $allowed)
             ));
         }
 
@@ -116,7 +145,7 @@ final class StreamSubmissionServer
 
         // A `.=` realloc-duplázás miatt a valós csúcs a könyvelt bájtok kétszerese, plusz
         // a keretrendszer alapfoglalása.
-        $needed = ((int) config('smtp.limits.max_buffered_bytes') * 2) + 64 * 1024 * 1024;
+        $needed = ((int) $this->setting('limits.max_buffered_bytes', 134217728) * 2) + 64 * 1024 * 1024;
 
         if ($needed > $limit) {
             throw new RuntimeException(sprintf(
@@ -124,7 +153,7 @@ final class StreamSubmissionServer
                 .'a listener OOM-mal halna meg, MIELŐTT a plafon elsülne. Emeld a '
                 .'memory_limitet legalább %d bájtra, vagy csökkentsd az '
                 .'SMTP_MAX_BUFFERED_BYTES értékét.',
-                (int) config('smtp.limits.max_buffered_bytes'),
+                (int) $this->setting('limits.max_buffered_bytes', 134217728),
                 $limit,
                 $needed
             ));
@@ -219,7 +248,7 @@ final class StreamSubmissionServer
 
         // Kapcsolat-plafon: felette 421 + bontás. Ez BACKPRESSURE, nem OOM — egy
         // egyszálas ciklusban a memória-kimerítés az egész listenert viszi.
-        if (count($this->connections) >= (int) config('smtp.limits.max_connections')) {
+        if (count($this->connections) >= (int) $this->setting('limits.max_connections', 200)) {
             @fwrite($socket, "421 4.7.0 Too many connections\r\n");
             @fclose($socket);
 
@@ -233,7 +262,7 @@ final class StreamSubmissionServer
         // fejléc megérkezése UTÁN érvényesítjük (`consumeProxyHeader`). Ha itt ütnénk, a
         // 11. párhuzamos kapcsolat kapna 421-et, függetlenül attól, hány ügyféltől jött:
         // ön-DoS a saját LB-nk mögött, miközben a valódi forrásra semmi nem vonatkozna.
-        if (! (bool) config('smtp.proxy_protocol.enabled') && $this->exceedsPerIpLimit($ip)) {
+        if (! (bool) $this->setting('proxy_protocol.enabled', false) && $this->exceedsPerIpLimit($ip)) {
             @fwrite($socket, "421 4.7.0 Too many connections from your address\r\n");
             @fclose($socket);
 
@@ -254,12 +283,16 @@ final class StreamSubmissionServer
         // NEM futtatta le a handshake-et, és a listener sima plaintext SMTP-vé
         // degradálódott — a kapcsoló szerint viszont „titkosított" volt, tehát base64
         // jelszóval hitelesített volna a dróton (golden rule 3).
-        $session = new SmtpSession(
-            $this->authenticator,
-            $this->sink,
-            $this->securityOf($socket),
-            (string) config('smtp.hostname'),
-        );
+        $security = $this->securityOf($socket);
+
+        $session = $this->sessionFactory !== null
+            ? ($this->sessionFactory)($security)
+            : new SmtpSession(
+                $this->authenticator,
+                $this->sink,
+                $security,
+                (string) config('smtp.hostname'),
+            );
 
         $id = (int) $socket;
 
@@ -274,7 +307,7 @@ final class StreamSubmissionServer
             'handshakeStarted' => 0.0,
             'readableAfter' => 0.0,
             // PROXY protocol: amíg a fejléc meg nem jött, a kapcsolat még „névtelen".
-            'awaitingProxyHeader' => (bool) config('smtp.proxy_protocol.enabled'),
+            'awaitingProxyHeader' => (bool) $this->setting('proxy_protocol.enabled', false),
         ];
 
         // PROXY protocol: a köszöntés és a TLS is VÁR a fejlécre — a valódi forrás-IP
@@ -381,13 +414,13 @@ final class StreamSubmissionServer
             }
         }
 
-        return $count >= (int) config('smtp.limits.max_connections_per_ip');
+        return $count >= (int) $this->setting('limits.max_connections_per_ip', 10);
     }
 
     /** Megbízható-e a kapcsolat forrása (LB) — CIDR-listából. */
     private function isTrustedProxy(string $ip): bool
     {
-        $sources = (array) config('smtp.proxy_protocol.trusted_sources');
+        $sources = (array) $this->setting('proxy_protocol.trusted_sources', []);
 
         if ($sources === []) {
             // Bekapcsolt PROXY protocol ÜRES allowlisttel: fail-closed. Ez konfigurációs
@@ -468,7 +501,7 @@ final class StreamSubmissionServer
 
         // A parancssor-limit CSAK akkor érvényesül, ha van `\n`. Újsor nélkül öntött adat
         // korlátlanul növelte volna a puffert — a hosszúsor-védelem sosem futott volna le.
-        $maxLine = (int) config('smtp.limits.max_auth_bytes');
+        $maxLine = (int) $this->setting('limits.max_auth_bytes', 4096);
 
         if (! str_contains($this->connections[$id]['buffer'], "\n") && strlen($this->connections[$id]['buffer']) > $maxLine) {
             $this->write($socket, '500 5.5.2 Line too long');
@@ -488,7 +521,51 @@ final class StreamSubmissionServer
             $line = substr($this->connections[$id]['buffer'], 0, $position);
             $this->connections[$id]['buffer'] = substr($this->connections[$id]['buffer'], $position + 1);
 
-            $this->handle($id, rtrim($line, "\r"));
+            // SMTP SMUGGLING (CVE-2023-51764 osztálya). A DATA fázisban a sorvég KIZÁRÓLAG
+            // `\r\n` lehet, és PONTOSAN EGY `\r`.
+            //
+            // Miért: a sorvég-variánsokat a szerverek KÜLÖNBÖZŐKÉPPEN értelmezik. Ha nálunk
+            // valami lezárja a DATA-t, egy előttünk álló (jellemzően SPF-authorizált)
+            // relaynél viszont nem, akkor a támadó EGYETLEN elfogadott levélbe egy MÁSODIK,
+            // teljesen általa választott borítékfeladójú üzenetet csempészhet be — és az a
+            // mi kapcsolatunkon, a mi IP-nkről érkezik, tehát a hitelesítési eredmény a
+            // HAMISÍTOTT feladóhoz rendelődik.
+            //
+            // KÉT variáns, két zár. Mindkettőt mérve találtuk:
+            //  - `<LF>.<LF>`: csupasz LF. A Postfix/Exim/Sendmail 2023 decemberében ezért
+            //    kapott `smtpd_forbid_bare_newline`-t;
+            //  - `.\r\r\n`: TÖBB záró CR. Az első javításunk `rtrim`-mel vágta a záró
+            //    `\r`-eket, tehát a `.\r\r` is `.`-tá vált és lezárt — miközben egy szigorú
+            //    upstream a `\r\n.\r\n` terminátort NEM találja meg benne, és EGY üzenetet
+            //    lát. Ugyanaz a differenciál, csak a másik irányból.
+            $inData = $this->connections[$id]['session']->state() === SessionState::Data;
+
+            if ($inData) {
+                if (! str_ends_with($line, "\r")) {
+                    $this->write($socket, '500 5.5.2 Bare LF is not allowed in DATA (RFC 5321)');
+                    $this->close($id);
+
+                    return;
+                }
+
+                // PONTOSAN EGY `\r`-t vágunk le, nem az összeset.
+                $line = substr($line, 0, -1);
+
+                // Ami utána MÉG MINDIG `\r`-re végződik, az a `X\r\r\n` alak: ez sosem
+                // legitim tartalom, viszont pontosan a csempészés formája.
+                if (str_ends_with($line, "\r")) {
+                    $this->write($socket, '500 5.5.2 Malformed line ending in DATA (RFC 5321)');
+                    $this->close($id);
+
+                    return;
+                }
+            } else {
+                // Parancssorban engedékenyebbek vagyunk: ott a csempészésnek nincs értelme,
+                // és a régi kliensek sorvége változatos.
+                $line = rtrim($line, "\r");
+            }
+
+            $this->handle($id, $line);
 
             if (! isset($this->connections[$id])) {
                 return;
@@ -515,7 +592,7 @@ final class StreamSubmissionServer
         // GLOBÁLIS puffer-plafon: a kapcsolatonkénti méretlimit önmagában nem véd, mert a
         // kapcsolatok SZÁMÁVAL szorzódik. Túllépésnél ezt a tranzakciót dobjuk el —
         // átmeneti kóddal, hogy a kliens újrapróbálhassa.
-        if ($this->bufferedBytes() > (int) config('smtp.limits.max_buffered_bytes')) {
+        if ($this->bufferedBytes() > (int) $this->setting('limits.max_buffered_bytes', 134217728)) {
             $this->write($connection['socket'], '452 4.3.1 Insufficient system storage, try again later');
             $this->close($id);
 
@@ -574,9 +651,18 @@ final class StreamSubmissionServer
      * Nem-blokkoló módban a hívás `0`-t ad, ha a handshake még tart: visszatérünk a
      * ciklusba, és a következő olvasható eseménynél folytatjuk — abszolút határidővel.
      */
-    /** A hitelesítő utolsó használata — nyers IP nélkül. */
-    private function recordUsage(SmtpSession $session, string $ip): void
+    /**
+     * A hitelesítő utolsó használata — nyers IP nélkül.
+     *
+     * CSAK a submission-oldalon értelmezett: az MX-en nincs hitelesítő, amit használni
+     * lehetne. A típus-ellenőrzés ezért nem óvatoskodás, hanem a két oldal szétválasztása.
+     */
+    private function recordUsage(SmtpConnection $session, string $ip): void
     {
+        if (! $session instanceof SmtpSession) {
+            return;
+        }
+
         $principal = $session->principal();
 
         if ($principal === null) {
@@ -616,7 +702,7 @@ final class StreamSubmissionServer
 
         if ($result === 0) {
             // Még tart. Csak a HATÁRIDŐT nézzük — a lassú-loris itt is ugyanolyan olcsó.
-            if (microtime(true) - $connection['handshakeStarted'] > (int) config('smtp.limits.command_timeout_seconds')) {
+            if (microtime(true) - $connection['handshakeStarted'] > (int) $this->setting('limits.command_timeout_seconds', 60)) {
                 $this->close($id);
 
                 // RETURN, nem esés tovább: a `close()` UTÁNI értékadás korábban
@@ -691,9 +777,9 @@ final class StreamSubmissionServer
     {
         $now = microtime(true);
 
-        $idle = (int) config('smtp.limits.command_timeout_seconds');
-        $data = (int) config('smtp.limits.data_timeout_seconds');
-        $absolute = (int) config('smtp.limits.session_timeout_seconds');
+        $idle = (int) $this->setting('limits.command_timeout_seconds', 60);
+        $data = (int) $this->setting('limits.data_timeout_seconds', 300);
+        $absolute = (int) $this->setting('limits.session_timeout_seconds', 600);
 
         foreach ($this->connections as $id => $connection) {
             $inData = $connection['session']->state() === SessionState::Data;

@@ -17,6 +17,12 @@ it('a Tenancy modulon kívül senki nem kerüli meg a global scope-ot', function
             continue;
         }
 
+        // A MIGRÁCIÓK nem futásidejű lekérdezések: ott a `DB::statement` a séma nyelve
+        // (részleges index, trigger, Timescale-hívás), nem a global scope megkerülése.
+        if (str_contains($file->getPathname(), '/Database/Migrations/')) {
+            continue;
+        }
+
         $relative = $file->getRelativePathname();
 
         // Dokumentált kivétel: az API-kulcs feloldása a kontextus FORRÁSA — lookup-időben
@@ -33,7 +39,12 @@ it('a Tenancy modulon kívül senki nem kerüli meg a global scope-ot', function
         // tehát global scope sem lehet rajta. Ezért a workspace-szűrő egyetlen helyre,
         // ebbe a szolgáltatásba van bezárva — a kontextus hiánya ott KIVÉTEL, nem
         // „minden tenant" —, és izolációs teszt fedi (AggregateRetentionTest).
+        // A BEJÖVŐ címzett feloldása: fogadáskor még NINCS workspace-kontextus — épp ez a
+        // lekérdezés állapítja meg, melyik tenanté a levél. Ugyanaz a precedens, mint az
+        // API-kulcsnál és az SMTP-hitelesítőnél: egyetlen, szűk, pontos egyezésre
+        // korlátozott lekérdezés, izolációs teszttel fedve (InboundIsolationTest).
         $exceptions = [
+            'Inbound/Services/VerifiedInboundResolver.php',
             'Logs/Services/TagStatistics.php',
             'Identity/Models/ApiKey.php',
             'Smtp/Models/SmtpCredential.php',

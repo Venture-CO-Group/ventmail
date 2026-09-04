@@ -19,11 +19,31 @@ use App\Modules\Sending\Models\Message;
  */
 final class HeaderSafetyGate implements Gate
 {
-    /** Címzettet vagy feladót vezérlő fejléc a hívótól SOHA nem jöhet. */
+    /**
+     * Címzettet vagy feladót vezérlő fejléc a hívótól SOHA nem jöhet.
+     *
+     * A `reply-to` SZÁNDÉKOSAN NINCS itt (lásd `ALLOWED`): az nem a borítékot és nem a
+     * feladót vezérli, hanem azt mondja meg az olvasónak, hova menjen a válasz.
+     */
     private const FORBIDDEN = [
-        'to', 'cc', 'bcc', 'from', 'sender', 'reply-to', 'return-path', 'received',
+        'to', 'cc', 'bcc', 'from', 'sender', 'return-path', 'received',
         'message-id', 'date', 'mime-version', 'content-type', 'content-transfer-encoding',
     ];
+
+    /**
+     * Az `X-` prefixen KÍVÜL engedélyezett fejlécek.
+     *
+     * A `Reply-To` nem vezérel sem borítékot, sem feladót: kizárólag azt mondja meg az
+     * OLVASÓNAK, hova menjen a válasz. Enélkül a bejövő továbbítás (A4 · 32. kritérium)
+     * használhatatlan lenne — a továbbított levélre a válasz a `noreply@` címünkre menne,
+     * nem az eredeti feladónak. Mailgun-paritás is (`h:Reply-To`).
+     *
+     * A vezérlőkarakter-ellenőrzés ERRE IS lefut, tehát a fejléc-injekció ugyanúgy zárva van —
+     * és a `From` továbbra is tiltott, tehát a feladó-hamisítás útja nem nyílik meg.
+     *
+     * @var list<string>
+     */
+    private const ALLOWED = ['reply-to'];
 
     public function name(): string
     {
@@ -42,7 +62,7 @@ final class HeaderSafetyGate implements Gate
                 );
             }
 
-            if (! str_starts_with($normalized, 'x-')) {
+            if (! str_starts_with($normalized, 'x-') && ! in_array($normalized, self::ALLOWED, true)) {
                 return GateResult::reject(
                     GateReason::InvalidRequest,
                     "Csak X- fejléc adható meg, ez nem az: {$normalized}"

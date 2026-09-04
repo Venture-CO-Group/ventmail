@@ -49,6 +49,15 @@ final class DnsRecordGenerator
                 'value' => config('domains.tracking_target'),
                 'purpose' => 'Saját domainen futó klikk-átirányítás és nyitás-pixel.',
             ],
+            // OPCIONÁLIS: csak akkor kell, ha a tenant BE is akar fogadni levelet (A4). A
+            // küldéshez nem tartozik hozzá, és a `verified` státuszhoz sem — de enélkül a
+            // bejövő route-ok sosem kapnak levelet.
+            'inbound_mx' => [
+                'type' => 'MX',
+                'name' => $host,
+                'value' => sprintf('10 %s', config('inbound.mx_target')),
+                'purpose' => 'Bejövő levelek fogadása (opcionális — csak ha inbound routingot használsz).',
+            ],
         ];
     }
 }

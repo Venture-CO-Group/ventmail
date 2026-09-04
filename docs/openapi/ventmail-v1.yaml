@@ -443,6 +443,214 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
 
+  /routes:
+    get:
+      tags: [inbound]
+      summary: A bejövő route-szabályok listája
+      operationId: listInboundRoutes
+      security: [{ bearerAuth: [] }, { basicAuth: [] }]
+      responses:
+        '200':
+          description: A szabályok, prioritás szerint
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: { type: array, items: { $ref: '#/components/schemas/InboundRoute' } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [inbound]
+      summary: Route-szabály létrehozása
+      description: |
+        A szabályok PRIORITÁS szerint értékelődnek ki, azonos prioritásnál a létrehozás
+        sorrendjében. Az első `stop()` akció lezárja a láncot.
+
+        A kifejezést MENTÉSKOR is ellenőrizzük — az elgépelt regex azonnal hibát ad, nem
+        három nap múlva abból, hogy „nem jön a levél".
+      operationId: createInboundRoute
+      security: [{ bearerAuth: [] }, { basicAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/InboundRouteInput' }
+      responses:
+        '201':
+          description: |
+            Létrehozva — az ALÁÍRÓ TITOKKAL együtt. A titok csak MOST látszik; a
+            `forward(url)` ezzel írja alá a POST-ot, és a fogadó ezzel ellenőrzi.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - { $ref: '#/components/schemas/InboundRoute' }
+                  - type: object
+                    properties:
+                      signing_secret: { type: string, description: 'Csak MOST látszik.' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /routes/{uuid}:
+    patch:
+      tags: [inbound]
+      summary: Route-szabály módosítása
+      operationId: updateInboundRoute
+      security: [{ bearerAuth: [] }, { basicAuth: [] }]
+      parameters:
+        - { name: uuid, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/InboundRouteInput' }
+      responses:
+        '200':
+          description: Módosítva
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InboundRoute' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [inbound]
+      summary: Route-szabály törlése
+      operationId: deleteInboundRoute
+      security: [{ bearerAuth: [] }, { basicAuth: [] }]
+      parameters:
+        - { name: uuid, in: path, required: true, schema: { type: string } }
+      responses:
+        '204': { description: Törölve }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /routes/{uuid}/rotate-secret:
+    post:
+      tags: [inbound]
+      summary: A route `forward(url)` aláíró titkának cseréje
+      description: |
+        A RÉGI titok AZONNAL érvénytelen. A titok a szabály létrehozásakor egyszer látszik;
+        ha elveszett, itt lehet újat kérni.
+      operationId: rotateInboundRouteSecret
+      security: [{ bearerAuth: [] }, { basicAuth: [] }]
+      parameters:
+        - { name: uuid, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Az ÚJ titok — csak most látszik
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - { $ref: '#/components/schemas/InboundRoute' }
+                  - type: object
+                    properties:
+                      signing_secret: { type: string }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /inbound/messages:
+    get:
+      tags: [inbound]
+      summary: A tárolt bejövő levelek
+      description: |
+        A `store()` akcióval eltett levelek. A RETENCIÓ rövid (alap 3 nap): a bejövő levél
+        idegen tartalom, amit nem mi írtunk és nem a mi jogalapunkon tárolunk. A lejárat
+        utáni 404 nem hiba, hanem a megígért adatminimalizálás.
+      operationId: listInboundMessages
+      security: [{ bearerAuth: [] }, { basicAuth: [] }]
+      parameters:
+        - { name: recipient, in: query, schema: { type: string } }
+        - { name: status, in: query, schema: { type: string, enum: [received, parsed, routed, failed, forward_failed] } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+      responses:
+        '200':
+          description: A levelek
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: { type: array, items: { $ref: '#/components/schemas/InboundMessageSummary' } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /inbound/messages/{uuid}:
+    get:
+      tags: [inbound]
+      summary: Egy bejövő levél — ugyanaz a payload, amit a forward(url) POSTol
+      operationId: showInboundMessage
+      security: [{ bearerAuth: [] }, { basicAuth: [] }]
+      parameters:
+        - { name: uuid, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: A levél
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InboundMessage' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /inbound/messages/{uuid}/raw:
+    get:
+      tags: [inbound]
+      summary: A nyers MIME
+      operationId: showInboundMessageRaw
+      security: [{ bearerAuth: [] }, { basicAuth: [] }]
+      parameters:
+        - { name: uuid, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: A nyers levél
+          content:
+            message/rfc822:
+              schema: { type: string }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /inbound/messages/{uuid}/attachments/{attachmentUuid}:
+    get:
+      tags: [inbound]
+      summary: Csatolmány-letöltés lejáró, aláírt URL-lel
+      description: |
+        A FERTŐZÖTT csatolmányra NEM adunk linket (409). Nem a mi dolgunk kártevőt
+        terjeszteni, még kérésre sem — az eredmény a `scan` mezőből olvasható.
+      operationId: showInboundAttachment
+      security: [{ bearerAuth: [] }, { basicAuth: [] }]
+      parameters:
+        - { name: uuid, in: path, required: true, schema: { type: string } }
+        - { name: attachmentUuid, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: A letöltési link
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  name: { type: string }
+                  content_type: { type: string }
+                  size: { type: integer }
+                  url: { type: string, description: 'lejáró, aláírt URL' }
+                  expires_in: { type: integer }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: A csatolmány nem tölthető le (szkennelési eredmény)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -482,6 +690,11 @@ components:
           schema: { $ref: '#/components/schemas/Error' }
     Rejected:
       description: A PreSendGate elutasította
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NotFound:
+      description: Nincs ilyen erőforrás ebben a workspace-ben
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
@@ -591,6 +804,90 @@ components:
         variables: { type: object, additionalProperties: true, description: 'a `v:*` változók — az integrációk ebből azonosítják a saját rekordjaikat' }
         occurred_at: { type: string, format: date-time }
 
+    InboundRouteInput:
+      type: object
+      required: [match_type, actions]
+      properties:
+        description: { type: string, maxLength: 255 }
+        priority: { type: integer, minimum: 0, maximum: 100000, default: 100 }
+        match_type: { type: string, enum: [match_recipient, match_header, catch_all] }
+        match_field: { type: [string, 'null'], description: '`match_header` esetén a fejléc neve' }
+        expression:
+          type: [string, 'null']
+          maxLength: 512
+          description: |
+            Reguláris kifejezés határolók nélkül (`^support@pelda\.hu$`). Időkorláttal és
+            visszalépés-korláttal fut: a katasztrofális visszalépésű minta nem viszi el a
+            feldolgozást, csak nem illeszkedik.
+        actions:
+          type: array
+          minItems: 1
+          maxItems: 10
+          items:
+            type: object
+            required: [type]
+            properties:
+              type: { type: string, enum: [forward, store, stop] }
+              target: { type: [string, 'null'], description: 'URL (csak https) vagy e-mail-cím' }
+        active: { type: boolean, default: true }
+
+    InboundRoute:
+      allOf:
+        - { $ref: '#/components/schemas/InboundRouteInput' }
+        - type: object
+          properties:
+            id: { type: string, format: uuid }
+            last_matched_at: { type: [string, 'null'], format: date-time }
+
+    InboundMessageSummary:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        sender: { type: [string, 'null'], description: 'null = null-sender (bounce)' }
+        recipient: { type: string }
+        subject: { type: [string, 'null'] }
+        status: { type: string, enum: [received, parsed, routed, failed, forward_failed] }
+        size: { type: integer }
+        received_at: { type: [string, 'null'], format: date-time }
+        expires_at: { type: [string, 'null'], format: date-time }
+
+    InboundMessage:
+      type: object
+      description: Ugyanaz az alak, amit a `forward(url)` POSTol.
+      properties:
+        id: { type: string, format: uuid }
+        timestamp: { type: [integer, 'null'] }
+        sender: { type: [string, 'null'] }
+        recipient: { type: string }
+        subject: { type: [string, 'null'] }
+        message-id: { type: [string, 'null'] }
+        body-plain: { type: [string, 'null'] }
+        body-html: { type: [string, 'null'] }
+        stripped-text:
+          type: [string, 'null']
+          description: 'a törzs az idézett előzmény és az aláírás NÉLKÜL — a válasz-kezeléshez'
+        headers: { type: object, additionalProperties: { type: string } }
+        authentication:
+          type: object
+          properties:
+            spf: { type: [string, 'null'] }
+            dkim: { type: [string, 'null'] }
+            dmarc: { type: [string, 'null'] }
+            spam_score: { type: [number, 'null'] }
+        attachments:
+          type: array
+          items:
+            type: object
+            properties:
+              name: { type: string }
+              content_type: { type: string }
+              size: { type: integer }
+              sha256: { type: string }
+              scan: { type: string, enum: [pending, clean, infected, unavailable, rejected] }
+              url:
+                type: [string, 'null']
+                description: 'lejáró letöltési URL — CSAK a tisztának bizonyult csatolmányra'
+
     EventType:
       type: string
       enum: [accepted, rejected, delivered, deferred, bounced, complained, unsubscribed, opened, clicked, stored]
@@ -672,6 +969,13 @@ components:
         - UNKNOWN_DELIVERY
         - ALREADY_DELIVERED
         - UNKNOWN_ENDPOINT
+        - UNKNOWN_ROUTE
+        - INVALID_ROUTE
+        - UNKNOWN_MESSAGE
+        - UNKNOWN_ATTACHMENT
+        - RAW_UNAVAILABLE
+        - ATTACHMENT_NOT_DOWNLOADABLE
+        - RAW_CONTAINS_INFECTED_ATTACHMENT
         - INVALID_WEBHOOK_URL
         - UNRESOLVABLE_WEBHOOK_URL
         - IN_PROGRESS

@@ -213,14 +213,24 @@ it('a kurzor nem árulja el a belső sorszámot', function () {
     $cursor = (string) events(['limit' => 1])->json('paging.next');
 
     expect($cursor)->not->toBe('');
-    // Sem nyersen, sem base64-ben nem olvasható ki belőle a szekvencia.
-    expect(base64_decode($cursor, false) ?: '')->not->toContain('|');
 
-    $ids = MessageEvent::query()->pluck('id')->map(fn ($id) => (string) $id);
+    // A régi, NYÍLT kurzor `base64("occurred_at|id")` volt. A mostaninak sem a szerkezete,
+    // sem a tartalma nem olvasható ki: se az elválasztó, se az időbélyeg, se a sorszám.
+    //
+    // Egyetlen SZÁMJEGY jelenlétét nem érdemes állítani — egy 200 karakteres base64-ben
+    // minden számjegy előfordul véletlenül is. Az ID akkor „szivárogna ki", ha a NYERS
+    // szerkezet visszafejthető lenne; azt mérjük.
+    $decoded = base64_decode($cursor, false) ?: '';
 
-    foreach ($ids as $id) {
-        expect($cursor)->not->toContain($id);
-    }
+    expect($decoded)->not->toContain('|');
+
+    $event = MessageEvent::query()->orderByDesc('id')->firstOrFail();
+
+    expect($decoded)->not->toContain((string) $event->occurred_at?->toIso8601String());
+    expect($decoded)->not->toContain('occurred_at');
+
+    // …és a `Crypt` alakja se legyen nyílt JSON, amiből a mezők kiolvashatók.
+    expect($decoded)->not->toContain('"id"');
 
     // …és attól még LAPOZ.
     expect(events(['limit' => 1, 'cursor' => $cursor])->json('items'))->toHaveCount(1);

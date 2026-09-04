@@ -31,13 +31,29 @@ beforeEach(function () {
     $this->domain = Domain::create(['name' => 'pelda.hu', 'status' => 'verified', 'verified_at' => now()]);
 });
 
+/**
+ * A cím SZÁMLÁLÓBÓL jön, nem véletlenből.
+ *
+ * A `random_int(1, 250)` egyetlen tesztfájlon belül is ütközött (`ip_addresses_address_unique`),
+ * és a hiba CSAK néha jelentkezett — a CI-ban pirosat adott, lokálisan zöldet. Egy teszt, ami
+ * a szerencsén múlik, nem teszt: a következő futás elrejti azt a hibát, amit az előző talált.
+ */
+function nextIpAddress(): string
+{
+    static $counter = 0;
+
+    $counter++;
+
+    return sprintf('203.0.113.%d', $counter % 250 + 1);
+}
+
 function ipPool(array $attributes = [], array $ip = []): IpPool
 {
     $pool = IpPool::create(array_merge(['name' => 'p-'.bin2hex(random_bytes(3)), 'type' => 'shared'], $attributes));
 
     IpAddress::create(array_merge([
         'ip_pool_id' => $pool->getKey(),
-        'address' => '203.0.113.'.random_int(1, 250),
+        'address' => nextIpAddress(),
         'warmup_state' => 'warm',
         'daily_limit' => 1000,
         'status' => 'active',

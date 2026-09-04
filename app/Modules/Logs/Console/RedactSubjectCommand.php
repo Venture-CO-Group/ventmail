@@ -6,6 +6,9 @@ namespace App\Modules\Logs\Console;
 
 use App\Modules\Audit\Services\AuditLogger;
 use App\Modules\Events\Models\MessageEvent;
+use App\Modules\Inbound\Contracts\RawMailStore;
+use App\Modules\Inbound\Models\InboundAttachment;
+use App\Modules\Inbound\Models\InboundMessage;
 use App\Modules\Logs\Models\ErasedRecipient;
 use App\Modules\Logs\Models\SmtpTransaction;
 use App\Modules\Sending\Models\DeliveryAttempt;
@@ -70,7 +73,7 @@ final class RedactSubjectCommand extends Command
             return self::FAILURE;
         }
 
-        $redacted = ['messages' => 0, 'mime' => 0, 'events' => 0, 'smtp' => 0, 'attempts' => 0, 'webhooks' => 0, 'suppressions' => 0];
+        $redacted = ['messages' => 0, 'mime' => 0, 'events' => 0, 'smtp' => 0, 'attempts' => 0, 'webhooks' => 0, 'suppressions' => 0, 'inbound' => 0];
 
         // SZÁRAZ FUTÁS: egy visszavonhatatlan, tenanteken átnyúló művelet előtt látni kell,
         // mit érintene. A tranzakció a végén visszagördül — a számok viszont valódiak.
@@ -98,6 +101,7 @@ final class RedactSubjectCommand extends Command
 
                     $redacted['webhooks'] += $this->redactWebhookDeliveries($key);
                     $redacted['suppressions'] += $this->redactSuppressions($key);
+                    $redacted['inbound'] += $this->redactInbound($key);
 
                     // A TARTÓS TILTÁS. Enélkül a kiküldött levélben lévő pixel egyetlen
                     // betöltéssel visszaírná a címet — és a webhookon harmadik félhez is.
@@ -130,7 +134,7 @@ final class RedactSubjectCommand extends Command
         $this->info(sprintf(
             ($dryRun ? '[SZÁRAZ FUTÁS] ' : '')
                 .'Redaktálva — üzenet: %d, nyers MIME: %d, esemény: %d, SMTP-párbeszéd: %d, '
-                .'kísérlet: %d, webhook-sor: %d, suppression: %d',
+                .'kísérlet: %d, webhook-sor: %d, suppression: %d, bejövő levél: %d',
             $redacted['messages'],
             $redacted['mime'],
             $redacted['events'],
@@ -138,6 +142,7 @@ final class RedactSubjectCommand extends Command
             $redacted['attempts'],
             $redacted['webhooks'],
             $redacted['suppressions'],
+            $redacted['inbound'],
         ));
 
         // RÉSZLEGES TÖRLÉS: az operátornak tudnia kell, hogy más workspace-eken a cím
@@ -272,6 +277,65 @@ final class RedactSubjectCommand extends Command
         }
 
         return $out;
+    }
+
+    /**
+     * A BEJÖVŐ levél (A4).
+     *
+     * Az érintett lehet a FELADÓ (ő írt nekünk) és a CÍMZETT is (neki írtak a mi
+     * domainünkön). Mindkettőt nézzük — és a nyers MIME MEGY: abból egyetlen címet nem
+     * lehet sebészileg kivágni úgy, hogy a szerkezet ép maradjon.
+     *
+     * A törzs és a csatolmány is megy: egy hozzánk írt levél TARTALMA maga a személyes adat,
+     * és a megőrzésére a törlési kérés után nincs jogalapunk. A kézbesítés TÉNYE (mikor,
+     * milyen státusszal) marad.
+     */
+    private function redactInbound(string $key): int
+    {
+        $count = 0;
+
+        InboundMessage::query()
+            ->where(fn (Builder $query) => $query
+                ->whereRaw('lower(sender) = ?', [$key])
+                ->orWhereRaw('lower(recipient) = ?', [$key]))
+            ->whereNull('redacted_at')
+            ->with('attachments')
+            ->eachById(function (InboundMessage $message) use (&$count): void {
+                // A FÁJLTÁRAT IS. Enélkül a nyers MIME és minden csatolmány (a karanténba
+                // tett is) a tárolóban maradna, a `storage_key` nullázásával pedig az
+                // `inbound:purge` sem találná meg többé — a fájlok VÉGLEGESEN árván
+                // maradnának. Egy törlési kérésre „teljesítettük"-et jelentenénk, miközben a
+                // legtöbb személyes adatot tartalmazó bájtok ott maradnak.
+                $store = app(RawMailStore::class);
+
+                $message->attachments->each(function (InboundAttachment $attachment) use ($store): void {
+                    if (($attachment->storage_key ?? '') !== '') {
+                        $store->delete((string) $attachment->storage_key);
+                    }
+
+                    $attachment->delete();
+                });
+
+                if (($message->storage_key ?? '') !== '') {
+                    $store->delete((string) $message->storage_key);
+                }
+
+                $message->forceFill([
+                    'sender' => null,
+                    'recipient' => '(redaktált)',
+                    'subject' => null,
+                    'body_plain' => null,
+                    'body_html' => null,
+                    'stripped_text' => null,
+                    'headers' => [],
+                    'storage_key' => null,
+                    'redacted_at' => now(),
+                ])->save();
+
+                $count++;
+            }, 500);
+
+        return $count;
     }
 
     /**

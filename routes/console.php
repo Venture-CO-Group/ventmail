@@ -35,5 +35,13 @@ Schedule::command('webhooks:retry')->everyMinute()->withoutOverlapping();
 // A lejárt napló-melléktáblák (SMTP-párbeszéd, kísérletek, webhook-sorok) takarítása.
 Schedule::command('logs:purge')->dailyAt('03:40');
 
+// A bejövő levél IDEGEN tartalom, rövid retencióval (alap 3 nap): GYAKRABBAN takarítunk,
+// mint a saját naplónkat, és a fájltárat is ürítjük vele.
+Schedule::command('inbound:purge')->hourly();
+
+// A bejövő fogadás BIZALMI HORGONYA: az MX-rekord bármikor eltűnhet (domain-átvitel,
+// DNS-hiba, az ügyfél átállt máshova), és onnantól nem a mi dolgunk levelet fogadni rá.
+Schedule::command('inbound:verify-mx')->hourly();
+
 // A lejárt nyers MIME-levelek törlése (golden rule 10): a levéltest a legsűrűbb PII-tárolónk.
 Schedule::command('messages:purge-raw-mime')->dailyAt('03:20');
