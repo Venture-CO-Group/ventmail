@@ -135,3 +135,68 @@ it('a rendes cél viszont elfogadható', function () {
     expect(TrackingController::safeDestination('https://ugyfel.example.test/szamla/42?a=1#x'))->toBeTrue();
     expect(TrackingController::safeDestination('http://ugyfel.example.test/x'))->toBeTrue();
 });
+
+/*
+ | A KANONIKUS ALAK vektorai.
+ |
+ | A puszta szigorú base64-dekódolás NEM elég: átengedi a levágott paddinget és a fel nem
+ | használt záró bitek nem nulla variánsait. Mindkettő ugyanarra az igényre fejtődne meg MÁS
+ | bájtsorból — és minden olyan fék, ami a bájtokra kulcsol, ezzel megkerülhető lenne.
+ */
+
+it('a levágott padding érvénytelen', function () {
+    $token = $this->tokens->issue(7, 'aaaa-bbbb', 'cimzett@example.test', 'email.pelda.hu');
+
+    expect($this->tokens->parse($token))->not->toBeNull();
+
+    $csonka = rtrim($token, '~');
+
+    // Csak akkor mérünk, ha volt mit levágni.
+    expect($csonka)->not->toBe($token);
+    expect($this->tokens->parse($csonka))->toBeNull();
+});
+
+it('a fel nem használt ZÁRÓ BITEK variánsai érvénytelenek', function () {
+    // A base64 utolsó adat-karaktere nem mind a 6 bitjét használja. A `…In0~` és a `…In1~`
+    // UGYANARRA a bájtsorra dekódolódik — a szigorú dekódoló egyiket sem utasítja el.
+    $token = $this->tokens->issue(7, 'aaaa-bbbb', 'cimzett@example.test', 'email.pelda.hu');
+
+    $paddingHossz = strlen($token) - strlen(rtrim($token, '~'));
+
+    if ($paddingHossz === 0) {
+        expect(true)->toBeTrue('ehhez a hosszhoz nincs padding — nincs mit mérni');
+
+        return;
+    }
+
+    $utolsoIndex = strlen($token) - $paddingHossz - 1;
+    $abc = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+
+    $elfogadott = [];
+
+    foreach (str_split($abc) as $karakter) {
+        if ($karakter === $token[$utolsoIndex]) {
+            continue;
+        }
+
+        $variant = substr_replace($token, $karakter, $utolsoIndex, 1);
+
+        if ($this->tokens->parse($variant) !== null) {
+            $elfogadott[] = $karakter;
+        }
+    }
+
+    expect($elfogadott)->toBe([]);
+});
+
+it('a whitespace beszúrása érvénytelen — a route-szűrőtől függetlenül is', function () {
+    // A route-regex ma megfogja, de a `parse()` nem támaszkodhat rá: minden más hívónak
+    // (parancs, job, jövőbeli végpont) magának kell zárnia.
+    $token = $this->tokens->issue(7, 'aaaa-bbbb', 'cimzett@example.test', 'email.pelda.hu');
+
+    foreach ([' ', "\n", "\r", "\t"] as $ws) {
+        expect($this->tokens->parse(substr($token, 0, 10).$ws.substr($token, 10)))->toBeNull();
+        expect($this->tokens->parse($ws.$token))->toBeNull();
+        expect($this->tokens->parse($token.$ws))->toBeNull();
+    }
+});

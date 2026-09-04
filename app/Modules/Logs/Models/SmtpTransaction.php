@@ -36,6 +36,16 @@ final class SmtpTransaction extends Model
 
     protected static function booted(): void
     {
+        // Törlési kérés után ebbe a táblába sem kerülhet a cím: a kései bounce ugyanezen az
+        // úton érkezik, hetekkel a törlés után. A kézbesítés TÉNYE marad, a SZEMÉLY nem.
+        self::creating(function (self $model): void {
+            if ($model->recipient !== null && ErasedRecipient::erased((string) $model->recipient)) {
+                $model->recipient = null;
+                $model->response_text = null;
+                $model->redacted_at = now();
+            }
+        });
+
         self::creating(function (self $transaction): void {
             // PII-tároló: a párbeszéd címzett-címet és a fogadó szövegét tartalmazza.
             $transaction->expires_at ??= now()->addDays((int) config('sending.delivery_attempt_retention_days'));

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Events\Models;
 
+use App\Modules\Logs\Models\ErasedRecipient;
 use App\Modules\Tenancy\Concerns\BelongsToWorkspace;
 use App\Modules\Webhooks\Services\WebhookDispatcher;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
@@ -63,6 +64,24 @@ final class MessageEvent extends Model
         // Minden rögzített esemény kimegy a feliratkozott webhook-végpontokra (A3).
         // MODELL-EVENTBEN, mert így nincs olyan út, ami elfelejtené: a küldési lánc, az
         // ütemező és a bounce-feldolgozó mind ugyanezen a modellen ír.
+        // TÖRLÉSI KÉRÉS UTÁN NINCS ÚJ SZEMÉLYES ADAT — bármelyik íróról legyen szó.
+        //
+        // Öt kódút ír eseményt (küldés, ütemező, kézbesítési eredmény, kései bounce,
+        // nyomkövetés). Ha az ellenőrzés a hívókban lenne, a következő új író biztosan
+        // kimaradna belőle — és épp az a hívó írná vissza a törölt címet, amelyikre senki
+        // nem gondolt. Itt egy helyen van, és nem megkerülhető.
+        //
+        // Az esemény MAGA megszületik: a kézbesítés TÉNYE nem az érintett személyes adata,
+        // és a statisztikának egyeznie kell. Csak a SZEMÉLY tűnik el belőle.
+        self::creating(function (self $event): void {
+            if ($event->recipient !== null && ErasedRecipient::erased((string) $event->recipient)) {
+                $event->recipient = null;
+                $event->variables = [];
+                $event->payload = collect((array) $event->payload)->only(['code', 'enhanced_code', 'classification'])->all();
+                $event->redacted_at = now();
+            }
+        });
+
         self::created(function (self $event): void {
             app(WebhookDispatcher::class)->dispatch($event);
         });

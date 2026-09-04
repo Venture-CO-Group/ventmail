@@ -8,10 +8,12 @@ use App\Modules\Events\Services\TrackingTokens;
 use App\Modules\Logs\Models\ErasedRecipient;
 use App\Modules\Logs\Models\SmtpTransaction;
 use App\Modules\Logs\Services\MessageLogQuery;
+use App\Modules\Sending\Actions\RecordDeliveryOutcome;
 use App\Modules\Sending\Actions\SendMessage;
 use App\Modules\Sending\Models\DeliveryAttempt;
 use App\Modules\Sending\Models\Message;
 use App\Modules\Sending\Models\RawMimeMessage;
+use App\Modules\Suppression\Models\Suppression;
 use App\Modules\Tenancy\Models\Workspace;
 use App\Modules\Tenancy\Services\WorkspaceContext;
 use App\Modules\Webhooks\Contracts\HostResolver;
@@ -474,4 +476,139 @@ it('a --workspace kapcsoló NEM nyúl a másik tenanthoz', function () {
 
     app(WorkspaceContext::class)->set($masik);
     expect(MessageEvent::query()->whereNotNull('recipient')->count())->toBe(1);
+});
+
+it('a törlés a `variables` és a `headers` mezőket is elviszi', function () {
+    // A `recipient-variables` KULCSA maga a cím, az értéke a személyre szabás adata; a `h:`
+    // felülírásokban (`Reply-To`, `X-Ugyfel`) az ÉRTÉK a cím. Aki csak az egyiket nézi, a
+    // másikat bent hagyja.
+    Queue::fake();
+
+    Domain::create(['name' => 'pelda.hu', 'status' => 'verified', 'verified_at' => now()]);
+
+    app(SendMessage::class)([
+        'channel' => 'transactional',
+        'from_email' => 'no-reply@pelda.hu',
+        'subject' => 'Számla',
+        'to' => ['erintett@example.test'],
+        'html' => '<p>Szia</p>',
+        'variables' => ['recipient-variables' => ['erintett@example.test' => ['nev' => 'Kovács Anna']]],
+        'headers' => ['Reply-To' => 'erintett@example.test', 'X-Ugyfel' => 'ugyfel erintett@example.test'],
+        'idempotency_key' => 'r-'.bin2hex(random_bytes(5)),
+    ]);
+
+    $this->artisan('logs:redact-subject', ['email' => 'erintett@example.test'])->assertSuccessful();
+
+    app(WorkspaceContext::class)->set($this->workspace);
+
+    $message = Message::query()->firstOrFail();
+
+    expect(json_encode($message->variables))->not->toContain('erintett@example.test');
+    expect(json_encode($message->variables))->not->toContain('Kovács Anna');
+    expect(json_encode($message->headers))->not->toContain('erintett@example.test');
+});
+
+it('a NAGYBETŰS alakban tárolt címet is megtalálja', function () {
+    // Szigorú egyezéssel a parancs SIKERT jelentene, a cím bent maradna, és a pixel vissza is
+    // írná — ez a lista triviális megkerülése lenne. A suppression már `listKey`-jel dolgozik;
+    // a törlés is azzal.
+    MessageEvent::create([
+        'message_uuid' => (string) Str::uuid(),
+        'type' => 'delivered',
+        'recipient' => 'Erintett@example.test',
+        'channel' => 'transactional',
+        'tags' => [],
+    ]);
+
+    $this->artisan('logs:redact-subject', ['email' => 'erintett@example.test'])->assertSuccessful();
+
+    app(WorkspaceContext::class)->set($this->workspace);
+
+    expect(MessageEvent::query()->whereNotNull('recipient')->count())->toBe(0);
+    expect(ErasedRecipient::erased('ERINTETT@EXAMPLE.TEST'))->toBeTrue();
+});
+
+it('a KÉSEI BOUNCE sem írhatja vissza a törölt címet', function () {
+    // Hetekkel a törlés után érkező kézbesítési eredmény ugyanazon az úton jön. Ha az
+    // ellenőrzés csak a nyomkövetőben lenne, ez a hívó visszaírná a címet — és a webhookon
+    // harmadik félhez is kivinné.
+    Queue::fake();
+
+    Domain::create(['name' => 'pelda.hu', 'status' => 'verified', 'verified_at' => now()]);
+
+    $message = app(SendMessage::class)([
+        'channel' => 'transactional',
+        'from_email' => 'no-reply@pelda.hu',
+        'subject' => 'Számla',
+        'to' => ['erintett@example.test'],
+        'html' => '<p>Szia</p>',
+        'idempotency_key' => 'r-'.bin2hex(random_bytes(5)),
+    ])->message;
+
+    $this->artisan('logs:redact-subject', ['email' => 'erintett@example.test'])->assertSuccessful();
+
+    app(WorkspaceContext::class)->set($this->workspace);
+
+    app(RecordDeliveryOutcome::class)($message, 'erintett@example.test', 550, '550 unknown user', '5.1.1');
+
+    // A kézbesítés TÉNYE megmarad — a személy nem.
+    expect(SmtpTransaction::query()->whereNotNull('recipient')->count())->toBe(0);
+    expect(DeliveryAttempt::query()->whereNotNull('recipient')->count())->toBe(0);
+    expect(MessageEvent::query()->whereNotNull('recipient')->count())->toBe(0);
+    expect(DeliveryAttempt::query()->first()->code)->toBe(550);
+    expect(MessageEvent::query()->where('type', 'bounced')->count())->toBe(1);
+});
+
+it('a suppression MEGMARAD, de a nyílt cím nem', function () {
+    // A bejegyzés törlése ÁRTANA az érintettnek: épp azt akadályozza meg, hogy továbbra is
+    // levelet kapjon. A kereséshez viszont a kulcsolt hash elég.
+    Suppression::create([
+        'email' => 'erintett@example.test',
+        'reason' => 'hard_bounce',
+        'detail' => '550 <erintett@example.test> unknown',
+    ]);
+
+    $this->artisan('logs:redact-subject', ['email' => 'erintett@example.test'])->assertSuccessful();
+
+    app(WorkspaceContext::class)->set($this->workspace);
+
+    $suppression = Suppression::query()->firstOrFail();
+
+    expect($suppression->email)->not->toContain('erintett');
+    expect($suppression->detail)->toBeNull();
+    // …és a lista TOVÁBBRA IS tiltja a küldést: a hash változatlan.
+    expect(Suppression::query()->where('email_hash', $suppression->email_hash)->exists())->toBeTrue();
+});
+
+it('a nyers MIME a BATCH-nél is törlődik', function () {
+    // A MIME egy bájtsor: egyetlen `To:` címet nem lehet sebészileg kivágni belőle úgy, hogy
+    // a szerkezet és a DKIM is ép maradjon. A megőrzés jogalapja gyengébb, mint a törlési
+    // kötelezettség — a kézbesítés tényét a `messages` sor őrzi.
+    Queue::fake();
+
+    Domain::create(['name' => 'pelda.hu', 'status' => 'verified', 'verified_at' => now()]);
+
+    $message = app(SendMessage::class)([
+        'channel' => 'transactional',
+        'from_email' => 'no-reply@pelda.hu',
+        'subject' => 'Közös',
+        'to' => ['erintett@example.test', 'marad@example.test'],
+        'html' => '<p>Szia</p>',
+        'idempotency_key' => 'r-'.bin2hex(random_bytes(5)),
+    ])->message;
+
+    RawMimeMessage::create([
+        'message_uuid' => $message->uuid,
+        'raw' => "To: erintett@example.test, marad@example.test\r\n\r\nSzia",
+        'size' => 50,
+        'sha256' => hash('sha256', 'x'),
+    ]);
+
+    $this->artisan('logs:redact-subject', ['email' => 'erintett@example.test'])->assertSuccessful();
+
+    app(WorkspaceContext::class)->set($this->workspace);
+
+    expect(RawMimeMessage::query()->count())->toBe(0);
+    // A másik címzett adata a `messages` sorban viszont megmarad.
+    expect(Message::query()->firstOrFail()->recipients)->toBe(['marad@example.test']);
 });

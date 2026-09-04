@@ -87,8 +87,11 @@ final class TrackingController
             return false;
         }
 
-        // Vezérlőkarakter (CR, LF, TAB, NUL, …) sehol, még százalék-kódolatlanul sem.
-        if (preg_match('/[\x00-\x1F\x7F]/', $url) === 1) {
+        // A `Location` értéke legyen ASCII-TISZTA, szóköz és vezérlőkarakter nélkül. A CR/LF
+        // az injekció miatt kizárt; a szóköz és a nem-ASCII bájt nem injektál (HTTP/1.1-ben
+        // csak a CRLF zár fejlécet), de egy szigorúbb proxy vagy WAF elutasíthatja — és a
+        // becsomagolás előtt az ügyfél még százalék-kódolhatja vagy punycode-olhatja.
+        if (preg_match('/^[\x21-\x7E]+$/', $url) !== 1) {
             return false;
         }
 

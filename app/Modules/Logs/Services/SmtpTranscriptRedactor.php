@@ -57,9 +57,15 @@ final class SmtpTranscriptRedactor
                 continue;
             }
 
-            if ($inAuth && $direction === 'in' && preg_match('/^[25]\d\d/', $trimmed) === 1) {
-                // A szerver LEZÁRTA a párbeszédet (siker vagy végleges hiba). A `334`
-                // folytatás nem zár le semmit — ott a következő kliens-sor még hitelesítő.
+            if ($inAuth && $direction === 'in' && preg_match('/^[245]\d\d/', $trimmed) === 1) {
+                // A szerver VÁLASZOLT a hitelesítésre — sikerrel (2xx), átmeneti (4xx) vagy
+                // végleges (5xx) hibával. Mind lezárja a SASL-párbeszédet. A 3xx SZÁNDÉKOSAN
+                // nincs köztük: az SMTP AUTH-ban a `334` a kihívás, ami épp azt jelenti, hogy
+                // a KÖVETKEZŐ kliens-sor még hitelesítő-anyag.
+                //
+                // A 4xx-et is lezárónak venni fontos: enélkül egy `454 Temporary
+                // authentication failure` után a `MAIL FROM:` és a `RCPT TO:` is redaktálva
+                // maradna — pont azok a sorok, amiket a support néz.
                 $inAuth = false;
             }
 

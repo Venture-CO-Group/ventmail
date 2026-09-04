@@ -32,8 +32,14 @@ use JsonException;
  * BÁJTJAIRA kulcsol, azt ezzel meg lehet kerülni — mérve: egy `~` beszúrása 370 pozícióban
  * érvényes maradt.
  *
- * Ezért a `parse()` SZIGORÚAN dekódol, ÉS visszaellenőrzi, hogy a kapott token pontosan az az
- * alak-e, amit mi adnánk ki ugyanarra az adatra. Egy igény = egy token.
+ * Ezért a `parse()` a KANONIKUS base64-alakot követeli meg: dekódol, majd VISSZAKÓDOL, és
+ * bájtra egyeztet. Ez elutasítja a belső `=`-t, a levágott paddinget és a fel nem használt
+ * záró bitek nem nulla variánsait is — a szigorú `base64_decode` önmagában az utóbbi kettőt
+ * átengedi.
+ *
+ * Ami ezen felül is marad: a `Crypt` IV-t használ, tehát UGYANARRA az igényre két kiadás két
+ * különböző bájtsort ad. A tokenből nem lehet „egyetlen érvényes alakot" csinálni. Ezért
+ * minden fék (dedup, rate-limit) a `fingerprint()`-re kulcsol — az IGÉNYRE, nem a bájtokra.
  */
 final class TrackingTokens
 {
@@ -54,9 +60,12 @@ final class TrackingTokens
     {
         $base64 = strtr($token, '-_~', '+/=');
 
-        // SZIGORÚ base64: a nem-szigorú változat a string belsejébe szúrt `=`-t (nálunk `~`)
-        // csendben átugorja, és a malleált token ugyanarra az igényre fejtődne meg.
-        if (base64_decode($base64, true) === false) {
+        // KANONIKUS base64: dekódol, visszakódol, bájtra egyeztet. A puszta szigorú
+        // dekódolás átengedné a levágott paddinget és a fel nem használt záró bitek nem nulla
+        // variánsait — mindkettő ugyanarra az igényre fejtődne meg más bájtsorból.
+        $binary = base64_decode($base64, true);
+
+        if ($binary === false || base64_encode($binary) !== $base64) {
             return null;
         }
 
