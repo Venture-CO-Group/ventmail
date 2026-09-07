@@ -43,5 +43,9 @@ Schedule::command('inbound:purge')->hourly();
 // DNS-hiba, az ügyfél átállt máshova), és onnantól nem a mi dolgunk levelet fogadni rá.
 Schedule::command('inbound:verify-mx')->hourly();
 
+// A feltöltött címlista az ügyfél TELJES címlistája lehet egy fájlban — ennél érzékenyebb
+// adat kevés van a rendszerben, és az ellenőrzés után nincs jogalapunk a megőrzésére.
+Schedule::command('validation:purge')->dailyAt('03:50');
+
 // A lejárt nyers MIME-levelek törlése (golden rule 10): a levéltest a legsűrűbb PII-tárolónk.
 Schedule::command('messages:purge-raw-mime')->dailyAt('03:20');

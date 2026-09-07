@@ -18,6 +18,7 @@ use App\Modules\Sending\Services\DomainNormalizer;
 use App\Modules\Suppression\Models\Suppression;
 use App\Modules\Tenancy\Models\Workspace;
 use App\Modules\Tenancy\Services\WorkspaceContext;
+use App\Modules\Validation\Models\ValidationResult;
 use App\Modules\Webhooks\Models\WebhookDelivery;
 use Illuminate\Console\Command;
 use Illuminate\Database\Eloquent\Builder;
@@ -73,7 +74,7 @@ final class RedactSubjectCommand extends Command
             return self::FAILURE;
         }
 
-        $redacted = ['messages' => 0, 'mime' => 0, 'events' => 0, 'smtp' => 0, 'attempts' => 0, 'webhooks' => 0, 'suppressions' => 0, 'inbound' => 0];
+        $redacted = ['messages' => 0, 'mime' => 0, 'events' => 0, 'smtp' => 0, 'attempts' => 0, 'webhooks' => 0, 'suppressions' => 0, 'inbound' => 0, 'validation' => 0];
 
         // SZÁRAZ FUTÁS: egy visszavonhatatlan, tenanteken átnyúló művelet előtt látni kell,
         // mit érintene. A tranzakció a végén visszagördül — a számok viszont valódiak.
@@ -102,6 +103,14 @@ final class RedactSubjectCommand extends Command
                     $redacted['webhooks'] += $this->redactWebhookDeliveries($key);
                     $redacted['suppressions'] += $this->redactSuppressions($key);
                     $redacted['inbound'] += $this->redactInbound($key);
+
+                    // A CÍMELLENŐRZÉS eredményei. Ez az ügyfél TELJES címlistája — a
+                    // `PurgeValidationCommand` saját docblockja mondja ki, hogy ennél
+                    // érzékenyebb adat kevés van a rendszerben. A 30 napos retenció nem
+                    // válasz egy Art. 17 kérésre.
+                    $redacted['validation'] += ValidationResult::query()
+                        ->whereRaw('lower(address) = ?', [$key])
+                        ->update(['address' => '(redaktált)', 'suggestion' => null, 'redacted_at' => now()]);
 
                     // A TARTÓS TILTÁS. Enélkül a kiküldött levélben lévő pixel egyetlen
                     // betöltéssel visszaírná a címet — és a webhookon harmadik félhez is.
@@ -134,7 +143,7 @@ final class RedactSubjectCommand extends Command
         $this->info(sprintf(
             ($dryRun ? '[SZÁRAZ FUTÁS] ' : '')
                 .'Redaktálva — üzenet: %d, nyers MIME: %d, esemény: %d, SMTP-párbeszéd: %d, '
-                .'kísérlet: %d, webhook-sor: %d, suppression: %d, bejövő levél: %d',
+                .'kísérlet: %d, webhook-sor: %d, suppression: %d, bejövő levél: %d, címellenőrzés: %d',
             $redacted['messages'],
             $redacted['mime'],
             $redacted['events'],
@@ -143,6 +152,7 @@ final class RedactSubjectCommand extends Command
             $redacted['webhooks'],
             $redacted['suppressions'],
             $redacted['inbound'],
+            $redacted['validation'],
         ));
 
         // RÉSZLEGES TÖRLÉS: az operátornak tudnia kell, hogy más workspace-eken a cím

@@ -15,6 +15,8 @@ interface DnsResolver
 {
     /**
      * @return list<string> a megtalált rekordértékek (üres tömb, ha nincs ilyen rekord)
+     *
+     * @throws DnsUnavailable ha a LEKÉRDEZÉS nem futott le
      */
     public function records(string $name, string $type): array;
 }

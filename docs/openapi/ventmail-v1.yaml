@@ -443,6 +443,110 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
 
+  /validate:
+    post:
+      tags: [validation]
+      summary: Egy cím ellenőrzése (szinkron)
+      description: |
+        NYOLC ellenőrzés: szintaxis · domain+MX · szerepcím · eldobható domain · catch-all ·
+        elgépelés-javaslat · kockázati pontszám · minősítés.
+
+        A `result` az a NÉGY szó, amit a felületen mutatni kell; a `risk` a folytonos
+        pontszám, amivel a küldési kapu dönt. Az `unknown` nem hiba: a catch-all szerver és a
+        greylisting mögött nincs igazság, amit ki lehetne deríteni — és a hamis bizonyosság
+        rosszabb, mint a bevallott bizonytalanság.
+      operationId: validateAddress
+      security: [{ bearerAuth: [] }, { basicAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [address]
+              properties:
+                address: { type: string, maxLength: 320 }
+      responses:
+        '200':
+          description: Az eredmény
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ValidationVerdict' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /validate/bulk:
+    post:
+      tags: [validation]
+      summary: Címlista ellenőrzése (aszinkron)
+      description: |
+        CSV-fájl vagy címtömb. A feldolgozás DARABOKBAN megy: a szonda per-domain kerete
+        percenként töltődik, tehát a folyamatos futás úgyis abba ütközne — a lassítás itt
+        FUNKCIÓ, nem korlát.
+      operationId: validateBulk
+      security: [{ bearerAuth: [] }, { basicAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string, maxLength: 120 }
+                addresses: { type: array, items: { type: string, maxLength: 320 } }
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                file: { type: string, format: binary, description: 'CSV — az első oszlop a cím' }
+      responses:
+        '202':
+          description: Sorba téve
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ValidationJob' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /validate/bulk/{uuid}:
+    get:
+      tags: [validation]
+      summary: Egy bulk futás állapota
+      operationId: showValidationJob
+      security: [{ bearerAuth: [] }, { basicAuth: [] }]
+      parameters:
+        - { name: uuid, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Az állapot
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ValidationJob' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /validate/bulk/{uuid}/export:
+    get:
+      tags: [validation]
+      summary: A bulk futás eredménye CSV-ben
+      operationId: exportValidationJob
+      security: [{ bearerAuth: [] }, { basicAuth: [] }]
+      parameters:
+        - { name: uuid, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: CSV
+          content:
+            text/csv:
+              schema: { type: string }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
   /routes:
     get:
       tags: [inbound]
@@ -804,6 +908,53 @@ components:
         variables: { type: object, additionalProperties: true, description: 'a `v:*` változók — az integrációk ebből azonosítják a saját rekordjaikat' }
         occurred_at: { type: string, format: date-time }
 
+    ValidationVerdict:
+      type: object
+      properties:
+        address: { type: string }
+        result:
+          type: string
+          enum: [deliverable, risky, undeliverable, unknown]
+          description: |
+            `deliverable` — minden jel jó · `risky` — valószínűleg jó, de nem biztos
+            (szerepcím, catch-all, eldobható domain) · `undeliverable` — biztosan rossz
+            (szintaxis, nincs MX, a fogadó elutasította) · `unknown` — nem tudtuk eldönteni.
+        risk: { type: number, minimum: 0, maximum: 1 }
+        reasons:
+          type: array
+          items:
+            type: string
+            enum: [SYNTAX_INVALID, NO_MX_RECORD, ROLE_ADDRESS, DISPOSABLE_DOMAIN, CATCH_ALL_DOMAIN, MAILBOX_NOT_FOUND, PROBE_INCONCLUSIVE, POSSIBLE_TYPO]
+        did_you_mean:
+          type: [string, 'null']
+          description: 'elgépelés-javaslat (`gmial.com` → `gmail.com`)'
+        checks:
+          type: object
+          description: |
+            Ellenőrzésenkénti részeredmény. MINDEN kulcs jelen van, a korai kilépésnél is —
+            az integrátor nem indexelhet vakon egy hiányzó kulcsra. A bool mezők MINDENHOL
+            azt jelentik: „rendben van-e".
+          additionalProperties: true
+
+    ValidationJob:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: [string, 'null'] }
+        status: { type: string, enum: [pending, processing, completed, failed] }
+        total: { type: integer }
+        processed: { type: integer }
+        summary:
+          type: object
+          properties:
+            deliverable: { type: integer }
+            risky: { type: integer }
+            undeliverable: { type: integer }
+            unknown: { type: integer }
+        started_at: { type: [string, 'null'], format: date-time }
+        finished_at: { type: [string, 'null'], format: date-time }
+        expires_at: { type: [string, 'null'], format: date-time }
+
     InboundRouteInput:
       type: object
       required: [match_type, actions]
@@ -976,6 +1127,9 @@ components:
         - RAW_UNAVAILABLE
         - ATTACHMENT_NOT_DOWNLOADABLE
         - RAW_CONTAINS_INFECTED_ATTACHMENT
+        - UNKNOWN_JOB
+        - EMPTY_LIST
+        - LIST_TOO_LARGE
         - INVALID_WEBHOOK_URL
         - UNRESOLVABLE_WEBHOOK_URL
         - IN_PROGRESS

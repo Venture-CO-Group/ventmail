@@ -68,6 +68,10 @@ it('az IDEGEN MX-rekordot elutasítja', function () {
 });
 
 it('MX-rekord NÉLKÜL is elutasítja', function () {
+    // EXPLICIT blackhole: publikálás nélkül a fake alapértelmezésből adna MX-et, és a teszt
+    // attól lenne zöld, hogy az MX IDEGEN — vagyis a fölötte lévő esetet ismételné meg.
+    $this->dns->blackhole('pelda.hu');
+
     expect(app(VerifyInboundMx::class)(inboundDomain()))->toBe('failed');
 });
 

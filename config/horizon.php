@@ -28,6 +28,9 @@ return [
     'memory_limit' => 256,
 
     'defaults' => [
+        /*
+         | A KÜLDÉSI sorok: prioritás szerint (transactional > journey > campaign).
+         */
         'sending' => [
             'connection' => 'redis',
             'queue' => SendQueue::priorityOrder(),
@@ -41,11 +44,45 @@ return [
             'timeout' => 120,
             'nice' => 0,
         ],
+
+        /*
+         | A HÁTTÉRMUNKA sorai — külön supervisor.
+         |
+         | Ezek NEM küldési sorok: ha ugyanabba a supervisorba kerülnének, egy nagy bulk
+         | ellenőrzés vagy egy lassú inbound parse a TRANZAKCIÓS levelek elé állna. És ami
+         | ennél is fontosabb: a `default` sort a küldési supervisor EGYÁLTALÁN nem fogyasztja
+         | — az oda tett job örökre a sorban maradna, csendben.
+         |
+         | A hosszabb `timeout` a bejövő MIME-parse és a szonda miatt kell (a szonda maga 10
+         | másodpercet is várhat egy lassú fogadóra).
+         */
+        'background' => [
+            'connection' => 'redis',
+            'queue' => ['validation', 'inbound', 'webhooks', 'default'],
+            'balance' => 'auto',
+            'autoScalingStrategy' => 'time',
+            'maxProcesses' => 1,
+            'maxTime' => 0,
+            'maxJobs' => 0,
+            'memory' => 512,
+            'tries' => 1,
+            'timeout' => 300,
+            'nice' => 0,
+        ],
     ],
 
     'environments' => [
-        'production' => ['sending' => ['maxProcesses' => 20, 'balanceMaxShift' => 3, 'balanceCooldown' => 3]],
-        'local' => ['sending' => ['maxProcesses' => 3]],
-        'testing' => ['sending' => ['maxProcesses' => 1]],
+        'production' => [
+            'sending' => ['maxProcesses' => 20, 'balanceMaxShift' => 3, 'balanceCooldown' => 3],
+            'background' => ['maxProcesses' => 6],
+        ],
+        'local' => [
+            'sending' => ['maxProcesses' => 3],
+            'background' => ['maxProcesses' => 2],
+        ],
+        'testing' => [
+            'sending' => ['maxProcesses' => 1],
+            'background' => ['maxProcesses' => 1],
+        ],
     ],
 ];
