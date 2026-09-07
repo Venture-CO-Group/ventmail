@@ -6,6 +6,7 @@ namespace App\Modules\Inbound\Services;
 
 use App\Modules\Inbound\Data\ParsedAttachment;
 use App\Modules\Inbound\Data\ParsedMail;
+use RuntimeException;
 
 /**
  * A BEJÖVŐ MIME értelmezése — korlátok között (36. kritérium).
@@ -45,6 +46,9 @@ final class InboundMimeParser
     /** Ennél többet ez a parse nem foglalhat — a FATAL ERROR nem elkapható. */
     private int $memoryCeiling = 0;
 
+    /** A legkisebb értelmes munkaterület — egy pár kilobájtos levélhez is kell ennyi. */
+    private const MIN_WORKING_SET = 1_048_576;
+
     /** @var list<string> */
     private array $warnings = [];
 
@@ -59,24 +63,49 @@ final class InboundMimeParser
      * ERROR — ami nem `Throwable`, tehát a job `catch` ága nem fogja — visszahozza az egész
      * problémát. Ezért a kettő közül a SZIGORÚBBAT vesszük, biztonsági kerettel.
      */
-    private function ceiling(): int
+    private function ceiling(int $inputBytes): int
     {
-        $ceiling = memory_get_usage(true) + (int) config('inbound.parser.max_memory_bytes');
-
+        $usage = memory_get_usage(true);
+        $configured = (int) config('inbound.parser.max_memory_bytes');
         $limit = $this->processLimitBytes();
 
-        if ($limit > 0) {
-            // ABSZOLÚT plafon, nem a pillanatnyi használathoz mért ráhagyás.
-            //
-            // A különbség lényeges: ha a worker már 70 MB-ot használ, a „jelenlegi + 70 MB"
-            // számítás 140 MB-os plafont adna egy 128 MB-os limiten — vagyis a saját
-            // védelmünk sosem sülne el. A 25%-os tartalék pedig azért kell, mert a `.=`
-            // újrafoglalás egyetlen lépésben is átmásolja a teljes puffert (mérve: 18 MB-os
-            // foglalás egy 16 MB-os csatolmánynál).
-            $ceiling = min($ceiling, (int) ($limit * 0.75));
+        if ($limit <= 0) {
+            return $usage + $configured;
         }
 
-        return $ceiling;
+        // A plafon NÖVEKEDÉSI KERET, nem abszolút határ — de a MARADÉK helyre szorítva.
+        //
+        // Mindkét naiv változat rossz, és mindkettőt megmértük:
+        //  - „jelenlegi + 256 MB": egy 128 MB-os limiten 140 MB-os plafont ad, tehát a saját
+        //    védelmünk sosem sül el, és a FATAL ERROR (ami nem `Throwable`) megöli a workert;
+        //  - „a limit 75%-a" abszolút határként: ha a hosszan élő worker MÁR 100 MB-ot
+        //    használ, a plafon a jelenlegi állapot ALATT van, és a parser AZONNAL megszakít
+        //    — csendben, üres eredménnyel. Mérve: a soros teszt-futásban a bejövő tesztek
+        //    fele így „nulla csatolmányt" talált, miközben a kód jó volt.
+        //
+        // A 15% tartalék azért kell, mert a `.=` újrafoglalás egyetlen lépésben átmásolja a
+        // teljes puffert (mérve: 18 MB-os foglalás egy 16 MB-os csatolmánynál).
+        $headroom = (int) ($limit * 0.85) - $usage;
+
+        // A KÖVETELMÉNY a BEMENETHEZ mért, nem fix: egy kétkilobájtos levélhez nem kell
+        // nyolc megabájt, egy 25 MB-oshoz viszont kevés lenne. A szorzó kettő, mert a parse
+        // legalább a dekódolt tartalmat és a részekre vágott másolatokat is tartja.
+        $required = max(self::MIN_WORKING_SET, $inputBytes * 2);
+
+        if ($headroom < $required) {
+            // A KÖRNYEZET a hibás, nem a levél. Ezt HANGOSAN mondjuk ki: a job elbukik, az
+            // üzenet `failed` lesz, a worker újraindul — szemben a csendes, üres parse-szal,
+            // ami után senki nem tudná, miért nincs a levélben semmi.
+            throw new RuntimeException(sprintf(
+                'A bejövő MIME értelmezéséhez nincs elég memória: %d bájt szabad, %d kellene '
+                .'ehhez a %d bájtos levélhez. Emeld a worker `memory_limit`-jét (a compose-ban 512M).',
+                max(0, $headroom),
+                $required,
+                $inputBytes,
+            ));
+        }
+
+        return $usage + min($configured, $headroom);
     }
 
     private function processLimitBytes(): int
@@ -104,7 +133,7 @@ final class InboundMimeParser
         $this->warnings = [];
         $this->attachments = [];
         $this->deadline = microtime(true) + (float) config('inbound.parser.max_seconds');
-        $this->memoryCeiling = $this->ceiling();
+        $this->memoryCeiling = $this->ceiling(strlen($raw));
 
         [$headerBlock, $body] = $this->split($raw);
 

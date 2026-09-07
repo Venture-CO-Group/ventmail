@@ -383,18 +383,37 @@ it('a KIS méretre kibomló archívum nem bomba, akármilyen az aránya', functi
  */
 
 it('a memória-plafon MEGSZAKÍTJA a dekódolást, nem hagyja elszállni', function () {
-    // A plafont a konfigból szűkítjük, hogy a viselkedést a teszt memória-limitjének
-    // felborítása nélkül mérhessük.
-    config(['inbound.parser.max_memory_bytes' => 1_048_576]);
+    // A KONFIGURÁLT keretet szűkítjük — ez a POLITIKA ága: van elég memória, csak mi magunk
+    // döntöttünk úgy, hogy ennyit szánunk rá. A bemenet kicsi, hogy a mérés a soros
+    // teszt-futásban is elférjen.
+    config(['inbound.parser.max_memory_bytes' => 65_536]);
 
     $raw = "Content-Type: text/plain\r\nContent-Transfer-Encoding: base64\r\n\r\n"
-        .chunk_split(base64_encode(str_repeat('y', 8 * 1024 * 1024)), 76, "\r\n");
+        .chunk_split(base64_encode(str_repeat('y', 200 * 1024)), 76, "\r\n");
 
     $parsed = (new InboundMimeParser)->parse($raw);
 
     // NEM dobott, és JELEZTE — a támogatás különben azt hinné, hogy a levél üres volt.
     expect($parsed->warnings)->not->toBeEmpty();
-    expect(implode(' ', $parsed->warnings))->toContain('memória');
+    expect(implode(' ', $parsed->warnings))->toContain('korlátba');
+});
+
+it('ha a PROCESSZBEN nincs elég hely, HANGOSAN elbukik', function () {
+    // A csendes, üres parse rosszabb, mint a hangos hiba: az előbbi után senki nem tudná,
+    // miért nincs a levélben semmi — és a hiba a KÖRNYEZETÉ, nem a levélé.
+    $parser = new InboundMimeParser;
+
+    $limit = (new ReflectionMethod($parser, 'processLimitBytes'))->invoke($parser);
+
+    if ($limit === 0) {
+        expect(true)->toBeTrue('korlátlan memory_limit — nincs mit mérni');
+
+        return;
+    }
+
+    // Akkora „bemenet", amit ez a processz semmiképp nem tud kétszer eltartani.
+    expect(fn () => (new ReflectionMethod($parser, 'ceiling'))->invoke($parser, $limit))
+        ->toThrow(RuntimeException::class);
 });
 
 it('a plafon a PROCESSZ limitjéhez igazodik, nem csak a confighoz', function () {
@@ -404,7 +423,7 @@ it('a plafon a PROCESSZ limitjéhez igazodik, nem csak a confighoz', function ()
 
     $parser = new InboundMimeParser;
 
-    $ceiling = (new ReflectionMethod($parser, 'ceiling'))->invoke($parser);
+    $ceiling = (new ReflectionMethod($parser, 'ceiling'))->invoke($parser, 1024);
     $limit = (new ReflectionMethod($parser, 'processLimitBytes'))->invoke($parser);
 
     if ($limit === 0) {

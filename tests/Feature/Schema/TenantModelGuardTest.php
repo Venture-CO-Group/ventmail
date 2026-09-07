@@ -15,6 +15,8 @@ use App\Modules\Tenancy\Concerns\BelongsToWorkspace;
 use App\Modules\Tenancy\Concerns\BelongsToWorkspaceOrPlatform;
 use App\Modules\Tenancy\Models\Workspace;
 use App\Modules\Tenancy\Models\WorkspaceMember;
+use App\Modules\Validation\Models\ValidationJob;
+use App\Modules\Validation\Models\ValidationResult;
 use App\Modules\Webhooks\Models\WebhookDelivery;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\File;
@@ -99,6 +101,10 @@ it('minden admin-felületű modell auditált', function () {
         // `InboundRoute` auditálja, és a törlési kérést a `logs:redact-subject`.
         InboundMessage::class,
         InboundAttachment::class,
+        // A címellenőrzés EREDMÉNYE gépi adat: a futást az API-hívás indítja (ott van
+        // scope-ellenőrzés), a sorok maguk nem admin-műveletek.
+        ValidationJob::class,
+        ValidationResult::class,
     ];
 
     $offenders = [];

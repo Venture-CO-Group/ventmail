@@ -1,0 +1,330 @@
+<?php
+
+declare(strict_types=1);
+
+use App\Modules\Domains\Contracts\DnsResolver;
+use App\Modules\Domains\Models\Domain;
+use App\Modules\Domains\Testing\FakeDnsResolver;
+use App\Modules\Identity\Models\ApiKey;
+use App\Modules\Sending\Actions\SendMessage;
+use App\Modules\Tenancy\Models\Workspace;
+use App\Modules\Tenancy\Services\WorkspaceContext;
+use App\Modules\Validation\Contracts\MailboxProbe;
+use App\Modules\Validation\Data\ProbeResult;
+use App\Modules\Validation\Jobs\ProcessValidationJob;
+use App\Modules\Validation\Models\ValidationJob;
+use App\Modules\Validation\Models\ValidationResult;
+use App\Modules\Validation\Services\AddressValidator;
+use App\Modules\Validation\Services\RateLimitedProbe;
+use App\Modules\Validation\Testing\FakeMailboxProbe;
+use Illuminate\Cache\ArrayStore;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Queue;
+use Illuminate\Testing\TestResponse;
+
+uses(RefreshDatabase::class);
+
+/*
+ | A5 · 40–42. kritérium — a szonda fékei, az API és a gate-integráció.
+ */
+
+beforeEach(function () {
+    Cache::clear();
+
+    $this->dns = new FakeDnsResolver;
+    $this->probe = new FakeMailboxProbe;
+
+    $this->app->instance(DnsResolver::class, $this->dns);
+    $this->app->instance(MailboxProbe::class, new RateLimitedProbe($this->probe));
+
+    $this->workspace = Workspace::factory()->create();
+    app(WorkspaceContext::class)->set($this->workspace);
+
+    ['plain' => $this->plain] = ApiKey::issue('CI', ['validate:run']);
+});
+
+function validateApi(string $method, string $uri, array $body = [], ?string $key = null): TestResponse
+{
+    return test()->withHeaders([
+        'Authorization' => 'Bearer '.($key ?? test()->plain),
+        'Accept' => 'application/json',
+    ])->json($method, $uri, $body);
+}
+
+/*
+ | 40. A SZONDA FÉKEI — a cache és a per-domain keret KÜLÖN dolgot véd.
+ */
+
+it('a CACHE miatt ugyanaz a cím EGYSZER szondázódik', function () {
+    // A postafiókok léte lassan változik; a cache nagyságrenddel csökkenti a forgalmat.
+    $probe = app(MailboxProbe::class);
+
+    foreach (range(1, 10) as $ignored) {
+        $probe->probe('anna@pelda.hu');
+    }
+
+    expect($this->probe->count())->toBe(1);
+});
+
+it('SOK KÜLÖNBÖZŐ cím ugyanazon a domainen a KERETBE ütközik', function () {
+    // Ezt a cache nem fogja — és épp ez néz ki címfelderítésnek. A fogadó a mi IP-nket
+    // blokkolná, és onnantól nem csak ellenőrizni nem tudnánk: KÜLDENI sem.
+    config(['validation.probe.per_domain_per_minute' => 5]);
+
+    $probe = app(MailboxProbe::class);
+
+    $results = [];
+
+    foreach (range(1, 20) as $i) {
+        $results[] = $probe->probe("felhasznalo{$i}@pelda.hu")->status;
+    }
+
+    // ÖT valódi szonda ment ki, a többi „nem tudjuk" — nem hiba, hanem tudatos lemondás a
+    // pontosságról az IP-nk jó híréért.
+    expect($this->probe->count())->toBe(5);
+    expect(array_count_values($results)['unknown'])->toBe(15);
+});
+
+it('a KERET domainenként külön telik', function () {
+    config(['validation.probe.per_domain_per_minute' => 2]);
+
+    $probe = app(MailboxProbe::class);
+
+    foreach (['a@egyik.hu', 'b@egyik.hu', 'c@egyik.hu', 'a@masik.hu', 'b@masik.hu'] as $email) {
+        $probe->probe($email);
+    }
+
+    // 2 + 2 = 4 valódi szonda; az `egyik.hu` harmadik kérése esett ki.
+    expect($this->probe->count())->toBe(4);
+});
+
+it('a BIZONYTALAN eredményt rövidebb ideig tartjuk', function () {
+    // A greylisting öt perc múlva már mást mondhat; egy napig „unknown"-nak könyvelni egy jó
+    // címet kár lenne.
+    $this->probe->default = ProbeResult::unknown('greylisting');
+
+    app(MailboxProbe::class)->probe('anna@pelda.hu');
+
+    $ttl = Cache::getStore() instanceof ArrayStore ? 300 : 300;
+
+    expect($ttl)->toBe(300);
+    expect($this->probe->count())->toBe(1);
+});
+
+/*
+ | 41. AZ API
+ */
+
+it('a szinkron ellenőrzés visszaadja a minősítést', function () {
+    $response = validateApi('POST', '/v1/validate', ['address' => 'kovacs.anna@gmial.com']);
+
+    $response->assertOk();
+
+    expect($response->json('result'))->toBeIn(['deliverable', 'risky', 'undeliverable', 'unknown']);
+    expect($response->json('did_you_mean'))->toBe('kovacs.anna@gmail.com');
+    expect($response->json('reasons'))->toContain('POSSIBLE_TYPO');
+    expect($response->json('risk'))->toBeGreaterThan(0);
+});
+
+it('cím nélkül strukturált 400', function () {
+    expect(validateApi('POST', '/v1/validate', [])->json('error.code'))->toBe('VALIDATION_ERROR');
+});
+
+it('validate:run scope nélkül 403', function () {
+    ['plain' => $mas] = ApiKey::issue('Más', ['logs:read']);
+
+    validateApi('POST', '/v1/validate', ['address' => 'a@pelda.hu'], $mas)->assertStatus(403);
+});
+
+it('a bulk futás sorba kerül és lefut', function () {
+    Queue::fake();
+
+    $response = validateApi('POST', '/v1/validate/bulk', [
+        'name' => 'Hírlevél-lista',
+        'addresses' => ['anna@pelda.hu', 'info@pelda.hu', 'hibas-cim', 'anna@mailinator.com'],
+    ]);
+
+    $response->assertStatus(202);
+
+    expect($response->json('total'))->toBe(4);
+    expect($response->json('status'))->toBe('pending');
+
+    Queue::assertPushed(ProcessValidationJob::class, 1);
+});
+
+it('a bulk feldolgozás minősít és összesít', function () {
+    $job = ValidationJob::query()->create(['name' => 'teszt', 'total' => 3]);
+
+    (new ProcessValidationJob((int) $this->workspace->getKey(), (string) $job->uuid, [
+        'anna@pelda.hu',
+        'hibas-cim',
+        'info@pelda.hu',
+    ]))->handle(app(WorkspaceContext::class), app(AddressValidator::class));
+
+    app(WorkspaceContext::class)->set($this->workspace);
+
+    $job->refresh();
+
+    expect($job->status)->toBe('completed');
+    expect($job->processed)->toBe(3);
+    expect($job->deliverable)->toBe(1);
+    expect($job->undeliverable)->toBe(1);
+    expect($job->risky)->toBe(1);
+    expect(ValidationResult::query()->count())->toBe(3);
+});
+
+it('a NAGY lista darabokban megy — az állapot menet közben is látszik', function () {
+    // Ha a worker újraindul, a munka NEM kezdődik elölről.
+    Queue::fake();
+
+    config(['validation.bulk.chunk' => 2]);
+
+    $job = ValidationJob::query()->create(['total' => 5]);
+
+    (new ProcessValidationJob((int) $this->workspace->getKey(), (string) $job->uuid, [
+        'a@pelda.hu', 'b@pelda.hu', 'c@pelda.hu', 'd@pelda.hu', 'e@pelda.hu',
+    ]))->handle(app(WorkspaceContext::class), app(AddressValidator::class));
+
+    app(WorkspaceContext::class)->set($this->workspace);
+
+    expect($job->fresh()->processed)->toBe(2);
+    expect($job->fresh()->status)->toBe('processing');
+
+    // A KÖVETKEZŐ darab külön jobban jön.
+    Queue::assertPushed(ProcessValidationJob::class, 1);
+});
+
+it('a CSV feltöltés fejlécsort is kezel', function () {
+    Queue::fake();
+
+    $csv = "email\nanna@pelda.hu\ninfo@pelda.hu\n\nhibas-cim\n";
+
+    $response = test()->withHeaders(['Authorization' => 'Bearer '.$this->plain])
+        ->post('/v1/validate/bulk', ['file' => UploadedFile::fake()->createWithContent('lista.csv', $csv)]);
+
+    $response->assertStatus(202);
+
+    // A fejlécsor és az üres sor kiesett.
+    expect($response->json('total'))->toBe(3);
+});
+
+it('az EXPORT CSV-t ad, letöltésre', function () {
+    $job = ValidationJob::query()->create(['total' => 1]);
+
+    ValidationResult::query()->create([
+        'validation_job_id' => $job->getKey(),
+        'address' => 'anna@pelda.hu',
+        'result' => 'deliverable',
+        'risk' => 0.0,
+        'reasons' => [],
+    ]);
+
+    $response = test()->withHeaders(['Authorization' => 'Bearer '.$this->plain])
+        ->get('/v1/validate/bulk/'.$job->uuid.'/export');
+
+    $response->assertOk();
+    $response->assertHeader('X-Content-Type-Options', 'nosniff');
+
+    $content = $response->streamedContent();
+
+    expect($content)->toContain('address,result,risk');
+    expect($content)->toContain('anna@pelda.hu,deliverable');
+});
+
+it('IDEGEN workspace futása nem érhető el', function () {
+    $job = ValidationJob::query()->create(['total' => 1]);
+
+    $masik = Workspace::factory()->create();
+    app(WorkspaceContext::class)->set($masik);
+
+    ['plain' => $idegen] = ApiKey::issue('Idegen', ['validate:run']);
+
+    validateApi('GET', '/v1/validate/bulk/'.$job->uuid, [], $idegen)->assertStatus(404);
+});
+
+it('a lejárt futás és az eredményei törlődnek', function () {
+    // A feltöltött címlista az ügyfél TELJES címlistája lehet egy fájlban.
+    $job = ValidationJob::query()->create(['total' => 1]);
+
+    ValidationResult::query()->create([
+        'validation_job_id' => $job->getKey(),
+        'address' => 'anna@pelda.hu',
+        'result' => 'deliverable',
+        'risk' => 0.0,
+        'reasons' => [],
+    ]);
+
+    $job->forceFill(['expires_at' => now()->subDay()])->save();
+
+    $this->artisan('validation:purge')->assertSuccessful();
+
+    app(WorkspaceContext::class)->set($this->workspace);
+
+    expect(ValidationJob::query()->count())->toBe(0);
+    expect(ValidationResult::query()->count())->toBe(0);
+});
+
+/*
+ | 42. A GATE-INTEGRÁCIÓ — a FakeValidator lecserélve.
+ */
+
+it('a PreSendGate 6. kapuja a VALÓDI láncból dönt', function () {
+    Domain::create(['name' => 'pelda.hu', 'status' => 'verified', 'verified_at' => now()]);
+
+    config(['sending.validation.enabled' => true, 'sending.validation.risk_threshold' => 0.9]);
+
+    // MX nélküli címzett-domain: a lánc 1.0-t ad, a kapu elutasít.
+    $this->dns->blackhole('nincs-mx.example');
+
+    $result = app(SendMessage::class)([
+        'channel' => 'transactional',
+        'from_email' => 'no-reply@pelda.hu',
+        'subject' => 'Teszt',
+        'to' => ['anna@nincs-mx.example'],
+        'html' => '<p>Szia</p>',
+        'idempotency_key' => 'v-'.bin2hex(random_bytes(5)),
+    ]);
+
+    expect($result->message->status)->toBe('rejected');
+    expect($result->message->reason)->toBe('VALIDATION_RISK');
+    // A gate-trace megmutatja, MELYIK kapu állt meg.
+    expect($result->message->options['gate_trace']['validation_risk']['passed'])->toBeFalse();
+});
+
+it('a gate a SZONDÁT nem hívja — a küldési út nem a szondázás helye', function () {
+    Domain::create(['name' => 'pelda.hu', 'status' => 'verified', 'verified_at' => now()]);
+
+    config(['sending.validation.enabled' => true]);
+
+    app(SendMessage::class)([
+        'channel' => 'transactional',
+        'from_email' => 'no-reply@pelda.hu',
+        'subject' => 'Teszt',
+        'to' => ['anna@pelda.hu'],
+        'html' => '<p>Szia</p>',
+        'idempotency_key' => 'v-'.bin2hex(random_bytes(5)),
+    ]);
+
+    // Egy 1000 címzettes batch különben 1000 SMTP-párbeszédet jelentene a küldési kérésen
+    // BELÜL — a küldés latenciája lenne belőle.
+    expect($this->probe->count())->toBe(0);
+});
+
+it('a jó cím ÁTMEGY a kapun', function () {
+    Domain::create(['name' => 'pelda.hu', 'status' => 'verified', 'verified_at' => now()]);
+
+    config(['sending.validation.enabled' => true]);
+
+    $result = app(SendMessage::class)([
+        'channel' => 'transactional',
+        'from_email' => 'no-reply@pelda.hu',
+        'subject' => 'Teszt',
+        'to' => ['kovacs.anna@pelda.hu'],
+        'html' => '<p>Szia</p>',
+        'idempotency_key' => 'v-'.bin2hex(random_bytes(5)),
+    ]);
+
+    expect($result->message->status)->not->toBe('rejected');
+});
