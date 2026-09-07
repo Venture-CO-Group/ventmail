@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Domains\Services;
 
 use App\Modules\Domains\Contracts\DnsResolver;
+use App\Modules\Domains\Contracts\DnsUnavailable;
 
 /**
  * Éles DNS-feloldás a rendszer resolverén keresztül.
@@ -31,7 +32,11 @@ final class SystemDnsResolver implements DnsResolver
         $records = @dns_get_record($name, $constant);
 
         if ($records === false) {
-            return [];
+            // A LEKÉRDEZÉS bukott (SERVFAIL, időtúllépés, resolver-kiesés) — ez NEM azt
+            // jelenti, hogy nincs ilyen rekord. Az üres tömb visszaadása a hívónak azt
+            // mondaná, hogy „megnéztem, nincs ott", és a címellenőrzés ebből 1.0 kockázatot
+            // számolna: egy DNS-kimaradás a teljes platform küldését állítaná meg.
+            throw new DnsUnavailable(sprintf('A(z) %s %s lekérdezése nem futott le.', $name, $type));
         }
 
         return array_values(array_filter(array_map(

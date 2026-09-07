@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Modules\Domains\Contracts\DnsResolver;
+use App\Modules\Domains\Contracts\DnsUnavailable;
 use App\Modules\Domains\Models\Domain;
 use App\Modules\Domains\Testing\FakeDnsResolver;
 use App\Modules\Identity\Models\ApiKey;
@@ -21,6 +22,7 @@ use Illuminate\Cache\ArrayStore;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Testing\TestResponse;
 
@@ -37,7 +39,11 @@ beforeEach(function () {
     $this->probe = new FakeMailboxProbe;
 
     $this->app->instance(DnsResolver::class, $this->dns);
-    $this->app->instance(MailboxProbe::class, new RateLimitedProbe($this->probe));
+    $this->app->instance(MailboxProbe::class, new RateLimitedProbe(
+        $this->probe,
+        $this->dns,
+        app(WorkspaceContext::class),
+    ));
 
     $this->workspace = Workspace::factory()->create();
     app(WorkspaceContext::class)->set($this->workspace);
@@ -456,4 +462,156 @@ it('a bulk job NEVESÍTETT sorra megy', function () {
     validateApi('POST', '/v1/validate/bulk', ['addresses' => ['anna@pelda.hu']]);
 
     Queue::assertPushed(ProcessValidationJob::class, fn ($job) => $job->queue === 'validation');
+});
+
+/*
+ | A biztonsági review blokkolói — viselkedésből mérve.
+ */
+
+it('a NEMZETKÖZI (IDN) címzett átmegy a kapun', function () {
+    // A 6. kapu élesítése után a szintaxis-ellenőrzés a NYERS címre futott, a
+    // domain-karakterosztály viszont ASCII — mérve: `anna@példa.hu` risk=1.00, tehát MINDEN
+    // nemzetközi címzett kiesett volna a küldésből. Ez az A2+ ADR SMTPUTF8-döntését ejtené el.
+    $verdict = app(AddressValidator::class)
+        ->validate('anna@példa.hu', withProbe: false);
+
+    expect($verdict->classification)->toBe('deliverable');
+    expect($verdict->risk)->toBe(0.0);
+});
+
+it('a DNS-KIMARADÁS nem állítja meg a küldést', function () {
+    // A `records()` korábban minden hibára üres tömböt adott: a SERVFAIL, az időtúllépés és
+    // az NXDOMAIN megkülönböztethetetlen volt. A lánc ebből „nincs MX"-et olvasott, 1.0
+    // kockázatot, és a kapu MINDEN levelet elutasított — a kockázat-cache miatt egy órával
+    // túlélve a kiváltó okot.
+    $this->app->instance(DnsResolver::class, new class implements DnsResolver
+    {
+        public function records(string $name, string $type): array
+        {
+            throw new DnsUnavailable('SERVFAIL');
+        }
+    });
+
+    $verdict = app(AddressValidator::class)
+        ->validate('anna@pelda.hu', withProbe: false);
+
+    expect($verdict->classification)->toBe('unknown');
+    expect($verdict->reasons)->toContain('DNS_UNAVAILABLE');
+    // A KOCKÁZAT nulla: nem a cím a hibás, hanem mi nem tudtuk megnézni.
+    expect($verdict->risk)->toBe(0.0);
+});
+
+it('az érintetti törlés a CÍMELLENŐRZÉS eredményeit is elviszi', function () {
+    // Ez az ügyfél TELJES címlistája — a 30 napos retenció nem válasz egy Art. 17 kérésre.
+    $job = ValidationJob::query()->create(['total' => 1]);
+
+    ValidationResult::query()->create([
+        'validation_job_id' => $job->getKey(),
+        'address' => 'erintett@pelda.hu',
+        'result' => 'deliverable',
+        'risk' => 0.0,
+        'reasons' => [],
+        'suggestion' => 'erintett@pelda.com',
+    ]);
+
+    $this->artisan('logs:redact-subject', ['email' => 'erintett@pelda.hu'])->assertSuccessful();
+
+    app(WorkspaceContext::class)->set($this->workspace);
+
+    $row = ValidationResult::query()->firstOrFail();
+
+    expect($row->address)->not->toContain('erintett');
+    expect($row->suggestion)->toBeNull();
+    expect($row->redacted_at)->not->toBeNull();
+    // A TÉNY marad: a minősítés statisztikailag még használható.
+    expect($row->result)->toBe('deliverable');
+});
+
+it('a TÖRÖLT cím nem kerülhet vissza egy új bulk futásba', function () {
+    // A modell `creating` hookja az `insertOrIgnore` mellett NEM fut le — a védelemnek a
+    // beszúró úton kell lennie, különben halott kód azon az egyetlen helyen, ami használja.
+    Queue::fake();
+
+    $this->artisan('logs:redact-subject', ['email' => 'erintett@pelda.hu'])->assertSuccessful();
+
+    app(WorkspaceContext::class)->set($this->workspace);
+
+    $response = validateApi('POST', '/v1/validate/bulk', [
+        'addresses' => ['erintett@pelda.hu', 'mas@pelda.hu'],
+    ]);
+
+    $response->assertStatus(202);
+
+    expect(ValidationResult::query()->pluck('address')->all())->toBe(['mas@pelda.hu']);
+});
+
+it('a szonda-keret a fogadó MX-HOSZTJÁRA szól, nem csak a domainre', function () {
+    // Mérve: négy aldomain × öt cím = HÚSZ valódi szonda ugyanarra az `mx.pelda.hu`-ra,
+    // wildcard DNS-sel korlátlanul. A fogadó a HOSZTOT látja, nem a domaint.
+    config(['validation.probe.per_domain_per_minute' => 5, 'validation.probe.per_tenant_per_minute' => 999]);
+
+    foreach (['a.pelda.hu', 'b.pelda.hu', 'c.pelda.hu', 'd.pelda.hu'] as $domain) {
+        $this->dns->publish($domain, 'MX', '10 mx.pelda.hu.');
+    }
+
+    $probe = app(MailboxProbe::class);
+
+    foreach (['a', 'b', 'c', 'd'] as $prefix) {
+        foreach (range(1, 5) as $i) {
+            $probe->probe("{$prefix}{$i}@{$prefix}.pelda.hu");
+        }
+    }
+
+    // ÖT valódi szonda ment ki a közös MX-re, nem húsz.
+    expect($this->probe->count())->toBe(5);
+});
+
+it('az egyik tenant nem használja el a másik keretét', function () {
+    // Mérve: „A" tenant öt kérése után „B" első, FIZETETT kérése is „nem tudjuk"-ot kapott.
+    config(['validation.probe.per_domain_per_minute' => 100, 'validation.probe.per_tenant_per_minute' => 3]);
+
+    $probe = app(MailboxProbe::class);
+
+    foreach (range(1, 5) as $i) {
+        $probe->probe("a{$i}@pelda.hu");
+    }
+
+    $masik = Workspace::factory()->create();
+    app(WorkspaceContext::class)->set($masik);
+
+    expect($probe->probe('elso@pelda.hu')->status)->not->toBe('unknown');
+});
+
+it('a cache nem tárolja a fogadó nyers válaszát', function () {
+    // A `detail` rendszerint visszaidézi a címet (`550 5.1.1 <anna@pelda.hu> rejected`), és
+    // a cache sem a retenciós, sem a törlési úton nem érhető el.
+    $this->probe->answer('anna@pelda.hu', ProbeResult::rejected(550, '5.1.1 <anna@pelda.hu> Recipient address rejected'));
+
+    app(MailboxProbe::class)->probe('anna@pelda.hu');
+
+    $tarolt = app(MailboxProbe::class)->probe('anna@pelda.hu');
+
+    expect($tarolt->status)->toBe('rejected');
+    expect($tarolt->code)->toBe(550);
+    expect($tarolt->detail)->toBeNull();
+    // …és tényleg a cache-ből jött.
+    expect($this->probe->count())->toBe(1);
+});
+
+it('a TÚL HOSSZÚ cím strukturált 400, nem 500', function () {
+    // Egy címellenőrző szolgáltatásnak a hosszú szemét a BEMENETE, nem a hibája.
+    $response = validateApi('POST', '/v1/validate', ['address' => str_repeat('a', 300).'@pelda.hu']);
+
+    expect($response->status())->toBe(400);
+    expect($response->json('error.code'))->toBe('VALIDATION_ERROR');
+});
+
+it('a bulk feltöltés AUDITÁLT', function () {
+    // Az ügyfél teljes címlistájának be- és kimenő útja exfiltráció-észlelési szempontból
+    // maga a jel.
+    Queue::fake();
+
+    validateApi('POST', '/v1/validate/bulk', ['addresses' => ['anna@pelda.hu']]);
+
+    expect(DB::table('audit_logs')->where('action', 'validation.bulk_created')->count())->toBe(1);
 });

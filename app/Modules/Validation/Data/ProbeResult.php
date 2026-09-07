@@ -52,4 +52,16 @@ final readonly class ProbeResult
     {
         return new self('skipped');
     }
+
+    /**
+     * A RÉSZLET nélkül — a cache-be ez megy.
+     *
+     * A `detail` a fogadó nyers válasza, ami rendszerint visszaidézi a címet
+     * (`550 5.1.1 <anna@pelda.hu> Recipient address rejected`). A cache sem a retenciós,
+     * sem az érintetti törlési úton nem érhető el, tehát ott PII-nak nincs helye.
+     */
+    public function withoutDetail(): self
+    {
+        return new self($this->status, $this->code);
+    }
 }

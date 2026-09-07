@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Validation\Services;
 
 use App\Modules\Sending\Contracts\AddressRiskScorer;
+use App\Modules\Validation\Data\ValidationVerdict;
 use Illuminate\Support\Facades\Cache;
 
 /**
@@ -38,10 +39,15 @@ final class ValidationRiskScorer implements AddressRiskScorer
 
         // A SZONDA kikapcsolva — PARAMÉTERREL, nem globális konfig-átállítással. Az utóbbi
         // egy megosztott állapotot írt át a kérés közben; itt a hívás mondja meg, mit akar.
-        $risk = $this->validator->validate($email, withProbe: false)->risk;
+        $verdict = $this->validator->validate($email, withProbe: false);
 
-        Cache::put($key, $risk, 3600);
+        // A BIZONYTALAN eredményt RÖVIDEN tartjuk. Egy DNS-kimaradás alatt számolt kockázat
+        // különben egy órával TÚLÉLNÉ a kiváltó okot: a DNS már rég visszaállt, mi meg még
+        // mindig elutasítanánk.
+        $ttl = $verdict->classification === ValidationVerdict::UNKNOWN ? 60 : 3600;
 
-        return $risk;
+        Cache::put($key, $verdict->risk, $ttl);
+
+        return $verdict->risk;
     }
 }

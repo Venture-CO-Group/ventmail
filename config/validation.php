@@ -61,6 +61,12 @@ return [
         'enabled' => (bool) env('VALIDATION_PROBE_ENABLED', true),
         // Hány VALÓDI szonda mehet ki egy domainre percenként.
         'per_domain_per_minute' => (int) env('VALIDATION_PROBE_PER_DOMAIN', 5),
+        // TENANTONKÉNT külön keret: a globális vödör közös erőforrás, és enélkül az egyik
+        // ügyfél elhasználja a másikét — mérve: „A" tenant öt kérése után „B" első, FIZETETT
+        // kérése is „nem tudjuk"-ot kapott.
+        'per_tenant_per_minute' => (int) env('VALIDATION_PROBE_PER_TENANT', 30),
+        // A szonda TLS-t követel, ha a fogadó hirdeti. A cím az EGYETLEN adat, amit kiadunk.
+        'require_tls' => (bool) env('VALIDATION_PROBE_REQUIRE_TLS', true),
         // Az EREDMÉNY cache-ideje. A postafiókok léte lassan változik; a napos cache a
         // szondák számát nagyságrenddel csökkenti.
         'cache_seconds' => (int) env('VALIDATION_PROBE_CACHE_SECONDS', 86_400),

@@ -8,6 +8,7 @@ use App\Modules\Domains\Contracts\DnsResolver;
 use App\Modules\Sending\Services\DomainNormalizer;
 use App\Modules\Validation\Contracts\MailboxProbe;
 use App\Modules\Validation\Data\ProbeResult;
+use InvalidArgumentException;
 use Throwable;
 
 /**
@@ -71,15 +72,29 @@ final class SmtpMailboxProbe implements MailboxProbe
             // A `RCPT TO:<cim@domain>` az ÜGYFÉL CÍMLISTÁJA, szemenként — titkosítatlanul a
             // 25-ös porton bárki elolvashatja az útvonalon. A szonda nem küld levelet, de
             // épp ezért a cím az EGYETLEN adat, amit kiad: azt kell védeni.
-            if (stripos($greeting, 'STARTTLS') !== false) {
+            $advertisesTls = stripos($greeting, 'STARTTLS') !== false;
+
+            if ($advertisesTls) {
                 $this->send($socket, 'STARTTLS');
 
-                if ($this->expect($socket, 220)
-                    && @stream_socket_enable_crypto($socket, true, STREAM_CRYPTO_METHOD_TLS_CLIENT) === true) {
-                    // A TLS után ÚJRA kell köszönni (RFC 3207 §4.2).
-                    $this->send($socket, 'EHLO '.config('inbound.hostname'));
-                    $this->read($socket);
+                $upgraded = $this->expect($socket, 220)
+                    && @stream_socket_enable_crypto($socket, true, STREAM_CRYPTO_METHOD_TLS_CLIENT) === true;
+
+                if (! $upgraded) {
+                    // A BUKOTT kézfogás után a socket használhatatlan: a további írás egy
+                    // félig titkosított csatornára menne. Megszakítunk — a cím kiadása
+                    // titkosítatlanul nem ér annyit, mint amennyit kockáztatnánk vele.
+                    return ProbeResult::unknown('a TLS-kézfogás nem sikerült');
                 }
+
+                // A TLS után ÚJRA kell köszönni (RFC 3207 §4.2).
+                $this->send($socket, 'EHLO '.config('inbound.hostname'));
+                $this->read($socket);
+            } elseif (config('validation.probe.require_tls')) {
+                // A fogadó NEM hirdet TLS-t. A cím az EGYETLEN adat, amit a szonda kiad —
+                // titkosítatlanul a 25-ös porton bárki elolvashatja az útvonalon. Inkább
+                // mondjuk azt, hogy „nem tudjuk".
+                return ProbeResult::unknown('a fogadó nem támogat TLS-t');
             }
 
             // NULL-SENDER: bounce-nak látszik, és nem állítunk magunkról hamis feladót.
@@ -176,8 +191,23 @@ final class SmtpMailboxProbe implements MailboxProbe
         return $ordered;
     }
 
+    /**
+     * Egy SMTP-parancs kiírása — VEZÉRLŐKARAKTER NÉLKÜL.
+     *
+     * A cím a TÁMADÓTÓL jön (bárki beírhat bármit egy ellenőrzési kérésbe), és itt kerül egy
+     * parancs közepébe. CR/LF-fel a támadó a MI IP-nkről diktálhatna tetszőleges SMTP-t egy
+     * idegen szervernek — mérve, valódi fogadó ellen: `RCPT TO:<anna>` után `VRFY root`.
+     *
+     * A teljes láncon ma a szintaxis-ellenőrzés előbb elutasítaná, de az egy MÁSIK osztály
+     * távoli előfeltétele: a `MailboxProbe` publikus kontraktus, és az első jövőbeli hívó
+     * (A6, űrlapok) visszahozná a rést. A védelem ott van, ahol a bájtok a dróta kerülnek.
+     */
     private function send(mixed $socket, string $line): void
     {
+        if (preg_match('/[\x00-\x1F\x7F]/', $line) === 1) {
+            throw new InvalidArgumentException('Vezérlőkarakter az SMTP-parancsban.');
+        }
+
         fwrite($socket, $line."\r\n");
     }
 

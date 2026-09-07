@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Validation\Services;
 
 use App\Modules\Domains\Contracts\DnsResolver;
+use App\Modules\Domains\Contracts\DnsUnavailable;
 use App\Modules\Sending\Services\DomainNormalizer;
 use App\Modules\Validation\Contracts\MailboxProbe;
 use App\Modules\Validation\Data\ProbeResult;
@@ -61,7 +62,12 @@ final class AddressValidator
         $risk = 0.0;
 
         // 1. SZINTAXIS — ingyen van, és ha itt bukik, minden további kérdés értelmetlen.
-        $syntaxError = $this->syntax->reason($raw);
+        //
+        // A NORMALIZÁLT alakon: a domain punycode-ban van, a helyi rész változatlan. A nyers
+        // címen futtatva a `példa.hu` az ASCII-karakterosztályba ütközött volna, és a 6. kapu
+        // élesítése után MINDEN nemzetközi (IDN) címzett kiesett volna a küldésből — mérve:
+        // `anna@példa.hu` risk=1.00. Ez az A2+ ADR SMTPUTF8-döntését ejtené el.
+        $syntaxError = $this->syntax->reason($normalized === '' ? $raw : $normalized);
 
         $checks['syntax'] = $syntaxError === null;
 
@@ -91,7 +97,22 @@ final class AddressValidator
         }
 
         // 3. DOMAIN + MX — ténykérdés. MX nélkül a levél SEHOVA nem megy.
-        $hasMx = $this->hasMailExchanger($domain);
+        //
+        // De a „nem tudtuk megkérdezni" NEM ugyanaz, mint a „nincs": egy DNS-kimaradás
+        // különben 1.0 kockázatot adna MINDEN címre, és a PreSendGate a teljes platform
+        // küldését megállítaná — a kockázat-cache miatt egy órával túlélve a kiváltó okot.
+        try {
+            $hasMx = $this->hasMailExchanger($domain);
+        } catch (DnsUnavailable) {
+            return new ValidationVerdict(
+                email: $raw,
+                classification: ValidationVerdict::UNKNOWN,
+                risk: 0.0,
+                checks: [...$checks, 'mx' => null],
+                reasons: [...$reasons, 'DNS_UNAVAILABLE'],
+                suggestion: $suggestion,
+            );
+        }
 
         $checks['mx'] = $hasMx;
 

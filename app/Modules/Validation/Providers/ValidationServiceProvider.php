@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Modules\Validation\Providers;
 
+use App\Modules\Domains\Contracts\DnsResolver;
 use App\Modules\Sending\Contracts\AddressRiskScorer;
 use App\Modules\Support\ModuleServiceProvider;
+use App\Modules\Tenancy\Services\WorkspaceContext;
 use App\Modules\Validation\Console\PurgeValidationCommand;
 use App\Modules\Validation\Contracts\MailboxProbe;
 use App\Modules\Validation\Services\RateLimitedProbe;
@@ -34,7 +36,11 @@ final class ValidationServiceProvider extends ModuleServiceProvider
                 ? $app->make(FakeMailboxProbe::class)
                 : $app->make(SmtpMailboxProbe::class);
 
-            return new RateLimitedProbe($inner);
+            return new RateLimitedProbe(
+                $inner,
+                $app->make(DnsResolver::class),
+                $app->make(WorkspaceContext::class),
+            );
         });
 
         // A tesztek EGY fake-példányt lássanak: enélkül a szonda-számláló minden feloldásnál
