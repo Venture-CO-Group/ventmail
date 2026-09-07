@@ -41,4 +41,15 @@ final readonly class ProbeResult
     {
         return new self('unknown', null, $detail);
     }
+
+    /**
+     * NEM KÉRDEZTÜNK — és ez nem ugyanaz, mint a bizonytalanság.
+     *
+     * A küldési úton szándékosan nem szondázunk (a latencia miatt). Ha ezt `unknown`-nak
+     * könyvelnénk, minden címzett kapna egy alapkockázatot a MI döntésünk miatt.
+     */
+    public static function skipped(): self
+    {
+        return new self('skipped');
+    }
 }

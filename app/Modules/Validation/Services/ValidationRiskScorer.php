@@ -36,16 +36,9 @@ final class ValidationRiskScorer implements AddressRiskScorer
             return $cached;
         }
 
-        // A SZONDA kikapcsolva: a küldési út nem a szondázás helye.
-        $previous = config('validation.probe.enabled');
-
-        config(['validation.probe.enabled' => false]);
-
-        try {
-            $risk = $this->validator->validate($email)->risk;
-        } finally {
-            config(['validation.probe.enabled' => $previous]);
-        }
+        // A SZONDA kikapcsolva — PARAMÉTERREL, nem globális konfig-átállítással. Az utóbbi
+        // egy megosztott állapotot írt át a kérés közben; itt a hívás mondja meg, mit akar.
+        $risk = $this->validator->validate($email, withProbe: false)->risk;
 
         Cache::put($key, $risk, 3600);
 

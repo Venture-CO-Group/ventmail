@@ -207,3 +207,71 @@ it('MX nélkül SZONDÁT SEM küldünk', function () {
 
     expect($this->probe->count())->toBe(0);
 });
+
+/*
+ | A review nyomán: a KIKAPCSOLT szonda nem bizonytalanság.
+ */
+
+it('a szonda kihagyása NEM ad kockázatot', function () {
+    // A korábbi változat `unknown`-t adott vissza, és ezzel MINDEN címzettre +0.20
+    // alapkockázatot rakott a küldési úton — egy 0.4-es küszöböt választó tenant elveszítette
+    // volna az összes `info@`/`support@` tranzakciós levelét a saját beállítása miatt.
+    $withProbe = $this->validator->validate('kovacs.anna@pelda.hu', withProbe: true);
+    $without = $this->validator->validate('kovacs.anna@pelda.hu', withProbe: false);
+
+    expect($without->risk)->toBe(0.0);
+    expect($without->classification)->toBe(ValidationVerdict::DELIVERABLE);
+    expect($without->reasons)->toBe([]);
+    expect($withProbe->risk)->toBe($without->risk);
+});
+
+it('a szerepcím a szonda nélkül is kockázatos', function () {
+    // Ami olcsón eldönthető, az a küldési úton is lefut.
+    $verdict = $this->validator->validate('info@pelda.hu', withProbe: false);
+
+    expect($verdict->classification)->toBe(ValidationVerdict::RISKY);
+    expect($verdict->reasons)->toContain('ROLE_ADDRESS');
+});
+
+it('a BIZONYTALAN szonda `unknown` minősítést ad', function () {
+    $this->probe->default = ProbeResult::unknown('greylisting');
+
+    $verdict = $this->validator->validate('anna@pelda.hu');
+
+    expect($verdict->classification)->toBe(ValidationVerdict::UNKNOWN);
+    expect($verdict->reasons)->toContain('PROBE_INCONCLUSIVE');
+});
+
+it('a BIZONYTALAN szonda sem ment meg egy biztosan rossz címet', function () {
+    // Egy eldobható domainű, elgépelt cím nem `unknown`, hanem rossz.
+    $this->probe->default = ProbeResult::unknown('greylisting');
+
+    config(['validation.weights.disposable' => 0.9]);
+
+    $verdict = $this->validator->validate('anna@mailinator.com');
+
+    expect($verdict->classification)->toBe(ValidationVerdict::UNDELIVERABLE);
+});
+
+/*
+ | A DOMAIN karakterosztálya — a `filter_var`-nál sem lehetünk gyengébbek.
+ */
+
+it('a tiltott karaktert tartalmazó domaint elutasítja', function (string $email) {
+    // Mérve: ezek MIND átmentek, miközben a `filter_var` mindet elutasítja. Az ilyen cím
+    // `deliverable` minősítést kapott, felkerült a listára, és a szonda
+    // `RCPT TO:<a@pel da.hu>` alakban küldte ki egy IDEGEN szerverre — szintaktikailag hibás
+    // SMTP-parancs a mi IP-nkről.
+    expect((new EmailSyntax)->valid($email))->toBeFalse();
+
+    // …és a `filter_var` ítéletével is egyezünk.
+    expect(filter_var($email, FILTER_VALIDATE_EMAIL))->toBeFalse();
+})->with([
+    'szóköz a domainben' => 'a@pel da.hu',
+    'nagyobb jel' => 'a@pelda.hu>',
+    'kisebb jel' => 'a@pel<da.hu',
+    'pontosvessző' => 'a@pelda.hu;drop',
+    'kettőspont' => 'a@pelda.hu:25',
+    'visszaper' => 'a@pelda.hu\\',
+    'két kukac' => 'a@@b.hu',
+]);

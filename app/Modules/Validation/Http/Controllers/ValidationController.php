@@ -76,7 +76,25 @@ final class ValidationController
             'total' => count($addresses),
         ]);
 
-        ProcessValidationJob::dispatch((int) $job->workspace_id, (string) $job->uuid, $addresses);
+        // A CÍMEK `pending` SORKÉNT az adatbázisba, nem a job payloadjába.
+        //
+        // Százezer cím a payloadban ~6 MB serializálva, és minden chunk újra sorba tenné —
+        // több száz megabájt queue-forgalom egyetlen listára. A sorokból dolgozva a job csak
+        // a futás azonosítóját viszi, és az újrapróbálás sem duplikál.
+        foreach (array_chunk($addresses, 1000) as $slice) {
+            ValidationResult::query()->insertOrIgnore(array_map(fn (string $address) => [
+                'workspace_id' => $job->workspace_id,
+                'validation_job_id' => $job->getKey(),
+                'address' => $address,
+                'result' => 'pending',
+                'risk' => 0,
+                'reasons' => '[]',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ], $slice));
+        }
+
+        ProcessValidationJob::dispatch((int) $job->workspace_id, (string) $job->uuid);
 
         return response()->json($this->presentJob($job), 202);
     }
@@ -117,11 +135,11 @@ final class ValidationController
                 ->chunk(1000, function ($rows) use ($out): void {
                     foreach ($rows as $row) {
                         fputcsv($out, [
-                            $row->address,
+                            self::csvSafe((string) $row->address),
                             $row->result,
                             $row->risk,
                             implode('|', (array) $row->reasons),
-                            $row->suggestion,
+                            self::csvSafe((string) $row->suggestion),
                         ]);
                     }
                 });
@@ -132,6 +150,22 @@ final class ValidationController
             'Content-Disposition' => 'attachment; filename="validation-'.$job->uuid.'.csv"',
             'X-Content-Type-Options' => 'nosniff',
         ]);
+    }
+
+    /**
+     * CSV-FORMULA-INJEKCIÓ elleni védelem.
+     *
+     * Az Excel és a LibreOffice a `=`, `+`, `-` és `@` kezdetű mezőt KÉPLETKÉNT értékeli ki —
+     * akkor is, ha idézőjelben van. A támadási út teljes: egy idegen feliratkozó beírja a
+     * `=cmd|' /C calc'!A0@pelda.hu` „címet" a tenant űrlapjába, a tenant bulk-validálja,
+     * letölti és megnyitja a CSV-t, és a parancs az Ő gépén fut le.
+     *
+     * A védekezés a szabvány szerinti: aposztróf-prefix, ami a táblázatkezelőnek azt jelenti,
+     * „ez szöveg". A cím maga ettől olvasható marad.
+     */
+    private static function csvSafe(string $value): string
+    {
+        return preg_match('/^[=+\-@\t\r]/', $value) === 1 ? "'".$value : $value;
     }
 
     /** @return list<string> */
@@ -146,7 +180,7 @@ final class ValidationController
 
         $limit = (int) config('validation.bulk.max_rows');
 
-        while (($row = fgetcsv($handle)) !== false && count($addresses) <= $limit) {
+        while (($row = fgetcsv($handle)) !== false && count($addresses) < $limit) {
             // AZ ELSŐ oszlop a cím. A fejlécsort felismerjük és kihagyjuk — az ügyfél
             // exportált fájlt tölt fel, nem kézzel gépelt listát.
             $value = trim((string) ($row[0] ?? ''));

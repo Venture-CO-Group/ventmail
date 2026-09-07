@@ -122,7 +122,9 @@ it('a szinkron ellenőrzés visszaadja a minősítést', function () {
 
     $response->assertOk();
 
-    expect($response->json('result'))->toBeIn(['deliverable', 'risky', 'undeliverable', 'unknown']);
+    // KONKRÉT minősítés, nem „valamelyik a négyből": az utóbbi akkor is zöld maradna, ha a
+    // minősítés elromlana — és pontosan ez fedte el, hogy az `unknown` sosem született meg.
+    expect($response->json('result'))->toBe('deliverable');
     expect($response->json('did_you_mean'))->toBe('kovacs.anna@gmail.com');
     expect($response->json('reasons'))->toContain('POSSIBLE_TYPO');
     expect($response->json('risk'))->toBeGreaterThan(0);
@@ -154,16 +156,34 @@ it('a bulk futás sorba kerül és lefut', function () {
     Queue::assertPushed(ProcessValidationJob::class, 1);
 });
 
+/** A címek `pending` sorként kerülnek be — ahogy a feltöltés is teszi. */
+function seedBulk(ValidationJob $job, array $addresses): void
+{
+    foreach ($addresses as $address) {
+        ValidationResult::query()->create([
+            'validation_job_id' => $job->getKey(),
+            'address' => $address,
+            'result' => 'pending',
+            'risk' => 0,
+            'reasons' => [],
+        ]);
+    }
+}
+
+function runBulk(ValidationJob $job): void
+{
+    (new ProcessValidationJob((int) test()->workspace->getKey(), (string) $job->uuid))
+        ->handle(app(WorkspaceContext::class), app(AddressValidator::class));
+
+    app(WorkspaceContext::class)->set(test()->workspace);
+}
+
 it('a bulk feldolgozás minősít és összesít', function () {
     $job = ValidationJob::query()->create(['name' => 'teszt', 'total' => 3]);
 
-    (new ProcessValidationJob((int) $this->workspace->getKey(), (string) $job->uuid, [
-        'anna@pelda.hu',
-        'hibas-cim',
-        'info@pelda.hu',
-    ]))->handle(app(WorkspaceContext::class), app(AddressValidator::class));
+    seedBulk($job, ['anna@pelda.hu', 'hibas-cim', 'info@pelda.hu']);
 
-    app(WorkspaceContext::class)->set($this->workspace);
+    runBulk($job);
 
     $job->refresh();
 
@@ -183,11 +203,9 @@ it('a NAGY lista darabokban megy — az állapot menet közben is látszik', fun
 
     $job = ValidationJob::query()->create(['total' => 5]);
 
-    (new ProcessValidationJob((int) $this->workspace->getKey(), (string) $job->uuid, [
-        'a@pelda.hu', 'b@pelda.hu', 'c@pelda.hu', 'd@pelda.hu', 'e@pelda.hu',
-    ]))->handle(app(WorkspaceContext::class), app(AddressValidator::class));
+    seedBulk($job, ['a@pelda.hu', 'b@pelda.hu', 'c@pelda.hu', 'd@pelda.hu', 'e@pelda.hu']);
 
-    app(WorkspaceContext::class)->set($this->workspace);
+    runBulk($job);
 
     expect($job->fresh()->processed)->toBe(2);
     expect($job->fresh()->status)->toBe('processing');
@@ -327,4 +345,115 @@ it('a jó cím ÁTMEGY a kapun', function () {
     ]);
 
     expect($result->message->status)->not->toBe('rejected');
+});
+
+/*
+ | A review blokkolói — viselkedésből mérve.
+ */
+
+it('a BIZONYTALAN szonda `unknown` minősítést ad, nem `deliverable`-t', function () {
+    // Ez volt a modul legsúlyosabb hibája: a `probe_unknown` súly (0.20) a `risky` küszöb
+    // (0.25) ALATT van, tehát minden eldönthetetlen szonda „kézbesíthető" lett. Mérve: 200
+    // gmail-cím, 5 valódi szonda (a keret miatt) → 195 sosem ellenőrzött cím `deliverable`
+    // minősítéssel. Egy tízezres listán ~9995 hamis „deliverable" — és az ügyfél PONT ezért
+    // fizet.
+    config(['validation.probe.per_domain_per_minute' => 5]);
+
+    $this->probe->default = ProbeResult::rejected(550, '5.1.1 No such user');
+
+    $job = ValidationJob::query()->create(['total' => 20]);
+
+    seedBulk($job, array_map(fn (int $i) => "felhasznalo{$i}@gmail.com", range(1, 20)));
+
+    config(['validation.bulk.chunk' => 20]);
+
+    runBulk($job);
+
+    $job->refresh();
+
+    // Öt valódi szonda: azok `undeliverable`-ek. A többi tizenöt NEM lett `deliverable`.
+    expect($job->undeliverable)->toBe(5);
+    expect($job->unknown)->toBe(15);
+    expect($job->deliverable)->toBe(0);
+});
+
+it('az ÚJRAFUTÓ job nem duplikál', function () {
+    // A korábbi változat a címeket a payloadban vitte, és az őr csak a `completed` állapotot
+    // nézte: a `failed` job újrafutásakor a TELJES batch újra feldolgozódott. Mérve:
+    // `processed=6` egy `total=3` futáson, minden cím kétszer az exportban — és a ventPay
+    // `validations_counter` duplán, azaz HIBÁS SZÁMLA.
+    $job = ValidationJob::query()->create(['total' => 3]);
+
+    seedBulk($job, ['a@pelda.hu', 'b@pelda.hu', 'c@pelda.hu']);
+
+    runBulk($job);
+    runBulk($job);
+    runBulk($job);
+
+    $job->refresh();
+
+    expect($job->processed)->toBe(3);
+    expect(ValidationResult::query()->count())->toBe(3);
+    expect($job->deliverable + $job->risky + $job->undeliverable + $job->unknown)->toBe(3);
+});
+
+it('ugyanaz a cím EGYSZER kerül be a futásba', function () {
+    // Az egyediség a SÉMÁBAN van, nem a hívó figyelmén.
+    Queue::fake();
+
+    $response = validateApi('POST', '/v1/validate/bulk', [
+        'addresses' => ['anna@pelda.hu', 'anna@pelda.hu', 'ANNA@pelda.hu', 'masik@pelda.hu'],
+    ]);
+
+    $response->assertStatus(202);
+
+    expect(ValidationResult::query()->count())->toBe($response->json('total'));
+});
+
+it('az EXPORT nem ad képletet a táblázatkezelőnek', function () {
+    // Az Excel és a LibreOffice a `=` kezdetű mezőt KÉPLETKÉNT értékeli ki — idézőjelben is.
+    // A támadási út teljes: idegen feliratkozó beírja a „címet" a tenant űrlapjába, a tenant
+    // bulk-validálja, letölti és megnyitja a CSV-t, és a parancs az Ő gépén fut le.
+    $job = ValidationJob::query()->create(['total' => 1]);
+
+    ValidationResult::query()->create([
+        'validation_job_id' => $job->getKey(),
+        'address' => "=cmd|' /C calc'!A0@pelda.hu",
+        'result' => 'undeliverable',
+        'risk' => 1.0,
+        'reasons' => [],
+    ]);
+
+    $response = test()->withHeaders(['Authorization' => 'Bearer '.$this->plain])
+        ->get('/v1/validate/bulk/'.$job->uuid.'/export');
+
+    $content = $response->streamedContent();
+
+    // A mező SZÖVEGKÉNT megy ki: az aposztróf-prefix ezt jelenti a táblázatkezelőnek.
+    expect($content)->toContain("'=cmd");
+    expect($content)->not->toMatch('/^"?=cmd/m');
+});
+
+it('IDEGEN workspace exportja nem érhető el', function () {
+    $job = ValidationJob::query()->create(['total' => 1]);
+
+    $masik = Workspace::factory()->create();
+    app(WorkspaceContext::class)->set($masik);
+
+    ['plain' => $idegen] = ApiKey::issue('Idegen', ['validate:run']);
+
+    $response = test()->withHeaders(['Authorization' => 'Bearer '.$idegen])
+        ->get('/v1/validate/bulk/'.$job->uuid.'/export');
+
+    $response->assertStatus(404);
+});
+
+it('a bulk job NEVESÍTETT sorra megy', function () {
+    // A `default` sort a küldési supervisor nem fogyasztja: az oda tett job csendben, örökre
+    // a sorban maradna — a futás `pending`-en ragadna, és 30 nap múlva a purge törölné.
+    Queue::fake();
+
+    validateApi('POST', '/v1/validate/bulk', ['addresses' => ['anna@pelda.hu']]);
+
+    Queue::assertPushed(ProcessValidationJob::class, fn ($job) => $job->queue === 'validation');
 });

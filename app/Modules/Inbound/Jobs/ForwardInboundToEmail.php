@@ -58,6 +58,10 @@ final class ForwardInboundToEmail implements ShouldQueue
         private readonly string $target,
     ) {
         $this->afterCommit();
+
+        // NEVESÍTETT sor: a `default`-ot a küldési supervisor nem fogyasztja, tehát az oda
+        // tett job csendben, örökre a sorban maradna.
+        $this->onQueue('inbound');
     }
 
     /** Ennyi továbbítási körnél nem megyünk tovább. */

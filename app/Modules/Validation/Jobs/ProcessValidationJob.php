@@ -20,12 +20,19 @@ use Throwable;
 /**
  * A BULK futás feldolgozása (41. kritérium).
  *
- * DARABOKBAN megy, és minden darab után menti az állapotot. Egy százezer soros lista
- * feldolgozása percekig tart; ha a worker közben újraindul, a munka NEM kezdődik elölről —
- * a `processed` mutatja, hol tartunk.
+ * A job CSAK a futás azonosítóját viszi. A címek `pending` sorokként már az adatbázisban
+ * vannak, és a haladás is ott van — nem a payloadban.
  *
- * A darabolás nem csak a megbízhatóságról szól: a szonda per-domain kerete percenként
- * töltődik, tehát a folyamatos futás úgyis a keretbe ütközne. A lassítás itt FUNKCIÓ.
+ * Ez két hibát előz meg egyszerre:
+ *
+ *  - DUPLIKÁLÁS: a korábbi változat a címeket a payloadban hordozta, és újrapróbáláskor a
+ *    TELJES batch újra feldolgozódott. Mérve: `processed=6` egy `total=3` futáson, minden
+ *    cím kétszer az exportban, és a ventPay `validations_counter` duplán — HIBÁS SZÁMLA.
+ *    Most a feldolgozás a `pending` sorokat FOGYASZTJA: ami már kész, azt nem találja meg.
+ *  - MEMÓRIA: százezer cím a payloadban ~6 MB serializálva, chunkonként újra sorba téve.
+ *
+ * A `$tries = 3` így ártalmatlan: az ismételt futás pontosan ott folytatja, ahol az előző
+ * abbahagyta.
  */
 final class ProcessValidationJob implements ShouldQueue
 {
@@ -33,15 +40,15 @@ final class ProcessValidationJob implements ShouldQueue
 
     public int $tries = 3;
 
-    /**
-     * @param  list<string>  $addresses  a hátralévő címek
-     */
     public function __construct(
         private readonly int $workspaceId,
         private readonly string $jobUuid,
-        private readonly array $addresses,
     ) {
         $this->afterCommit();
+
+        // A `default` sort egyetlen supervisor sem fogyasztja (a Horizen a küldési
+        // prioritás-sorokra van kötve): oda téve a futás örökre `pending` maradna.
+        $this->onQueue('validation');
     }
 
     public function handle(WorkspaceContext $context, AddressValidator $validator): void
@@ -65,52 +72,71 @@ final class ProcessValidationJob implements ShouldQueue
 
             $job->forceFill(['status' => 'processing', 'started_at' => $job->started_at ?? now()])->save();
 
-            $chunk = (int) config('validation.bulk.chunk');
-            $batch = array_slice($this->addresses, 0, $chunk);
-            $rest = array_slice($this->addresses, $chunk);
+            $pending = ValidationResult::query()
+                ->where('validation_job_id', $job->getKey())
+                ->where('result', 'pending')
+                ->orderBy('id')
+                ->limit((int) config('validation.bulk.chunk'))
+                ->get();
 
-            $counts = ['deliverable' => 0, 'risky' => 0, 'undeliverable' => 0, 'unknown' => 0];
+            foreach ($pending as $row) {
+                $verdict = $validator->validate((string) $row->address);
 
-            foreach ($batch as $address) {
-                $verdict = $validator->validate((string) $address);
-
-                ValidationResult::query()->create([
-                    'validation_job_id' => $job->getKey(),
-                    'address' => $verdict->email,
+                $row->forceFill([
                     'result' => $verdict->classification,
                     'risk' => $verdict->risk,
                     'reasons' => $verdict->reasons,
                     'suggestion' => $verdict->suggestion,
-                ]);
-
-                $counts[$verdict->classification]++;
+                ])->save();
             }
 
-            $job->forceFill([
-                'processed' => (int) $job->processed + count($batch),
-                'deliverable' => (int) $job->deliverable + $counts['deliverable'],
-                'risky' => (int) $job->risky + $counts['risky'],
-                'undeliverable' => (int) $job->undeliverable + $counts['undeliverable'],
-                'unknown' => (int) $job->unknown + $counts['unknown'],
-                'status' => $rest === [] ? 'completed' : 'processing',
-                'finished_at' => $rest === [] ? now() : null,
-            ])->save();
+            $this->refreshCounters($job);
 
-            if ($rest !== []) {
+            // A HÁTRALÉVŐ munkát a sorok mondják meg, nem egy számláló: ez akkor is helyes,
+            // ha a job kétszer futott.
+            $remaining = ValidationResult::query()
+                ->where('validation_job_id', $job->getKey())
+                ->where('result', 'pending')
+                ->exists();
+
+            if ($remaining) {
                 // A KÖVETKEZŐ darab külön jobban: a szonda kerete percenként töltődik, tehát
-                // a folyamatos futás úgyis abba ütközne.
-                self::dispatch($this->workspaceId, $this->jobUuid, $rest)->delay(now()->addSeconds(5));
+                // a folyamatos futás úgyis abba ütközne — a lassítás itt FUNKCIÓ.
+                self::dispatch($this->workspaceId, $this->jobUuid)->delay(now()->addSeconds(5));
             }
         } catch (Throwable $e) {
             Log::error('A bulk címellenőrzés elhasalt.', ['job' => $this->jobUuid, 'error' => $e::class]);
-
-            ValidationJob::query()
-                ->where('uuid', $this->jobUuid)
-                ->update(['status' => 'failed', 'reason' => 'PROCESSING_FAILED']);
 
             throw $e;
         } finally {
             $previous === null ? $context->forget() : $context->set($previous);
         }
+    }
+
+    /**
+     * A SZÁMLÁLÓK a sorokból, nem növelésből.
+     *
+     * A növelés minden újrafutásnál hozzáadna — a `SELECT count(*)` viszont akkor is a
+     * valóságot mondja, ha a job háromszor futott.
+     */
+    private function refreshCounters(ValidationJob $job): void
+    {
+        $counts = ValidationResult::query()
+            ->where('validation_job_id', $job->getKey())
+            ->selectRaw('result, count(*) as total')
+            ->groupBy('result')
+            ->pluck('total', 'result');
+
+        $done = (int) $counts->except('pending')->sum();
+
+        $job->forceFill([
+            'processed' => $done,
+            'deliverable' => (int) ($counts['deliverable'] ?? 0),
+            'risky' => (int) ($counts['risky'] ?? 0),
+            'undeliverable' => (int) ($counts['undeliverable'] ?? 0),
+            'unknown' => (int) ($counts['unknown'] ?? 0),
+            'status' => $done >= (int) $job->total ? 'completed' : 'processing',
+            'finished_at' => $done >= (int) $job->total ? now() : null,
+        ])->save();
     }
 }

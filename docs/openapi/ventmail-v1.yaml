@@ -928,8 +928,13 @@ components:
         did_you_mean:
           type: [string, 'null']
           description: 'elgépelés-javaslat (`gmial.com` → `gmail.com`)'
-        checks: { type: object, additionalProperties: true }
-        cached: { type: boolean }
+        checks:
+          type: object
+          description: |
+            Ellenőrzésenkénti részeredmény. MINDEN kulcs jelen van, a korai kilépésnél is —
+            az integrátor nem indexelhet vakon egy hiányzó kulcsra. A bool mezők MINDENHOL
+            azt jelentik: „rendben van-e".
+          additionalProperties: true
 
     ValidationJob:
       type: object

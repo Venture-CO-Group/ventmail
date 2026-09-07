@@ -35,12 +35,28 @@ final class AddressValidator
         private readonly MailboxProbe $probe,
     ) {}
 
-    public function validate(string $email): ValidationVerdict
+    /**
+     * @param  bool|null  $withProbe  `null` = a konfiguráció dönt. A gate-út explicit `false`-t
+     *                                ad: a küldési kérésen belül nem szondázunk.
+     */
+    public function validate(string $email, ?bool $withProbe = null): ValidationVerdict
     {
         $raw = trim($email);
         $normalized = DomainNormalizer::email($raw);
 
-        $checks = [];
+        // MINDEN kulcs jelen van, a korai kilépésnél is: az integrátor nem indexelhet vakon
+        // egy hiányzó kulcsra.
+        $checks = [
+            'syntax' => false,
+            'mx' => false,
+            'role' => true,
+            'disposable' => true,
+            'typo' => true,
+            'catch_all' => true,
+            'probe' => 'skipped',
+            'probe_ok' => true,
+        ];
+
         $reasons = [];
         $risk = 0.0;
 
@@ -111,14 +127,31 @@ final class AddressValidator
         }
 
         // 6–7. SZONDA és CATCH-ALL — a legdrágább lépés, ezért utoljára.
-        $probe = config('validation.probe.enabled')
+        $probeEnabled = $withProbe ?? (bool) config('validation.probe.enabled');
+
+        $probe = $probeEnabled
             ? $this->probe->probe($normalized)
-            : ProbeResult::unknown('a szonda ki van kapcsolva');
+            // A KIKAPCSOLT szonda NEM bizonytalanság: mi döntöttünk úgy, hogy nem kérdezünk.
+            // A korábbi változat `unknown`-t adott vissza, és ezzel MINDEN címzettre +0.20
+            // alapkockázatot rakott a küldési úton — egy 0.4-es küszöböt választó tenant
+            // elveszítette volna az összes `info@`/`support@` tranzakciós levelét.
+            : ProbeResult::skipped();
 
         $checks['probe'] = $probe->status;
-        $checks['catch_all'] = $probe->status === 'catch_all';
+        $checks['probe_ok'] = in_array($probe->status, ['accepted', 'skipped'], true);
+        // A `checks` MINDENHOL azt jelenti: „rendben van-e". A `catch_all` kulcsnál ez azt
+        // jelenti, hogy NEM catch-all — különben az integrátornak kulcsonként kellene tudnia,
+        // melyik irányba olvassa.
+        $checks['catch_all'] = $probe->status !== 'catch_all';
 
         [$risk, $reasons, $classification] = $this->applyProbe($probe, $risk, $reasons);
+
+        // A KOCKÁZAT akkor is felülírja a bizonytalanságot, ha a szonda nem tudott dönteni:
+        // egy eldobható domainű, elgépelt cím nem `unknown`, hanem rossz.
+        if ($classification === ValidationVerdict::UNKNOWN
+            && $risk >= (float) config('validation.thresholds.undeliverable')) {
+            $classification = ValidationVerdict::UNDELIVERABLE;
+        }
 
         return new ValidationVerdict(
             email: $raw,
@@ -148,12 +181,25 @@ final class AddressValidator
                 null,
             ],
 
+            // A BIZONYTALAN szonda `unknown` MINŐSÍTÉST ad, nem csak pontszámot.
+            //
+            // Ez volt a modul legsúlyosabb hibája: a `probe_unknown` súly (0.20) a `risky`
+            // küszöb (0.25) ALATT van, tehát minden eldönthetetlen szonda `deliverable`-t
+            // adott. Mérve: 200 gmail-cím, 5 valódi szonda (a keret miatt) → 195 sosem
+            // ellenőrzött cím „kézbesíthető" minősítéssel. Egy tízezres listán ~9995 hamis
+            // „deliverable" — és az ügyfél PONT ezért fizet. A rá küldött kampány
+            // bounce-rátája a golden rule 8-at viszi el.
+            //
+            // Az `unknown` nem szégyen: azt jelenti, hogy nem tudtuk megnézni. A hamis
+            // bizonyosság rosszabb — az ügyfél az alapján küldene.
             'unknown' => [
                 $risk + (float) config('validation.weights.probe_unknown'),
                 [...$reasons, 'PROBE_INCONCLUSIVE'],
-                null,
+                ValidationVerdict::UNKNOWN,
             ],
 
+            // `skipped`: nem kérdeztünk. Se pontszám, se ok — a saját döntésünkért nem
+            // büntetjük a címet.
             default => [$risk, $reasons, null],
         };
     }

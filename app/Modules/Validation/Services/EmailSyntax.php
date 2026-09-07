@@ -66,7 +66,11 @@ final class EmailSyntax
 
         // Az idézett helyi rész (`"a b"@x.hu`) érvényes, de a gyakorlatban a fogadók fele
         // elrontja. Elfogadjuk, de a szóköz idézőjel nélkül hiba.
-        if (! str_starts_with($local, '"') && preg_match('/[\s,:;<>\\\\]/', $local) === 1) {
+        //
+        // A `@` IS tiltott az idézetlen helyi részben. Enélkül az `a@@b.hu` átment: a
+        // `strrpos` az UTOLSÓ `@`-nál vág, tehát a helyi rész `a@` lett — egy olyan cím,
+        // amit egyetlen fogadó sem kézbesít, mi mégis „érvényesnek" mondtuk.
+        if (! str_starts_with($local, '"') && preg_match('/[\s,:;<>@\\\\]/', $local) === 1) {
             return 'tiltott karakter a helyi részben';
         }
 
@@ -97,6 +101,19 @@ final class EmailSyntax
         foreach (explode('.', $domain) as $label) {
             if ($label === '' || strlen($label) > 63) {
                 return 'érvénytelen hosszúságú címke a domainben';
+            }
+
+            // KARAKTEROSZTÁLY: betű, szám, kötőjel — és semmi más (LDH-szabály, RFC 1035).
+            //
+            // Enélkül a `filter_var`-nál is gyengébbek voltunk: mérve átment az `a@pel da.hu`,
+            // az `a@pelda.hu>`, az `a@pelda.hu:25` és az `a@pelda.hu;drop`. Az ilyen cím
+            // `deliverable` minősítést kapott, felkerült az ügyfél listájára, és a szonda
+            // `RCPT TO:<a@pel da.hu>` alakban küldte ki egy IDEGEN szerverre — szintaktikailag
+            // hibás SMTP-parancs a mi IP-nkről, ami a fogadó abúzus-heurisztikájában számít.
+            //
+            // A nemzetközi domain már punycode-ban van (a hívó normalizál), tehát ASCII.
+            if (preg_match('/^[A-Za-z0-9-]+$/', $label) !== 1) {
+                return 'tiltott karakter a domainben';
             }
 
             if (str_starts_with($label, '-') || str_ends_with($label, '-')) {

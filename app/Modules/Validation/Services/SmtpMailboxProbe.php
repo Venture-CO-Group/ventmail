@@ -31,19 +31,29 @@ final class SmtpMailboxProbe implements MailboxProbe
     public function probe(string $email): ProbeResult
     {
         $domain = DomainNormalizer::ofEmail($email);
-        $host = $this->mailExchanger($domain);
+        $hosts = $this->mailExchangers($domain);
 
-        if ($host === null) {
+        if ($hosts === []) {
             return ProbeResult::unknown('nincs elérhető MX');
         }
 
         $timeout = (float) config('validation.probe.timeout_seconds');
 
-        $socket = @stream_socket_client('tcp://'.$host.':25', $errno, $error, $timeout);
+        $socket = false;
+
+        // FAILOVER: ha az elsődleges MX nem elérhető, a következő jön. Enélkül egy
+        // pillanatnyi kiesés az egész domain minden címét „nem tudjuk"-ra állítaná.
+        foreach ($hosts as $host) {
+            $socket = @stream_socket_client('tcp://'.$host.':25', $errno, $error, $timeout);
+
+            if ($socket !== false) {
+                break;
+            }
+        }
 
         if ($socket === false) {
             // A 25-ös port kifelé sok hálózaton zárt. Ez a MI korlátunk, nem a címé.
-            return ProbeResult::unknown('nem sikerült csatlakozni: '.$error);
+            return ProbeResult::unknown('nem sikerült csatlakozni: '.($error ?? ''));
         }
 
         try {
@@ -54,7 +64,23 @@ final class SmtpMailboxProbe implements MailboxProbe
             }
 
             $this->send($socket, 'EHLO '.config('inbound.hostname'));
-            $this->read($socket);
+            $greeting = $this->read($socket);
+
+            // STARTTLS, ha a fogadó hirdeti.
+            //
+            // A `RCPT TO:<cim@domain>` az ÜGYFÉL CÍMLISTÁJA, szemenként — titkosítatlanul a
+            // 25-ös porton bárki elolvashatja az útvonalon. A szonda nem küld levelet, de
+            // épp ezért a cím az EGYETLEN adat, amit kiad: azt kell védeni.
+            if (stripos($greeting, 'STARTTLS') !== false) {
+                $this->send($socket, 'STARTTLS');
+
+                if ($this->expect($socket, 220)
+                    && @stream_socket_enable_crypto($socket, true, STREAM_CRYPTO_METHOD_TLS_CLIENT) === true) {
+                    // A TLS után ÚJRA kell köszönni (RFC 3207 §4.2).
+                    $this->send($socket, 'EHLO '.config('inbound.hostname'));
+                    $this->read($socket);
+                }
+            }
 
             // NULL-SENDER: bounce-nak látszik, és nem állítunk magunkról hamis feladót.
             $this->send($socket, 'MAIL FROM:<>');
@@ -77,15 +103,35 @@ final class SmtpMailboxProbe implements MailboxProbe
             }
 
             // CATCH-ALL PRÓBA: egy biztosan nem létező cím ugyanazon a domainen.
+            //
+            // MINDEN LÉPÉS VÁLASZÁT ellenőrizzük. A nagy szolgáltatók bevett anti-harvesting
+            // viselkedése, hogy az első `RCPT` után bontják a kapcsolatot — olyankor a
+            // `read()` üres sztringet ad, és a naiv `!== 250` összehasonlítás
+            // „nem catch-all"-t, azaz `accepted`-et jelentene. A transzport-hiba NEM
+            // dönthet a hamis bizonyosság irányába.
             $this->send($socket, 'RSET');
-            $this->read($socket);
+
+            if (! $this->expect($socket, 250)) {
+                return ProbeResult::unknown('a catch-all próba nem futtatható (RSET)');
+            }
+
             $this->send($socket, 'MAIL FROM:<>');
-            $this->read($socket);
+
+            if (! $this->expect($socket, 250)) {
+                return ProbeResult::unknown('a catch-all próba nem futtatható (MAIL FROM)');
+            }
+
             $this->send($socket, 'RCPT TO:<'.bin2hex(random_bytes(12)).'@'.$domain.'>');
 
-            $catchAll = (int) substr(trim($this->read($socket)), 0, 3) === 250;
+            $second = trim($this->read($socket));
 
-            return $catchAll ? ProbeResult::catchAll() : ProbeResult::accepted($code);
+            if ($second === '') {
+                return ProbeResult::unknown('a fogadó bontotta a kapcsolatot a próba közben');
+            }
+
+            $secondCode = (int) substr($second, 0, 3);
+
+            return $secondCode === 250 ? ProbeResult::catchAll() : ProbeResult::accepted($code);
         } catch (Throwable $e) {
             return ProbeResult::unknown('szonda-hiba: '.$e::class);
         } finally {
@@ -94,18 +140,40 @@ final class SmtpMailboxProbe implements MailboxProbe
         }
     }
 
-    private function mailExchanger(string $domain): ?string
+    /**
+     * A fogadó MX-ei PRIORITÁS SZERINT.
+     *
+     * A sorrend nem részletkérdés: a BACKUP MX gyakran megengedőbb (mindent elfogad, majd
+     * később bounce-ol), tehát a rossz sorrendből hamis `accepted` lesz. Az elsődleges MX
+     * mondja meg az igazságot.
+     *
+     * @return list<string>
+     */
+    private function mailExchangers(string $domain): array
     {
+        $hosts = [];
+
         foreach ($this->dns->records($domain, 'MX') as $record) {
+            $record = trim((string) $record);
+
+            $priority = preg_match('/^\s*(\d+)\s+/', $record, $match) === 1 ? (int) $match[1] : 50;
             $host = trim((string) preg_replace('/^\s*\d+\s+/', '', $record), '. ');
 
             if ($host !== '') {
-                return $host;
+                $hosts[] = ['priority' => $priority, 'host' => $host];
             }
         }
 
+        usort($hosts, fn (array $a, array $b) => $a['priority'] <=> $b['priority']);
+
+        $ordered = array_column($hosts, 'host');
+
         // RFC 5321 §5.1: MX hiányában maga a domain az implicit MX.
-        return $this->dns->records($domain, 'A') !== [] ? $domain : null;
+        if ($ordered === [] && $this->dns->records($domain, 'A') !== []) {
+            $ordered[] = $domain;
+        }
+
+        return $ordered;
     }
 
     private function send(mixed $socket, string $line): void

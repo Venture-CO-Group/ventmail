@@ -48,6 +48,10 @@ final class ForwardInboundToUrl implements ShouldQueue
         private readonly int $attempt = 1,
     ) {
         $this->afterCommit();
+
+        // NEVESÍTETT sor: a `default`-ot a küldési supervisor nem fogyasztja, tehát az oda
+        // tett job csendben, örökre a sorban maradna.
+        $this->onQueue('inbound');
     }
 
     public function handle(

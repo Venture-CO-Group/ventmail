@@ -81,7 +81,11 @@ return [
         'syntax' => 1.00,
         'probe_rejected' => 1.00,
         'probe_unknown' => 0.20,
-        'typo' => 0.40,
+        // A javaslat HINT, nem vád: a `gmial.com`-nak lehet valódi, működő MX-e
+        // (domain-squatting), és olyankor a levél kézbesítődik. A súly ezért a `risky`
+        // küszöb ALATT van — önmagában nem minősít át egy működő domaint, más jellel együtt
+        // viszont számít.
+        'typo' => 0.15,
     ],
 
     /*

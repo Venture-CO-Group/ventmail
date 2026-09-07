@@ -50,12 +50,22 @@ final class FakeDnsResolver implements DnsResolver
         $key = strtolower($name);
 
         if ($type === null) {
+            // A TELJES visszavonás BLACKHOLE-t jelent, nem a publikált rekordok törlését.
+            //
+            // A metódus neve „visszavonás", és a hívó ezt is várja. A puszta `unset` viszont
+            // visszahozná az alapértelmezést („a világ feloldható"), tehát a törölt domain
+            // MX-e újra megjelenne — a teszt csendben vakká válna.
             unset($this->zone[$key]);
+            $this->blackholed[] = $key;
 
             return;
         }
 
         unset($this->zone[$key][strtoupper($type)]);
+
+        // Ha ez volt az utolsó publikált típus, a név attól még LÉTEZIK a zónában: a
+        // hiányzó típus tényleg hiányzik, nem az alapértelmezés jön vissza.
+        $this->zone[$key] ??= [];
     }
 
     /** Erre a domainre SEMMI nem oldódik fel — a „nincs MX" eset explicit előidézése. */

@@ -48,6 +48,10 @@ final class DeliverWebhook implements ShouldQueue
         // `false`, tehát enélkül a worker a commit ELŐTT keresné a sort, nem találná, és
         // csendben visszatérne — a kézbesítés pedig ÖRÖKRE `pending` maradna.
         $this->afterCommit();
+
+        // NEVESÍTETT sor: a `default`-ot a küldési supervisor nem fogyasztja, tehát az oda
+        // tett job csendben, örökre a sorban maradna.
+        $this->onQueue('webhooks');
     }
 
     public function handle(WorkspaceContext $context, WebhookSigner $signer): void

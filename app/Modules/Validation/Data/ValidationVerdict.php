@@ -33,7 +33,6 @@ final readonly class ValidationVerdict
         public array $checks = [],
         public array $reasons = [],
         public ?string $suggestion = null,
-        public bool $cached = false,
     ) {}
 
     /** @return array<string, mixed> */
@@ -48,7 +47,6 @@ final readonly class ValidationVerdict
             // listán örökre bounce-ol, de egy kattintással javítható.
             'did_you_mean' => $this->suggestion,
             'checks' => $this->checks,
-            'cached' => $this->cached,
         ];
     }
 }
