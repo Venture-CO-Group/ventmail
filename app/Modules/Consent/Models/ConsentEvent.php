@@ -67,12 +67,23 @@ final class ConsentEvent extends Model
         }
     }
 
+    /**
+     * A CÍM CSAK HASH-ELVE kerül be — a mutátor a nyers értéket ELDOBJA.
+     *
+     * Az invariáns a MODELLBEN van, nem a hívókban: a bizonyíték-tábla append-only és
+     * trigger védi, tehát egy ide bekerülő nyers cím VÉGLEGESEN eltávolíthatatlan lenne, és
+     * a GDPR 17. cikk szerinti törlés teljesíthetetlen. Ha ez a hívók figyelmén múlna, egy
+     * új írási út előbb-utóbb beírná — a `consent_events` táblán pedig nincs javítás.
+     *
+     * A hívó ezért a NYERS címet adja át (`'email' => …`), és a modell dönti el, mi kerül a
+     * lemezre. Nyers cím tárolására nincs is oszlop.
+     */
     public function setEmailAttribute(?string $value): void
     {
-        $normalized = DomainNormalizer::listKey(trim((string) $value));
-
-        $this->attributes['email'] = $normalized === '' ? null : $normalized;
-        $this->attributes['email_hash'] = KeyedHash::of('email', $normalized);
+        $this->attributes['email_hash'] = KeyedHash::of(
+            'email',
+            DomainNormalizer::listKey(trim((string) $value))
+        );
     }
 
     public function consent(): BelongsTo

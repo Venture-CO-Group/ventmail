@@ -15,6 +15,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use RuntimeException;
 
 /**
  * Egy kontakt a közönségben (49. kritérium).
@@ -40,8 +41,19 @@ final class Contact extends Model
         'last_synced_at',
     ];
 
-    /** Az audit-tábla sosem törölhető — érintetti e-mail-cím nem kerülhet bele. */
-    public array $auditRedacted = ['email'];
+    /**
+     * Az audit-tábla SOSEM TÖRÖLHETŐ — érintetti PII nem kerülhet bele.
+     *
+     * NEM CSAK A CÍM. A review megmérte, mi került be egy NÉVTELEN űrlap-beküldés után: a
+     * `first_name`, a `last_name` és a TELJES szabad attribútum-JSON nyersen — bármi, amit a
+     * látogató beírt (cím, telefonszám, akár több száz kilobájt). Egy trigger-védett táblába,
+     * amit a `logs:redact-subject` nem érint, és ami a GDPR-törlés után is ott marad.
+     *
+     * Vagyis egy hitelesítés nélküli látogató PII-t írhatott a rendszer legkevésbé
+     * törölhető tárolójába. A `email_hash` marad (a művelet azonosíthatósága miatt), a
+     * személyes tartalom nem.
+     */
+    public array $auditRedacted = ['email', 'first_name', 'last_name', 'attributes'];
 
     protected $attributes = ['status' => 'pending', 'attributes' => '{}'];
 
@@ -145,9 +157,33 @@ final class Contact extends Model
      */
     private function workspaceIdForPivot(): int
     {
+        $own = (int) $this->workspace_id;
         $context = app(WorkspaceContext::class);
 
-        return $context->hasWorkspace() ? $context->workspaceId() : (int) $this->workspace_id;
+        if (! $context->hasWorkspace()) {
+            return $own;
+        }
+
+        // AZ AMBIENT KONTEXTUS ÉS A MODELL SAJÁTJA EGYEZZEN.
+        //
+        // Eltérésnél a pivot-sor beíródott az AKTUÁLIS kontextus workspace-ével, a birtokló
+        // workspace-ből viszont LÁTHATATLAN maradt (a `withPivotValue` a lekérdezésre is
+        // szűkít) — vagyis a „leiratkozott erről a listáról" bizonyíték csendben elveszett.
+        // Mérve: `contact.ws=37, list.ws=37, pivot.ws=38`.
+        //
+        // A `BelongsToWorkspace` ugyanebben a helyzetben HANGOSAN dob; itt nem volt őr. Élő
+        // hívási utat a review nem talált, de a `runForChild` és minden jövőbeli job pont
+        // ilyen út.
+        if ($own !== 0 && $own !== $context->workspaceId()) {
+            throw new RuntimeException(sprintf(
+                'A kontakt (%d) nem az aktuális workspace-hez (%d) tartozik: a listatagság '
+                .'nem írható át tenant-határon.',
+                $own,
+                $context->workspaceId(),
+            ));
+        }
+
+        return $context->workspaceId();
     }
 
     /** A marketingre ELÉRHETŐ kontaktok — a szegmens-motor és a kampány-célzás alapja. */

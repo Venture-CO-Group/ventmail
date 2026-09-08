@@ -31,11 +31,20 @@ $stateful = [
     VerifyCsrfToken::class,
 ];
 
-Route::get('/c/{token}', ConfirmSubscriptionController::class)
+// A GET NEM ÍR (megerősítő oldal), a POST ír. Ugyanaz a döntés, mint a `/u/` végponton:
+// a levélben lévő linkeket a védelmi átjárók (SafeLinks, vírusszűrő proxy) végiglátogatják,
+// és írós GET-tel egy SZKENNER teremtett volna jogalapot — a bizonyítékba az ő IP-jével.
+Route::get('/c/{token}', [ConfirmSubscriptionController::class, 'show'])
     ->withoutMiddleware($stateful)
     ->middleware('throttle:consent-confirm')
     ->where('token', '[A-Za-z0-9\-_~]{1,4096}')
     ->name('consent.confirm');
+
+Route::post('/c/{token}', [ConfirmSubscriptionController::class, 'store'])
+    ->withoutMiddleware($stateful)
+    ->middleware('throttle:consent-confirm')
+    ->where('token', '[A-Za-z0-9\-_~]{1,4096}')
+    ->name('consent.confirm.store');
 
 Route::get('/p/{token}', [PreferenceCenterController::class, 'show'])
     ->withoutMiddleware($stateful)

@@ -7,6 +7,7 @@ use App\Modules\Audience\Contracts\ContactSearchIndex;
 use App\Modules\Audience\Contracts\VentureOsSync;
 use App\Modules\Audience\Data\CrmContact;
 use App\Modules\Audience\Data\FormSubmission;
+use App\Modules\Audience\Jobs\SyncContactToIndex;
 use App\Modules\Audience\Models\Contact;
 use App\Modules\Audience\Models\ContactList;
 use App\Modules\Audience\Models\ContactTag;
@@ -25,6 +26,8 @@ use App\Modules\Consent\Services\ConsentRecorder;
 use App\Modules\Consent\Services\DatabaseConsentChecker;
 use App\Modules\Consent\Services\PreferenceTokens;
 use App\Modules\Domains\Models\Domain;
+use App\Modules\Events\Models\MessageEvent;
+use App\Modules\Logs\Models\ErasedRecipient;
 use App\Modules\Sending\Actions\SendMessage;
 use App\Modules\Sending\Contracts\ConsentChecker;
 use App\Modules\Sending\Drivers\FakeDriver;
@@ -34,8 +37,10 @@ use App\Modules\Suppression\Services\UnsubscribeTokens;
 use App\Modules\Tenancy\Models\Workspace;
 use App\Modules\Tenancy\Services\WorkspaceContext;
 use Illuminate\Database\QueryException;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 uses(RefreshDatabase::class);
@@ -181,7 +186,9 @@ it('az űrlap-beiratkozás double opt-innal MEGERŐSÍTETT consentet ad — de c
     $token = app(ConfirmationTokens::class)
         ->issue((int) $this->workspace->getKey(), 'anna@pelda.hu', 'marketing', $list->uuid);
 
-    $this->get('/c/'.$token)->assertOk()->assertSee('megerősítve', false);
+    // A GET megerősítő oldalt ad, az ÍRÁS a POST — a link-előtöltés így nem teremt jogalapot.
+    $this->get('/c/'.$token)->assertOk()->assertSee('megerősítése', false);
+    $this->post('/c/'.$token)->assertOk()->assertSee('megerősítve', false);
 
     app(WorkspaceContext::class)->set($this->workspace);
 
@@ -309,15 +316,29 @@ it('a GDPR-törlés anonimizál, DE a suppression MEGMARAD — felismerhetően',
     expect($summary['suppressions_kept'])->toBe(1);
 
     // A TILTÁS megmaradt, és a hash alapján továbbra is FELISMERHETŐ…
+    //
+    // A redakciót a PLATFORM-SZINTŰ `logs:redact-subject` végzi (A3), nem a B1 kódja: egy
+    // implementáció, egy hívási pont. A cím helyén ezért az ő jelölése áll, a `email_hash`
+    // pedig érintetlen — pontosan az teszi a tiltást felismerhetővé nyers cím nélkül.
     $suppression = Suppression::query()->firstOrFail();
 
-    expect($suppression->email)->toBe('');
+    expect($suppression->email)->toBe('(redaktált)');
     expect($suppression->email_hash)->toBe($hash);
 
-    // …a nyers cím viszont eltűnt mindenhonnan.
+    // …a nyers cím viszont eltűnt mindenhonnan: a kontaktról, a consentből, a NAPLÓBÓL
+    // (messages, message_events) és a bizonyíték-táblából is — utóbbiba eleve csak hash
+    // került, mert a trigger miatt onnan később nem lehetne kivenni.
     expect(Contact::withTrashed()->firstOrFail()->email)->not->toContain('anna');
     expect(Consent::query()->firstOrFail()->email)->toBe('');
     expect(Consent::query()->firstOrFail()->email_hash)->toBe($hash);
+
+    expect(ConsentEvent::query()->count())->toBeGreaterThan(0);
+    expect(json_encode(ConsentEvent::query()->get()->toArray()))
+        ->not->toContain('anna@pelda.hu');
+
+    // A TARTÓS TILTÁS is megszületett: enélkül a már kiküldött levélben lévő pixel egyetlen
+    // betöltéssel VISSZAÍRNÁ a címet — a törlés önmagát vonná vissza.
+    expect(ErasedRecipient::erased('anna@pelda.hu'))->toBeTrue();
 });
 
 it('NYERS IP-t sehol nem tárolunk — csak peppered hash-t', function () {
@@ -691,4 +712,531 @@ it('a keresés TENANT-SZŰRT — idegen workspace kontaktja nem találat', funct
     expect($hits)->toBe([(string) $mienk->uuid]);
     // …és az indexben MINDKETTŐ ott van: a szűrés nem azért működik, mert nem indexeltünk.
     expect($index->documents)->toHaveCount(2);
+});
+
+/*
+ | A REVIEW BLOKKOLÓINAK MÉRŐ TESZTJEI.
+ */
+
+it('NINCS egyszeres opt-in kiskapu — sem az űrlapon, sem a listán', function () {
+    // A `double_opt_in = false` mellett az űrlap-beküldés AZONNAL `confidence` consentet
+    // adott, megerősítő link nélkül: a golden rule 4 egy tenant által átkapcsolható
+    // booleanná vált, ADR nélkül. A kapcsoló ezért MEGSZŰNT — sem oszlop, sem kód.
+    expect(Schema::hasColumn('forms', 'double_opt_in'))->toBeFalse();
+    expect(Schema::hasColumn('contact_lists', 'double_opt_in'))->toBeFalse();
+
+    app(SubmitForm::class)(Form::create(['name' => 'F']), new FormSubmission(
+        email: 'anna@pelda.hu',
+        elapsedSeconds: 12,
+    ));
+
+    // A beküldés `pending` marad, akármit próbál a hívó.
+    expect(Consent::query()->firstOrFail()->status)->toBe('pending');
+});
+
+it('a megerősítő link NEM TÁMASZTJA FEL a visszavont consentet', function () {
+    // Mérve, mit jelentett a hiánya: megerősített consent → one-click leiratkozás → az
+    // EREDETI `/c/{token}` GET (a TTL egy hét!) → `confirmed`, `revoked_at=NULL`, és a 3.
+    // kapu engedélyezőt ad. Vagyis a SafeLinks-előtöltés vagy egy téves kattintás a régi
+    // opt-in levélben VISSZAÍRJA a jogalapot arra, aki visszavonta.
+    $recorder = app(ConsentRecorder::class);
+    $consent = $recorder->request('anna@pelda.hu');
+
+    $token = app(ConfirmationTokens::class)
+        ->issue((int) $this->workspace->getKey(), 'anna@pelda.hu', 'marketing');
+
+    $this->post('/c/'.$token)->assertOk();
+
+    app(WorkspaceContext::class)->set($this->workspace);
+
+    expect(Consent::query()->firstOrFail()->status)->toBe('confirmed');
+
+    // LEIRATKOZÁS…
+    $recorder->revoke(Consent::query()->firstOrFail(), 'one_click');
+
+    // …majd a RÉGI link újrajátszása.
+    $this->post('/c/'.$token)->assertOk();
+
+    app(WorkspaceContext::class)->set($this->workspace);
+
+    expect(Consent::query()->firstOrFail()->status)->toBe('revoked');
+    expect(app(ConsentChecker::class)->hasConfirmedConsent('anna@pelda.hu', 'marketing'))->toBeFalse();
+});
+
+it('a megerősítő link EGYSZER használható', function () {
+    // Enélkül a token a teljes TTL-je alatt (egy hét) korlátlanul újrajátszható volt: minden
+    // kattintás ÚJ `confirmed` bizonyíték-eseményt írt egy append-only táblába.
+    app(ConsentRecorder::class)->request('anna@pelda.hu');
+
+    $token = app(ConfirmationTokens::class)
+        ->issue((int) $this->workspace->getKey(), 'anna@pelda.hu', 'marketing');
+
+    $this->post('/c/'.$token)->assertOk();
+    $this->post('/c/'.$token)->assertOk();
+    $this->post('/c/'.$token)->assertOk();
+
+    app(WorkspaceContext::class)->set($this->workspace);
+
+    expect(ConsentEvent::query()->where('type', 'confirmed')->count())->toBe(1);
+});
+
+it('a SUPPRESSION-lista erősebb a megerősítő linknél is', function () {
+    app(ConsentRecorder::class)->request('anna@pelda.hu');
+
+    Suppression::create(['email' => 'anna@pelda.hu', 'reason' => 'complaint', 'applies_to' => 'all']);
+
+    $token = app(ConfirmationTokens::class)
+        ->issue((int) $this->workspace->getKey(), 'anna@pelda.hu', 'marketing');
+
+    $this->post('/c/'.$token)->assertOk();
+
+    app(WorkspaceContext::class)->set($this->workspace);
+
+    expect(Consent::query()->firstOrFail()->status)->toBe('pending');
+});
+
+it('a PUBLIKUS űrlap nem szennyezheti egy MEGERŐSÍTETT consent bizonyítékát', function () {
+    // Bárki beküldheti egy áldozat címét a nyilvános űrlapon: a TÁMADÓ `ip_hash`-e,
+    // user-agentje és az általa választott `policy_version` bekerült volna az áldozat
+    // bizonyíték-történetébe — egy olyan táblába, amit a trigger miatt utólag sem javítani,
+    // sem törölni nem lehet. Egy jogi vitában ez pont a bizonyíték értékét rontja.
+    $recorder = app(ConsentRecorder::class);
+    $recorder->confirm($recorder->request('anna@pelda.hu', 'marketing', 'form', '203.0.113.1'));
+
+    $before = ConsentEvent::query()->count();
+
+    $recorder->request('anna@pelda.hu', 'marketing', 'form', '198.51.100.66', 'TamadoUA', 'hamis-verzio');
+
+    expect(ConsentEvent::query()->count())->toBe($before);
+    expect(ConsentEvent::query()->where('policy_version', 'hamis-verzio')->exists())->toBeFalse();
+});
+
+it('a SLUG globálisan egyedi — idegen tenant nem tudja kilőni az űrlapot', function () {
+    // Tenantonkénti egyediséggel bárki, aki ismert egy publikus űrlap-URL-t, felvehetett
+    // ugyanazzal a sluggal egy sajátot, és ezzel ÉSZREVÉTLENÜL kilőtte az áldozat űrlapját:
+    // a `limit(2)` + „ha nem pontosan egy, csendben köszönő oldal" miatt HTTP 200 jött, és
+    // nulla kontakt keletkezett MINDKÉT workspace-ben.
+    Form::create(['name' => 'Hírlevél', 'slug' => 'hirlevel']);
+
+    $idegen = Workspace::factory()->create();
+    app(WorkspaceContext::class)->set($idegen);
+
+    expect(fn () => Form::create(['name' => 'Támadó', 'slug' => 'hirlevel']))
+        ->toThrow(UniqueConstraintViolationException::class);
+});
+
+it('a REDIRECT-es űrlap nem ad 500-at, és csak VERIFIKÁLT domainre visz', function () {
+    // Az `Illuminate\Http\Response` visszatérési típussal a `redirect()->away()` `TypeError`-t
+    // adott: a kontakt és a consent létrejött, a látogató hibaoldalt látott — és ez egyben
+    // SLUG-LÉTEZÉSI ORÁKULUM is volt (létező slug → 500, nem létező → 200).
+    //
+    // A cél pedig engedélyezett: a `redirect()->away()` a MI domainünkről visz tetszőleges
+    // https-címre, ellenőrzés nélkül ez működő nyílt átirányító lenne — épp azon a domainen,
+    // aminek a jó híre a kézbesíthetőségünk alapja.
+    $ok = Form::create(['name' => 'Sajat', 'redirect_url' => 'https://pelda.hu/koszonjuk']);
+    $idegen = Form::create(['name' => 'Idegen', 'redirect_url' => 'https://tamado.example/x']);
+
+    app(WorkspaceContext::class)->forget();
+
+    $this->post('/f/'.$ok->slug, ['email' => 'a@pelda.hu', '_elapsed' => 12])
+        ->assertRedirect('https://pelda.hu/koszonjuk');
+
+    // A NEM verifikált domainre nem irányítunk: a köszönő oldalt adjuk.
+    $this->post('/f/'.$idegen->slug, ['email' => 'b@pelda.hu', '_elapsed' => 12])
+        ->assertOk()
+        ->assertSee('Köszönjük', false);
+});
+
+it('a GDPR-keresés az ÉLŐ sort adja, nem a sírkövet', function () {
+    // Az anonimizált soron az `email_hash` MEGMARAD (hogy a korábbi törlés ténye
+    // ellenőrizhető legyen), tehát újra-feliratkozás után két sor felel meg a hash-nek.
+    // Rendezés nélkül a MÁSODIK érintetti kérés a sírkövön dolgozott: sikert jelentett, és
+    // az ÚJ kontakt PII-je bent maradt.
+    $first = Contact::create(['email' => 'anna@pelda.hu', 'first_name' => 'Anna']);
+
+    app(ContactGdpr::class)->erase($first->fresh());
+
+    $second = Contact::create(['email' => 'anna@pelda.hu', 'first_name' => 'Anna újra']);
+
+    $found = app(ContactGdpr::class)->findByEmail('anna@pelda.hu');
+
+    expect($found?->getKey())->toBe($second->getKey());
+    expect($found?->first_name)->toBe('Anna újra');
+    expect($found?->trashed())->toBeFalse();
+});
+
+it('a szegmens SZÖVEGES operátorai működnek a szabad attribútumokon', function () {
+    // A `whereRaw` nem megy át az Eloquent JSON-grammaron: az `attributes->city` alak ott
+    // maradt, és a Postgres `column "city" does not exist`-tel elhasalt — vagyis a
+    // szerkesztő LEGGYAKORIBB operátora a szabad attribútumokon 500-at adott.
+    Contact::create(['email' => 'bp@example.test', 'status' => 'subscribed', 'attributes' => ['city' => 'Budapest']]);
+    Contact::create(['email' => 'db@example.test', 'status' => 'subscribed', 'attributes' => ['city' => 'Debrecen']]);
+    Contact::create(['email' => 'nincs@example.test', 'status' => 'subscribed']);
+
+    $engine = app(SegmentEngine::class);
+
+    expect($engine->query(['rules' => [['field' => 'attr:city', 'op' => 'contains', 'value' => 'buda']]])
+        ->pluck('email')->all())->toBe(['bp@example.test']);
+
+    expect($engine->query(['rules' => [['field' => 'attr:city', 'op' => 'starts_with', 'value' => 'Deb']]])
+        ->pluck('email')->all())->toBe(['db@example.test']);
+
+    // A `set` a KULCS létezését jelenti…
+    expect($engine->count(['rules' => [['field' => 'attr:city', 'op' => 'set', 'value' => null]]]))->toBe(2);
+    expect($engine->count(['rules' => [['field' => 'attr:city', 'op' => 'not_set', 'value' => null]]]))->toBe(1);
+});
+
+it('a NEGATÍV szegmens-operátorok nem zárják ki a NULL-os sorokat', function () {
+    // A háromértékű logika miatt a „keresztneve nem tartalmazza X-et" szegmensből MINDENKI
+    // kimaradt, akinek nincs keresztneve — pedig az ő keresztneve tényleg nem tartalmazza.
+    Contact::create(['email' => 'anna@example.test', 'status' => 'subscribed', 'first_name' => 'Anna']);
+    Contact::create(['email' => 'nevtelen@example.test', 'status' => 'subscribed']);
+
+    $engine = app(SegmentEngine::class);
+
+    expect($engine->query(['rules' => [['field' => 'first_name', 'op' => 'not_contains', 'value' => 'Anna']]])
+        ->pluck('email')->all())->toBe(['nevtelen@example.test']);
+
+    expect($engine->query(['rules' => [['field' => 'first_name', 'op' => 'is_not', 'value' => 'Anna']]])
+        ->pluck('email')->all())->toBe(['nevtelen@example.test']);
+});
+
+it('az ESEMÉNY-alapú szabály KIS/NAGYBETŰ-FÜGGETLENÜL egyezik', function () {
+    // A `contacts.email` a `listKey()` alakja (a helyi rész is kisbetűs), a
+    // `message_events.recipient` viszont a `DomainNormalizer::email()` alakja — ott a helyi
+    // rész SZÁNDÉKOSAN érintetlen (RFC 5321 §2.4). Szigorú oszlop-egyezéssel a
+    // `Nagy.Anna@…` megnyitása nem látszott, tehát a „nem nyitotta meg" újraaktiváló
+    // kampány pont AZOKNAK ment ki, akik megnyitották.
+    $contact = Contact::create(['email' => 'Nagy.Anna@pelda.hu', 'status' => 'subscribed']);
+
+    MessageEvent::create([
+        'type' => 'opened',
+        'recipient' => 'Nagy.Anna@pelda.hu',
+        'channel' => 'marketing',
+        'occurred_at' => now(),
+    ]);
+
+    $engine = app(SegmentEngine::class);
+
+    expect($engine->query(['rules' => [['field' => 'x', 'op' => 'opened_campaign', 'value' => '']]])
+        ->pluck('email')->all())->toBe([(string) $contact->email]);
+
+    expect($engine->count(['rules' => [['field' => 'x', 'op' => 'not_opened_campaign', 'value' => '']]]))->toBe(0);
+});
+
+it('a GDPR-export aktivitása is KIS/NAGYBETŰ-FÜGGETLEN, és jelzi a csonkolást', function () {
+    $contact = Contact::create(['email' => 'Nagy.Anna@pelda.hu', 'status' => 'subscribed']);
+
+    foreach (range(1, 3) as $i) {
+        MessageEvent::create([
+            'type' => 'delivered',
+            'recipient' => 'Nagy.Anna@pelda.hu',
+            'channel' => 'marketing',
+            'occurred_at' => now()->subMinutes($i),
+        ]);
+    }
+
+    $export = app(ContactGdpr::class)->export($contact->fresh());
+
+    expect($export['activity'])->toHaveCount(3);
+    expect($export['activity_total'])->toBe(3);
+    expect($export['activity_truncated'])->toBeFalse();
+    // A címellenőrzés eredménye is róla szóló adat.
+    expect($export['contact'])->toHaveKey('validation_verdict');
+});
+
+it('a MARKETING levél fejléce a PREFERENCE CENTERT is linkeli', function () {
+    // A `.claude/rules/20-consent-gdpr.md` kimondja: „Preference center MINDEN marketing
+    // levélben linkelt". A `PreferenceTokens::issue()`-nak korábban nem volt hívója —
+    // vagyis a link sehol nem jelent meg, és az 55. kritérium csak papíron teljesült.
+    Domain::query()->firstOrCreate(['name' => 'pelda.hu'], ['status' => 'verified', 'verified_at' => now()]);
+
+    $message = Message::create([
+        'channel' => 'marketing',
+        'from_email' => 'no-reply@pelda.hu',
+        'recipients' => ['anna@pelda.hu'],
+        'subject' => 'Hírlevél',
+        'headers' => [],
+    ]);
+
+    $header = (string) $message->fresh()->headersFor('anna@pelda.hu')['List-Unsubscribe'];
+
+    // KÉT bejegyzés: a one-click végpont ÉS a preference center.
+    expect($header)->toContain('/u/');
+    expect($header)->toContain('/p/');
+
+    preg_match('#/p/([A-Za-z0-9\-_~]+)#', $header, $match);
+
+    expect(app(PreferenceTokens::class)->parse((string) $match[1])['email'])->toBe('anna@pelda.hu');
+});
+
+it('a preference center nem pipálja vissza a SUPPRESSION-ölt címet', function () {
+    // Mérve, mit hagyott a hiánya: „mindenről leiratkozom" után egy lista visszapipálása →
+    // `pivot=subscribed`, `contact=unsubscribed`, `consent=revoked`, `suppression=1`. A
+    // felület innentől bepipált négyzetet rajzol egy olyan listára, amiről a címzett SOHA nem
+    // kap levelet — a legrosszabb fajta hazugság a felületen.
+    $recorder = app(ConsentRecorder::class);
+    $recorder->confirm($recorder->request('anna@pelda.hu'));
+
+    $contact = Contact::create(['email' => 'anna@pelda.hu', 'status' => 'subscribed']);
+    $list = ContactList::create(['name' => 'Hírlevél']);
+    $contact->lists()->attach($list, ['status' => 'subscribed']);
+
+    $token = app(PreferenceTokens::class)->issue((int) $this->workspace->getKey(), 'anna@pelda.hu');
+
+    $this->post('/p/'.$token, ['unsubscribe_all' => 1])->assertOk();
+    // …és most próbáljuk visszapipálni.
+    $this->post('/p/'.$token, ['lists' => [(string) $list->uuid]])->assertOk();
+
+    app(WorkspaceContext::class)->set($this->workspace);
+
+    expect($contact->fresh()->lists()->wherePivot('status', 'subscribed')->count())->toBe(0);
+    expect(Consent::query()->firstOrFail()->status)->toBe('revoked');
+});
+
+it('a PIVOT nem írható át tenant-határon', function () {
+    // Eltérő ambient kontextusnál a pivot-sor beíródott az AKTUÁLIS workspace-ével, a
+    // birtokló workspace-ből viszont LÁTHATATLAN maradt — vagyis a „leiratkozott erről a
+    // listáról" bizonyíték csendben elveszett. A `BelongsToWorkspace` ugyanebben a
+    // helyzetben hangosan dob; itt nem volt őr.
+    $contact = Contact::create(['email' => 'anna@pelda.hu', 'status' => 'subscribed']);
+    $list = ContactList::create(['name' => 'Hírlevél']);
+
+    $idegen = Workspace::factory()->create();
+    app(WorkspaceContext::class)->set($idegen);
+
+    expect(fn () => $contact->lists()->attach($list, ['status' => 'subscribed']))
+        ->toThrow(RuntimeException::class);
+});
+
+it('az indexelő job a COMMIT UTÁN fut', function () {
+    // A `Contact::saved` hook tranzakción BELÜL dobja, és a `queue.php` mind a négy
+    // connectionön `after_commit => false`. Valódi Redis-queue-n a worker így a commit ELŐTT
+    // futhat: a kontakt nem található, a job csendben visszatér, és az űrlap-beiratkozás
+    // SOSEM kerül az indexbe.
+    $job = new SyncContactToIndex('uuid', 1);
+
+    expect($job->afterCommit)->toBeTrue();
+});
+
+/*
+ | A SECURITY-REVIEW TALÁLATAINAK MÉRŐ TESZTJEI.
+ */
+
+it('a consent-bizonyíték TRUNCATE-tel sem törölhető, a workspace mégis törölhető', function () {
+    // KÉT hiba, amit a platform egyszer MÁR kijavított (`fix_immutability_triggers`), és a
+    // naiv trigger visszahozta:
+    //
+    //  1. a TRUNCATE nem vált ki row-triggert — a bizonyíték egyetlen utasítással eltűnt;
+    //  2. az FK-nullázás maga is UPDATE — a feltétel nélküli trigger emiatt LEHETETLENNÉ
+    //     tette a workspace törlését, vagyis egyetlen consent-esemény után nem lett volna
+    //     GDPR Art. 17 törlési út. Pont annak a jognak az útja, amit ez a tábla szolgál.
+    $consent = app(ConsentRecorder::class)->request('anna@pelda.hu');
+
+    expect(ConsentEvent::query()->count())->toBe(1);
+
+    DB::beginTransaction();
+
+    $truncateBlocked = false;
+
+    try {
+        DB::statement('truncate consent_events');
+    } catch (QueryException $e) {
+        $truncateBlocked = str_contains($e->getMessage(), 'nem üríthető');
+    } finally {
+        DB::rollBack();
+    }
+
+    expect($truncateBlocked)->toBeTrue();
+
+    // A CONSENT sor törlése (FK-nullázás) ÁTMEGY — a bizonyíték megmarad.
+    $consent->delete();
+
+    expect(ConsentEvent::query()->withoutGlobalScopes()->count())->toBe(1);
+
+    // …és a workspace hard delete is: a bizonyíték `workspace_id`-je nullázódik.
+    $workspace = $this->workspace;
+    app(WorkspaceContext::class)->forget();
+
+    $workspace->forceDelete();
+
+    expect(DB::table('consent_events')->count())->toBe(1);
+    expect(DB::table('consent_events')->whereNull('workspace_id')->count())->toBe(1);
+});
+
+it('a NÉVTELEN űrlap-beküldés nem ír PII-t a törölhetetlen audit-naplóba', function () {
+    // Mérve, mi került be korábban: a `first_name`, a `last_name` és a TELJES szabad
+    // attribútum-JSON nyersen — bármi, amit a látogató beírt (cím, telefon) — egy
+    // trigger-védett táblába, amit a `logs:redact-subject` nem érint, és ami a
+    // GDPR-törlés után is ott marad.
+    $form = Form::create([
+        'name' => 'PII',
+        'fields' => [['name' => 'telefon'], ['name' => 'cim']],
+    ]);
+
+    app(WorkspaceContext::class)->forget();
+
+    $this->post('/f/'.$form->slug, [
+        'email' => 'anna@pelda.hu',
+        'first_name' => 'Anna',
+        'last_name' => 'Kovács',
+        'telefon' => '+36301234567',
+        'cim' => 'Budapest, Fő utca 12.',
+        '_elapsed' => 12,
+    ])->assertOk();
+
+    app(WorkspaceContext::class)->set($this->workspace);
+
+    $audit = json_encode(AuditLog::query()->get()->toArray());
+
+    expect($audit)->not->toContain('+36301234567');
+    expect($audit)->not->toContain('Fő utca');
+    expect($audit)->not->toContain('Kovács');
+    expect($audit)->not->toContain('anna@pelda.hu');
+    // …a MŰVELET viszont auditált: a hash bent van, tehát követhető, mi történt.
+    expect($audit)->toContain('email_hash');
+});
+
+it('a publikus végpontok nem adnak 500-at szemét bemenetre', function () {
+    // Hitelesítés nélküli végpont: a nem-skalár és a túl hosszú érték korábban 500-at adott
+    // (`email` tömbként, 1000 karakteres `first_name` a `varchar(255)`-en), a szabad
+    // attribútum hossza pedig KORLÁTLAN volt — 200 kB egy sorban, 300 kérés/perc plafonnal.
+    $form = Form::create(['name' => 'Szemet', 'fields' => [['name' => 'jegyzet']]]);
+
+    app(WorkspaceContext::class)->forget();
+
+    $this->post('/f/'.$form->slug, [
+        'email' => ['tomb'],
+        '_elapsed' => 12,
+    ])->assertOk();
+
+    $this->post('/f/'.$form->slug, [
+        'email' => 'anna@pelda.hu',
+        'first_name' => str_repeat('A', 1000),
+        'jegyzet' => str_repeat('B', 200_000),
+        '_elapsed' => 12,
+    ])->assertOk();
+
+    app(WorkspaceContext::class)->set($this->workspace);
+
+    $contact = Contact::query()->firstOrFail();
+
+    expect(mb_strlen((string) $contact->first_name))->toBeLessThanOrEqual(200);
+    expect(mb_strlen((string) ($contact->attributes['jegyzet'] ?? '')))->toBeLessThanOrEqual(500);
+
+    // …és a preference center sem: `lists[0][]=x` korábban `ErrorException`-t adott.
+    $token = app(PreferenceTokens::class)->issue((int) $this->workspace->getKey(), 'anna@pelda.hu');
+
+    $this->post('/p/'.$token, ['lists' => [['tomb']]])->assertOk();
+});
+
+it('a szegmens-motor a TENANT bemenetére sem ad 500-at', function () {
+    $engine = app(SegmentEngine::class);
+
+    // Nem-uuid a lista/címke szabályban → korábban `SQLSTATE[22P02]` (500).
+    expect(fn () => $engine->count(['rules' => [['field' => 'x', 'op' => 'has_tag', 'value' => 'nem-uuid']]]))
+        ->toThrow(InvalidArgumentException::class);
+
+    // Szemét dátum → korábban `SQLSTATE[22007]` (500).
+    expect(fn () => $engine->count(['rules' => [['field' => 'subscribed_at', 'op' => 'gt', 'value' => 'holnapután']]]))
+        ->toThrow(InvalidArgumentException::class);
+});
+
+it('a LIKE-jokerek nem szélesítik a szegmenst', function () {
+    // Escape nélkül a `contains` operátor `%` értékkel MINDENKIT beválasztott. A hiba
+    // iránya a rossz: a szegmens SZÉLESEBB lesz a beállítottnál, tehát több embernek megy ki
+    // a levél, mint amit a felhasználó akart.
+    Contact::create(['email' => 'a@example.test', 'status' => 'subscribed', 'first_name' => 'Anna']);
+    Contact::create(['email' => 'b@example.test', 'status' => 'subscribed', 'first_name' => 'Béla']);
+
+    $engine = app(SegmentEngine::class);
+
+    expect($engine->count(['rules' => [['field' => 'first_name', 'op' => 'contains', 'value' => '%']]]))->toBe(0);
+    expect($engine->count(['rules' => [['field' => 'first_name', 'op' => 'contains', 'value' => '_']]]))->toBe(0);
+});
+
+it('a 3. kapu ÉRTELMEZHETETLEN címre is fail-closed', function () {
+    // `hasConfirmedConsent('')` korábban IGAZAT mondott: az üres elem csendben kiesett, és a
+    // metódus üres listát adott. A `SendMessage` úton ma egy korábbi kapu megfogja, de egy
+    // kontraktus alapértelmezése nem lehet „nincs kifogás".
+    $checker = app(ConsentChecker::class);
+
+    expect($checker->hasConfirmedConsent('', 'marketing'))->toBeFalse();
+    expect($checker->hasConfirmedConsent('   ', 'marketing'))->toBeFalse();
+    expect($checker->withoutConsent(['', null, ['tomb']], 'marketing'))->toHaveCount(3);
+});
+
+it('a ventOS-szinkron nem TÁMASZTJA FEL a GDPR-törölt kontaktot', function () {
+    // Mérve, mit jelentett a hiánya: `erase()` után egy behúzás ugyanazzal az
+    // `external_id`-val ÚJ, ÉLŐ kontaktot hozott létre a NYERS címmel — vagyis a CRM
+    // visszahozta azt, akinek a törlését épp teljesítettük.
+    $contact = Contact::create(['email' => 'torles@pelda.hu', 'external_id' => 'crm-9', 'status' => 'subscribed']);
+
+    app(ContactGdpr::class)->erase($contact->fresh());
+
+    $fake = new FakeVentureOsSync;
+    $fake->remote = [new CrmContact('crm-9', 'torles@pelda.hu', 'Vissza')];
+    $this->app->instance(VentureOsSync::class, $fake);
+
+    $summary = app(ContactSynchroniser::class)->pull();
+
+    expect($summary['created'])->toBe(0);
+    expect($summary['skipped'])->toBe(1);
+    expect(Contact::query()->where('email', 'torles@pelda.hu')->exists())->toBeFalse();
+});
+
+it('a kitolás nem adja át a leiratkozott címeket a CRM-nek', function () {
+    // A leiratkozás után nincs jogalapunk a további adattovábbításra — és a CRM-oldali
+    // „aktív ügyfél" flag amúgy is épp ezeket hozná vissza.
+    Contact::create(['email' => 'aktiv@pelda.hu', 'external_id' => 'crm-1', 'status' => 'subscribed']);
+    Contact::create(['email' => 'leiratkozott@pelda.hu', 'external_id' => 'crm-2', 'status' => 'unsubscribed']);
+
+    $fake = new FakeVentureOsSync;
+    $this->app->instance(VentureOsSync::class, $fake);
+
+    app(ContactSynchroniser::class)->push();
+
+    expect(array_map(fn ($c) => $c->email, $fake->pushed))->toBe(['aktiv@pelda.hu']);
+});
+
+it('a preference center csak a SAJÁT listákat mutatja', function () {
+    // A korábbi változat MINDEN listát kilistázott a leíró szövegével együtt: a token
+    // birtokosa megismerte a tenant teljes listastruktúráját — egy „belső VIP lista"
+    // megjelent egy olyan kontaktnak, aki sosem volt rajta.
+    $contact = Contact::create(['email' => 'anna@pelda.hu', 'status' => 'subscribed']);
+    $sajat = ContactList::create(['name' => 'Hírlevél']);
+    ContactList::create(['name' => 'Belső VIP lista', 'description' => 'csak nekünk']);
+
+    $contact->lists()->attach($sajat, ['status' => 'subscribed']);
+
+    $token = app(PreferenceTokens::class)->issue((int) $this->workspace->getKey(), 'anna@pelda.hu');
+
+    $response = $this->get('/p/'.$token);
+
+    $response->assertOk()->assertSee('Hírlevél');
+    expect($response->getContent())->not->toContain('Belső VIP');
+});
+
+it('a LISTÁNKÉNTI változás is bizonyítékot hagy', function () {
+    // Korábban csak a teljes leiratkozás írt eseményt: a listánkénti be- és kikapcsolás
+    // nyomtalanul történt, pedig az is a consent HATÓKÖRÉT módosítja. Egy „miért kaptam ezt
+    // a levelet?" kérdésre a tagsági állapotból nem derül ki, mikor kapcsolta be.
+    $recorder = app(ConsentRecorder::class);
+    $recorder->confirm($recorder->request('anna@pelda.hu'));
+
+    $contact = Contact::create(['email' => 'anna@pelda.hu', 'status' => 'subscribed']);
+    $a = ContactList::create(['name' => 'A']);
+    $b = ContactList::create(['name' => 'B']);
+    $contact->lists()->attach($a, ['status' => 'subscribed']);
+    $contact->lists()->attach($b, ['status' => 'subscribed']);
+
+    $token = app(PreferenceTokens::class)->issue((int) $this->workspace->getKey(), 'anna@pelda.hu');
+
+    $this->post('/p/'.$token, ['lists' => [(string) $a->uuid]])->assertOk();
+
+    app(WorkspaceContext::class)->set($this->workspace);
+
+    expect(ConsentEvent::query()->where('type', 'list_unsubscribed')->count())->toBe(1);
+    expect(ConsentEvent::query()->where('type', 'list_unsubscribed')->firstOrFail()->payload['list'])
+        ->toBe((string) $b->uuid);
 });

@@ -42,7 +42,12 @@ description = """
    jön, és a tokenben nincs más, mint a teszt saját kitalált workspace-e, üzenet-uuid-ja és
    `cimzett@example.test` címe.
 
-5) A REDAKCIÓT bizonyító tesztek szándékos ál-titkai (`vm_live_TITOK`, `NYERS-JELSZO`).
+5) tests/Feature/Consent/ConsentTokenVectorsTest.php — ugyanaz, a `optin` és `prefs`
+   tokenekre. A `optin` a rendszer legérzékenyebb tokenje (JOGALAPOT teremt), ezért a
+   wire-formátumát beégetett vektor rögzíti: egy néma formátumváltás a CI-ban bukik el, nem
+   az ügyfél postafiókjában.
+
+6) A REDAKCIÓT bizonyító tesztek szándékos ál-titkai (`vm_live_TITOK`, `NYERS-JELSZO`).
    Ezek pont attól hasznosak, hogy VALÓDINAK LÁTSZANAK: a teszt azt állítja, hogy az
    audit-naplóba nem kerülnek be. Ha a mintát „ártalmatlanabbra" cserélnénk, a teszt
    megszűnne bizonyítani bármit — épp azt a rést nyitná ki, amit a security-review talált.
@@ -56,5 +61,6 @@ paths = [
   '''tests/Feature/Schema/CryptoVectorsTest\.php''',
   '''tests/Feature/Suppression/UnsubscribeTokenVectorsTest\.php''',
   '''tests/Feature/Logs/TrackingTokenVectorsTest\.php''',
+  '''tests/Feature/Consent/ConsentTokenVectorsTest\.php''',
   '''\.gitleaks\.toml''',
 ]

@@ -17,17 +17,23 @@ use Illuminate\Http\Response;
 /**
  * `GET /c/{token}` — a double opt-in MEGERŐSÍTÉSE (50. kritérium).
  *
- * ## Miért ír egy GET
+ * ## A GET NEM ÍR — és ezt az érvet egyszer már elrontottam
  *
- * A leiratkozásnál (`/u/`) a GET szándékosan NEM ír: ott a védelmi átjárók (SafeLinks,
- * vírusszűrő proxy) link-előtöltése csendben leiratkoztatná azt, aki nem kattintott — és a
- * kár VISSZAVONHATATLAN (a tenant API-ból nem veheti le a sort).
+ * Első változatban a GET erősített meg, azzal az érvvel, hogy „a megerősítés a felhasználó
+ * szándékát teljesíti, a kára kicsi és visszafordítható". A review megmérte, mi történik
+ * valójában: egy `Microsoft-SafeLinks-Scanner` user-agenttel érkező, EMBERI INTERAKCIÓ
+ * NÉLKÜLI kérés `confirmed` jogalapot teremtett — és a bizonyítékba a SZKENNER IP-je és
+ * user-agentje került az érintett hozzájárulásaként.
  *
- * Itt a mérleg fordítva áll. A megerősítés a felhasználó SZÁNDÉKÁT teljesíti, a kára pedig
- * kicsi és visszafordítható: ha egy előtöltés erősíti meg, a címzett kap egy levelet, amiről
- * egy kattintással leiratkozik. Egy megerősítő OLDAL viszont a beiratkozók egy részét
- * elveszítené — és a golden rule 4 szempontjából a nem-megerősített consent a rosszabb
- * kimenet, mert onnantól a lista jogalap nélküli.
+ * A hiba nem a konverziós mérlegben volt, hanem abban, hogy egy JOGI kérdést konverziós
+ * érvvel döntöttem el. A rögzített bizonyíték így nem csak hiányos, hanem AKTÍVAN
+ * FÉLREVEZETŐ: azt állítja, hogy az érintett hozzájárult, miközben egy levélátjáró
+ * kérte le a linket. Minden szkennelő átjáró mögötti címzettnél a double opt-in de facto
+ * single opt-inné vált — vagyis pont a golden rule 4 sérült, aminek a védelmére hivatkoztam.
+ *
+ * Ugyanaz a döntés, mint a `/u/` végponton, ugyanabból az okból: a GET egygombos megerősítő
+ * oldalt mutat, az ÍRÁS a POST. Egy kattintás az ára, és csak azon az úton, amit a
+ * link-előtöltés érint.
  *
  * A HITELESÍTÉS a token: titkosított, cél-elválasztott, LEJÁRÓ. A tenant-kontextus is belőle
  * jön, és MINDIG ugyanaz a válasz — érvényes, hamis és lejárt tokenre is. A különbség
@@ -40,7 +46,14 @@ final class ConfirmSubscriptionController
         private readonly ConsentRecorder $recorder,
     ) {}
 
-    public function __invoke(Request $request, string $token, WorkspaceContext $context): Response
+    /** A LINK: megerősítő oldal, írás nélkül. */
+    public function show(string $token): Response
+    {
+        return response(view('consent.confirm', ['token' => $token])->render(), 200);
+    }
+
+    /** A GOMB: itt történik a megerősítés. */
+    public function store(Request $request, string $token, WorkspaceContext $context): Response
     {
         $this->confirm($request, $token, $context);
 

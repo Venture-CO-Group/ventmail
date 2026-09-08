@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Audience\Providers;
 
+use App\Modules\Audience\Console\ReindexContactsCommand;
 use App\Modules\Audience\Contracts\ContactSearchIndex;
 use App\Modules\Audience\Contracts\VentureOsSync;
 use App\Modules\Audience\Services\MeilisearchContactIndex;
@@ -27,6 +28,13 @@ final class AudienceServiceProvider extends ModuleServiceProvider
     protected array $apiMiddleware = ['api.auth'];
 
     protected string $apiPrefix = 'v1';
+
+    protected function bootModule(): void
+    {
+        if ($this->app->runningInConsole()) {
+            $this->commands([ReindexContactsCommand::class]);
+        }
+    }
 
     public function register(): void
     {

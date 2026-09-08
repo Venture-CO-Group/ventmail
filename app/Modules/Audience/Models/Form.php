@@ -29,10 +29,10 @@ final class Form extends Model
 
     protected $fillable = [
         'contact_list_id', 'name', 'slug', 'fields', 'honeypot_field', 'min_seconds',
-        'double_opt_in', 'policy_version', 'consent_text', 'redirect_url', 'active',
+        'policy_version', 'consent_text', 'redirect_url', 'active',
     ];
 
-    protected $attributes = ['fields' => '[]', 'min_seconds' => 3, 'double_opt_in' => true, 'active' => true];
+    protected $attributes = ['fields' => '[]', 'min_seconds' => 3, 'active' => true];
 
     public function uniqueIds(): array
     {
@@ -44,7 +44,6 @@ final class Form extends Model
         return [
             'fields' => 'array',
             'min_seconds' => 'integer',
-            'double_opt_in' => 'boolean',
             'active' => 'boolean',
         ];
     }
@@ -52,7 +51,10 @@ final class Form extends Model
     protected static function booted(): void
     {
         self::creating(function (self $form): void {
-            $form->slug = $form->slug ?: Str::slug((string) $form->name).'-'.Str::lower(Str::random(6));
+            // A SLUG globálisan egyedi (lásd a migrációt), ezért a generált alak MINDIG
+            // kap véletlen utótagot — és ha a tenant adott sajátot, az is egyedi kell
+            // legyen: az ütközés HANGOS hiba, nem csendes felülírás.
+            $form->slug = $form->slug ?: Str::slug((string) $form->name).'-'.Str::lower(Str::random(10));
 
             // A CSAPDA NEVE generált, ha a hívó nem adott: egy állandó, kitalálható név
             // (`website`) néhány hét alatt bekerül a bot-keretrendszerek kihagyási listájába.

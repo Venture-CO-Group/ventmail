@@ -85,6 +85,20 @@ function unsubscribeTokenFor(string $recipient, ?Workspace $workspace = null): s
     );
 }
 
+/**
+ * A leiratkozó token kiszedése a `List-Unsubscribe` fejlécből.
+ *
+ * A fejléc RFC 2369 szerint `<…>`-be zárt címek VESSZŐVEL elválasztott listája, és a B1 óta
+ * KÉT bejegyzést tartalmaz: a one-click végpontot és a preference centert. Egy naiv
+ * „minden `/u/` előtti rész levágása" ezért a második bejegyzést is beszippantaná.
+ */
+function unsubscribeTokenIn(string $header): string
+{
+    preg_match('#/u/([A-Za-z0-9\-_~]+)#', $header, $match);
+
+    return (string) ($match[1] ?? '');
+}
+
 /*
  | 43. BLOCKLIST-MONITOR
  */
@@ -630,7 +644,7 @@ it('BATCH-ben MINDEN címzett a SAJÁT leiratkozó tokenjét kapja', function ()
 
     foreach (['anna@example.test', 'bela@example.test', 'cili@example.test'] as $recipient) {
         $header = (string) $message->headersFor($recipient)['List-Unsubscribe'];
-        $token = (string) preg_replace('#^.*/u/|>$#', '', $header);
+        $token = unsubscribeTokenIn($header);
 
         expect($tokens->parse($token)['recipient'])->toBe($recipient);
     }
@@ -706,7 +720,7 @@ it('a MODELLRE közvetlenül írt ügyfél-fejlécet is FELÜLÍRJUK', function 
         expect($keys)->toBe(['List-Unsubscribe', 'List-Unsubscribe-Post']);
         expect($outgoing['List-Unsubscribe'])->not->toContain('sajat.example');
 
-        $token = (string) preg_replace('#^.*/u/|>$#', '', (string) $outgoing['List-Unsubscribe']);
+        $token = unsubscribeTokenIn((string) $outgoing['List-Unsubscribe']);
 
         expect($tokens->parse($token)['recipient'])->toBe($recipient);
     }
@@ -1057,7 +1071,7 @@ it('a leiratkozó fejléc felismerése NEM csúszik el, ha az URL-előtag megvá
 
     foreach (['anna@example.test', 'bela@example.test'] as $recipient) {
         $header = (string) $message->headersFor($recipient)['List-Unsubscribe'];
-        $token = (string) preg_replace('#^.*/u/|>$#', '', $header);
+        $token = unsubscribeTokenIn($header);
 
         expect($tokens->parse($token)['recipient'])->toBe($recipient);
     }
@@ -1237,7 +1251,7 @@ it('a MÁS BETŰZÉSŰ ügyfél-fejléc nem törli el a címzettenkénti tokent'
 
     foreach (['anna@example.test', 'bela@example.test'] as $recipient) {
         $header = (string) $message->fresh()->headersFor($recipient)['List-Unsubscribe'];
-        $token = (string) preg_replace('#^.*/u/|>$#', '', $header);
+        $token = unsubscribeTokenIn($header);
 
         expect($tokens->parse($token)['recipient'])->toBe($recipient);
     }

@@ -24,18 +24,11 @@ final class ContactList extends Model
 {
     use Auditable, BelongsToWorkspace, HasUuids, SoftDeletes;
 
-    protected $fillable = ['name', 'description', 'from_email', 'from_name', 'double_opt_in'];
-
-    protected $attributes = ['double_opt_in' => true];
+    protected $fillable = ['name', 'description', 'from_email', 'from_name'];
 
     public function uniqueIds(): array
     {
         return ['uuid'];
-    }
-
-    protected function casts(): array
-    {
-        return ['double_opt_in' => 'boolean'];
     }
 
     public function contacts(): BelongsToMany

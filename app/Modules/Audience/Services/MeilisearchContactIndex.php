@@ -41,11 +41,16 @@ final class MeilisearchContactIndex implements ContactSearchIndex
 {
     private const INDEX = 'contacts';
 
+    /** Kérésen belül egyszer ellenőrizzük a beállítást (lásd `ensureFilterable()`). */
+    private bool $filterableEnsured = false;
+
     public function __construct(private readonly Client $client) {}
 
     public function index(Contact $contact): void
     {
         $this->guarded(function () use ($contact): void {
+            $this->ensureFilterable();
+
             $this->documents()->addDocuments([[
                 'id' => (string) $contact->uuid,
                 'workspace_id' => (int) $contact->workspace_id,
@@ -64,12 +69,18 @@ final class MeilisearchContactIndex implements ContactSearchIndex
 
     public function search(int $workspaceId, string $query, int $limit = 50): array
     {
-        $hits = $this->guarded(fn () => $this->documents()->search($query, [
-            // A SZŰRŐ nem opcionális: enélkül a keresés minden tenant kontaktját visszaadná.
-            'filter' => 'workspace_id = '.$workspaceId,
-            'limit' => max(1, min($limit, 200)),
-            'attributesToRetrieve' => ['id'],
-        ])->getHits(), []);
+        $hits = $this->guarded(function () use ($query, $workspaceId, $limit) {
+            $this->ensureFilterable();
+
+            return $this->documents()->search($query, [
+                // A SZŰRŐ nem opcionális: enélkül a keresés minden tenant kontaktját
+                // visszaadná. A `ensureFilterable()` gondoskodik arról, hogy a Meili
+                // egyáltalán engedje ezt a szűrőt.
+                'filter' => 'workspace_id = '.$workspaceId,
+                'limit' => max(1, min($limit, 200)),
+                'attributesToRetrieve' => ['id'],
+            ])->getHits();
+        }, []);
 
         return array_values(array_map(static fn (array $hit) => (string) $hit['id'], (array) $hits));
     }
@@ -78,6 +89,41 @@ final class MeilisearchContactIndex implements ContactSearchIndex
     private function documents(): Indexes
     {
         return $this->client->index(self::INDEX);
+    }
+
+    /**
+     * A SZŰRHETŐ ATTRIBÚTUM BEÁLLÍTÁSA — enélkül a tenant-szűrő SOHA nem fut le.
+     *
+     * A korábbi docblock azt állította, hogy „a `filterableAttributes` beállítása az index
+     * létrehozásának RÉSZE" — nem volt kód, ami beállította volna. A review megmérte az élő
+     * dev-indexen: `filterableAttributes: []`, és a szűrt keresés
+     * `Attribute `workspace_id` is not filterable`-lel elhasalt, a szűrő NÉLKÜLI keresés
+     * viszont három workspace kontaktjait adta EGY találati listában.
+     *
+     * Ma ez fail-closed (a `guarded()` elnyeli, üres lista a válasz), tehát a keresés
+     * élesben egyszerűen nem működik — és épp ez a veszélyes: a látható szimptóma „nem talál
+     * semmit", amire a legrövidebb látszat-javítás a `filter` KIVÉTELE lenne. Onnantól a
+     * keresőmező minden tenant címlistáját visszaadja.
+     *
+     * A beállítás IDEMPOTENS és csak akkor ír, ha kell: a Meili minden `updateSettings`
+     * hívásra új taskot indít, és egy kontaktonkénti beállítás-frissítés a
+     * task-sort tömné meg.
+     */
+    private function ensureFilterable(): void
+    {
+        if ($this->filterableEnsured) {
+            return;
+        }
+
+        $this->filterableEnsured = true;
+
+        $current = (array) ($this->documents()->getSettings()['filterableAttributes'] ?? []);
+
+        if (! in_array('workspace_id', $current, true)) {
+            $this->documents()->updateFilterableAttributes(
+                array_values(array_unique([...$current, 'workspace_id']))
+            );
+        }
     }
 
     /**

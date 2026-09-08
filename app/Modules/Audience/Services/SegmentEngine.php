@@ -7,6 +7,7 @@ namespace App\Modules\Audience\Services;
 use App\Modules\Audience\Models\Contact;
 use App\Modules\Tenancy\Services\WorkspaceContext;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Str;
 use InvalidArgumentException;
 
 /**
@@ -133,6 +134,16 @@ final class SegmentEngine
 
         // A LISTA- és CÍMKE-tagság reláció, nem oszlop.
         if (in_array($operator, ['in_list', 'not_in_list', 'has_tag', 'not_has_tag'], true)) {
+            // A UUID-t ITT ellenőrizzük, nem az adatbázisban: egy elgépelt azonosító
+            // `SQLSTATE[22P02]` QueryExceptiont adott, ami a felületen 500 — pedig ez a
+            // felhasználó hibája, és megnevezhető.
+            if (! Str::isUuid($this->scalar($value))) {
+                throw new InvalidArgumentException(sprintf(
+                    'A(z) %s szabály értéke azonosító (uuid) kell legyen.',
+                    $operator
+                ));
+            }
+
             $this->applyRelation($query, $operator, $value);
 
             return;
@@ -146,24 +157,44 @@ final class SegmentEngine
 
         [$column, $type] = $this->resolveField($field);
 
+        // A SZÖVEGES operátorokhoz a NYERS SQL-kifejezés kell, és az JSON-nál MÁS.
+        //
+        // A `whereRaw` nem megy át az Eloquent JSON-grammaron: az `attributes->city` alak
+        // ott maradt, és a Postgres `column "city" does not exist`-tel elhasalt — vagyis a
+        // szerkesztő LEGGYAKORIBB operátora a szabad attribútumokon 500-at adott (mérve). A
+        // JSON-út a `->>` operátor, ami szöveget ad.
+        $expression = $type === 'json'
+            ? 'attributes->>\''.$this->jsonKey($field).'\''
+            : $column;
+
         match ($operator) {
-            'is' => $type === 'json'
-                ? $query->where($column, '=', $this->scalar($value))
-                : $query->where($column, '=', $this->typed($value, $type)),
-            'is_not' => $query->where($column, '!=', $this->typed($value, $type)),
+            'is' => $query->where($column, '=', $this->typed($value, $type)),
+            // A NULL-os sor NEM „nem egyenlő": a háromértékű logika miatt a `!=` kizárná
+            // azt is, akinek nincs értéke — pedig az ő keresztneve tényleg nem „Anna".
+            'is_not' => $query->whereRaw("coalesce({$expression}::text, '') <> ?", [$this->scalar($value)]),
             // A `contains` MINDIG kis-nagybetű-érzéketlen: a felület felhasználója nem
             // gondol a betűzésre, és a „nem talál semmit" nála hibának látszik.
-            'contains' => $query->whereRaw("lower({$column}::text) like ?", ['%'.strtolower($this->scalar($value)).'%']),
-            'not_contains' => $query->whereRaw("lower({$column}::text) not like ?", ['%'.strtolower($this->scalar($value)).'%']),
-            'starts_with' => $query->whereRaw("lower({$column}::text) like ?", [strtolower($this->scalar($value)).'%']),
-            'ends_with' => $query->whereRaw("lower({$column}::text) like ?", ['%'.strtolower($this->scalar($value))]),
+            'contains' => $query->whereRaw("lower(coalesce({$expression}::text, '')) like ?", ['%'.$this->like($value).'%']),
+            // Ugyanaz az ok, mint az `is_not`-nál: a „keresztneve nem tartalmazza X-et"
+            // szegmensből különben MINDENKI kimaradt, akinek nincs keresztneve.
+            'not_contains' => $query->whereRaw("lower(coalesce({$expression}::text, '')) not like ?", ['%'.$this->like($value).'%']),
+            'starts_with' => $query->whereRaw("lower(coalesce({$expression}::text, '')) like ?", [$this->like($value).'%']),
+            'ends_with' => $query->whereRaw("lower(coalesce({$expression}::text, '')) like ?", ['%'.$this->like($value)]),
             'gt' => $query->where($column, '>', $this->typed($value, $type)),
             'gte' => $query->where($column, '>=', $this->typed($value, $type)),
             'lt' => $query->where($column, '<', $this->typed($value, $type)),
             'lte' => $query->where($column, '<=', $this->typed($value, $type)),
-            // A `set` a JSON-attribútumnál a KULCS létezését jelenti, oszlopnál a nem-NULL-t.
-            'set' => $type === 'json' ? $query->whereNotNull($column) : $query->whereNotNull($column),
-            'not_set' => $query->whereNull($column),
+            // A `set` a JSON-attribútumnál a KULCS LÉTEZÉSÉT jelenti, oszlopnál a nem-NULL-t
+            // — a kettő NEM ugyanaz: egy `{"city": null}` attribútumnál a kulcs létezik.
+            // A JSONB „kulcs létezik" operátora a `?`, ami a PDO HELYŐRZŐJÉVEL ütközik:
+            // `whereRaw('attributes ? ?')` → `syntax error at or near "$3"` (mérve). A
+            // függvény-alak (`jsonb_exists`) ugyanazt jelenti, és nem ütközik.
+            'set' => $type === 'json'
+                ? $query->whereRaw('jsonb_exists(attributes, ?)', [$this->jsonKey($field)])
+                : $query->whereNotNull($column),
+            'not_set' => $type === 'json'
+                ? $query->whereRaw('not jsonb_exists(attributes, ?)', [$this->jsonKey($field)])
+                : $query->whereNull($column),
             default => throw new InvalidArgumentException("Kezeletlen operátor: {$operator}."),
         };
     }
@@ -237,7 +268,18 @@ final class SegmentEngine
         $exists = function ($inner) use ($type, $tag, $workspaceId) {
             $inner->selectRaw('1')
                 ->from('message_events')
-                ->whereColumn('message_events.recipient', 'contacts.email')
+                // KIS/NAGYBETŰ-FÜGGETLEN egyezés, és ez nem részletkérdés.
+                //
+                // A `contacts.email` a `listKey()` alakja (a helyi rész is kisbetűs), a
+                // `message_events.recipient` viszont a `DomainNormalizer::email()` alakja —
+                // ott a helyi rész SZÁNDÉKOSAN érintetlen (RFC 5321 §2.4). Szigorú
+                // oszlop-egyezéssel a `Nagy.Anna@…` cím megnyitása nem látszott, tehát a
+                // „nem nyitotta meg" újraaktiváló kampány pont AZOKNAK ment ki, akik
+                // megnyitották (mérve).
+                //
+                // A REDAKTÁLT (`NULL`) recipient nem egyezik semmivel — ez helyes: a törölt
+                // érintett aktivitása nem hozza vissza őt egy szegmensbe.
+                ->whereRaw('lower(message_events.recipient) = contacts.email')
                 ->where('message_events.workspace_id', $workspaceId)
                 ->where('message_events.type', $type);
 
@@ -251,6 +293,32 @@ final class SegmentEngine
         $negated
             ? $query->whereNotExists($exists)
             : $query->whereExists($exists);
+    }
+
+    /**
+     * Az `attr:<név>` kulcs — MÁR ellenőrzött karakterkészlettel.
+     *
+     * A `resolveField()` regexre szorítja (`[A-Za-z0-9_-]{1,64}`), tehát idézőjel vagy
+     * zárójel nem kerülhet a kifejezésbe. A kulcs mégis kötésen megy, ahol a Postgres
+     * engedi — a nyers interpoláció csak ott marad, ahol az operátor bal oldala nem
+     * paraméterezhető.
+     */
+    private function jsonKey(string $field): string
+    {
+        return substr($field, 5);
+    }
+
+    /**
+     * A LIKE-JOKEREK ESCAPE-ELÉSE.
+     *
+     * Escape nélkül a `contains` operátor `%` értékkel MINDENKIT beválasztott (mérve), és a
+     * `_` egyetlen karakterre illeszkedett. A hiba iránya a rossz: a szegmens SZÉLESEBB lesz
+     * a beállítottnál, tehát több embernek megy ki a levél, mint amit a felhasználó akart —
+     * pontosan az, amit az osztály docblockja a legrosszabbnak nevez.
+     */
+    private function like(mixed $value): string
+    {
+        return str_replace(['\\', '%', '_'], ['\\\\', '\%', '\_'], strtolower($this->scalar($value)));
     }
 
     private function scalar(mixed $value): string
@@ -268,7 +336,10 @@ final class SegmentEngine
             'number' => is_numeric($this->scalar($value))
                 ? (float) $this->scalar($value)
                 : throw new InvalidArgumentException('Számot vár ez a mező.'),
-            'date' => $this->scalar($value),
+            // A DÁTUM is ITT bukjon el, ne a Postgresben (`SQLSTATE[22007]` → 500).
+            'date' => strtotime($this->scalar($value)) !== false
+                ? $this->scalar($value)
+                : throw new InvalidArgumentException('Dátumot vár ez a mező.'),
             default => $this->scalar($value),
         };
     }

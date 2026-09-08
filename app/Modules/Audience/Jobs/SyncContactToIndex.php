@@ -28,7 +28,20 @@ final class SyncContactToIndex implements ShouldQueue
         private readonly string $contactUuid,
         private readonly int $workspaceId,
         private readonly bool $remove = false,
-    ) {}
+    ) {
+        // A JOB A COMMIT UTÁN indul.
+        //
+        // A `Contact::saved` hook TRANZAKCIÓN BELÜL dobja (az űrlap-beküldés egy
+        // tranzakcióban ír kontaktot, tagságot és consentet), a `config/queue.php` pedig
+        // mind a négy connectionön `after_commit => false`. Valódi Redis-queue-n a worker
+        // így a commit ELŐTT futhat: a kontakt nem található, a job csendben visszatér, és
+        // az űrlap-beiratkozás SOSEM kerül az indexbe.
+        //
+        // Ugyanaz a minta, mint a `ParseInboundMessage`, a `DeliverWebhook` és a
+        // `ProcessValidationJob` esetében — explicit, mert a globális beállításra nem
+        // hagyatkozunk.
+        $this->afterCommit();
+    }
 
     public function handle(ContactSearchIndex $index, WorkspaceContext $context): void
     {

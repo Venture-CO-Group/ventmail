@@ -8,6 +8,7 @@ use App\Modules\Audience\Contracts\VentureOsSync;
 use App\Modules\Audience\Data\CrmContact;
 use App\Modules\Audience\Models\Contact;
 use App\Modules\Audit\Models\AuditLog;
+use App\Modules\Logs\Models\ErasedRecipient;
 use App\Modules\Sending\Services\DomainNormalizer;
 use Illuminate\Support\Facades\DB;
 
@@ -52,6 +53,24 @@ final class ContactSynchroniser
             $email = DomainNormalizer::listKey(trim($remote->email));
 
             if ($email === '' || ! filter_var($email, FILTER_VALIDATE_EMAIL) || trim($remote->externalId) === '') {
+                $summary['skipped']++;
+
+                continue;
+            }
+
+            /*
+             | A GDPR-TÖRLÉS ERŐSEBB A CRM-NÉL.
+             |
+             | Mérve, mit jelentett a hiánya: `erase()` után (a kontakt soft delete-elve, a
+             | cím anonimizálva) egy behúzás ugyanazzal az `external_id`-val ÚJ, ÉLŐ kontaktot
+             | hozott létre — a NYERS címmel. Vagyis a CRM feltámasztotta azt, akinek a
+             | törlését épp teljesítettük, és a 17. cikk szerinti kérés eredménye az lett,
+             | hogy az érintett adata visszakerült a rendszerbe.
+             |
+             | Az `ErasedRecipient` a platform-szintű sírkő (A3): pont ezért létezik, és a
+             | törlési út írja. A szinkron ezért NEM hozhat vissza olyan címet, ami rajta van.
+             */
+            if (ErasedRecipient::erased($email)) {
                 $summary['skipped']++;
 
                 continue;
@@ -118,15 +137,29 @@ final class ContactSynchroniser
      */
     public function push(?string $since = null): array
     {
-        $payload = [];
+        $pushed = 0;
 
+        // KÖTEGENKÉNT PUSH-OLUNK, nem a végén egyszer.
+        //
+        // A `chunkById` értelmetlen lett volna, ha a `$payload` közben a TELJES listát
+        // memóriában gyűjti: egy milliós címlistán az OOM — a kötegelés pont ezt hivatott
+        // megelőzni. Így a memóriahasználat a kötegmérettől függ, nem a lista hosszától.
         Contact::query()
             ->whereNotNull('external_id')
+            // CSAK az ELÉRHETŐ kontaktok mennek ki a CRM-be.
+            //
+            // A leiratkozott és a törölt (`cleaned`) cím nyers alakját nem adjuk át egy
+            // külső rendszernek: a leiratkozás után nincs jogalapunk a további
+            // adattovábbításra, és a CRM-oldali „aktív ügyfél" flag amúgy is épp ezeket
+            // hozná vissza.
+            ->reachable()
             ->when($since !== null, fn ($query) => $query->where('updated_at', '>', $since))
             ->orderBy('id')
-            ->chunkById((int) config('audience.sync_batch', 500), function ($contacts) use (&$payload): void {
+            ->chunkById((int) config('audience.sync_batch', 500), function ($contacts) use (&$pushed): void {
+                $batch = [];
+
                 foreach ($contacts as $contact) {
-                    $payload[] = new CrmContact(
+                    $batch[] = new CrmContact(
                         externalId: (string) $contact->external_id,
                         email: (string) $contact->email,
                         firstName: $contact->first_name,
@@ -135,9 +168,11 @@ final class ContactSynchroniser
                         updatedAt: $contact->updated_at,
                     );
                 }
-            });
 
-        $pushed = $payload === [] ? 0 : $this->sync->push($payload);
+                if ($batch !== []) {
+                    $pushed += $this->sync->push($batch);
+                }
+            });
 
         $this->audit('push', ['pushed' => $pushed]);
 

@@ -12,7 +12,10 @@ use App\Modules\Consent\Models\ConsentEvent;
 use App\Modules\Events\Models\MessageEvent;
 use App\Modules\Sending\Services\DomainNormalizer;
 use App\Modules\Suppression\Models\Suppression;
+use App\Modules\Tenancy\Services\WorkspaceContext;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
+use RuntimeException;
 
 /**
  * GDPR — EXPORT és TÖRLÉS a kontaktra (52. kritérium).
@@ -61,6 +64,10 @@ final class ContactGdpr
                 'attributes' => (array) $contact->attributes,
                 'status' => (string) $contact->status,
                 'external_id' => $contact->external_id,
+                // A CÍMELLENŐRZÉS eredménye is róla szóló adat: az A5 saját docblockja
+                // mondja ki, hogy ez a rendszer egyik legérzékenyebb adata.
+                'validation_verdict' => $contact->validation_verdict,
+                'validation_risk' => $contact->validation_risk,
                 'subscribed_at' => $contact->subscribed_at?->toIso8601String(),
                 'unsubscribed_at' => $contact->unsubscribed_at?->toIso8601String(),
                 'created_at' => $contact->created_at?->toIso8601String(),
@@ -100,22 +107,50 @@ final class ContactGdpr
             // AZ AKTIVITÁS: mit kapott, mit nyitott meg. A legkönnyebben elfelejtett rész,
             // mert másik modulban (Events) él — az érintett szempontjából viszont ez a
             // legérdekesebb adat rólunk.
-            'activity' => MessageEvent::query()
-                ->where('recipient', $email)
-                ->orderByDesc('occurred_at')
-                ->limit(1000)
-                ->get()
-                ->map(fn (MessageEvent $event) => [
-                    'type' => (string) $event->type,
-                    'message_id' => $event->message_uuid,
-                    'occurred_at' => $event->occurred_at?->toIso8601String(),
-                ])->all(),
+            'activity' => $this->activity($email),
+            // A CSONKOLÁS TÉNYE is része az exportnak: egy jelzés nélkül levágott lista azt
+            // állítaná, hogy ennyi az összes — pedig nem.
+            'activity_truncated' => $this->activityCount($email) > self::ACTIVITY_LIMIT,
+            'activity_total' => $this->activityCount($email),
             'suppressions' => Suppression::query()->where('email', $email)->get()->map(fn (Suppression $row) => [
                 'reason' => (string) $row->reason,
                 'applies_to' => (string) $row->applies_to,
                 'created_at' => $row->created_at?->toIso8601String(),
             ])->all(),
         ];
+    }
+
+    /** Az exportált aktivitás felső darabszáma. A csonkolás TÉNYE is az exportba kerül. */
+    private const ACTIVITY_LIMIT = 1000;
+
+    /**
+     * AZ AKTIVITÁS — KIS/NAGYBETŰ-FÜGGETLEN egyezéssel.
+     *
+     * A `contacts.email` a `listKey()` alakja (a helyi rész is kisbetűs), a
+     * `message_events.recipient` viszont a `DomainNormalizer::email()` alakja — ott a helyi
+     * rész SZÁNDÉKOSAN érintetlen (RFC 5321 §2.4). Szigorú egyezéssel a `Nagy.Anna@…` címre
+     * szóló export NULLA aktivitást adott vissza, miközben az adatbázisban ott voltak a
+     * sorai — mérve. Egy 15. cikk szerinti kérésre ez hamis válasz.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function activity(string $email): array
+    {
+        return MessageEvent::query()
+            ->whereRaw('lower(recipient) = ?', [$email])
+            ->orderByDesc('occurred_at')
+            ->limit(self::ACTIVITY_LIMIT)
+            ->get()
+            ->map(fn (MessageEvent $event) => [
+                'type' => (string) $event->type,
+                'message_id' => $event->message_uuid,
+                'occurred_at' => $event->occurred_at?->toIso8601String(),
+            ])->all();
+    }
+
+    private function activityCount(string $email): int
+    {
+        return MessageEvent::query()->whereRaw('lower(recipient) = ?', [$email])->count();
     }
 
     /**
@@ -128,27 +163,73 @@ final class ContactGdpr
         $email = (string) $contact->email;
         $hash = KeyedHash::of('email', $email);
 
+        // TENANT-HATÁR: a hívó a modellt adja, és a lenti írások a modellt MEGKERÜLIK.
+        // Explicit ellenőrzés, mert az elsődleges kulcsra menő `update()` pontosan annyira
+        // biztonságos, amennyire a hívó figyelmes — a `BelongsToWorkspace` őre itt nem fut.
+        $context = app(WorkspaceContext::class);
+
+        if (! $context->hasWorkspace() || (int) $contact->workspace_id !== $context->workspaceId()) {
+            throw new RuntimeException(sprintf(
+                'A törlés csak a saját workspace kontaktjára futtatható (%s ≠ %s).',
+                (string) $contact->workspace_id,
+                (string) ($context->hasWorkspace() ? $context->workspaceId() : 'nincs kontextus'),
+            ));
+        }
+
+        /*
+         | A NAPLÓ-OLDALI TÖRLÉS az A3 gazdájáé — és VALÓBAN meghívjuk.
+         |
+         | A korábbi docblock azt állította, hogy „a `logs:redact-subject` (A3) redaktálja, ez
+         | a szolgáltatás azt HÍVJA" — nem hívta. A review megmérte a következményt: az
+         | `erase()` után a `messages` táblában 1, a `message_events.recipient`-ben 3 nyers
+         | cím maradt, és `erased_recipients` sor NEM született.
+         |
+         | Az utolsó a legsúlyosabb: az `ErasedRecipient` tábla azért létezik, hogy a MÁR
+         | KIKÜLDÖTT levélben lévő nyomkövető pixel egyetlen betöltéssel ne írja vissza a
+         | címet — sor nélkül a törlés önmagát vonta volna vissza a következő megnyitásnál.
+         |
+         | Egy implementáció, egy hívási pont: a parancs a CLI belépési pontja, a törlési
+         | logika pedig ugyanaz mindkét úton.
+         */
+        // A `--workspace` a workspace UUID-JÁT (vagy slugját) várja, nem a belső id-t: az
+        // id-vel a parancs `invalid input syntax for type uuid`-del elhasalt volna, és a
+        // napló-oldali törlés csendben nem futott volna le.
+        //
+        // A KONTEXTUST VISSZA KELL ÁLLÍTANI a hívás után. A parancs a `finally` ágában
+        // `forget()`-el — CLI-ként ez helyes —, egy szolgáltatásból hívva viszont ezzel
+        // elveszik a hívó tenant-kontextusa, és az utána következő lekérdezések a
+        // `WorkspaceScope` fail-closed ágára futnak (`1 = 0`). Mérve: az `erase()`
+        // `suppressions_kept` értéke 0 lett, miközben a tiltás megmaradt — vagyis a művelet
+        // HAMISAN jelentette volna, hogy nincs mit megőrizni.
+        Artisan::call('logs:redact-subject', [
+            'email' => $email,
+            '--workspace' => (string) $contact->workspace->uuid,
+        ]);
+
+        $context->set($contact->workspace);
+
         return DB::transaction(function () use ($contact, $email, $hash): array {
-            // 1. A SUPPRESSION-SOR MEGMARAD, a cím nélkül. A `email_hash` alapján a kapu
-            //    továbbra is felismeri a tiltást — nyers cím tárolása nélkül.
-            $suppressions = 0;
+            // 1. A SUPPRESSION-SOR MEGMARADT, a cím nélkül — de ezt már a fenti,
+            //    PLATFORM-SZINTŰ redakció végezte el (`redactSuppressions`), nem mi.
+            //
+            //    A duplikálás itt nem ártalmatlan volt: a saját ciklusom a MÁR redaktált
+            //    sort nem találta meg (`where('email', $email)` → 0 találat), tehát a
+            //    visszajelentett darabszám nulla lett volna, miközben a tiltás megmaradt —
+            //    vagyis a művelet HAMISAN jelentette volna, hogy nincs mit megőrizni.
+            //
+            //    A darabszámot ezért a HASH alapján számoljuk: az a mező marad meg, és
+            //    pontosan az teszi a tiltást felismerhetővé nyers cím nélkül.
+            $suppressions = Suppression::query()->where('email_hash', $hash)->count();
 
-            foreach (Suppression::query()->where('email', $email)->get() as $row) {
-                // A mutátort MEGKERÜLJÜK: az újraszámolná a hasht az üres címből, és a
-                // tiltás felismerhetetlenné válna. A hash marad, a cím ürül.
-                DB::table('suppressions')->where('id', $row->getKey())->update([
-                    'email' => '',
-                    'email_hash' => $hash,
-                    'detail' => null,
-                ]);
-
-                $suppressions++;
-            }
-
-            // 2. A CONSENT-BIZONYÍTÉK megmarad, hash-elve. A tábla append-only és TRIGGER
-            //    védi — a nyers cím kivétele ezért `DB::table()`-lel sem megy. Ez tudatos:
-            //    a bizonyíték-tábla nyers címét a `logs:redact-subject` (A3) redaktálja,
-            //    egyetlen, auditált úton.
+            // 2. A CONSENT-BIZONYÍTÉK megmarad, hash-elve — és nyers címet SOHA nem is
+            //    tartalmazott.
+            //
+            //    A `consent_events.email` korábban a nyers címet tárolta, a tábla viszont
+            //    append-only és TRIGGER védi: a cím így VÉGLEGESEN eltávolíthatatlan lett
+            //    volna (mérve: `SQLSTATE[P0001] … megváltoztathatatlan (UPDATE)`), vagyis a
+            //    17. cikk szerinti törlés teljesíthetetlen. A `ConsentRecorder` ezért `null`-t
+            //    ír a `email` oszlopba; a `email_hash` a bizonyításhoz elég (ugyanaz a
+            //    cím-e), az azonosításhoz nem — és pontosan ez a cél.
             $consents = Consent::query()->where('email', $email)->count();
 
             foreach (Consent::query()->where('email', $email)->get() as $consent) {
@@ -196,12 +277,19 @@ final class ContactGdpr
         });
     }
 
-    /** A cím szerinti keresés — az érintetti kérés a CÍMMEL érkezik, nem uuid-val. */
+    /**
+     * A cím szerinti keresés — az érintetti kérés a CÍMMEL érkezik, nem uuid-val.
+     *
+     * AZ ÉLŐ SOR AZ ELSŐDLEGES. Az anonimizált „sírkövön" az `email_hash` MEGMARAD (hogy a
+     * korábbi törlés ténye ellenőrizhető legyen), tehát egy újra-feliratkozás után két sor
+     * felel meg a hash-nek. Rendezés nélkül a MÁSODIK érintetti kérés (export vagy törlés) a
+     * sírkövön dolgozott: sikert jelentett, és az ÚJ kontakt PII-je bent maradt — mérve.
+     */
     public function findByEmail(string $email): ?Contact
     {
-        return Contact::query()
-            ->withTrashed()
-            ->where('email_hash', KeyedHash::of('email', DomainNormalizer::listKey(trim($email))))
-            ->first();
+        $hash = KeyedHash::of('email', DomainNormalizer::listKey(trim($email)));
+
+        return Contact::query()->where('email_hash', $hash)->first()
+            ?? Contact::query()->withTrashed()->where('email_hash', $hash)->orderByDesc('id')->first();
     }
 }

@@ -37,10 +37,13 @@ use Illuminate\Support\Facades\Log;
  *
  * ## Ami NEM történik meg
  *
- * A beküldés SOHA nem ad `confirmed` consentet. Aki az űrlap-beküldésre azonnal jogalapot
- * ír, az single opt-int csinál double opt-in néven (golden rule 4). A kontakt `pending`, a
- * consent `pending`, és a marketing addig NEM megy ki — ezt a PreSendGate 3. kapuja
- * érvényesíti, nem ez az action.
+ * A beküldés SOHA nem ad `confirmed` consentet, és NINCS kapcsoló, amivel adhatna. Volt egy
+ * `double_opt_in = false` ág, és a review megmérte, mit jelentett: az űrlap-beküldés
+ * azonnal jogalapot teremtett, megerősítő link nélkül — vagyis a golden rule 4 egy tenant
+ * által átkapcsolható booleanná vált, ADR nélkül.
+ *
+ * A kontakt `pending`, a consent `pending`, és a marketing addig NEM megy ki — ezt a
+ * PreSendGate 3. kapuja érvényesíti, nem ez az action.
  */
 final class SubmitForm
 {
@@ -137,21 +140,9 @@ final class SubmitForm
                 formText: $form->consent_text,
             );
 
-            // Egyszeres opt-in űrlap (a tenant vállalja): a megerősítés azonnal.
-            if (! $form->double_opt_in) {
-                $this->consent->confirm($consent, $submission->ip, $submission->userAgent);
-                $contact->forceFill(['status' => 'subscribed', 'subscribed_at' => now()])->save();
-
-                if ($form->contact_list_id !== null) {
-                    $contact->lists()->updateExistingPivot($form->contact_list_id, [
-                        'status' => 'subscribed',
-                        'subscribed_at' => now(),
-                    ]);
-                }
-
-                return;
-            }
-
+            // NINCS egyszeres opt-in ág. A megerősítés KIZÁRÓLAG a levélben lévő linkből
+            // történhet (golden rule 4) — a `ConsentRecorder::confirm()` ezen kívül
+            // egyszeri használatra kötött és visszavont consentet nem támaszt fel.
             $this->sendConfirmation($form, $contact, $email);
         });
 

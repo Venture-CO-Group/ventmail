@@ -8,6 +8,7 @@ use App\Modules\Audit\Services\KeyedHash;
 use App\Modules\Consent\Models\Consent;
 use App\Modules\Consent\Models\ConsentEvent;
 use App\Modules\Sending\Services\DomainNormalizer;
+use App\Modules\Suppression\Models\Suppression;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -57,7 +58,19 @@ final class ConsentRecorder
 
             // A MÁR MEGERŐSÍTETT consentet egy újabb kérés NEM rontja vissza `pending`-re:
             // aki kétszer iratkozik fel, ne veszítse el a jogalapot (és ne kapjon fölös
-            // megerősítő levelet). A bizonyíték-esemény viszont MINDIG megszületik.
+            // megerősítő levelet).
+            //
+            // BIZONYÍTÉK-SZENNYEZÉS ELLEN: ha már van MEGERŐSÍTETT consent, a publikus
+            // (hitelesítetlen) beküldésből NEM írunk új `requested` eseményt. Bárki
+            // beküldheti egy áldozat címét a nyilvános űrlapon, és a TÁMADÓ `ip_hash`-e,
+            // user-agentje és az általa választott `policy_version` bekerült volna az
+            // áldozat bizonyíték-történetébe — egy olyan táblába, amit a trigger miatt
+            // utólag sem javítani, sem törölni nem lehet. Egy jogi vitában ez pont a
+            // bizonyíték értékét rontja.
+            if ($consent !== null && $consent->isConfirmed()) {
+                return $consent;
+            }
+
             if ($consent === null) {
                 $consent = Consent::query()->create([
                     'email' => $email,
@@ -88,13 +101,69 @@ final class ConsentRecorder
         ?string $userAgent = null,
     ): Consent {
         return DB::transaction(function () use ($consent, $ip, $userAgent): Consent {
+            /*
+             | A VISSZAVONT consentet egy megerősítő link NEM TÁMASZTJA FEL.
+             |
+             | Mérve, mit jelentett a hiánya: megerősített consent → one-click leiratkozás
+             | (suppression + revoke) → az EREDETI `/c/{token}` GET (a TTL egy hét!) →
+             | `status=confirmed`, `revoked_at=NULL`, a kontakt újra `subscribed`, és a 3.
+             | kapu engedélyezőt ad. Vagyis a SafeLinks-előtöltés vagy egy téves kattintás a
+             | régi opt-in levélben VISSZAÍRJA a jogalapot arra, aki visszavonta.
+             |
+             | Ma a 2. kapu (suppression) még megfogná a küldést — de a suppression-sor
+             | levétele dokumentáltan operátori művelet, és utána a marketing megy. A
+             | `consents` sor és a bizonyíték-történet innentől olyan jogalapot állítana,
+             | amit az érintett megszüntetett.
+             |
+             | Új hozzájárulás új KÉRÉST igényel (`request()`), nem egy régi link
+             | újrajátszását.
+             */
+            if ($consent->status === 'revoked' || $consent->revoked_at !== null) {
+                return $consent;
+            }
+
+            // A SUPPRESSION-LISTA erősebb: aki leiratkozott vagy panaszt tett, annak a
+            // tiltását egy megerősítő link nem írhatja felül.
+            if ($this->isSuppressed((string) $consent->email)) {
+                return $consent;
+            }
+
+            // EGYSZERI HASZNÁLAT: a megerősítés a `requested` eseményhez kötött, és
+            // ugyanahhoz a kéréshez MÁSODSZOR nem születik `confirmed`. Enélkül a token a
+            // teljes TTL-je alatt korlátlanul újrajátszható volt.
+            $request = ConsentEvent::query()
+                ->where('consent_id', $consent->getKey())
+                ->where('type', 'requested')
+                ->orderByDesc('id')
+                ->first();
+
+            if ($request !== null) {
+                $alreadyUsed = ConsentEvent::query()
+                    ->where('consent_id', $consent->getKey())
+                    ->where('type', 'confirmed')
+                    ->where('payload->request', (string) $request->uuid)
+                    ->exists();
+
+                if ($alreadyUsed) {
+                    return $consent;
+                }
+            }
+
             $consent->forceFill([
                 'status' => 'confirmed',
                 'confirmed_at' => $consent->confirmed_at ?? now(),
-                'revoked_at' => null,
             ])->save();
 
-            $this->event($consent, 'confirmed', $ip, $userAgent, $consent->policy_version, null, $consent->source);
+            $this->event(
+                $consent,
+                'confirmed',
+                $ip,
+                $userAgent,
+                $consent->policy_version,
+                null,
+                $consent->source,
+                ['request' => $request === null ? null : (string) $request->uuid],
+            );
 
             return $consent->fresh();
         });
@@ -145,6 +214,37 @@ final class ConsentRecorder
         return $consent;
     }
 
+    /** @param array<string, mixed> $payload */
+    /**
+     * LISTÁNKÉNTI preferencia-változás — bizonyítékkal (55., 57. kritérium).
+     *
+     * A listánkénti be- és kikapcsolás is a consent HATÓKÖRÉT módosítja, tehát nyomot kell
+     * hagynia: egy „miért kaptam ezt a levelet?" kérdésre a tagsági állapotból nem derül ki,
+     * hogy a címzett MIKOR és HONNAN kapcsolta be. A `consents` sor viszont NEM változik —
+     * a jogalap a csatornára szól, a lista annak a hatóköre.
+     */
+    public function listPreference(string $email, string $listUuid, bool $subscribed): void
+    {
+        $email = DomainNormalizer::listKey(trim($email));
+
+        $consent = Consent::query()->where('email', $email)->where('channel', 'marketing')->first();
+
+        if ($consent === null) {
+            return;
+        }
+
+        $this->event(
+            $consent,
+            $subscribed ? 'list_subscribed' : 'list_unsubscribed',
+            null,
+            null,
+            $consent->policy_version,
+            null,
+            'preference_center',
+            ['list' => $listUuid],
+        );
+    }
+
     private function event(
         Consent $consent,
         string $type,
@@ -153,9 +253,12 @@ final class ConsentRecorder
         ?string $policyVersion,
         ?string $formText,
         ?string $source,
+        array $payload = [],
     ): void {
         ConsentEvent::query()->create([
             'consent_id' => $consent->getKey(),
+            // A NYERS címet átadjuk, de a MODELL csak a hash-ét tárolja (nincs is oszlop a
+            // nyers alaknak). Az invariáns így nem a hívók figyelmén múlik.
             'email' => $consent->email,
             'type' => $type,
             'channel' => $consent->channel,
@@ -165,8 +268,18 @@ final class ConsentRecorder
             'user_agent_hash' => $userAgent === null ? null : KeyedHash::of('user_agent', $userAgent),
             'policy_version' => $policyVersion,
             'form_text' => $formText,
+            'payload' => $payload,
             'occurred_at' => now(),
         ]);
+    }
+
+    /** A cím TILTOTT-e? A suppression-lista minden consent-műveletnél erősebb. */
+    private function isSuppressed(string $email): bool
+    {
+        return Suppression::query()
+            ->where('email', $email)
+            ->get()
+            ->contains(fn (Suppression $suppression) => $suppression->isActive());
     }
 
     /** NYERS IP SOHA — peppered HMAC, a `KeyedHash` `ip` domainjével (53. kritérium). */
