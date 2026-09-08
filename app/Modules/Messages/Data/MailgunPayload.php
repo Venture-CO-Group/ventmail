@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Messages\Data;
 
 use App\Modules\Sending\Enums\Channel;
+use App\Modules\Sending\Services\UnsubscribeHeaderPolicy;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
@@ -247,16 +248,29 @@ final readonly class MailgunPayload
             // Ha az érték nem jöhet kívülről, nincs mit felismerni. Az ügyfél saját
             // preference centere a levél TÖRZSÉBE megy — ott a linkje a sajátja, és nem a
             // mi DKIM-aláírásunkkal hitelesített one-click végpontunkat imitálja.
-            if ($prefix === 'h:' && str_starts_with(strtolower(Str::after($key, $prefix)), 'list-unsubscribe')) {
+            if ($prefix === 'h:' && UnsubscribeHeaderPolicy::isManaged(Str::after($key, $prefix))) {
                 throw new InvalidArgumentException(sprintf(
-                    'VALIDATION_ERROR|A(z) `%s` fejlécet a ventMail kezeli (RFC 8058 one-click), '
-                    .'és nem adható meg kívülről. A saját preference centeredre mutató linket a '
-                    .'levél törzsébe tedd.',
+                    'VALIDATION_ERROR|A(z) `%s` fejléc nem engedett. %s',
+                    $key,
+                    UnsubscribeHeaderPolicy::reason(),
+                ));
+            }
+
+            $name = Str::after($key, $prefix);
+
+            // RFC 5322: a fejlécnév és a kettőspont KÖZÖTT nem lehet whitespace. A vezető
+            // szóköz korábban NEM volt hiba, csak épp minden réteg máshogy normalizálta —
+            // a `h: List-Unsubscribe` így átment a záron, majd kanonikus néven landolt a
+            // levélben. Egy zár, egy normalizálás: ami whitespace-szel érkezik, elutasítjuk.
+            if ($prefix === 'h:' && trim($name, " \t\r\n\0\x0B") !== $name) {
+                throw new InvalidArgumentException(sprintf(
+                    'VALIDATION_ERROR|A(z) `%s` fejlécnév vezető vagy záró whitespace-t '
+                    .'tartalmaz (RFC 5322 szerint nem megengedett).',
                     $key
                 ));
             }
 
-            $result[Str::after($key, $prefix)] = is_array($value) ? $value : (string) $value;
+            $result[$name] = is_array($value) ? $value : (string) $value;
         }
 
         return $result;

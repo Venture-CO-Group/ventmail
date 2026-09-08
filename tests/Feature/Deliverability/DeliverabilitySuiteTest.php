@@ -1394,3 +1394,45 @@ it('az ÖSSZEFÜGGÉSTELEN igény nem iratkoztat le — akkor sem, ha a token é
         expect(Suppression::query()->count())->toBe(0, $label);
     }
 });
+
+it('a `Reply-To` CÍMLISTÁT is elfogad — kapun és MIME-ban egyformán', function () {
+    // Az `Address::create()` egyetlen címet ért, tehát az `a@pelda.hu, b@pelda.hu` és a
+    // nevesített lista is elutasításra futott — a Mailgun átengedi, vagyis LEGITIM forgalmat
+    // 422-eztünk. Az RFC 5322 szerint a `Reply-To` `address-list`.
+    //
+    // A kapu és a MIME-építés döntése MINDIG egyezik: a szétcsúszás azt jelentené, hogy a
+    // kapu átengedi, a levélből meg kiesik (ez a packet ezt a hibaosztályt háromszor javította).
+    $domain = Domain::create(['name' => 'pelda.hu', 'status' => 'verified', 'verified_at' => now()]);
+
+    foreach ([
+        'ugyfel@pelda.hu',
+        'Ügyfélszolgálat <ugyfel@pelda.hu>',
+        'a@pelda.hu, b@pelda.hu',
+        'A <a@pelda.hu>, B <b@pelda.hu>',
+    ] as $value) {
+        $message = Message::create([
+            'domain_id' => $domain->getKey(),
+            'channel' => 'transactional',
+            'from_email' => 'no-reply@pelda.hu',
+            'recipients' => ['anna@example.test'],
+            'subject' => 'Válasz',
+            'headers' => ['Reply-To' => $value],
+        ]);
+
+        expect((new HeaderSafetyGate)->check($message->fresh())->passed)->toBeTrue($value);
+
+        $mime = app(OutboundMimeBuilder::class)
+            ->build($message->withRenderedBodies(['anna@example.test' => ['html' => null, 'text' => 'Szia']]), 'anna@example.test')
+            ->toString();
+
+        // A megjelenítési nevet a MIME kódolja (`=?utf-8?Q?…`), ezért a CÍMET keressük.
+        expect($mime)->toContain('Reply-To:');
+        expect($mime)->toContain('@pelda.hu>');
+    }
+
+    // …az értelmezhetetlen viszont továbbra is elutasítás, hogy az ügyfél MEGTUDJA.
+    expect((new HeaderSafetyGate)->check(new Message([
+        'channel' => 'transactional',
+        'headers' => ['Reply-To' => 'ez nem cim'],
+    ]))->passed)->toBeFalse();
+});

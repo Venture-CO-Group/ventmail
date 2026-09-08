@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Messages\Services;
 
+use App\Modules\Sending\Services\UnsubscribeHeaderPolicy;
 use InvalidArgumentException;
 
 /**
@@ -128,7 +129,7 @@ final class MimeParser
         $unsubscribe = [];
 
         foreach ($headers as $name => $value) {
-            if (str_starts_with($name, 'list-unsubscribe')) {
+            if (UnsubscribeHeaderPolicy::isManaged($name)) {
                 $unsubscribe[] = $this->canonicalName($name);
 
                 continue;

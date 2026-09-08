@@ -117,13 +117,17 @@ final class HeaderSafetyGate implements Gate
         return GateResult::pass();
     }
 
-    /** Egyetlen, értelmezhető postafiók-cím-e? A megjelenítési neves alak is az. */
+    /**
+     * Értelmezhető cím-LISTA-e? A `Reply-To` az RFC 5322 szerint `address-list`.
+     *
+     * Az `Address::create()` egyetlen címet ért, tehát az `a@pelda.hu, b@pelda.hu` és a
+     * nevesített lista is elutasításra futott — a Mailgun átengedi, vagyis legitim forgalmat
+     * 422-eztünk volna. A `createArray()` a listát is érti, és üres listát nem fogad el.
+     */
     private function isMailbox(string $value): bool
     {
         try {
-            Address::create(trim($value));
-
-            return true;
+            return Address::createArray(array_map('trim', explode(',', trim($value)))) !== [];
         } catch (RfcComplianceException|InvalidArgumentException) {
             return false;
         }

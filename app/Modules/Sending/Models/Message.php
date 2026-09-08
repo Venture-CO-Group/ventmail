@@ -7,6 +7,7 @@ namespace App\Modules\Sending\Models;
 use App\Modules\Domains\Models\Domain;
 use App\Modules\IpPools\Models\IpAddress;
 use App\Modules\Sending\Enums\Channel;
+use App\Modules\Sending\Services\UnsubscribeHeaderPolicy;
 use App\Modules\Suppression\Services\UnsubscribeBaseUrl;
 use App\Modules\Suppression\Services\UnsubscribeTokens;
 use App\Modules\Tenancy\Concerns\BelongsToWorkspace;
@@ -31,6 +32,20 @@ final class Message extends Model
         'queued_at', 'sent_at',
         'sending_started_at', 'attempts', 'next_attempt_at', 'gate_decided_at',
     ];
+
+    /**
+     * A TÁROLT fejléc token-helye. Szándékosan NEM érvényes token.
+     *
+     * A `messages` a naplózás főtáblája: egy tárolt, VALÓDI tokennel bárki, aki a
+     * workspace-ben naplót olvashat, le tudná iratkoztatni a `recipients[0]`-t — vagyis egy
+     * visszavonhatatlan listára írási képesség ülne a naplóban. A kapunak nem a token
+     * érvényessége kell, hanem az, hogy a fejléc-beírás egyik ÚTON se maradjon el; ehhez a
+     * placeholder is elég.
+     *
+     * A route-szűrő átengedi, tehát ha valaha mégis kimenne, a végpont 200-at ad és nem tesz
+     * semmit — nincs se hatás, se orákulum.
+     */
+    public const UNSUBSCRIBE_PLACEHOLDER = 'per-recipient';
 
     public function uniqueIds(): array
     {
@@ -154,6 +169,23 @@ final class Message extends Model
         // tokent kerestünk regexszel egy kívülről írható szövegben. Ha az érték nem jöhet
         // kívülről, nincs mit felismerni.
         //
+        // A MI FEJLÉCEINK ELŐBB ELTŰNNEK, CSATORNÁTÓL FÜGGETLENÜL — és csak utána döntjük
+        // el, teszünk-e be sajátot.
+        //
+        // A tranzakciós ág korábban KORÁN visszatért, tehát ott nem törölt semmit: egy
+        // bemeneti záron átcsúszott ügyfél-fejléc (`h: List-Unsubscribe`, vezető szóközzel)
+        // pont a tranzakciós levélben jutott ki — a MI DKIM-aláírásunkkal hitelesítve. A
+        // törlés itt nem veszít el semmi legitimet: ezt a fejlécet a bemenet nem adhatja
+        // meg, tehát ami itt van, azt vagy mi írtuk, vagy nem lenne szabad itt lennie.
+        //
+        // Két `List-Unsubscribe` a kimenő levélben egyébként is one-click megfelelési hiba:
+        // a fogadó nem tudja, melyiket hívja.
+        foreach (array_keys($headers) as $name) {
+            if (UnsubscribeHeaderPolicy::isManaged((string) $name)) {
+                unset($headers[$name]);
+            }
+        }
+
         // A tranzakciós csatornán nem írunk ilyen fejlécet: egy jelszó-visszaállítóról nem
         // lehet leiratkozni, és a fejléc ott félrevezető lenne.
         if (Channel::tryFrom((string) $this->channel)?->requiresConsent() !== true) {
@@ -162,15 +194,6 @@ final class Message extends Model
 
         if (! str_starts_with($this->unsubscribeUrlPrefix(), 'http')) {
             return $headers;
-        }
-
-        // MINDEN létező változat eltűnik — betűzéstől függetlenül. Két `List-Unsubscribe`
-        // fejléc a kimenő levélben önmagában is one-click megfelelési hiba: a fogadó nem
-        // tudja, melyiket hívja.
-        foreach (array_keys($headers) as $name) {
-            if (str_starts_with(strtolower((string) $name), 'list-unsubscribe')) {
-                unset($headers[$name]);
-            }
         }
 
         return array_merge($headers, $this->unsubscribePair($recipient));
@@ -297,9 +320,10 @@ final class Message extends Model
             // elutasítja az ügyfél `List-Unsubscribe` fejlécét — itt tehát nincs mit
             // tiszteletben tartani, és a felülírás a mélységi védelem.
             //
-            // A TÁROLT fejléc az első címzetté: ez a kapu bemenete, és ez látszik a
-            // naplóban. A LEVÉLBE kerülő változatot a `headersFor()` írja újra
-            // címzettenként; a tárolt token sosem megy ki több emberhez.
+            // A TÁROLT érték PLACEHOLDER (lásd `UNSUBSCRIBE_PLACEHOLDER`): a kapunak nem a
+            // token érvényessége kell, hanem az, hogy a fejléc-beírás egyik ÚTON se maradjon
+            // el. A valódi, címzettenkénti tokent a `headersFor()` állítja elő a küldés
+            // pillanatában — a naplóban így nem ül élő, visszavonhatatlan képesség.
             // Nincs használható leiratkozó hoszt (`http://` vagy hiányzó konfiguráció): NEM
             // írunk be egy hibás linket. A tokent tartalmazó, mégis működésképtelen fejléc
             // rosszabb, mint a hiánya — a kapu így a valódi okot mondja meg.
@@ -307,9 +331,12 @@ final class Message extends Model
                 return;
             }
 
-            $first = (string) (((array) $message->recipients)[0] ?? '');
-
-            $message->forceFill(['headers' => $message->unsubscribeHeaders($first)])->saveQuietly();
+            $message->forceFill([
+                'headers' => array_merge((array) $message->headers, [
+                    'List-Unsubscribe' => '<'.$message->unsubscribeUrlPrefix().self::UNSUBSCRIBE_PLACEHOLDER.'>',
+                    'List-Unsubscribe-Post' => 'List-Unsubscribe=One-Click',
+                ]),
+            ])->saveQuietly();
         });
     }
 

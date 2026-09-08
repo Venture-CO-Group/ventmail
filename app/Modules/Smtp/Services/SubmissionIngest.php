@@ -82,6 +82,20 @@ final class SubmissionIngest implements SubmissionSink
             return new SmtpReply(452, 'Credential rate limit exceeded, try again later', '4.3.2');
         }
 
+        // A HARMADIK belépési pont — és korábban az EGYETLEN, ami nyitva maradt.
+        //
+        // A `/v1/messages` és a `/v1/messages.mime` már elutasította az ügyfél leiratkozó
+        // fejlécét; a relay ugyanazt a `MimeParser`-t hívja, de a jelzést nem olvasta. Mérve:
+        // egy idegen workspace élő tokenjével a levél `250 Ok`-val átment, a
+        // `messages.headers` ÜRES lett (tehát egyetlen kapu sem látta), a kimenő bájtok
+        // viszont vitték a tokent — és a one-click egy IDEGEN tenant suppression-listájára
+        // írt. A „relay rendben van, mert ott a csatorna fixen tranzakciós" érv téves: a fix
+        // csatorna azt akadályozza meg, hogy MI írjuk a fejlécet, nem azt, hogy az ügyfél.
+        if ($parsed['unsubscribe_headers'] !== []) {
+            return new SmtpReply(550, 'Unsubscribe headers are managed by ventMail: '
+                .implode(', ', $parsed['unsubscribe_headers']).' not allowed', '5.7.0');
+        }
+
         $controls = $this->controls->extract($parsed['headers']);
 
         if ($controls->error !== null) {

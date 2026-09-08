@@ -103,7 +103,12 @@ final class OutboundMimeBuilder
                 // szintaktikailag rossz cím — azt KIHAGYJUK, nem javítjuk: egy
                 // „megtisztított" válasz-cím csendben rossz helyre vinné a válaszokat.
                 try {
-                    $email->replyTo(Address::create((string) $value));
+                    // CÍMLISTA, nem egyetlen cím: a `Reply-To` az RFC 5322 szerint
+                    // `address-list`, és a Mailgun-paritás miatt a többelemű alakot is
+                    // értenünk kell. A kapu ugyanezt a döntést hozza — a két oldal
+                    // szétcsúszása azt jelentené, hogy a kapu átengedi, a levélből meg
+                    // kiesik.
+                    $email->replyTo(...Address::createArray(array_map('trim', explode(',', (string) $value))));
                 } catch (RfcComplianceException|InvalidArgumentException) {
                     // Szándékosan néma a levél felé, de a kapu az ügyfélnek jelez.
                 }

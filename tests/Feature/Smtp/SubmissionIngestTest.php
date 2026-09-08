@@ -268,3 +268,39 @@ it('EGY From fejlécen belül sem lehet két feladót elrejteni', function () {
 
     expect(Message::count())->toBe(0);
 });
+
+it('az SMTP relay ELUTASÍTJA az ügyfél leiratkozó fejlécét', function () {
+    // A HARMADIK belépési pont, és korábban az EGYETLEN, ami nyitva maradt. A
+    // `/v1/messages` és a `/v1/messages.mime` már elutasította; a relay ugyanazt a
+    // `MimeParser`-t hívja, de a jelzést nem olvasta.
+    //
+    // Mérve, végponttól végpontig: egy idegen workspace élő tokenjével a levél `250 Ok`-val
+    // átment, a `messages.headers` ÜRES lett (tehát EGYETLEN KAPU SEM LÁTTA), a kimenő
+    // bájtok viszont vitték a tokent — és a one-click egy IDEGEN tenant
+    // suppression-listájára írt.
+    //
+    // A „relay rendben van, mert ott a csatorna fixen tranzakciós" érv téves: a fix csatorna
+    // azt akadályozza meg, hogy MI írjuk a fejlécet, nem azt, hogy az ügyfél.
+    $codes = submit(mail_lines([
+        'List-Unsubscribe' => '<https://tamado.example/u/ELKAPOTT-TOKEN>',
+        'List-Unsubscribe-Post' => 'List-Unsubscribe=One-Click',
+    ]));
+
+    // A DATA végén 550: a levél NEM kerül sorba.
+    expect(end($codes))->toBe(550);
+    expect(Message::count())->toBe(0);
+});
+
+it('a leiratkozó fejléc BETŰZÉSTŐL függetlenül elakad a relayen', function () {
+    // Egy zár, egy normalizálás: a `UnsubscribeHeaderPolicy` ugyanazt mondja itt, mint a
+    // két HTTP-úton.
+    foreach (['list-unsubscribe', 'LIST-UNSUBSCRIBE', 'List-Unsubscribe-Post'] as $name) {
+        FakeDriver::reset();
+
+        $codes = submit(mail_lines([$name => '<https://tamado.example/u/X>']));
+
+        expect(end($codes))->toBe(550, $name);
+    }
+
+    expect(Message::count())->toBe(0);
+});
