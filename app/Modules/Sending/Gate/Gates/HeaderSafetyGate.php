@@ -47,7 +47,7 @@ final class HeaderSafetyGate implements Gate
      *
      * @var list<string>
      */
-    private const ALLOWED = ['reply-to', 'list-unsubscribe', 'list-unsubscribe-post'];
+    public const ALLOWED = ['reply-to', 'list-unsubscribe', 'list-unsubscribe-post'];
 
     public function name(): string
     {

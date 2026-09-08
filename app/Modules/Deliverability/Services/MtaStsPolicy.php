@@ -117,9 +117,26 @@ final class MtaStsPolicy
             return [];
         }
 
-        return array_values(array_filter(array_map(
-            static fn ($record) => trim((string) preg_replace('/^\s*\d+\s+/', '', (string) $record), '. '),
-            $records,
-        )));
+        $hosts = [];
+
+        foreach ($records as $record) {
+            $host = trim((string) preg_replace('/^\s*\d+\s+/', '', (string) $record), '. ');
+
+            // A DNS-BŐL JÖVŐ ÉRTÉK SORONKÉNT kerül a policy-fájlba: CR/LF-fel a rekord
+            // tartalma ÚJ POLICY-SORT injektálna. Mérve, `"10 mx1.ventmail.app\r\nmode:
+            // none\r\nmx: attacker.example"` MX-értékkel a kiszolgált fájlban megjelent egy
+            // `mode: none` sor — pont azt a TLS-kényszerítést kikapcsolva, amiért a végpont
+            // létezik. A DNS-t itt a domain gazdája írja (önkár), de egy cache-poisoning
+            // vagy hamis autoritatív válasz harmadik félnek adná ezt a lefokozást.
+            //
+            // Hosztnév-ábécére szűrünk, és a nem illeszkedő értéket ELDOBJUK, nem javítjuk:
+            // egy „megtisztított" MX-név csendben rossz szerverre engedne levelet.
+            if (preg_match('/^(\*\.)?[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?)+$/', $host) === 1
+                && strlen($host) <= 253) {
+                $hosts[] = $host;
+            }
+        }
+
+        return array_values(array_unique($hosts));
     }
 }

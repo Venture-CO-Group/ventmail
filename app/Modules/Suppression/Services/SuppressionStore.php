@@ -59,6 +59,7 @@ final class SuppressionStore
         SuppressionScope $scopeEnum,
         ?Carbon $expiresAt,
         string $source,
+        ?string $detail = null,
     ): Suppression {
         $existing = Suppression::query()
             ->whereNotNull('workspace_id')
@@ -73,6 +74,7 @@ final class SuppressionStore
                 'applies_to' => $scopeEnum->value,
                 'expires_at' => $reasonEnum->isPermanent() ? null : $expiresAt,
                 'source' => $source,
+                'detail' => $detail,
             ]);
         }
 
@@ -112,11 +114,11 @@ final class SuppressionStore
      * A hatókör MONOTON: aki már `all` hatókörrel tiltott, azon a leiratkozás nem lazít.
      * A platform-szintű tiltásnál nincs mit tenni — és nem is áruljuk el, hogy létezik.
      */
-    public function recordUnsubscribe(string $email, string $source = 'one_click'): Suppression
+    public function recordUnsubscribe(string $email, string $source = 'one_click', ?string $detail = null): Suppression
     {
         $email = DomainNormalizer::listKey(trim($email));
 
-        return $this->upsert($email, SuppressionReason::Unsubscribe, SuppressionScope::Marketing, null, $source);
+        return $this->upsert($email, SuppressionReason::Unsubscribe, SuppressionScope::Marketing, null, $source, $detail);
     }
 
     /** @return CursorPaginator<Suppression> */

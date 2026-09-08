@@ -47,6 +47,10 @@ final class DmarcReportIngestor
     {
         $parsed = $this->parser->parse($raw);
 
+        // A TÖRZS lenyomata a kulcs része: az `(org_name, report_id)` páros a feladó szava,
+        // tehát hamisítható. Enélkül egy hamis jelentés FELÜLÍRTA volna a valódit.
+        $bodyHash = hash('sha256', $raw);
+
         $domain = $this->domainOf($parsed);
 
         if ($domain === null) {
@@ -69,16 +73,16 @@ final class DmarcReportIngestor
         $this->context->set($domain->workspace);
 
         try {
-            return $this->persist($parsed, $domain, $known);
+            return $this->persist($parsed, $domain, $known, $bodyHash);
         } finally {
             $previous === null ? $this->context->forget() : $this->context->set($previous);
         }
     }
 
     /** @param list<string> $known */
-    private function persist(ParsedReport $parsed, Domain $domain, array $known): DmarcReport
+    private function persist(ParsedReport $parsed, Domain $domain, array $known, string $bodyHash): DmarcReport
     {
-        return DB::transaction(function () use ($parsed, $domain, $known): DmarcReport {
+        return DB::transaction(function () use ($parsed, $domain, $known, $bodyHash): DmarcReport {
             // A `workspace_id` SZÁNDÉKOSAN nincs a keresőkulcsban és az attribútumokban: a
             // `BelongsToWorkspace` a KONTEXTUSBÓL írja (és eltérő értékkel hangosan elszáll),
             // az olvasást pedig a global scope szűkíti. Kézzel átadva a tömeges kitöltés
@@ -87,6 +91,7 @@ final class DmarcReportIngestor
                 [
                     'org_name' => $parsed->orgName,
                     'report_id' => $parsed->reportId,
+                    'body_hash' => $bodyHash,
                 ],
                 [
                     'domain_id' => $domain->getKey(),
@@ -102,6 +107,8 @@ final class DmarcReportIngestor
 
             // ÚJRATÖLTÉSNÉL a sorok cserélődnek, nem halmozódnak: a jelentés egy zárt
             // időszakról szól, tehát a második változat a teljes igazság, nem kiegészítés.
+            // A törlés CSAK a bájtra azonos jelentés sorait érinti (a `body_hash` a kulcs
+            // része), tehát egy hamisítvány nem tudja letörölni a valódi adatot.
             $report->rows()->delete();
 
             foreach ($parsed->rows as $row) {

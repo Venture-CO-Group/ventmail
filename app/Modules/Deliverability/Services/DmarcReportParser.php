@@ -85,11 +85,19 @@ final class DmarcReportParser
      */
     private function decompress(string $raw): string
     {
+        $max = (int) config('deliverability.dmarc.max_report_bytes');
+
         if (! str_starts_with($raw, "\x1f\x8b")) {
+            // A NYERS bemenetre is plafon kell. A tömörített ágon a bomba ellen védtünk, a
+            // nem tömörített 30 MB-os XML-t viszont csak a libxml belső node-limitje
+            // állította meg — a mi korlátunk nem futott le, és a memóriacsúcsot egy
+            // queue-worker fizette volna meg.
+            if (strlen($raw) > $max) {
+                throw new RuntimeException('A DMARC-jelentés meghaladja a korlátot.');
+            }
+
             return $raw;
         }
-
-        $max = (int) config('deliverability.dmarc.max_report_bytes');
 
         $handle = @gzopen('data://application/octet-stream;base64,'.base64_encode($raw), 'rb');
 

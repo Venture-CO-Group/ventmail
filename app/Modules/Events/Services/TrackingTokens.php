@@ -37,15 +37,36 @@ use JsonException;
  * záró bitek nem nulla variánsait is — a szigorú `base64_decode` önmagában az utóbbi kettőt
  * átengedi.
  *
- * Ami ezen felül is marad: a `Crypt` IV-t használ, tehát UGYANARRA az igényre két kiadás két
- * különböző bájtsort ad. A tokenből nem lehet „egyetlen érvényes alakot" csinálni. Ezért
- * minden fék (dedup, rate-limit) a `fingerprint()`-re kulcsol — az IGÉNYRE, nem a bájtokra.
+ * Amit viszont a kanonikus alak NEM zár: a Laravel `Crypt` borítéka egy JSON-objektum (`iv`,
+ * `value`, `mac`, `tag`), és a MAC csak az `iv`+`value` fölött van — a boríték tehát szabadon
+ * ÚJRASZERIALIZÁLHATÓ (kulcssorrend, whitespace, extra kulcs), és minden változat érvényes
+ * marad. Plusz a `Crypt` IV-t használ, tehát ugyanarra az igényre két kiadás eleve két
+ * különböző bájtsort ad.
+ *
+ * Vagyis a tokenből NINCS „egyetlen érvényes alak" — sem a belső `=`-t zárva, sem anélkül.
+ * Ezért minden fék (dedup, rate-limit) a `fingerprint()`-re kulcsol: az IGÉNYRE, nem a
+ * bájtokra. A kanonikus alak megkövetelése ettől nem fölösleges (a hibás bemenetet korán,
+ * egyértelműen utasítja el), csak épp nem EZ a fékek védelme.
+ *
+ * ## A CÉL a tokenen BELÜL van (`p`)
+ *
+ * Az `APP_KEY` közös: minden azzal kiadott token megfejthető minden olyan kóddal, ami
+ * ugyanazt a kulcsot használja. A `UnsubscribeTokens` ugyanezt a `w`/`m`/`r` hármast adja ki
+ * ugyanabban a borítékban — cél-elválasztás nélkül a NYOMKÖVETÉSI token érvényes LEIRATKOZÓ
+ * tokenné vált (mérve: egy klikk-tokennel a `POST /u/{token}` felvette a címzettet a
+ * suppression-listára, visszavonhatatlanul). A nyomkövetési token szándékosan alacsony
+ * értékű és széles felületen szétszóródó — a leiratkozó viszont írási képesség. A `p` a
+ * titkosított payloadon belül van, tehát a MAC védi.
  */
 final class TrackingTokens
 {
+    /** A token CÉLJA. Az `APP_KEY` közös; a cél-elválasztás a payloadon belül van. */
+    public const PURPOSE = 'track';
+
     public function issue(int $workspaceId, string $messageUuid, string $recipient, string $host, ?string $destination = null): string
     {
         $payload = json_encode([
+            'p' => self::PURPOSE,
             'w' => $workspaceId,
             'm' => $messageUuid,
             'r' => $recipient,
@@ -81,7 +102,12 @@ final class TrackingTokens
             return null;
         }
 
-        if (! is_array($decoded) || ! isset($decoded['w'], $decoded['m'], $decoded['r'], $decoded['h'])) {
+        if (! is_array($decoded) || ! isset($decoded['p'], $decoded['w'], $decoded['m'], $decoded['r'], $decoded['h'])) {
+            return null;
+        }
+
+        // A CÉL kötelező és pontos: egy leiratkozó token itt NEM érvényes.
+        if ($decoded['p'] !== self::PURPOSE) {
             return null;
         }
 
@@ -97,12 +123,14 @@ final class TrackingTokens
     /**
      * Az igény KANONIKUS kulcsa — ebből képezünk dedup- és rate-limit-kulcsot.
      *
-     * SOHA nem a token bájtjaiból: abból több ezer érvényes variáns gyártható ugyanarra az
-     * igényre, és minden ilyen fék megkerülhető lenne.
+     * SOHA nem a token bájtjaiból: a `Crypt`-boríték újraszerializálható és IV-vel változik,
+     * tehát ugyanarra az igényre végtelen sok érvényes bájtsor létezik. Bájtokra kulcsolva a
+     * fék egy `json_encode`-dal megkerülhető lenne.
      */
     public function fingerprint(TrackingClaim $claim): string
     {
         return hash('sha256', implode('|', [
+            self::PURPOSE,
             $claim->workspaceId,
             $claim->messageUuid,
             $claim->recipient,

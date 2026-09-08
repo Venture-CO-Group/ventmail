@@ -357,6 +357,20 @@ M0 után az **A és B sáv külön worktree-ben, külön runnerrel** futtatható
 - **A DMARC-jelentések automatikus betöltése** az A4 inbound route-ján keresztül. A parse ÉS a
   perzisztálás megvan (`DmarcReportIngestor`), a betöltés ma a `deliverability:ingest-dmarc`
   paranccsal megy. → C2/devops.
+- **A DMARC-jelentés TENANT-HOZZÁRENDELÉSE a szállító levélből.** Ma a `policy_published >
+  domain` mező dönti el, kié a jelentés — az viszont a FELADÓ SZAVA, és az egyetlen ellenőrzés,
+  hogy a domain nálunk verifikált. A hamis jelentés így nem tud törölni (a `body_hash` a kulcs
+  része), de a forrásonkénti listát tudja szennyezni. A helyes hozzárendelés a FOGADÓ
+  postafiókból/route-ból jön, a szállító levél DKIM-igazodásával a rekordban. → **C2: ez a
+  bekötés ELŐFELTÉTELE** az inbound-alapú automatikus betöltésnek.
+- **`TRUSTED_PROXIES=*` felülvizsgálata.** A `request->ip()` így a kérő által beírt
+  `X-Forwarded-For`-ból jön. Az A6 két publikus végpontján ezt lezártuk (a fékek a
+  `REMOTE_ADDR`-ra és az igény lenyomatára kulcsolnak), de a `throttle:oidc` és az `api`
+  IP-bucketje ugyanígy érintett. → devops + Identity.
+- **`APP_KEY`-rotáció útja a leiratkozó tokenhez.** A tokennek nincs lejárata (szándékosan: régi
+  levélből is legitim leiratkozni), viszont nincs kulcs-azonosító (`kid`) sem, tehát a rotáció
+  EGYSZERRE némítaná el minden kimenő levélben a leiratkozó linket. → C2, átfedéses
+  kulcsellenőrzéssel.
 - **A blocklist-riasztás ügyeleti csatornája.** A `BlocklistStateChanged` esemény a csatlakozási
   pont; e-mailben nem küldhető (épp a küldő IP-nk van listán). → C2 (super-admin) / devops.
 - **BIMI** — a `bimi_status` mező megvan, a kitöltés nem: VMC-tanúsítványt igényel, ami pénzbe és

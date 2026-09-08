@@ -46,6 +46,13 @@ return new class extends Migration
 
             $table->string('org_name')->nullable();
             $table->string('report_id')->nullable();
+            // A jelentés TÖRZSÉNEK lenyomata. Nem redundancia: az `(org_name, report_id)`
+            // páros a FELADÓ SZAVA, tehát hamisítható. Enélkül az `updateOrCreate` +
+            // sor-csere páros azt jelentené, hogy egy hamis jelentés a VALÓDIT írja felül
+            // (mérve: a valódi 5900 üzenetes jelentés két sora törlődött egy 1 üzenetes
+            // hamisítványra). A lenyomattal az azonos jelentés újraküldése továbbra is
+            // idempotens, a MÁS TÖRZS viszont külön sor — a valódi adat megmarad.
+            $table->string('body_hash', 64)->nullable();
             $table->string('policy')->nullable();
             $table->timestampTz('range_start')->nullable();
             $table->timestampTz('range_end')->nullable();
@@ -58,7 +65,7 @@ return new class extends Migration
             $table->timestamps();
 
             // Ugyanaz a jelentés kétszer is megérkezhet (a fogadók újraküldenek).
-            $table->unique(['workspace_id', 'org_name', 'report_id'], 'dmarc_reports_unique');
+            $table->unique(['workspace_id', 'org_name', 'report_id', 'body_hash'], 'dmarc_reports_unique');
             $table->index(['workspace_id', 'range_start']);
         });
 

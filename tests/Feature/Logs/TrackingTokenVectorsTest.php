@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Modules\Events\Data\TrackingClaim;
 use App\Modules\Events\Http\Controllers\TrackingController;
 use App\Modules\Events\Services\TrackingTokens;
+use App\Modules\Suppression\Services\UnsubscribeTokens;
 
 /*
  | A NYOMKÖVETÉSI TOKEN KANONICITÁS-VEKTORAI.
@@ -199,4 +200,37 @@ it('a whitespace beszúrása érvénytelen — a route-szűrőtől függetlenül
         expect($this->tokens->parse($ws.$token))->toBeNull();
         expect($this->tokens->parse($token.$ws))->toBeNull();
     }
+});
+
+it('a BORÍTÉK ÚJRASZERIALIZÁLÁSA érvényes marad — ezért kulcsol minden fék a lenyomatra', function () {
+    // Ez a vektor NEM azt bizonyítja, hogy jól védünk: azt rögzíti, MIT NEM védünk.
+    //
+    // A fenti vektorok mind a KÜLSŐ base64-et mutálják, és a kanonikus alak azokat zárja. A
+    // Laravel `Crypt` borítéka viszont egy JSON-objektum (`iv`, `value`, `mac`, `tag`), és a
+    // MAC csak az `iv`+`value` fölött van: a boríték szabadon újraszerializálható, és minden
+    // változat ugyanarra az igényre fejtődik meg.
+    //
+    // Vagyis a fájl tetején lévő „egy igény = EGY token" NEM a bájtokra igaz, hanem a
+    // `fingerprint()`-re — és pontosan ezért kulcsol minden fék (dedup, rate-limit) arra.
+    $token = $this->tokens->issue(7, 'aaaa-bbbb', 'cimzett@example.test', 'email.pelda.hu');
+
+    $envelope = json_decode((string) base64_decode(strtr($token, '-_~', '+/='), true), true);
+
+    $rebuilt = strtr(base64_encode((string) json_encode($envelope + ['pad' => 'xxxxx'])), '+/=', '-_~');
+
+    expect($rebuilt)->not->toBe($token);
+    expect($this->tokens->parse($rebuilt))->not->toBeNull();
+
+    // …de a lenyomat ugyanaz: a fék nem kerülhető meg.
+    expect($this->tokens->fingerprint($this->tokens->parse($rebuilt)))
+        ->toBe($this->tokens->fingerprint($this->tokens->parse($token)));
+});
+
+it('a LEIRATKOZÓ token itt nem érvényes', function () {
+    // Cél-elválasztás (`p`) mindkét irányban: az `APP_KEY` közös, tehát a másik célra
+    // kiadott tokenünk különben itt is megfejtődne.
+    $unsubscribe = app(UnsubscribeTokens::class)
+        ->issue(7, 'aaaa-bbbb', 'cimzett@example.test');
+
+    expect($this->tokens->parse($unsubscribe))->toBeNull();
 });

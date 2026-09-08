@@ -6,6 +6,7 @@ namespace App\Providers;
 
 use App\Modules\Audit\Services\KeyedHash;
 use App\Modules\Events\Services\TrackingTokens;
+use App\Modules\Suppression\Services\UnsubscribeTokens;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
@@ -116,18 +117,69 @@ class AppServiceProvider extends ServiceProvider
             $claim = $tokens->parse((string) $request->route('token'));
 
             return Limit::perMinute(60)->by(
-                $claim === null ? 'ip:'.$request->ip() : 'claim:'.$tokens->fingerprint($claim),
+                $claim === null ? 'peer:'.self::peer($request) : 'claim:'.$tokens->fingerprint($claim),
             );
         });
 
-        // LEIRATKOZÁS: publikus végpont, amit a levélkliens hív. A keret bőséges — egy
-        // kampány után sokan iratkoznak le egyszerre —, de nem végtelen.
-        RateLimiter::for('unsubscribe', fn (Request $request) => Limit::perMinute(120)->by((string) $request->ip()));
+        /*
+         | LEIRATKOZÁS: publikus, HITELESÍTÉS NÉLKÜLI, ÍRÓ végpont. Két bucket, két különböző
+         | dolgot védve — és egyik sem a `request->ip()`.
+         |
+         | Miért nem az: a `TRUSTED_PROXIES` alapértéke `*`, tehát a `request->ip()` a KÉRŐ
+         | által beírt `X-Forwarded-For`-ból jön. Mérve: 150 kérés fix XFF-fel 30 db 429-et
+         | kapott, ROTÁLÓ XFF-fel egyet sem. Vagyis az egyetlen fék ezen a végponton egy
+         | fejléccel kikapcsolható volt — egy visszavonhatatlan suppression-listára író
+         | végponton, ami egy tenant teljes közönségét le tudta volna iratkoztatni.
+         |
+         |  - `claim:` — a KONKRÉT címzettre szóló kísérletek keretét zárja. Ez az áldozat
+         |    védelme, és rotáló XFF-fel sem nyílik ki, mert a kulcs a tokenből származik.
+         |  - `peer:` — a valódi TCP-partner (`REMOTE_ADDR`), amit a kérő nem tud átírni. Ez a
+         |    platform védelme az értelmezhetetlen tokenek özöne ellen.
+         |
+         | A keret bőséges: egy kampány után sokan iratkoznak le egyszerre, és a Gmail
+         | ÚJRAPRÓBÁLJA a one-click POST-ot. A `claim:` bucket ennél szűkebb — ugyanarra a
+         | címzettre percenként tíz kísérlet már nem legitim minta.
+         */
+        RateLimiter::for('unsubscribe', function (Request $request) {
+            $fingerprint = app(UnsubscribeTokens::class)->fingerprint((string) $request->route('token'));
 
-        // MTA-STS: idegen MTA-k kérik le, hosztonként. Bőkezű keret — a policy statikus, és
-        // a fogadók cache-elik —, de nem korlátlan: publikus endpoint rate-limit nélkül nincs.
-        RateLimiter::for('mta-sts', fn (Request $request) => Limit::perMinute(300)->by((string) $request->getHost()));
+            return [
+                Limit::perMinute(120)->by('peer:'.self::peer($request)),
+                Limit::perMinute(10)->by('claim:'.($fingerprint ?? 'invalid')),
+            ];
+        });
+
+        /*
+         | MTA-STS: idegen MTA-k kérik le, hosztonként. Bőkezű keret — a policy statikus, és a
+         | fogadók cache-elik.
+         |
+         | A HOSZT önmagában nem elég kulcs: a 200 vs. 404 különbség orákulum arra, hogy egy
+         | domain verifikált ventMail-ügyfél-e, és hosztonkénti kulccsal a felsorolás
+         | gyakorlatilag fékezetlen (minden próba új bucketet nyit). Ezért mellé a valódi
+         | TCP-partner is kap egy plafont.
+         */
+        RateLimiter::for('mta-sts', fn (Request $request) => [
+            Limit::perMinute(300)->by('host:'.$request->getHost()),
+            Limit::perMinute(60)->by('peer:'.self::peer($request)),
+        ]);
 
         RateLimiter::for('oidc', fn (Request $request) => Limit::perMinute(20)->by((string) $request->ip()));
+    }
+
+    /**
+     * A VALÓDI TCP-partner — nem a `request->ip()`.
+     *
+     * A `request->ip()` a `TRUSTED_PROXIES` (alapértéke `*`) miatt a KÉRŐ által beírt
+     * `X-Forwarded-For` fejlécből jön. Ez a naplózáshoz és a földrajzi jelzéshez elfogadható
+     * (ott a proxy adja a helyes értéket), egy RATE-LIMIT KULCSÁHOZ viszont nem: aki a
+     * fejlécet írja, magának ad friss keretet.
+     *
+     * A `REMOTE_ADDR` a proxy címe. Egyetlen proxy mögött ez minden kérésre ugyanaz, tehát
+     * DURVA kulcs — épp ezért csak PLATFORM-szintű plafonként használjuk, a finom fék pedig
+     * mindig az igényre kulcsol (`claim:`).
+     */
+    private static function peer(Request $request): string
+    {
+        return (string) ($request->server('REMOTE_ADDR') ?? 'unknown');
     }
 }

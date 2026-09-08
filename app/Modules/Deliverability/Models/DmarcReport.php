@@ -23,7 +23,7 @@ final class DmarcReport extends Model
     use BelongsToWorkspace, HasUuids;
 
     protected $fillable = [
-        'domain_id', 'org_name', 'report_id', 'policy',
+        'domain_id', 'org_name', 'report_id', 'body_hash', 'policy',
         'range_start', 'range_end', 'total', 'passed', 'failed', 'expires_at',
     ];
 

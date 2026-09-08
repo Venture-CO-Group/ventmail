@@ -89,7 +89,14 @@ final class UnsubscribeController
             // A STORE ír, nem a controller: a cím normalizálása, a meglévő sor monoton
             // szigorítása és az ismételt hívás (a Gmail újrapróbálja a one-click POST-ot)
             // ott van egy helyen, tesztelve.
-            $this->suppressions->recordUnsubscribe((string) $claim['recipient']);
+            // A MELYIK LEVÉLBŐL is rögzül: a leiratkozás a consent VISSZAVONÁSA, és
+            // ugyanolyan bizonyítékot érdemel, mint a megadása. A token hordozza az üzenet
+            // uuid-ját; ha csak `one_click`-et írnánk, egy későbbi panasznál nem tudnánk
+            // megmutatni, melyik levélből érkezett.
+            $this->suppressions->recordUnsubscribe(
+                (string) $claim['recipient'],
+                detail: 'message:'.$claim['messageUuid'],
+            );
 
             return true;
         } finally {

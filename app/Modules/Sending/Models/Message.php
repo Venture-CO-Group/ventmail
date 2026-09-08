@@ -69,7 +69,6 @@ final class Message extends Model
     public function headersFor(string $recipient): array
     {
         $headers = (array) $this->headers;
-        $prefix = $this->unsubscribeUrlPrefix();
         $ours = false;
 
         foreach ($headers as $name => $value) {
@@ -77,9 +76,7 @@ final class Message extends Model
                 continue;
             }
 
-            $ours = str_starts_with($prefix, 'http')
-                && is_string($value)
-                && str_contains($value, $prefix);
+            $ours = is_string($value) && $this->carriesOurToken($value);
 
             if ($ours) {
                 unset($headers[$name]);
@@ -89,6 +86,41 @@ final class Message extends Model
         }
 
         return $ours ? array_merge($headers, $this->unsubscribePair($recipient)) : $headers;
+    }
+
+    /**
+     * A MI leiratkozó fejlécünk-e? A TOKENT fejtjük meg, nem az URL-t hasonlítjuk.
+     *
+     * Az előző változat a futásidőben ÚJRASZÁMOLT URL-előtag részsztring-egyezését nézte —
+     * és az előtag nem állandó: a `tracking_status`/`tracking_domain`, az `APP_URL` és a
+     * `SENDING_TRACKING_BASE_URL` bármelyike változhat a fejléc megszületése (a `created`
+     * hook) és a KIKÜLDÉS között. Ütemezett vagy újrapróbált küldésnél ez rutinszerű.
+     *
+     * Elcsúszáskor a felismerés `false`-ra fordult, és a tárolt — az ELSŐ címzettre szóló —
+     * fejléc változatlanul ment ki MINDENKINEK. Mérve: a `tracking_status` `verified →
+     * pending` átírása után egy 3 címzettes üzenet mindhárom levele Anna tokenjét vitte.
+     * Vagyis Béla leiratkozása ANNÁT tette volna suppression-listára (visszavonhatatlanul),
+     * Béla pedig továbbra is kapta volna a marketinget — golden rule 4, támadó nélkül.
+     *
+     * A token megfejtése ettől független: ha a `UnsubscribeTokens::parse()` sikerül, a fejléc
+     * a miénk, akármelyik hosztra mutat. És a cél-elválasztás (`p`) miatt egy NYOMKÖVETÉSI
+     * token itt nem fejtődik meg — nem téveszt meg minket a saját másik tokenünk sem.
+     */
+    private function carriesOurToken(string $header): bool
+    {
+        // A fejléc `<…>`-be zárt címek listája (RFC 2369); a token az útvonal `/u/` szegmense
+        // után áll, és az ábécéje a route-szűrővel egyezik.
+        preg_match_all('#/u/([A-Za-z0-9\-_~]+)#', $header, $matches);
+
+        $tokens = app(UnsubscribeTokens::class);
+
+        foreach ($matches[1] as $token) {
+            if ($tokens->parse((string) $token) !== null) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /** @return array<string, string> */

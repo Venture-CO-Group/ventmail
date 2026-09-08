@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Sending\Services;
 
+use App\Modules\Sending\Gate\Gates\HeaderSafetyGate;
 use App\Modules\Sending\Models\Message;
 use Symfony\Component\Mime\Email;
 
@@ -17,14 +18,18 @@ use Symfony\Component\Mime\Email;
 final class OutboundMimeBuilder
 {
     /**
-     * A NEM `x-` előtagú fejlécek, amiket átengedünk.
+     * A NEM `x-` előtagú fejlécek, amiket átengedünk — a KAPU listája, nem egy másolata.
      *
      * Szűk, zárt lista: a `To`, a `From` és a `Message-ID` a MI dolgunk, és egy feladói
      * `Bcc` vagy `Return-Path` fejléc a kimenő levélben csendes címzett-szivárgás lenne.
      *
-     * @var list<string>
+     * Miért a kapu konstansa és nem egy itteni tömb: a kettő szétcsúszása CSENDES
+     * funkcióvesztés. A `List-Unsubscribe` pontosan így esett ki a MIME-ból (a kapu
+     * engedte, a builder nem ismerte), és ugyanez történt a `Reply-To`-val is — az A4
+     * továbbításához engedélyezett fejléc a levélből nyomtalanul eltűnt. Egy forrásból
+     * mindkettő kizárt.
      */
-    private const PASS_THROUGH = ['list-unsubscribe', 'list-unsubscribe-post'];
+    private const PASS_THROUGH = HeaderSafetyGate::ALLOWED;
 
     public function build(Message $message, string $recipient): Email
     {
@@ -73,9 +78,26 @@ final class OutboundMimeBuilder
 
             $lower = strtolower((string) $name);
 
-            if (str_starts_with($lower, 'x-') || in_array($lower, self::PASS_THROUGH, true)) {
-                $headers->addTextHeader((string) $name, (string) $value);
+            if (! str_starts_with($lower, 'x-') && ! in_array($lower, self::PASS_THROUGH, true)) {
+                continue;
             }
+
+            // A `Reply-To` STRUKTURÁLT fejléc (címlista), nem szabad szöveg: a Symfony Mime
+            // `LogicException`-t dob, ha `addTextHeader`-rel próbálnánk beírni — vagyis a
+            // levél nem elküldhetetlen lenne, hanem KIVÉTELLEL elszállna a küldés közben.
+            //
+            // Az érvénytelen címet KIHAGYJUK, nem javítjuk: a feladó adta, és egy
+            // „megtisztított" válasz-cím csendben rossz helyre vinné a válaszokat. Ugyanaz a
+            // döntés, mint az A4 továbbításánál.
+            if ($lower === 'reply-to') {
+                if (filter_var((string) $value, FILTER_VALIDATE_EMAIL) !== false) {
+                    $email->replyTo((string) $value);
+                }
+
+                continue;
+            }
+
+            $headers->addTextHeader((string) $name, (string) $value);
         }
 
         return $email;

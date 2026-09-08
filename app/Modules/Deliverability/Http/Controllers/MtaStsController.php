@@ -26,13 +26,15 @@ final class MtaStsController
 {
     public function __invoke(Request $request, MtaStsPolicy $policy): Response
     {
-        $host = strtolower((string) $request->getHost());
+        $host = $this->requestedHost($request);
 
         if (! str_starts_with($host, 'mta-sts.')) {
             return $this->notFound();
         }
 
-        $name = DomainNormalizer::canonical(substr($host, strlen('mta-sts.')));
+        // A záró pontot is levágjuk: néhány kliens `mta-sts.pelda.hu.` alakban küldi a
+        // `Host`-ot, és az abszolút alak ugyanarra a domainre mutat.
+        $name = DomainNormalizer::canonical(rtrim(substr($host, strlen('mta-sts.')), '.'));
 
         if ($name === '' || $name === null) {
             return $this->notFound();
@@ -69,6 +71,31 @@ final class MtaStsController
             // legyen hosszabb, különben a visszavonás nem érne el hozzájuk.
             'Cache-Control' => 'public, max-age=3600',
         ]);
+    }
+
+    /**
+     * A KÉRT hosztnév — a NYERS `Host` fejlécből, nem a `getHost()`-ból.
+     *
+     * A `getHost()` a `TRUSTED_PROXIES` (alapértéke `*`) miatt előnyben részesíti az
+     * `X-Forwarded-Host` fejlécet, amit BÁRKI beírhat. Mérve: `Host: localhost` +
+     * `X-Forwarded-Host: mta-sts.pelda.hu` → 200, kiszolgált policy. Itt a hosztnév nem
+     * kényelmi adat, hanem a végpont EGYETLEN azonosítója — abból derül ki, KINEK a policy-ját
+     * adjuk ki —, tehát nem jöhet átírható fejlécből.
+     *
+     * A `Host` fejlécet a saját fordított proxynk (Caddy, `php_fastcgi`) változtatás nélkül
+     * továbbadja, tehát ez a helyes forrás. A porttal együtt érkező alakot levágjuk.
+     */
+    private function requestedHost(Request $request): string
+    {
+        $host = strtolower(trim((string) $request->headers->get('host')));
+
+        // IPv6-literál (`[::1]:8088`) nem lehet `mta-sts.` hoszt: a portlevágás előtt
+        // kizárjuk, hogy a kettőspont-keresés ne csonkolja meg.
+        if (str_starts_with($host, '[')) {
+            return '';
+        }
+
+        return str_contains($host, ':') ? strstr($host, ':', true) : $host;
     }
 
     private function notFound(): Response
