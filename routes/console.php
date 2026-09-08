@@ -47,5 +47,10 @@ Schedule::command('inbound:verify-mx')->hourly();
 // adat kevés van a rendszerben, és az ellenőrzés után nincs jogalapunk a megőrzésére.
 Schedule::command('validation:purge')->dailyAt('03:50');
 
+// BLOCKLIST-FIGYELÉS: ez az a hiba, amit MI veszünk észre utoljára — az ügyfél előbb, mert
+// nála hirtelen senki nem kapja meg a levelet. Az óránkénti futás a delisting-kérelemhez
+// szükséges időt adja meg.
+Schedule::command('deliverability:blocklists')->hourly();
+
 // A lejárt nyers MIME-levelek törlése (golden rule 10): a levéltest a legsűrűbb PII-tárolónk.
 Schedule::command('messages:purge-raw-mime')->dailyAt('03:20');

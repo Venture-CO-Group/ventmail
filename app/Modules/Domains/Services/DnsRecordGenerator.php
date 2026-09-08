@@ -49,6 +49,22 @@ final class DnsRecordGenerator
                 'value' => config('domains.tracking_target'),
                 'purpose' => 'Saját domainen futó klikk-átirányítás és nyitás-pixel.',
             ],
+            // MTA-STS és TLS-RPT (A6 · 48. kritérium). Az előbbi a KÜLDŐNEK mondja meg,
+            // hogy a mi domainünkre kötelező a TLS (a lefokozó támadás ellen), az utóbbi
+            // pedig a fogadóktól kér jelentést a TLS-hibákról. A kettő együtt működik: az
+            // egyik előír, a másik megmutatja, hogy betartják-e.
+            'mta_sts' => [
+                'type' => 'TXT',
+                'name' => '_mta-sts.'.$host,
+                'value' => 'v=STSv1; id='.now()->format('YmdHis'),
+                'purpose' => 'MTA-STS: a beérkező levelekhez kötelező TLS (opcionális, de erősen ajánlott).',
+            ],
+            'tls_rpt' => [
+                'type' => 'TXT',
+                'name' => '_smtp._tls.'.$host,
+                'value' => sprintf('v=TLSRPTv1; rua=mailto:%s', config('domains.tls_rpt_rua', 'tls-reports@ventmail.app')),
+                'purpose' => 'TLS-RPT: a fogadók ide jelentik, ha TLS-hiba volt.',
+            ],
             // OPCIONÁLIS: csak akkor kell, ha a tenant BE is akar fogadni levelet (A4). A
             // küldéshez nem tartozik hozzá, és a `verified` státuszhoz sem — de enélkül a
             // bejövő route-ok sosem kapnak levelet.

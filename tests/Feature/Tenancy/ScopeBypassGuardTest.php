@@ -44,6 +44,11 @@ it('a Tenancy modulon kívül senki nem kerüli meg a global scope-ot', function
         // API-kulcsnál és az SMTP-hitelesítőnél: egyetlen, szűk, pontos egyezésre
         // korlátozott lekérdezés, izolációs teszttel fedve (InboundIsolationTest).
         $exceptions = [
+            // A BLOCKLIST a küldő IP-nkről szól, nem egy tenant adatáról: a találat MINDEN
+            // tenantot érint, aki arról az IP-ről küld. Tenant-adatnak könyvelve az egyik
+            // ügyfél nem látná, hogy a másik forgalma miatt került listára a KÖZÖS IP —
+            // pedig épp őt sújtja. A `BlocklistCheck` ezért nem is workspace-hez kötött.
+            'Deliverability/Services/BlocklistMonitor.php',
             'Inbound/Services/VerifiedInboundResolver.php',
             'Logs/Services/TagStatistics.php',
             'Identity/Models/ApiKey.php',

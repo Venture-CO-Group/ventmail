@@ -140,7 +140,7 @@ válaszol — a bejövő levél pedig route-motoron át kezelhető.
 - [x] **A2 · SMTP relay + IP-poolok + sorok** — PR #14 (ADR 0001; 3 review-kör: reviewer + security ×2, minden blokkoló javítva)
 - [x] **A3 · Napló + üzenet-trace + Events API + webhookok** — PR #16 MERGE-ELVE (3 review-kör: reviewer + security ×2, 6 blokkoló javítva)
 - [ ] **A4 · Inbound routing (MX)** — architect → test → backend → **security (kötelező)** → frontend *(FOLYAMATBAN)*
-- [ ] **A5 · Címellenőrzés** — test → backend → frontend
+- [x] **A5 · Címellenőrzés** — test → backend → frontend
 - [ ] **A6 · Kézbesíthetőségi suite** — test → backend → frontend → mockup
 
 ### A1 · Messages API — elfogadási kritériumok

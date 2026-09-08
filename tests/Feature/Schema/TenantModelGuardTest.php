@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 use App\Modules\Audit\Concerns\Auditable;
 use App\Modules\Audit\Models\AuditLog;
+use App\Modules\Deliverability\Models\BlocklistCheck;
+use App\Modules\Deliverability\Models\SeedTest;
 use App\Modules\Events\Models\MessageEvent;
 use App\Modules\Inbound\Models\InboundAttachment;
 use App\Modules\Inbound\Models\InboundMessage;
@@ -105,6 +107,10 @@ it('minden admin-felületű modell auditált', function () {
         // scope-ellenőrzés), a sorok maguk nem admin-műveletek.
         ValidationJob::class,
         ValidationResult::class,
+        // A blocklist-ellenőrzés gépi mérés a SAJÁT infrastruktúránkról, nem admin-művelet.
+        BlocklistCheck::class,
+        // A seed-mérés gépi eredmény: a futást az API indítja (ott van jogosultság-ellenőrzés).
+        SeedTest::class,
     ];
 
     $offenders = [];

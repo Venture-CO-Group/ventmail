@@ -38,12 +38,16 @@ final class HeaderSafetyGate implements Gate
      * használhatatlan lenne — a továbbított levélre a válasz a `noreply@` címünkre menne,
      * nem az eredeti feladónak. Mailgun-paritás is (`h:Reply-To`).
      *
-     * A vezérlőkarakter-ellenőrzés ERRE IS lefut, tehát a fejléc-injekció ugyanúgy zárva van —
-     * és a `From` továbbra is tiltott, tehát a feladó-hamisítás útja nem nyílik meg.
+     * A `List-Unsubscribe` és a `List-Unsubscribe-Post` (RFC 8058) szintén: ezeket a KÜLDÉSI
+     * ÚT teszi be marketing levélhez, és az `UnsubscribeHeaderGate` meg is követeli. Ha a
+     * fejléc-kapu tiltaná őket, a saját, kötelező fejlécünk akadna fenn rajta.
+     *
+     * A vezérlőkarakter-ellenőrzés MINDEGYIKRE lefut, tehát a fejléc-injekció ugyanúgy zárva
+     * van — és a `From` továbbra is tiltott, tehát a feladó-hamisítás útja nem nyílik meg.
      *
      * @var list<string>
      */
-    private const ALLOWED = ['reply-to'];
+    private const ALLOWED = ['reply-to', 'list-unsubscribe', 'list-unsubscribe-post'];
 
     public function name(): string
     {

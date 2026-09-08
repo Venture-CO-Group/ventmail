@@ -28,6 +28,10 @@ return [
     'tracking_subdomain' => env('DOMAINS_TRACKING_SUBDOMAIN', 'email'),
     'tracking_target' => env('DOMAINS_TRACKING_TARGET', 'track.ventmail.app'),
 
+    // TLS-RPT: ide jelentik a fogadók a TLS-hibákat. A cím a MIÉNK, nem a tenanté: a
+    // jelentések feldolgozása és a riasztás a platform dolga.
+    'tls_rpt_rua' => env('DOMAINS_TLS_RPT_RUA', 'tls-reports@ventmail.app'),
+
     // A DKIM-rotáció átfedése: ennyi ideig marad érvényes az előző selector.
     'dkim_rotation_overlap_days' => (int) env('DOMAINS_DKIM_OVERLAP_DAYS', 7),
 ];

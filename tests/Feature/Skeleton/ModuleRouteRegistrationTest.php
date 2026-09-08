@@ -89,6 +89,12 @@ it('egyetlen modul-route sem hitelesítetlen', function () {
     $allowlist = [
         'auth/redirect', 'auth/callback', 'auth/logout', 'auth/dev-login', 'up', '/',
         't/o/{token}', 't/c/{token}',
+        // ONE-CLICK LEIRATKOZÁS (RFC 8058): a levélkliens POST-olja, session és CSRF-token
+        // nélkül — a szabvány pontosan így írja elő. A hozzáférést a titkosított token adja,
+        // és a végpont EGYETLEN hatása az, hogy valakit levesz a marketing-listáról. Aki ide
+        // hitelesítést tesz, a leiratkozást teszi lehetetlenné — és a leiratkozás helyett a
+        // spam-gomb következik.
+        'u/{token}',
     ];
 
     $offenders = [];

@@ -120,6 +120,10 @@ class AppServiceProvider extends ServiceProvider
             );
         });
 
+        // LEIRATKOZÁS: publikus végpont, amit a levélkliens hív. A keret bőséges — egy
+        // kampány után sokan iratkoznak le egyszerre —, de nem végtelen.
+        RateLimiter::for('unsubscribe', fn (Request $request) => Limit::perMinute(120)->by((string) $request->ip()));
+
         RateLimiter::for('oidc', fn (Request $request) => Limit::perMinute(20)->by((string) $request->ip()));
     }
 }
