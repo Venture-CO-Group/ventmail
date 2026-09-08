@@ -363,10 +363,23 @@ M0 után az **A és B sáv külön worktree-ben, külön runnerrel** futtatható
   része), de a forrásonkénti listát tudja szennyezni. A helyes hozzárendelés a FOGADÓ
   postafiókból/route-ból jön, a szállító levél DKIM-igazodásával a rekordban. → **C2: ez a
   bekötés ELŐFELTÉTELE** az inbound-alapú automatikus betöltésnek.
-- **`TRUSTED_PROXIES=*` felülvizsgálata.** A `request->ip()` így a kérő által beírt
-  `X-Forwarded-For`-ból jön. Az A6 két publikus végpontján ezt lezártuk (a fékek a
-  `REMOTE_ADDR`-ra és az igény lenyomatára kulcsolnak), de a `throttle:oidc` és az `api`
-  IP-bucketje ugyanígy érintett. → devops + Identity.
+- **`TRUSTED_PROXIES=*` felülvizsgálata.** MÉRVE: `REMOTE_ADDR=172.18.0.9` +
+  `X-Forwarded-For: 9.9.9.9` mellett a `request->ip()` `9.9.9.9`, és a `getHost()` is az
+  `X-Forwarded-Host`-ot veszi — a beállítás tehát NEM no-op (a `bootstrap/app.php` korábbi
+  kommentje az ellenkezőjét állította, javítva). Az A6 publikus végpontjain ezt lezártuk (a
+  fékek a `REMOTE_ADDR`-ra és az igény lenyomatára kulcsolnak), de a `throttle:oidc`, az `api`
+  és az `api-auth-fail:ip:` vödör MÉG a `request->ip()`-re kulcsol: az API-kulcs
+  brute-force plafonja ma egy fejléccel átléphető. A helyes javítás nem limiterenkénti
+  kerülőút, hanem a `TRUSTED_PROXIES` leszűkítése a valódi proxy-hálóra.
+  → **devops + Identity, élesben KÖTELEZŐ.**
+- **A DEV CADDY NEM SZOLGÁL KI PHP-t.** A `caddy` service-nek nincs kötése az alkalmazáshoz
+  (`docker compose exec caddy ls /var/www/public` → nincs ilyen könyvtár), tehát a
+  `php_fastcgi` implicit `try_files`-a semmire nem illeszt: `/up`, `/`, `/u/{token}` és egy
+  nem létező útvonal is egyaránt 200-at ad üres törzzsel a belső porton. A konténer
+  healthcheckje ezért MINDIG zöld anélkül, hogy Laravelt látna — pedig a Caddyfile kommentje
+  azt állítja, hogy „a TELJES láncot méri", és a dev Basic Auth sem védi semmit. Emiatt a
+  `REMOTE_ADDR` éles értéke sem mérhető ebben a környezetben, tehát a publikus végpontok
+  rate-limit-plafonjai méréssel nem hitelesítettek. → **devops, magas prioritás.**
 - **`APP_KEY`-rotáció útja a leiratkozó tokenhez.** A tokennek nincs lejárata (szándékosan: régi
   levélből is legitim leiratkozni), viszont nincs kulcs-azonosító (`kid`) sem, tehát a rotáció
   EGYSZERRE némítaná el minden kimenő levélben a leiratkozó linket. → C2, átfedéses

@@ -6,7 +6,10 @@ namespace App\Modules\Sending\Services;
 
 use App\Modules\Sending\Gate\Gates\HeaderSafetyGate;
 use App\Modules\Sending\Models\Message;
+use InvalidArgumentException;
+use Symfony\Component\Mime\Address;
 use Symfony\Component\Mime\Email;
+use Symfony\Component\Mime\Exception\RfcComplianceException;
 
 /**
  * A kimenő levél MIME-ja — címzettenként, a személyre szabott törzzsel.
@@ -90,8 +93,19 @@ final class OutboundMimeBuilder
             // „megtisztított" válasz-cím csendben rossz helyre vinné a válaszokat. Ugyanaz a
             // döntés, mint az A4 továbbításánál.
             if ($lower === 'reply-to') {
-                if (filter_var((string) $value, FILTER_VALIDATE_EMAIL) !== false) {
-                    $email->replyTo((string) $value);
+                // `Address::create()` a MEGJELENÍTÉSI NEVES alakot is érti
+                // (`Ügyfélszolgálat <ugyfel@pelda.hu>`) — a `filter_var` nem, és az volt a
+                // Mailgun-paritás LEGELTERJEDTEBB alakja. Mérve: a nevesített cím csendben
+                // kiesett a MIME-ból, tehát az előző javítás ugyanazt a hibaosztályt hozta
+                // vissza eggyel lejjebb, amit ez a packet a `List-Unsubscribe`-nál javított.
+                //
+                // A CRLF-et a `HeaderSafetyGate` már levágta; ami itt még elhasalhat, az a
+                // szintaktikailag rossz cím — azt KIHAGYJUK, nem javítjuk: egy
+                // „megtisztított" válasz-cím csendben rossz helyre vinné a válaszokat.
+                try {
+                    $email->replyTo(Address::create((string) $value));
+                } catch (RfcComplianceException|InvalidArgumentException) {
+                    // Szándékosan néma a levél felé, de a kapu az ügyfélnek jelez.
                 }
 
                 continue;

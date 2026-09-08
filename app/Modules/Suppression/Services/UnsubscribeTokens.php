@@ -50,16 +50,45 @@ use JsonException;
  * Ezért a tokenből NINCS „egyetlen érvényes alak", és minden fék (rate-limit, dedup) a
  * `fingerprint()`-re kulcsol — az IGÉNYRE, nem a bájtokra. Aki ezt bájtokra kulcsolná, a
  * fékét születetten megkerülhetőre írná.
+ *
+ * ## A FORMÁTUM VERZIÓJA (`v`) — és miért nincs átmeneti ág
+ *
+ * A `p` bevezetése MEGVÁLTOZTATTA a wire-formátumot: a korábbi, `p` nélküli token ma
+ * érvénytelen. Élő telepítésen ez CSENDES kár lett volna — a `/u/` szándékosan nem ad
+ * orákulumot, tehát a címzett a „leiratkoztál" oldalt látja, miközben semmi nem íródik, és a
+ * következő kampányt megkapja (GDPR 21., golden rule 4).
+ *
+ * Átmeneti ág mégis NINCS, és ez tudatos döntés: a ventMail-nek nincs éles telepítése (az
+ * M1 fejlesztés alatt van, a `ventmail` OIDC-kliens regisztrációja is nyitott emberi lépés),
+ * tehát NINCS kiküldött levél, amiben régi token utazna. Egy visszafelé-kompatibilis ág
+ * viszont épp azt a tokent fogadná el, amit ez a kör bizonyítottan veszélyesnek talált.
+ *
+ * Ami ELŐFELTÉTELE minden JÖVŐBELI formátumváltásnak (és a backlogban szerepel):
+ *  - a `v` mező, hogy a változás detektálható legyen (ez itt van, most);
+ *  - kulcs-azonosító (`kid`) + átfedéses ellenőrzés, mert `APP_KEY`-rotáció ma EGYSZERRE
+ *    némítaná el minden kimenő levélben a leiratkozó linket;
+ *  - a beégetett KAT-vektor (`UnsubscribeTokenVectorsTest`), ami a wire-formátumot RÖGZÍTI:
+ *    egy néma formátumváltás onnantól a CI-ban bukik el, nem az ügyfél postafiókjában.
  */
 final class UnsubscribeTokens
 {
     /** A token CÉLJA. Az `APP_KEY` közös; a cél-elválasztás a payloadon belül van. */
     public const PURPOSE = 'unsub';
 
+    /**
+     * A FORMÁTUM verziója.
+     *
+     * Emelése azt jelenti, hogy a korábban kiküldött levelek leiratkozó linkje elhal — tehát
+     * emelni CSAK átmeneti ággal együtt szabad. A `parse()` a beégetett KAT-vektorral együtt
+     * őrzi, hogy ez ne történhessen meg észrevétlenül.
+     */
+    public const VERSION = 1;
+
     public function issue(int $workspaceId, string $messageUuid, string $recipient): string
     {
         $payload = json_encode([
             'p' => self::PURPOSE,
+            'v' => self::VERSION,
             'w' => $workspaceId,
             'm' => $messageUuid,
             'r' => $recipient,
@@ -92,6 +121,12 @@ final class UnsubscribeTokens
 
         // A CÉL kötelező és pontos: egy nyomkövetési token itt NEM érvényes.
         if ($decoded['p'] !== self::PURPOSE) {
+            return null;
+        }
+
+        // A VERZIÓ is pontos. Ismeretlen verziót nem próbálunk „valahogy" értelmezni: a
+        // félig megértett claim alapján leiratkoztatni rosszabb, mint nem leiratkoztatni.
+        if (($decoded['v'] ?? null) !== self::VERSION) {
             return null;
         }
 

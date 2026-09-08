@@ -30,6 +30,7 @@ use App\Modules\Inbound\Actions\VerifyInboundMx;
 use App\Modules\IpPools\Models\IpAddress;
 use App\Modules\IpPools\Models\IpPool;
 use App\Modules\Sending\Actions\SendMessage;
+use App\Modules\Sending\Gate\Gates\HeaderSafetyGate;
 use App\Modules\Sending\Gate\Gates\UnsubscribeHeaderGate;
 use App\Modules\Sending\Models\Message;
 use App\Modules\Sending\Services\OutboundMimeBuilder;
@@ -1140,4 +1141,154 @@ it('a NYOMKÖVETÉSI tokennel a leiratkozó végpont NEM iratkoztat le', functio
     app(WorkspaceContext::class)->set($this->workspace);
 
     expect(Suppression::query()->count())->toBe(0);
+});
+
+/*
+ | A MÁSODIK SECURITY-KÖR TALÁLATAI.
+ |
+ | A `headersFor()` felismerése itt HARMADSZOR javul ugyanabban a packetben. Az első változat
+ | az első címzett tokenjét küldte mindenkinek; a második az URL-előtag elcsúszásán nyílt
+ | vissza; a harmadikat egy ÜGYFÉL-FEJLÉC nyitotta ki, config-változás nélkül.
+ */
+
+it('a MÁS BETŰZÉSŰ ügyfél-fejléc nem törli el a címzettenkénti tokent', function () {
+    // A `headers` jsonb: a kulcssorrend nem a beírásé, hanem a Postgres normalizálásáé
+    // (hossz, majd bájtsorrend). Az ügyfél `h:LIST-UNSUBSCRIBE=` ÜRES értékkel a felismerést
+    // a saját, üres kulcsára futtatta, a mi kulcsunk pedig a `break` miatt nem került sorra
+    // — MINDEN levél az ELSŐ címzett tokenjét vitte, mind a tíz kapu zöldje mellett.
+    $domain = Domain::create(['name' => 'pelda.hu', 'status' => 'verified', 'verified_at' => now()]);
+
+    $message = Message::create([
+        'domain_id' => $domain->getKey(),
+        'channel' => 'marketing',
+        'from_email' => 'no-reply@pelda.hu',
+        'recipients' => ['anna@example.test', 'bela@example.test'],
+        'subject' => 'Hírlevél',
+        'headers' => ['LIST-UNSUBSCRIBE' => ''],
+    ]);
+
+    // EGY kulcs marad, kanonikus betűzéssel: két `List-Unsubscribe` a kimenő MIME-ban
+    // önmagában is one-click megfelelési hiba (a fogadó nem tudja, melyiket hívja).
+    $keys = array_values(array_filter(
+        array_keys((array) $message->fresh()->headers),
+        fn (string $key) => strtolower($key) === 'list-unsubscribe',
+    ));
+
+    expect($keys)->toBe(['List-Unsubscribe']);
+
+    $tokens = app(UnsubscribeTokens::class);
+
+    foreach (['anna@example.test', 'bela@example.test'] as $recipient) {
+        $header = (string) $message->fresh()->headersFor($recipient)['List-Unsubscribe'];
+        $token = (string) preg_replace('#^.*/u/|>$#', '', $header);
+
+        expect($tokens->parse($token)['recipient'])->toBe($recipient);
+    }
+});
+
+it('IDEGEN workspace leiratkozó tokenjét a kapu ELUTASÍTJA', function () {
+    // Enélkül a kimenő levél MINDEN példánya egy idegen workspace címzettjének tokenjét
+    // hordozta — a MI DKIM-aláírásunkkal —, tehát minden one-click egy IDEGEN tenant
+    // suppression-listájára írt volna (golden rule 6). A puszta üzenet-kötés önmagában
+    // rosszabb lett volna: akkor a token „nem a miénk", és változatlanul kimegy.
+    $foreign = Workspace::factory()->create();
+
+    $stolen = app(UnsubscribeTokens::class)
+        ->issue((int) $foreign->getKey(), 'idegen-uzenet', 'aldozat@masik.test');
+
+    app(WorkspaceContext::class)->set($this->workspace);
+
+    $domain = Domain::create(['name' => 'pelda.hu', 'status' => 'verified', 'verified_at' => now()]);
+
+    $message = Message::create([
+        'domain_id' => $domain->getKey(),
+        'channel' => 'marketing',
+        'from_email' => 'no-reply@pelda.hu',
+        'recipients' => ['anna@example.test'],
+        'subject' => 'Hírlevél',
+        'headers' => [
+            'List-Unsubscribe' => '<https://pelda.hu/u/'.$stolen.'>',
+            'List-Unsubscribe-Post' => 'List-Unsubscribe=One-Click',
+        ],
+    ]);
+
+    $result = (new HeaderSafetyGate)->check($message->fresh());
+
+    expect($result->passed)->toBeFalse();
+    expect($result->detail)->toContain('idegen leiratkozó tokent');
+});
+
+it('a SAJÁT tokenünket viszont átengedi a kapu', function () {
+    // A fenti zár nem lehet olyan szigorú, hogy a saját, helyes fejlécünket is elutasítsa.
+    Domain::create(['name' => 'pelda.hu', 'status' => 'verified', 'verified_at' => now()]);
+
+    $message = Message::create([
+        'channel' => 'marketing',
+        'from_email' => 'no-reply@pelda.hu',
+        'recipients' => ['anna@example.test'],
+        'subject' => 'Hírlevél',
+        'headers' => [],
+    ]);
+
+    expect((new HeaderSafetyGate)->check($message->fresh())->passed)->toBeTrue();
+});
+
+it('az MX-név záró LF-fel sem kerül be a policy-ba', function () {
+    // A PCRE `$` a záró ÚJSOR ELŐTT is illeszt: a `"mx1.pelda.hu\n"` érték átment volna, és
+    // egy nyers LF olyan fájlba került volna, aminek az RFC 8461 §3.2 CRLF-et ír elő.
+    // Szigorú fogadónál az egész policy értelmezhetetlen, `enforce` módban ez a teljes
+    // bejövő forgalom.
+    $domain = Domain::create(['name' => 'pelda.hu', 'status' => 'verified', 'verified_at' => now()]);
+
+    $this->dns->publish('pelda.hu', 'MX', "10 mx1.pelda.hu\n");
+    $this->dns->publish('pelda.hu', 'MX', '20 *.pelda.hu');
+    $this->dns->publish('pelda.hu', 'MX', '30 1.2.3.4');
+    $this->dns->publish('pelda.hu', 'MX', '40 mx4.ventmail.app.');
+
+    $policy = (string) app(MtaStsPolicy::class)->policyFor($domain);
+
+    // A wildcard és az IP-literál sem MX-név: egy `*.` minta poisonolt válaszból az egész
+    // `attacker.example` alá illeszkedő `mx:` sort adna.
+    expect($policy)->not->toContain('*.pelda.hu');
+    expect($policy)->not->toContain('1.2.3.4');
+    expect($policy)->not->toContain("\n\r\n");
+    expect($policy)->toContain('mx: mx4.ventmail.app');
+    // Kizárólag CRLF sorvégek.
+    expect(preg_match('/(?<!\r)\n/', $policy))->toBe(0);
+});
+
+it('a MEGJELENÍTÉSI NEVES `Reply-To` is kijut a MIME-ba', function () {
+    // A `filter_var` csak a csupasz címet érti, pedig a Mailgun-paritás legelterjedtebb
+    // alakja a nevesített. Az előző javítás így ugyanazt a csendes fejléc-elvesztést hozta
+    // vissza eggyel lejjebb, amit ez a packet kétszer javított.
+    $domain = Domain::create(['name' => 'pelda.hu', 'status' => 'verified', 'verified_at' => now()]);
+
+    $message = Message::create([
+        'domain_id' => $domain->getKey(),
+        'channel' => 'transactional',
+        'from_email' => 'no-reply@pelda.hu',
+        'recipients' => ['anna@example.test'],
+        'subject' => 'Válasz',
+        'headers' => ['Reply-To' => 'Ügyfélszolgálat <ugyfel@pelda.hu>'],
+    ]);
+
+    $mime = app(OutboundMimeBuilder::class)
+        ->build($message->withRenderedBodies(['anna@example.test' => ['html' => null, 'text' => 'Szia']]), 'anna@example.test')
+        ->toString();
+
+    expect($mime)->toContain('ugyfel@pelda.hu');
+});
+
+it('az ÉRTELMEZHETETLEN `Reply-To`-ról a kapu SZÓL, nem hallgat', function () {
+    // A MIME-építés a rossz címet kénytelen kihagyni. Ha a kapu nem szólna, az ügyfél soha
+    // nem tudná meg, hogy a válasz-címe nem ment ki.
+    $message = new Message([
+        'channel' => 'transactional',
+        'headers' => ['Reply-To' => 'ez nem cim'],
+    ]);
+
+    $result = (new HeaderSafetyGate)->check($message);
+
+    expect($result->passed)->toBeFalse();
+    expect($result->detail)->toContain('Reply-To');
 });

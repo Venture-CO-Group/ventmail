@@ -55,11 +55,21 @@ return Application::configure(basePath: dirname(__DIR__))
         // Caddy mögött enélkül a kliens IP a proxyé lenne (rossz rate-limit kulcs és audit-forrás),
         // és a generált URL-ek http:// sémával jönnének — az OIDC redirect_uri-t a ventSSO
         // jogosan utasítaná el. Élesben az `at:` a konkrét proxy-hálóra szűkítendő.
-        // A `*` SZTRINGKÉNT megy tovább: az `explode` egyelemű TÖMBÖT adott (`['*']`), amire
-        // a Laravel wildcard-ága nem fut le, és az `IpUtils::checkIp` sem illeszt — vagyis
-        // a beállítás némán no-op volt. Ez akkor válik veszélyessé, amikor bármi (LB,
-        // Cloudflare) a Caddy elé kerül: onnantól MINDEN kérés forrás-IP-je a proxyé, tehát
-        // egyetlen közös rate-limit vödörbe esne az összes tenant.
+        // FIGYELEM — a `*` NEM no-op, MÉRVE: `REMOTE_ADDR=172.18.0.9` +
+        // `X-Forwarded-For: 9.9.9.9` mellett a `request->ip()` `9.9.9.9`, és a `getHost()` is
+        // az `X-Forwarded-Host`-ot veszi. (Egy korábbi komment itt az ellenkezőjét állította;
+        // az állítás hamis volt, és a rá építő rate-limitek egy fejléccel kikapcsolhatók.)
+        //
+        // Vagyis a `request->ip()` a KÉRŐ SZAVA. Naplózáshoz és földrajzi jelzéshez rendben
+        // (ott a proxy adja a helyes értéket), rate-limit KULCSÁHOZ nem: aki a fejlécet írja,
+        // magának ad friss keretet. Az A6 publikus végpontjai ezért a `REMOTE_ADDR`-ra és az
+        // igény lenyomatára kulcsolnak (`AppServiceProvider::peer()`), de a `throttle:oidc`,
+        // az `api` és az `api-auth-fail:ip:` vödör MÉG a `request->ip()`-re — az API-kulcs
+        // brute-force plafonja tehát ma átléphető.
+        //
+        // A helyes javítás nem limiterenkénti kerülőút, hanem a `TRUSTED_PROXIES` leszűkítése
+        // a valódi proxy-hálóra. Ez üzemeltetési döntés (PHASE.md · A6 backlog), és élesben
+        // KÖTELEZŐ.
         $proxies = (string) env('TRUSTED_PROXIES', '*');
 
         $middleware->trustProxies(

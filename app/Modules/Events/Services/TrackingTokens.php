@@ -63,10 +63,19 @@ final class TrackingTokens
     /** A token CÉLJA. Az `APP_KEY` közös; a cél-elválasztás a payloadon belül van. */
     public const PURPOSE = 'track';
 
+    /**
+     * A FORMÁTUM verziója.
+     *
+     * Emelése azt jelenti, hogy a korábban kiküldött levelek nyomkövetési linkje 404-et ad,
+     * és a `opened`/`clicked` események elvesznek — emelni CSAK átmeneti ággal szabad.
+     */
+    public const VERSION = 1;
+
     public function issue(int $workspaceId, string $messageUuid, string $recipient, string $host, ?string $destination = null): string
     {
         $payload = json_encode([
             'p' => self::PURPOSE,
+            'v' => self::VERSION,
             'w' => $workspaceId,
             'm' => $messageUuid,
             'r' => $recipient,
@@ -108,6 +117,11 @@ final class TrackingTokens
 
         // A CÉL kötelező és pontos: egy leiratkozó token itt NEM érvényes.
         if ($decoded['p'] !== self::PURPOSE) {
+            return null;
+        }
+
+        // A VERZIÓ is pontos — ismeretlen verziót nem értelmezünk félig.
+        if (($decoded['v'] ?? null) !== self::VERSION) {
             return null;
         }
 

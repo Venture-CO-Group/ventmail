@@ -108,6 +108,43 @@ final class MtaStsPolicy
         return (string) ($domain->dnsRecords()['mta_sts']['value'] ?? '');
     }
 
+    /**
+     * Érvényes MX-hosztnév-e?
+     *
+     * Három dolog, amit külön kell mondani:
+     *
+     *  - a lezáró `\z` és NEM `$`: a PCRE `$` a záró ÚJSOR ELŐTT is illeszt, tehát a
+     *    `"mx1.pelda.hu\n"` érték átment volna — és egy nyers LF olyan fájlba került volna,
+     *    aminek az RFC 8461 §3.2 CRLF-et ír elő. Szigorú fogadónál az egész policy
+     *    értelmezhetetlen, `enforce` módban ez a teljes bejövő forgalom;
+     *  - NINCS wildcard és NINCS IP-literál: MX-rekord értéke soha nem az. Egy `*.` minta egy
+     *    poisonolt válaszból az egész `attacker.example` alá illeszkedő `mx:` sort adna, ami
+     *    pontosan a policy célját fordítja meg;
+     *  - LABELENKÉNT 63 karakter (RFC 1035), összesen 253.
+     */
+    private function isMailExchanger(string $host): bool
+    {
+        if ($host === '' || strlen($host) > 253) {
+            return false;
+        }
+
+        $labels = explode('.', $host);
+
+        // Legalább két label: egy csupasz név nem hoszt, és a `mx: hu` sor értelmetlen.
+        if (count($labels) < 2) {
+            return false;
+        }
+
+        foreach ($labels as $label) {
+            if (preg_match('/\A[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?\z/', $label) !== 1) {
+                return false;
+            }
+        }
+
+        // IP-literál (a legfelső szint sosem szám): `1.2.3.4` nem MX-név.
+        return preg_match('/\A\d+\z/', (string) end($labels)) !== 1;
+    }
+
     /** @return list<string> */
     private function mailExchangers(Domain $domain): array
     {
@@ -131,8 +168,7 @@ final class MtaStsPolicy
             //
             // Hosztnév-ábécére szűrünk, és a nem illeszkedő értéket ELDOBJUK, nem javítjuk:
             // egy „megtisztított" MX-név csendben rossz szerverre engedne levelet.
-            if (preg_match('/^(\*\.)?[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?)+$/', $host) === 1
-                && strlen($host) <= 253) {
+            if ($this->isMailExchanger($host)) {
                 $hosts[] = $host;
             }
         }

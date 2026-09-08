@@ -7,6 +7,9 @@ namespace App\Modules\Sending\Gate\Gates;
 use App\Modules\Sending\Gate\GateReason;
 use App\Modules\Sending\Gate\GateResult;
 use App\Modules\Sending\Models\Message;
+use InvalidArgumentException;
+use Symfony\Component\Mime\Address;
+use Symfony\Component\Mime\Exception\RfcComplianceException;
 
 /**
  * 0/b. kapu — fejléc-biztonság.
@@ -76,6 +79,34 @@ final class HeaderSafetyGate implements Gate
             if ($this->hasControlCharacters((string) $name) || $this->hasControlCharacters((string) $value)) {
                 return GateResult::reject(GateReason::InvalidRequest, 'Fejléc-injekció (CRLF) kísérlet.');
             }
+
+            // A `Reply-To` STRUKTURÁLT fejléc: a MIME-építés a szintaktikailag rossz címet
+            // kénytelen kihagyni. Ha a kapu nem szólna, az ügyfél SOHA nem tudná meg, hogy a
+            // válasz-címe nem ment ki — csendes funkcióvesztés, ugyanaz az osztály, amit
+            // ebben a packetben kétszer javítottunk. Itt SZÓLUNK, ott hallgatunk.
+            if ($normalized === 'reply-to' && ! $this->isMailbox((string) $value)) {
+                return GateResult::reject(
+                    GateReason::InvalidRequest,
+                    'A `Reply-To` fejléc nem értelmezhető címként.',
+                );
+            }
+        }
+
+        // IDEGEN ventMail-leiratkozó token az ügyfél fejlécében: elutasítás.
+        //
+        // Ügyféltől megfejthető ventMail-token SOHA nem jöhet — ha jön, az vagy elkapott
+        // (proxy-napló, továbbított levél), vagy egy MÁS TENANTÉ. Mérve: egy idegen workspace
+        // tokenjét a `h:list-unsubscribe` fejlécbe illesztve a kimenő levelek MINDEN példánya
+        // azt hordozta, a mi DKIM-aláírásunkkal — tehát minden one-click egy idegen tenant
+        // suppression-listájára írt volna (golden rule 6).
+        //
+        // A SAJÁT, ehhez az üzenethez tartozó tokenünk átmegy: azt a `Message::headersFor()`
+        // írja újra címzettenként.
+        if ($message->carriesForeignUnsubscribeToken()) {
+            return GateResult::reject(
+                GateReason::InvalidRequest,
+                'A `List-Unsubscribe` fejléc idegen leiratkozó tokent tartalmaz.',
+            );
         }
 
         if ($this->hasControlCharacters((string) $message->subject)
@@ -84,6 +115,18 @@ final class HeaderSafetyGate implements Gate
         }
 
         return GateResult::pass();
+    }
+
+    /** Egyetlen, értelmezhető postafiók-cím-e? A megjelenítési neves alak is az. */
+    private function isMailbox(string $value): bool
+    {
+        try {
+            Address::create(trim($value));
+
+            return true;
+        } catch (RfcComplianceException|InvalidArgumentException) {
+            return false;
+        }
     }
 
     private function hasControlCharacters(string $value): bool

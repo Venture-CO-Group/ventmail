@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Modules\Events\Services\TrackingTokens;
 use App\Modules\Suppression\Services\UnsubscribeTokens;
+use Illuminate\Support\Facades\Crypt;
 
 /*
  | A LEIRATKOZÓ TOKEN VEKTORAI.
@@ -27,6 +28,27 @@ use App\Modules\Suppression\Services\UnsubscribeTokens;
 beforeEach(function () {
     $this->tokens = app(UnsubscribeTokens::class);
 });
+
+/**
+ * Egy token, aminek a base64-alakja PADDINGET tartalmaz.
+ *
+ * A padding a payload hosszától függ, az meg a címzett hosszától — és a formátum
+ * változásával (egy új mező) el is tűnhet. A padding-vektorok viszont csak akkor mérnek
+ * bármit, ha van mit levágni: fix címzettel a teszt csendben tautológiává válna, ezért a
+ * címzett hosszát addig növeljük, amíg padding nem lesz.
+ */
+function paddedToken(UnsubscribeTokens $tokens): string
+{
+    for ($length = 1; $length <= 8; $length++) {
+        $token = $tokens->issue(7, 'aaaa-bbbb', str_repeat('a', $length).'@example.test');
+
+        if (str_ends_with($token, '~')) {
+            return $token;
+        }
+    }
+
+    throw new RuntimeException('Nem sikerült paddinges tokent előállítani.');
+}
 
 it('a kiadott token visszafejthető', function () {
     $token = $this->tokens->issue(7, 'aaaa-bbbb', 'cimzett@example.test');
@@ -126,7 +148,7 @@ it('a BELSŐ `=` érvénytelen — a nem-szigorú base64 átugorná', function (
 it('a LEVÁGOTT padding érvénytelen', function () {
     // A szigorú `base64_decode` ezt önmagában ÁTENGEDI — a kanonikus alak
     // (dekódol → visszakódol → bájtra egyeztet) zárja.
-    $token = $this->tokens->issue(7, 'aaaa-bbbb', 'cimzett@example.test');
+    $token = paddedToken($this->tokens);
 
     $trimmed = rtrim($token, '~');
 
@@ -138,7 +160,7 @@ it('a NEM NULLA záró bitek érvénytelenek', function () {
     // A padding hosszából adódik, hány bit használatlan (1 `=` → 2 bit, 2 `=` → 4 bit). Az
     // utolsó hasznos karakter olyan variánsa, ami ugyanazokra a hasznos bitekre dekódol,
     // más bájtsor — de ugyanaz az igény. A szigorú dekódolás ezt is átengedi.
-    $token = $this->tokens->issue(7, 'aaaa-bbbb', 'cimzett@example.test');
+    $token = paddedToken($this->tokens);
 
     $trimmed = rtrim($token, '~');
     $padding = strlen($token) - strlen($trimmed);
@@ -215,4 +237,68 @@ it('az értelmezhetetlen tokenre a lenyomat NULL, nem kitalált érték', functi
     // szemetet küldő támadó a saját keretével fogyasztaná el másokét.
     expect($this->tokens->fingerprint('teljesen-hamis'))->toBeNull();
     expect($this->tokens->fingerprint(''))->toBeNull();
+});
+
+it('a BEÉGETETT KAT-vektor: a wire-formátum nem változhat csendben', function () {
+    // Ez a vektor a FORMÁTUMOT rögzíti, nem a mi implementációnkat ismétli meg.
+    //
+    // A `p` (cél) bevezetése MEGVÁLTOZTATTA a wire-formátumot: a korábbi tokenek egyik
+    // napról a másikra érvénytelenek lettek. Élő telepítésen ez CSENDES kár: a `/u/`
+    // szándékosan nem ad orákulumot, tehát a címzett a „leiratkoztál" oldalt látja, miközben
+    // semmi nem íródik — és a következő kampányt megkapja. Nem hibás jelzés, nem naplósor,
+    // nem metrika. Az érintett tiltakozási jogának néma megtagadása (GDPR 21.).
+    //
+    // A ventMail-nek ma nincs éles telepítése, tehát a mostani változás nem ártott senkinek.
+    // A KÖVETKEZŐ viszont árthat — ezért ez a teszt egy FIX `APP_KEY`-jel előállított,
+    // beégetett tokenre adott `parse()`-választ mér. Aki a formátumot változtatja, itt bukik
+    // el, a CI-ban, nem az ügyfél postafiókjában.
+    //
+    // Ha ez a teszt elpirul, a helyes lépés NEM a vektor átírása, hanem az átmeneti ág
+    // (verzió-detektálás + a régi alak elfogadása lejárattal) megírása.
+    config(['app.key' => 'base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=']);
+
+    // A `Crypt` a boot-időben feloldott kulcsot használja: a fenti confighoz új példány kell.
+    app()->forgetInstance('encrypter');
+    Crypt::clearResolvedInstances();
+
+    $token = 'eyJpdiI6IlY3dzA1REhtbGVUZXNRY2dTaWxiWlE9PSIsInZhbHVlIjoiQXlrZ3Z6N0wxSFNYa2M0'
+        .'MWVyQmZTZ0ZuKzB0anlWcEM5dWRQa3NSS2FDTmlNdEg3L2hGZFhTMDJvZjBMblF6UllranhaVnJVMG83'
+        .'UWNTVzdDMjhMcUVtVFZRK0xzZTltM21GMnR0VUU5L009IiwibWFjIjoiNmJkNzM3ZmFhMDYwZTRhZTEz'
+        .'ZDNiMjBkODMxNTQxYjk1MWMwZmZlMWYyNTM2MjkyMGY2MDM5MTEyMDNkOWJkYSIsInRhZyI6IiJ9';
+
+    expect(app(UnsubscribeTokens::class)->parse(strtr($token, '+/=', '-_~')))->toBe([
+        'workspaceId' => 7,
+        'messageUuid' => 'aaaa-bbbb',
+        'recipient' => 'cimzett@example.test',
+    ]);
+});
+
+it('a `p` NÉLKÜLI, RÉGI alakot elutasítjuk — és ezt kimondjuk', function () {
+    // A cél-elválasztás előtti payload (`w`/`m`/`r`) ma érvénytelen. Ez SZÁNDÉKOS: átmeneti
+    // ág nincs, mert a ventMail-nek nincs éles telepítése, egy visszafelé-kompatibilis ág
+    // viszont épp azt a tokent fogadná el, amit a nyomkövetési oldalról veszélyesnek
+    // találtunk. A döntés itt van rögzítve, nem egy commit-üzenetben.
+    $legacy = strtr(
+        Crypt::encryptString((string) json_encode([
+            'w' => 7, 'm' => 'aaaa-bbbb', 'r' => 'cimzett@example.test',
+        ])),
+        '+/=',
+        '-_~',
+    );
+
+    expect(app(UnsubscribeTokens::class)->parse($legacy))->toBeNull();
+});
+
+it('az ISMERETLEN VERZIÓT nem értelmezzük félig', function () {
+    // A félig megértett claim alapján leiratkoztatni rosszabb, mint nem leiratkoztatni: a
+    // rossz érintett kerülne visszavonhatatlanul a listára.
+    $future = strtr(
+        Crypt::encryptString((string) json_encode([
+            'p' => 'unsub', 'v' => 99, 'w' => 7, 'm' => 'aaaa-bbbb', 'r' => 'cimzett@example.test',
+        ])),
+        '+/=',
+        '-_~',
+    );
+
+    expect(app(UnsubscribeTokens::class)->parse($future))->toBeNull();
 });

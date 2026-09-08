@@ -23,14 +23,25 @@ use InvalidArgumentException;
  *
  * HÁROM zár:
  *
- *  1. **A jelentés domainje döntI el, kié.** A jelentést BÁRKI elküldheti nekünk (az RUA-cím
+ *  1. **A jelentés domainje dönti el, kié — és ez a probléma ELTOLÁSA, nem a lezárása.** A jelentést BÁRKI elküldheti nekünk (az RUA-cím
  *     nyilvános a DNS-ben). Ha a feladó szavára írnánk be a workspace-t, egy hamisított
  *     jelentéssel bárki idegen tenant grafikonjára rajzolhatna. Ezért a `policy_published >
  *     domain` mezőt a SAJÁT, verifikált domainjeinkhez kötjük, és ami nem illik rá, azt
  *     eldobjuk.
- *  2. **Idempotens.** Ugyanaz a jelentés kétszer is megérkezhet (a fogadók újraküldenek); az
- *     `(workspace_id, org_name, report_id)` egyedi kulcs, és az újratöltés FRISSÍT, nem
- *     duplikál — különben minden újraküldés megkétszerezné a forgalmi számokat.
+ *
+ *     AMIT EZ NEM ZÁR: ez a mező is a feladó szava. Egy hamis jelentés ma nem tud TÖRÖLNI
+ *     (lásd a 2. pontot), de a forrásonkénti listát KORLÁTLANUL tudja szennyezni —
+ *     hozzáadással. Ma latens: az `ingest()` egyetlen hívója az operátori CLI. A helyes
+ *     hozzárendelés a FOGADÓ postafiókból/route-ból jön, a szállító levél DKIM-igazodásával
+ *     a rekordban — és ez ELŐFELTÉTELE az A4 inbound route-ra kötött automatikus betöltésnek
+ *     (PHASE.md · A6 backlog). Amíg az nincs meg, ez a bekötés nem történhet meg.
+ *  2. **Idempotens — BÁJTRA azonos jelentésre.** Ugyanaz a jelentés kétszer is megérkezhet (a
+ *     fogadók újraküldenek); az egyedi kulcs `(workspace_id, org_name, report_id, body_hash)`,
+ *     és az újratöltés FRISSÍT, nem duplikál. A `body_hash` nélkül az `(org_name, report_id)`
+ *     páros — ami a FELADÓ SZAVA — elég volt ahhoz, hogy egy hamisítvány a VALÓDI jelentés
+ *     sorait letörölje. Az „idempotens" így csak a bájtra azonos újraküldésre igaz: ugyanaz a
+ *     jelentés másképp gzippelve új sor lesz. Ez tudatos csere — a duplikált sor rossz, a
+ *     letörölt valódi adat rosszabb.
  *  3. **`known_source`.** Minden sor forrás-IP-jét a saját küldő IP-inkhez mérjük. Ez az a
  *     mező, amiért az egész tábla létezik: az ismeretlen forrás vagy egy elfelejtett saját
  *     rendszer, vagy egy hamisító.

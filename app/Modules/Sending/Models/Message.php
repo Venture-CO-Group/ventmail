@@ -38,6 +38,83 @@ final class Message extends Model
     }
 
     /**
+     * A fejlécnevek KANONIZÁLÁSA — egy név, egy kulcs.
+     *
+     * A fejlécnév az RFC 5322 szerint kis-nagybetűre ÉRZÉKETLEN, a `headers` viszont `jsonb`:
+     * ott két külön kulcs `LIST-UNSUBSCRIBE` és `List-Unsubscribe` néven simán elférne, és a
+     * SORRENDJÜKET sem mi szabjuk meg, hanem a Postgres normalizálása (hossz, majd
+     * bájtsorrend).
+     *
+     * Ez nem elméleti: az ügyfél a `h:LIST-UNSUBSCRIBE=` fejlécet ÜRES értékkel megadva a
+     * `headersFor()` felismerését a saját, üres kulcsára futtatta, a MI kulcsunk pedig a
+     * `break` miatt már nem került sorra — vagyis MINDEN levél az ELSŐ címzett tokenjét
+     * vitte. Mérve, végponttól végpontig; és egy MÁSIK workspace elkapott tokenjét
+     * beillesztve a kimenő levelek egy IDEGEN tenant leiratkozó tokenjét hordozták, a mi
+     * DKIM-aláírásunkkal.
+     *
+     * Emellett két `List-Unsubscribe` fejléc a kimenő MIME-ban önmagában is one-click
+     * megfelelési hiba: a fogadó nem tudja, melyiket hívja.
+     *
+     * Az UTOLSÓ érték nyer — a `h:` fejlécek sorrendje a kérésé, és az ügyfél szándéka a
+     * legutolsó megadás. A név kanonikus alakja szegmensenként nagy kezdőbetűs
+     * (`List-Unsubscribe`, `X-Kampany`), ahogy a MIME is írja.
+     *
+     * @param  array<string, mixed>|string|null  $value
+     */
+    public function setHeadersAttribute(mixed $value): void
+    {
+        if (! is_array($value)) {
+            $this->attributes['headers'] = $value === null ? null : (string) $value;
+
+            return;
+        }
+
+        $canonical = [];
+        $seen = [];
+
+        foreach ($value as $name => $headerValue) {
+            $name = self::canonicalHeaderName((string) $name);
+            $lower = strtolower($name);
+
+            // Ugyanaz a név MÁS betűzéssel: a korábbi kulcsot ELDOBJUK, hogy egy név egyszer
+            // létezzen. Az UTOLSÓ érték nyer — a `h:` fejlécek sorrendje a kérésé, és az
+            // ügyfél szándéka a legutolsó megadás.
+            if (isset($seen[$lower])) {
+                unset($canonical[$seen[$lower]]);
+            }
+
+            $seen[$lower] = $name;
+            $canonical[$name] = $headerValue;
+        }
+
+        $this->attributes['headers'] = (string) json_encode($canonical, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    }
+
+    /**
+     * A név kanonikus alakja — CSAK az általunk kezelt fejlécekre.
+     *
+     * A `List-Unsubscribe`, a `List-Unsubscribe-Post` és a `Reply-To` betűzését MI szabjuk
+     * meg: ezeket mi írjuk, mi olvassuk, és a `headersFor()` ezek alá írja a címzettenkénti
+     * változatot — a kulcsnak tehát pontosan egyeznie kell azzal, amit beírunk.
+     *
+     * Minden MÁS fejléc (`X-*`) betűzése az ÜGYFÉLÉ, és úgy marad. Az általános
+     * újra-betűzés (szegmensenként nagy kezdőbetű) a saját `X-VentMail-Hops` fejlécünkből
+     * `X-Ventmail-Hops`-ot csinált — a kimenő levélben látható formátumváltozás, amit senki
+     * nem kért, és ami a saját fejléc-neveinket írta át.
+     */
+    private static function canonicalHeaderName(string $name): string
+    {
+        $name = trim($name);
+
+        return match (strtolower($name)) {
+            'list-unsubscribe' => 'List-Unsubscribe',
+            'list-unsubscribe-post' => 'List-Unsubscribe-Post',
+            'reply-to' => 'Reply-To',
+            default => $name,
+        };
+    }
+
+    /**
      * A leiratkozó fejlécek (RFC 8058) — EGY KONKRÉT címzettre.
      *
      * KÉT fejléc kell EGYÜTT: a `List-Unsubscribe` megmondja, HOVA menjen a leiratkozás, a
@@ -71,18 +148,20 @@ final class Message extends Model
         $headers = (array) $this->headers;
         $ours = false;
 
+        // MINDEN egyező kulcsot megnézünk, és nem `break`-elünk az elsőn. A `setHeadersAttribute`
+        // kanonizálása után egy név csak egyszer létezhet, de a modellt MEGKERÜLŐ írás (nyers
+        // `DB::update`, régi sor) még hozhat több változatot — és az előző változat épp azon
+        // csúszott el, hogy az elsőn megállt.
         foreach ($headers as $name => $value) {
             if (strtolower((string) $name) !== 'list-unsubscribe') {
                 continue;
             }
 
-            $ours = is_string($value) && $this->carriesOurToken($value);
+            if (is_string($value) && $this->carriesOurToken($value)) {
+                $ours = true;
 
-            if ($ours) {
                 unset($headers[$name]);
             }
-
-            break;
         }
 
         return $ours ? array_merge($headers, $this->unsubscribePair($recipient)) : $headers;
@@ -105,22 +184,76 @@ final class Message extends Model
      * A token megfejtése ettől független: ha a `UnsubscribeTokens::parse()` sikerül, a fejléc
      * a miénk, akármelyik hosztra mutat. És a cél-elválasztás (`p`) miatt egy NYOMKÖVETÉSI
      * token itt nem fejtődik meg — nem téveszt meg minket a saját másik tokenünk sem.
+     *
+     * A token EHHEZ AZ ÜZENETHEZ kell tartozzon (workspace + uuid). Enélkül az ügyfél egy
+     * elkapott, MÁS üzenethez vagy MÁS TENANTHOZ tartozó érvényes tokent illeszthetett volna
+     * a saját fejlécébe, és mi „a miénknek" ismertük volna fel — mérve: a kimenő levelek
+     * minden példánya egy idegen workspace címzettjének tokenjét hordozta, a mi
+     * DKIM-aláírásunkkal, tehát minden one-click egy idegen tenant listájára írt volna.
      */
     private function carriesOurToken(string $header): bool
+    {
+        foreach ($this->unsubscribeClaimsIn($header) as $claim) {
+            if ($claim['workspaceId'] === (int) $this->workspace_id
+                && $claim['messageUuid'] === (string) $this->uuid) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Van a fejlécben IDEGEN ventMail-leiratkozó token?
+     *
+     * Ez a `HeaderSafetyGate` bemenete, és a `carriesOurToken()` párja. A kettő együtt zárja
+     * a rést: a saját tokenünket felismerjük és címzettenként újraírjuk, az IDEGENT pedig
+     * ELUTASÍTJUK — nem hagyjuk „nem a miénk" címen kimenni.
+     *
+     * Ügyféltől megfejthető ventMail-token SOHA nem jöhet: ha jön, az vagy elkapott
+     * (proxy-napló, továbbított levél), vagy egy másik tenanté. Mindkettő elutasítás.
+     */
+    public function carriesForeignUnsubscribeToken(): bool
+    {
+        foreach ((array) $this->headers as $name => $value) {
+            if (strtolower((string) $name) !== 'list-unsubscribe' || ! is_string($value)) {
+                continue;
+            }
+
+            foreach ($this->unsubscribeClaimsIn($value) as $claim) {
+                if ($claim['workspaceId'] !== (int) $this->workspace_id
+                    || $claim['messageUuid'] !== (string) $this->uuid) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * A fejlécben szereplő, MEGFEJTHETŐ leiratkozó tokenek igényei.
+     *
+     * @return list<array{workspaceId: int, messageUuid: string, recipient: string}>
+     */
+    private function unsubscribeClaimsIn(string $header): array
     {
         // A fejléc `<…>`-be zárt címek listája (RFC 2369); a token az útvonal `/u/` szegmense
         // után áll, és az ábécéje a route-szűrővel egyezik.
         preg_match_all('#/u/([A-Za-z0-9\-_~]+)#', $header, $matches);
 
         $tokens = app(UnsubscribeTokens::class);
+        $claims = [];
 
         foreach ($matches[1] as $token) {
-            if ($tokens->parse((string) $token) !== null) {
-                return true;
+            $claim = $tokens->parse((string) $token);
+
+            if ($claim !== null) {
+                $claims[] = $claim;
             }
         }
 
-        return false;
+        return $claims;
     }
 
     /** @return array<string, string> */

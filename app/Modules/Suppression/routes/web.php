@@ -32,11 +32,11 @@ $stateless = [
 Route::post('/u/{token}', [UnsubscribeController::class, 'post'])
     ->withoutMiddleware($stateless)
     ->middleware('throttle:unsubscribe')
-    ->where('token', '[A-Za-z0-9\-_~]+')
+    ->where('token', '[A-Za-z0-9\-_~]{1,4096}')
     ->name('unsubscribe.post');
 
 Route::get('/u/{token}', [UnsubscribeController::class, 'get'])
     ->withoutMiddleware($stateless)
     ->middleware('throttle:unsubscribe')
-    ->where('token', '[A-Za-z0-9\-_~]+')
+    ->where('token', '[A-Za-z0-9\-_~]{1,4096}')
     ->name('unsubscribe.get');
