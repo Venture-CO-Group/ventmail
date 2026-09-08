@@ -6,6 +6,7 @@ use App\Modules\Events\Data\TrackingClaim;
 use App\Modules\Events\Http\Controllers\TrackingController;
 use App\Modules\Events\Services\TrackingTokens;
 use App\Modules\Suppression\Services\UnsubscribeTokens;
+use Illuminate\Support\Facades\Crypt;
 
 /*
  | A NYOMKÖVETÉSI TOKEN KANONICITÁS-VEKTORAI.
@@ -233,4 +234,47 @@ it('a LEIRATKOZÓ token itt nem érvényes', function () {
         ->issue(7, 'aaaa-bbbb', 'cimzett@example.test');
 
     expect($this->tokens->parse($unsubscribe))->toBeNull();
+});
+
+it('a BEÉGETETT KAT-vektor: a nyomkövetési wire-formátum sem változhat csendben', function () {
+    // A `v` (verzió) mező ebbe a formátumba is bekerült, tehát a KORÁBBAN kiadott tokenek
+    // érvénytelenek. Élő telepítésen ez azt jelenti, hogy a már kiküldött kampányok
+    // klikk-linkjei 404-et adnak, a nyitás-pixelek pedig csendben elhalnak — minden
+    // `opened`/`clicked` esemény elveszik, jelzés nélkül.
+    //
+    // Ez a vektor a FORMÁTUMOT rögzíti egy fix `APP_KEY`-jel: aki változtatja, itt bukik el,
+    // a CI-ban. A leiratkozó token oldalán ugyanez a vektor áll — ott ez a hiba egy
+    // review-körrel korábban blokkolóként derült ki, és a tanulság ugyanaz mindkét
+    // formátumra: kripto-változás beégetett vektor nélkül nem ellenőrizhető.
+    config(['app.key' => 'base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=']);
+
+    app()->forgetInstance('encrypter');
+    Crypt::clearResolvedInstances();
+
+    $token = 'eyJpdiI6IkMyalFXUXFmTFM4NU1VMVZEc2dualE9PSIsInZhbHVlIjoiZnRwU0dROHZQTHZCN2kv'
+        .'RDIrNFdRZnN6N0tSdkwwVkdWUHFackIxbzNVN2lQZ1ZUQ0g1akQ0QjRFaG83b3ZEK3d1QTNsRGh5bFlL'
+        .'NUhrSUtTQlZFem1UTENZSGoyUCtuVG5wR0VEdHZrMkNyNzZTSDA2VG56WlBlZjNKbmFyYXpWMVF1UjM2'
+        .'MjNHamk2cE42eVNmQmJGUmU2SFBsSHFYMDhNNGtsWkpSb3VZPSIsIm1hYyI6IjllYTg0YjI4MDJiMTlk'
+        .'NDlhYjFkOTQxZDU5ZGQ2NzRlZjI3MDJhN2M3NTBjOGYxODlhOGJhYzBlZTlkZTdmYzciLCJ0YWciOiIifQ==';
+
+    $claim = app(TrackingTokens::class)->parse(strtr($token, '+/=', '-_~'));
+
+    expect($claim)->not->toBeNull();
+    expect($claim->workspaceId)->toBe(7);
+    expect($claim->messageUuid)->toBe('aaaa-bbbb');
+    expect($claim->recipient)->toBe('cimzett@example.test');
+    expect($claim->host)->toBe('email.pelda.hu');
+    expect($claim->destination)->toBe('https://cel.example/x');
+});
+
+it('a `p`/`v` NÉLKÜLI, RÉGI nyomkövetési alakot elutasítjuk', function () {
+    $legacy = strtr(
+        Crypt::encryptString((string) json_encode([
+            'w' => 7, 'm' => 'aaaa-bbbb', 'r' => 'cimzett@example.test', 'h' => 'email.pelda.hu',
+        ])),
+        '+/=',
+        '-_~',
+    );
+
+    expect($this->tokens->parse($legacy))->toBeNull();
 });

@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace App\Modules\Suppression\Http\Controllers;
 
+use App\Modules\Sending\Models\Message;
+use App\Modules\Sending\Services\DomainNormalizer;
 use App\Modules\Suppression\Services\SuppressionStore;
 use App\Modules\Suppression\Services\UnsubscribeTokens;
 use App\Modules\Tenancy\Models\Workspace;
 use App\Modules\Tenancy\Services\WorkspaceContext;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Str;
 
 /**
  * ONE-CLICK LEIRATKOZÁS (RFC 8058, 47. kritérium).
@@ -64,6 +67,39 @@ final class UnsubscribeController
         return response(view('suppression.unsubscribe', ['token' => $token])->render(), 200);
     }
 
+    /**
+     * Az üzenet létezik ebben a workspace-ben, ÉS a cím a címzettje volt?
+     *
+     * @param  array{workspaceId: int, messageUuid: string, recipient: string}  $claim
+     */
+    private function claimIsCoherent(array $claim): bool
+    {
+        // A `messageUuid` a token BELSEJÉBŐL jön, tehát mi írtuk alá — de a formátumát
+        // ellenőrizni kell, mert az `uuid` oszlop típusos: egy nem-UUID érték a Postgresen
+        // `invalid input syntax for type uuid` hibát ad, abból pedig 500 lesz. Az 500 itt
+        // KÉTSZERESEN kár: a végpont orákulummá válik (a hibás token más választ ad, mint a
+        // jó), és a levélkliens újrapróbálásra alkalmas hibának hiszi.
+        if (! Str::isUuid($claim['messageUuid'])) {
+            return false;
+        }
+
+        $message = Message::query()
+            ->where('uuid', $claim['messageUuid'])
+            ->first(['recipients']);
+
+        if ($message === null) {
+            return false;
+        }
+
+        // A CÍMZETTEK a küldés normalizált alakjában vannak; a claim ugyanabból származik.
+        $recipients = array_map(
+            static fn ($recipient) => DomainNormalizer::listKey((string) $recipient),
+            (array) $message->recipients,
+        );
+
+        return in_array(DomainNormalizer::listKey($claim['recipient']), $recipients, true);
+    }
+
     private function suppress(string $token, WorkspaceContext $context): bool
     {
         $claim = $this->tokens->parse($token);
@@ -83,6 +119,18 @@ final class UnsubscribeController
         $context->set($workspace);
 
         try {
+            // MÉLYSÉGI VÉDELEM: az igény legyen ÖSSZEFÜGGŐ.
+            //
+            // A token titkosított, tehát nem hamisítható — de bemutatóra szól, és a levélben
+            // megy ki: elkapható (proxy-napló, továbbított levél). Ha csak a token belsejét
+            // néznénk, egy elkapott token akkor is beváltható lenne, ha az üzenet, amire
+            // hivatkozik, nem is ehhez a workspace-hez tartozik, vagy a címzett soha nem volt
+            // a címzettje. Ez a lekérdezés nem drága, és nem regexre épül — szemben a
+            // fejlécszintű felismeréssel, ami ebben a packetben négyszer nyílt ki.
+            if (! $this->claimIsCoherent($claim)) {
+                return false;
+            }
+
             // `applies_to = marketing`: a leiratkozás a MARKETINGRE szól. A tranzakciós
             // levél (számla, jelszó-visszaállítás) ettől függetlenül mehet — golden rule 4.
             //

@@ -234,6 +234,28 @@ final readonly class MailgunPayload
                 ));
             }
 
+            // A LEIRATKOZÓ FEJLÉC A MIÉNK — az ügyfél nem adhatja meg.
+            //
+            // Ez a döntés három review-körből származik, és a harmadik után szerkezeti:
+            // amíg a fejléc értéke az ügyféltől jöhetett, nekünk FEL KELLETT ISMERNI, hogy
+            // a benne lévő token a miénk-e. Ez a felismerés négyszer nyílt ki egymás után
+            // (az első címzett tokenje mindenkinek → URL-előtag elcsúszása → más betűzésű
+            // kulcs → százalék-kódolt token), mert egy bemutatóra szóló KÉPESSÉGI TOKENT
+            // kerestünk regexszel egy támadó által írt szabadtextben. Az ilyen felismerés
+            // sosem lesz teljes.
+            //
+            // Ha az érték nem jöhet kívülről, nincs mit felismerni. Az ügyfél saját
+            // preference centere a levél TÖRZSÉBE megy — ott a linkje a sajátja, és nem a
+            // mi DKIM-aláírásunkkal hitelesített one-click végpontunkat imitálja.
+            if ($prefix === 'h:' && str_starts_with(strtolower(Str::after($key, $prefix)), 'list-unsubscribe')) {
+                throw new InvalidArgumentException(sprintf(
+                    'VALIDATION_ERROR|A(z) `%s` fejlécet a ventMail kezeli (RFC 8058 one-click), '
+                    .'és nem adható meg kívülről. A saját preference centeredre mutató linket a '
+                    .'levél törzsébe tedd.',
+                    $key
+                ));
+            }
+
             $result[Str::after($key, $prefix)] = is_array($value) ? $value : (string) $value;
         }
 

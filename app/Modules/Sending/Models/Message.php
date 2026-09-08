@@ -146,77 +146,54 @@ final class Message extends Model
     public function headersFor(string $recipient): array
     {
         $headers = (array) $this->headers;
-        $ours = false;
 
-        // MINDEN egyező kulcsot megnézünk, és nem `break`-elünk az elsőn. A `setHeadersAttribute`
-        // kanonizálása után egy név csak egyszer létezhet, de a modellt MEGKERÜLŐ írás (nyers
-        // `DB::update`, régi sor) még hozhat több változatot — és az előző változat épp azon
-        // csúszott el, hogy az elsőn megállt.
-        foreach ($headers as $name => $value) {
-            if (strtolower((string) $name) !== 'list-unsubscribe') {
-                continue;
-            }
+        // NEM ISMERÜNK FEL semmit: a consent-köteles csatornán a leiratkozó fejléc MINDIG a
+        // miénk, és MINDIG a tényleges címzettre szól. A felismerés-alapú változat négyszer
+        // nyílt ki egymás után (az első címzett tokenje mindenkinek → az URL-előtag
+        // elcsúszása → más betűzésű kulcs → százalék-kódolt token), mert egy KÉPESSÉGI
+        // tokent kerestünk regexszel egy kívülről írható szövegben. Ha az érték nem jöhet
+        // kívülről, nincs mit felismerni.
+        //
+        // A tranzakciós csatornán nem írunk ilyen fejlécet: egy jelszó-visszaállítóról nem
+        // lehet leiratkozni, és a fejléc ott félrevezető lenne.
+        if (Channel::tryFrom((string) $this->channel)?->requiresConsent() !== true) {
+            return $headers;
+        }
 
-            if (is_string($value) && $this->carriesOurToken($value)) {
-                $ours = true;
+        if (! str_starts_with($this->unsubscribeUrlPrefix(), 'http')) {
+            return $headers;
+        }
 
+        // MINDEN létező változat eltűnik — betűzéstől függetlenül. Két `List-Unsubscribe`
+        // fejléc a kimenő levélben önmagában is one-click megfelelési hiba: a fogadó nem
+        // tudja, melyiket hívja.
+        foreach (array_keys($headers) as $name) {
+            if (str_starts_with(strtolower((string) $name), 'list-unsubscribe')) {
                 unset($headers[$name]);
             }
         }
 
-        return $ours ? array_merge($headers, $this->unsubscribePair($recipient)) : $headers;
-    }
-
-    /**
-     * A MI leiratkozó fejlécünk-e? A TOKENT fejtjük meg, nem az URL-t hasonlítjuk.
-     *
-     * Az előző változat a futásidőben ÚJRASZÁMOLT URL-előtag részsztring-egyezését nézte —
-     * és az előtag nem állandó: a `tracking_status`/`tracking_domain`, az `APP_URL` és a
-     * `SENDING_TRACKING_BASE_URL` bármelyike változhat a fejléc megszületése (a `created`
-     * hook) és a KIKÜLDÉS között. Ütemezett vagy újrapróbált küldésnél ez rutinszerű.
-     *
-     * Elcsúszáskor a felismerés `false`-ra fordult, és a tárolt — az ELSŐ címzettre szóló —
-     * fejléc változatlanul ment ki MINDENKINEK. Mérve: a `tracking_status` `verified →
-     * pending` átírása után egy 3 címzettes üzenet mindhárom levele Anna tokenjét vitte.
-     * Vagyis Béla leiratkozása ANNÁT tette volna suppression-listára (visszavonhatatlanul),
-     * Béla pedig továbbra is kapta volna a marketinget — golden rule 4, támadó nélkül.
-     *
-     * A token megfejtése ettől független: ha a `UnsubscribeTokens::parse()` sikerül, a fejléc
-     * a miénk, akármelyik hosztra mutat. És a cél-elválasztás (`p`) miatt egy NYOMKÖVETÉSI
-     * token itt nem fejtődik meg — nem téveszt meg minket a saját másik tokenünk sem.
-     *
-     * A token EHHEZ AZ ÜZENETHEZ kell tartozzon (workspace + uuid). Enélkül az ügyfél egy
-     * elkapott, MÁS üzenethez vagy MÁS TENANTHOZ tartozó érvényes tokent illeszthetett volna
-     * a saját fejlécébe, és mi „a miénknek" ismertük volna fel — mérve: a kimenő levelek
-     * minden példánya egy idegen workspace címzettjének tokenjét hordozta, a mi
-     * DKIM-aláírásunkkal, tehát minden one-click egy idegen tenant listájára írt volna.
-     */
-    private function carriesOurToken(string $header): bool
-    {
-        foreach ($this->unsubscribeClaimsIn($header) as $claim) {
-            if ($claim['workspaceId'] === (int) $this->workspace_id
-                && $claim['messageUuid'] === (string) $this->uuid) {
-                return true;
-            }
-        }
-
-        return false;
+        return array_merge($headers, $this->unsubscribePair($recipient));
     }
 
     /**
      * Van a fejlécben IDEGEN ventMail-leiratkozó token?
      *
-     * Ez a `HeaderSafetyGate` bemenete, és a `carriesOurToken()` párja. A kettő együtt zárja
-     * a rést: a saját tokenünket felismerjük és címzettenként újraírjuk, az IDEGENT pedig
-     * ELUTASÍTJUK — nem hagyjuk „nem a miénk" címen kimenni.
+     * Ez MÉLYSÉGI VÉDELEM, nem az elsődleges zár. Az elsődleges zár az, hogy a leiratkozó
+     * fejléc értéke nem jöhet kívülről (`MailgunPayload`, `SendMimeController`), a
+     * `headersFor()` pedig felismerés nélkül, mindig felülírja a sajátjával.
      *
      * Ügyféltől megfejthető ventMail-token SOHA nem jöhet: ha jön, az vagy elkapott
      * (proxy-napló, továbbított levél), vagy egy másik tenanté. Mindkettő elutasítás.
      */
     public function carriesForeignUnsubscribeToken(): bool
     {
-        foreach ((array) $this->headers as $name => $value) {
-            if (strtolower((string) $name) !== 'list-unsubscribe' || ! is_string($value)) {
+        // MINDEN fejlécet nézünk, nem csak a `List-Unsubscribe`-ot: egy idegen token egy
+        // `X-*` fejlécben is kijutott a levélbe (mérve). One-click nincs rajta, tehát emberi
+        // kattintás kell hozzá — de a szűrés nem lehet szűkebb, mint a felület, amin a
+        // token kijuthat.
+        foreach ((array) $this->headers as $value) {
+            if (! is_string($value)) {
                 continue;
             }
 
@@ -240,7 +217,13 @@ final class Message extends Model
     {
         // A fejléc `<…>`-be zárt címek listája (RFC 2369); a token az útvonal `/u/` szegmense
         // után áll, és az ábécéje a route-szűrővel egyezik.
-        preg_match_all('#/u/([A-Za-z0-9\-_~]+)#', $header, $matches);
+        //
+        // DEKÓDOLVA is keresünk: a router a DEKÓDOLT útvonalon illeszt, tehát a
+        // `/u/AAAA%42BBB` és a `/%75/AAAABBBB` is élő, hívható one-click URL — a nyers
+        // szövegen futó minta viszont mindkettőt átengedte (mérve).
+        $decoded = rawurldecode($header);
+
+        preg_match_all('#/u/([A-Za-z0-9\-_~]+)#', $header."\n".$decoded, $matches);
 
         $tokens = app(UnsubscribeTokens::class);
         $claims = [];
@@ -306,16 +289,16 @@ final class Message extends Model
                 return;
             }
 
-            $headers = array_change_key_case((array) $message->headers, CASE_LOWER);
-
-            // Ha a hívó SAJÁT leiratkozó fejlécet adott (pl. egy migrált rendszer a saját
-            // preference centerére mutat), azt tiszteletben tartjuk.
-            if (($headers['list-unsubscribe'] ?? '') !== '') {
-                return;
-            }
-
-            // A TÁROLT fejléc az első címzetté — ez a kapu bemenete, és ez látszik a
-            // naplóban. A LEVÉLBE kerülő változatot a `OutboundMimeBuilder` írja újra
+            // A FEJLÉC MINDIG A MIÉNK — nincs „ha a hívó sajátot adott" kivétel.
+            //
+            // Volt ilyen kivétel, és pontosan azon nyílt ki NÉGYSZER ugyanez a hiba: amíg az
+            // érték kívülről jöhetett, nekünk FEL KELLETT ISMERNI, hogy a benne lévő token a
+            // miénk-e. A `MailgunPayload` és a `SendMimeController` ezért már a BEMENETEN
+            // elutasítja az ügyfél `List-Unsubscribe` fejlécét — itt tehát nincs mit
+            // tiszteletben tartani, és a felülírás a mélységi védelem.
+            //
+            // A TÁROLT fejléc az első címzetté: ez a kapu bemenete, és ez látszik a
+            // naplóban. A LEVÉLBE kerülő változatot a `headersFor()` írja újra
             // címzettenként; a tárolt token sosem megy ki több emberhez.
             // Nincs használható leiratkozó hoszt (`http://` vagy hiányzó konfiguráció): NEM
             // írunk be egy hibás linket. A tokent tartalmazó, mégis működésképtelen fejléc

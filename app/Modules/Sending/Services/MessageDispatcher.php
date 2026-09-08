@@ -14,6 +14,7 @@ use App\Modules\IpPools\Services\IpPoolSelector;
 use App\Modules\Sending\Actions\RecordDeliveryOutcome;
 use App\Modules\Sending\Contracts\SendingDriver;
 use App\Modules\Sending\Data\DispatchResult;
+use App\Modules\Sending\Enums\Channel;
 use App\Modules\Sending\Models\Message;
 use App\Modules\Sending\Models\RawMimeMessage;
 use App\Modules\StoredTemplates\Services\TemplateRenderer;
@@ -476,6 +477,46 @@ final class MessageDispatcher
     {
         $domain = $this->domainOf($message);
 
+        // NYERS MIME: a LEIRATKOZÓ FEJLÉC beírása FÜGGETLEN az aláírástól.
+        //
+        // Ha a fejléc-beírás az aláíró ágon belül maradna, akkor DKIM-kulcs nélkül (rotáció
+        // közben, hiányzó kulcsnál) a levél leiratkozó fejléc NÉLKÜL menne ki — miközben az
+        // `UnsubscribeHeaderGate` zöldet ad, mert a tárolt `headers`-ben ott van. Épp az a
+        // hibaosztály, amit ez a packet háromszor javított: a kapu engedi, a levélbe nem
+        // jut ki. Az aláírás hiánya kézbesíthetőségi hiba; a leiratkozó fejléc hiánya
+        // ELUTASÍTÁS a Gmailnél.
+        if (($message->options['raw_mime'] ?? false) === true) {
+            $raw = RawMimeMessage::query()->where('message_uuid', $message->uuid)->first();
+
+            if ($raw !== null) {
+                $withHeaders = $this->withUnsubscribeHeaders($message, $raw->raw);
+
+                foreach ($rendered as $recipient => $bodies) {
+                    $rendered[$recipient]['mime'] = $withHeaders;
+                }
+
+                if ($domain !== null && $domain->signingSelector() !== null) {
+                    try {
+                        $signed = $this->rawDkim->sign($withHeaders, $domain);
+
+                        foreach ($rendered as $recipient => $bodies) {
+                            $rendered[$recipient]['mime'] = $signed;
+                        }
+                    } catch (Throwable $e) {
+                        // Ugyanaz a szabály, mint a strukturált ágon: nem állítjuk meg a
+                        // küldést, de NYOMOT hagyunk. A fejléc ilyenkor is bent van.
+                        $this->recordUnsigned($message, $domain->name, 'signing_failed', $e->getMessage());
+                    }
+                }
+            }
+
+            if ($domain !== null && $domain->signingSelector() === null) {
+                $this->recordUnsigned($message, $domain->name, 'no_signing_key');
+            }
+
+            return $rendered;
+        }
+
         if ($domain === null || $domain->signingSelector() === null) {
             // Aszimmetria elkerülve: a nyers ág korábban KIVÉTELT dobott, a strukturált
             // némán aláíratlanul küldött. Egységesen: a levél kimegy (a domain hitelesített,
@@ -483,32 +524,6 @@ final class MessageDispatcher
             // kézbesíthetőségi hiba, amit az A6 suite jelez majd a felületen is.
             if ($domain !== null) {
                 $this->recordUnsigned($message, $domain->name, 'no_signing_key');
-            }
-
-            return $rendered;
-        }
-
-        // NYERS MIME: a levelet a feladó állította össze, azt NEM építjük újra (bármilyen
-        // újraszerkesztés megváltoztatná a tartalmát). Az aláírás a nyers bájtokra megy.
-        // Enélkül az SMTP-n beadott levél ALÁÍRÁS NÉLKÜL ment volna ki — pont azon az úton,
-        // amiről ez a packet szól.
-        if (($message->options['raw_mime'] ?? false) === true) {
-            $raw = RawMimeMessage::query()->where('message_uuid', $message->uuid)->first();
-
-            if ($raw !== null) {
-                try {
-                    $signed = $this->rawDkim->sign($raw->raw, $domain);
-                } catch (Throwable $e) {
-                    // Ugyanaz a szabály, mint a strukturált ágon: nem állítjuk meg a
-                    // küldést, de NYOMOT hagyunk.
-                    $this->recordUnsigned($message, $domain->name, 'signing_failed', $e->getMessage());
-
-                    return $rendered;
-                }
-
-                foreach ($rendered as $recipient => $bodies) {
-                    $rendered[$recipient]['mime'] = $signed;
-                }
             }
 
             return $rendered;
@@ -537,6 +552,44 @@ final class MessageDispatcher
      * új esemény-TÍPUST nem vezetünk be (az esemény-lánc a kézbesítés állapotait írja le,
      * és a webhookok arra épülnek), a `dkim_unsigned` viszont lekérdezhető és riasztható.
      */
+    /**
+     * A leiratkozó fejléc BEÍRÁSA a nyers MIME-ba (RFC 8058).
+     *
+     * A nyers levelet nem építjük újra — de a consent-köteles csatornán a fejléc nem
+     * OPCIONÁLIS: nélküle a Gmail és a Yahoo elutasítja a levelet, és a `UnsubscribeHeaderGate`
+     * zöldje HAMIS lenne. Mérve: a `created` hook beírta a fejlécet a `messages.headers`-be, a
+     * kapu elégedett volt, a kimenő BÁJTOKBAN viszont nem volt `List-Unsubscribe` — vagyis
+     * minden nyers MIME-os marketing küldés megfelelés nélkül ment ki, mind a tíz kapu zöldje
+     * mellett. Ugyanaz a „a kapu engedte, a levélbe nem jutott ki" hibaosztály, amit ez a
+     * packet a strukturált úton kétszer javított.
+     *
+     * A fejlécet ELÉ írjuk, az aláírás ELŐTT: így a DKIM is fedi. A `SendMimeController`
+     * gondoskodik arról, hogy ezen az úton egyetlen címzett legyen — egy közös bájtsorba csak
+     * egy token fér, és a rossz emberhez tartozó token rosszabb, mint a hiányzó fejléc.
+     */
+    private function withUnsubscribeHeaders(Message $message, string $raw): string
+    {
+        if (Channel::tryFrom((string) $message->channel)?->requiresConsent() !== true) {
+            return $raw;
+        }
+
+        $recipient = (string) (((array) $message->recipients)[0] ?? '');
+
+        if ($recipient === '' || ! str_starts_with($message->unsubscribeUrlPrefix(), 'http')) {
+            return $raw;
+        }
+
+        $lines = '';
+
+        foreach ($message->unsubscribeHeaders($recipient) as $name => $value) {
+            if (str_starts_with(strtolower((string) $name), 'list-unsubscribe')) {
+                $lines .= $name.': '.$value."\r\n";
+            }
+        }
+
+        return $lines.$raw;
+    }
+
     private function recordUnsigned(Message $message, string $domain, string $reason, ?string $detail = null): void
     {
         Log::warning('Aláíratlan levél ment ki', [

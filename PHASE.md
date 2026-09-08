@@ -372,14 +372,19 @@ M0 után az **A és B sáv külön worktree-ben, külön runnerrel** futtatható
   brute-force plafonja ma egy fejléccel átléphető. A helyes javítás nem limiterenkénti
   kerülőút, hanem a `TRUSTED_PROXIES` leszűkítése a valódi proxy-hálóra.
   → **devops + Identity, élesben KÖTELEZŐ.**
-- **A DEV CADDY NEM SZOLGÁL KI PHP-t.** A `caddy` service-nek nincs kötése az alkalmazáshoz
-  (`docker compose exec caddy ls /var/www/public` → nincs ilyen könyvtár), tehát a
-  `php_fastcgi` implicit `try_files`-a semmire nem illeszt: `/up`, `/`, `/u/{token}` és egy
-  nem létező útvonal is egyaránt 200-at ad üres törzzsel a belső porton. A konténer
+- **A `TrackingTokens` és a `UnsubscribeTokens` kulcs-azonosító (`kid`) nélkül.** A `v`
+  verziómező megvan, tehát a formátumváltás detektálható, de az `APP_KEY` rotációja EGYSZERRE
+  némítaná el minden kimenő levélben a leiratkozó és a nyomkövetési linket. Átfedéses
+  kulcsellenőrzés kell hozzá. → C2, éles indulás ELŐTT.
+- **A DEV CADDY health-listenere nem szolgál ki PHP-t.** A `caddy` service-nek nincs kötése az alkalmazáshoz
+  (`docker compose exec caddy ls /var/www/public` → nincs ilyen könyvtár), tehát a belső
+  `:2020` health-listeneren a `php_fastcgi` implicit `try_files`-a semmire nem illeszt: `/up`,
+  `/u/{token}` és egy nem létező útvonal is egyaránt **200-at ad üres törzzsel**. A konténer
   healthcheckje ezért MINDIG zöld anélkül, hogy Laravelt látna — pedig a Caddyfile kommentje
-  azt állítja, hogy „a TELJES láncot méri", és a dev Basic Auth sem védi semmit. Emiatt a
-  `REMOTE_ADDR` éles értéke sem mérhető ebben a környezetben, tehát a publikus végpontok
-  rate-limit-plafonjai méréssel nem hitelesítettek. → **devops, magas prioritás.**
+  azt állítja, hogy „a TELJES láncot méri". (A publikált `:80` viszont rendben van: 401-et ad,
+  a Basic Auth ott VÉD.) Emiatt a `REMOTE_ADDR` éles értéke nem mérhető ebben a
+  környezetben, tehát a publikus végpontok rate-limit-plafonjai méréssel nem
+  hitelesítettek. → **devops, magas prioritás.**
 - **`APP_KEY`-rotáció útja a leiratkozó tokenhez.** A tokennek nincs lejárata (szándékosan: régi
   levélből is legitim leiratkozni), viszont nincs kulcs-azonosító (`kid`) sem, tehát a rotáció
   EGYSZERRE némítaná el minden kimenő levélben a leiratkozó linket. → C2, átfedéses

@@ -30,7 +30,19 @@ description = """
    Miért nem kockázat: az éles pepper KIZÁRÓLAG env-ből jön (`AUDIT_PEPPER`), és a hiánya
    HANGOS hiba, nem csendes gyenge hash — ezt a szomszédos teszt bizonyítja.
 
-4) A REDAKCIÓT bizonyító tesztek szándékos ál-titkai (`vm_live_TITOK`, `NYERS-JELSZO`).
+4) tests/Feature/Suppression/UnsubscribeTokenVectorsTest.php és
+   tests/Feature/Logs/TrackingTokenVectorsTest.php — BEÉGETETT token-KAT-vektorok.
+   A bejelölt „titok" egy CSUPA NULLA `APP_KEY`-jel (`base64:AAAA…`) titkosított token,
+   plusz maga a kulcs-literál. Miért van beégetve: a `p`/`v` mező bevezetése megváltoztatta
+   a wire-formátumot, és a régi tokenek CSENDBEN érvénytelenek lettek — a `/u/` végpont
+   szándékosan nem ad orákulumot, tehát a címzett a „leiratkoztál" oldalt látta volna,
+   miközben semmi nem íródik. Ez a vektor a formátumot RÖGZÍTI: a következő néma
+   formátumváltás a CI-ban bukik el, nem az ügyfél postafiókjában.
+   Miért nem kockázat: a kulcs csupa nulla és a teszt állítja be; az éles `APP_KEY` env-ből
+   jön, és a tokenben nincs más, mint a teszt saját kitalált workspace-e, üzenet-uuid-ja és
+   `cimzett@example.test` címe.
+
+5) A REDAKCIÓT bizonyító tesztek szándékos ál-titkai (`vm_live_TITOK`, `NYERS-JELSZO`).
    Ezek pont attól hasznosak, hogy VALÓDINAK LÁTSZANAK: a teszt azt állítja, hogy az
    audit-naplóba nem kerülnek be. Ha a mintát „ártalmatlanabbra" cserélnénk, a teszt
    megszűnne bizonyítani bármit — épp azt a rést nyitná ki, amit a security-review talált.
@@ -42,5 +54,7 @@ paths = [
   '''tests/Feature/Schema/AuditCoverageTest\.php''',
   '''tests/Feature/Schema/RedactionVectorsTest\.php''',
   '''tests/Feature/Schema/CryptoVectorsTest\.php''',
+  '''tests/Feature/Suppression/UnsubscribeTokenVectorsTest\.php''',
+  '''tests/Feature/Logs/TrackingTokenVectorsTest\.php''',
   '''\.gitleaks\.toml''',
 ]

@@ -29,6 +29,7 @@ use App\Modules\Events\Services\TrackingTokens;
 use App\Modules\Inbound\Actions\VerifyInboundMx;
 use App\Modules\IpPools\Models\IpAddress;
 use App\Modules\IpPools\Models\IpPool;
+use App\Modules\Messages\Data\MailgunPayload;
 use App\Modules\Sending\Actions\SendMessage;
 use App\Modules\Sending\Gate\Gates\HeaderSafetyGate;
 use App\Modules\Sending\Gate\Gates\UnsubscribeHeaderGate;
@@ -39,6 +40,7 @@ use App\Modules\Suppression\Services\UnsubscribeTokens;
 use App\Modules\Tenancy\Models\Workspace;
 use App\Modules\Tenancy\Services\WorkspaceContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
 
 uses(RefreshDatabase::class);
 
@@ -53,6 +55,35 @@ beforeEach(function () {
     $this->workspace = Workspace::factory()->create();
     app(WorkspaceContext::class)->set($this->workspace);
 });
+
+/**
+ * Egy VALÓDI marketing üzenet és a hozzá tartozó leiratkozó token.
+ *
+ * A `/u/` végpont mostantól ELLENŐRZI, hogy az üzenet létezik-e ebben a workspace-ben, és
+ * hogy a cím tényleg a címzettje volt-e (mélységi védelem az elkapott token ellen). Ezért a
+ * tesztek sem dolgozhatnak kitalált `msg-uuid`-val: az a valóságban sem fordul elő.
+ */
+function unsubscribeTokenFor(string $recipient, ?Workspace $workspace = null): string
+{
+    Domain::query()->firstOrCreate(
+        ['name' => 'pelda.hu'],
+        ['status' => 'verified', 'verified_at' => now()],
+    );
+
+    $message = Message::create([
+        'channel' => 'marketing',
+        'from_email' => 'no-reply@pelda.hu',
+        'recipients' => [$recipient],
+        'subject' => 'Hírlevél',
+        'headers' => [],
+    ]);
+
+    return app(UnsubscribeTokens::class)->issue(
+        (int) ($workspace?->getKey() ?? $message->workspace_id),
+        (string) $message->uuid,
+        $recipient,
+    );
+}
 
 /*
  | 43. BLOCKLIST-MONITOR
@@ -477,8 +508,7 @@ it('a `-Post` fejléc hiánya is elutasítás', function () {
 it('a ONE-CLICK POST leiratkoztat — megerősítés nélkül', function () {
     // Ha megerősítést kérnénk, a kattintás fele elveszne, és az olvasó a spam-gombot nyomná
     // helyette — a panasz pedig a küldő reputációját viszi, nem a levélét.
-    $token = app(UnsubscribeTokens::class)
-        ->issue((int) $this->workspace->getKey(), 'msg-uuid', 'anna@example.test');
+    $token = unsubscribeTokenFor('anna@example.test');
 
     $this->post('/u/'.$token)->assertOk();
 
@@ -504,8 +534,7 @@ it('a HAMIS token ugyanazt a választ adja, mint a jó', function () {
 it('a MALLEÁLT token érvénytelen', function () {
     // A végpont ÍR (suppression-listára tesz): a token-variánsokkal a rate-limit is
     // megkerülhető lenne.
-    $token = app(UnsubscribeTokens::class)
-        ->issue((int) $this->workspace->getKey(), 'msg-uuid', 'anna@example.test');
+    $token = unsubscribeTokenFor('anna@example.test');
 
     $elfogadott = [];
 
@@ -520,8 +549,7 @@ it('a MALLEÁLT token érvénytelen', function () {
 });
 
 it('a GET-es leiratkozás oldalt mutat, és NEM igényel bejelentkezést', function () {
-    $token = app(UnsubscribeTokens::class)
-        ->issue((int) $this->workspace->getKey(), 'msg-uuid', 'anna@example.test');
+    $token = unsubscribeTokenFor('anna@example.test');
 
     $response = $this->get('/u/'.$token);
 
@@ -631,9 +659,28 @@ it('a leiratkozó fejléc BEKERÜL a kimenő MIME-ba', function () {
     expect($mime)->toContain('List-Unsubscribe-Post: List-Unsubscribe=One-Click');
 });
 
-it('az ÜGYFÉL saját leiratkozó fejlécéhez nem nyúlunk', function () {
-    // Egy migrált rendszer a saját preference centerére mutathat; a token nélküli, idegen
-    // URL-t nem tudnánk és nem is akarnánk átírni.
+it('az ÜGYFÉL leiratkozó fejlécét ELUTASÍTJUK a bemeneten', function () {
+    // Ez a viselkedés SZÁNDÉKOSAN változott. Korábban „tiszteletben tartottuk" az ügyfél
+    // saját fejlécét — és pontosan ezen nyílt ki NÉGYSZER ugyanaz a hiba: amíg az érték
+    // kívülről jöhetett, nekünk fel kellett ISMERNI, hogy a benne lévő token a miénk-e. Ez a
+    // felismerés (URL-előtag → betűzés → százalék-kódolás) sorra megkerülhető volt, mert egy
+    // KÉPESSÉGI tokent kerestünk regexszel egy támadó által írt szövegben.
+    //
+    // Ha az érték nem jöhet kívülről, nincs mit felismerni. Az ügyfél preference centere a
+    // levél TÖRZSÉBE megy — ott a linkje a sajátja, és nem a mi DKIM-aláírásunkkal
+    // hitelesített one-click végpontunkat imitálja.
+    expect(fn () => MailgunPayload::fromRequest([
+        'from' => 'no-reply@pelda.hu',
+        'to' => 'anna@example.test',
+        'subject' => 'Hírlevél',
+        'text' => 'Szia',
+        'h:List-Unsubscribe' => '<https://sajat.example/leiratkozas>',
+    ]))->toThrow(InvalidArgumentException::class);
+});
+
+it('a MODELLRE közvetlenül írt ügyfél-fejlécet is FELÜLÍRJUK', function () {
+    // Mélységi védelem: ha a bemeneti zárat valaha megkerülné valami, a `headersFor()`
+    // FELISMERÉS NÉLKÜL a sajátjával írja felül — és címzettenként.
     $domain = Domain::create(['name' => 'pelda.hu', 'status' => 'verified', 'verified_at' => now()]);
 
     $message = Message::create([
@@ -642,14 +689,27 @@ it('az ÜGYFÉL saját leiratkozó fejlécéhez nem nyúlunk', function () {
         'from_email' => 'no-reply@pelda.hu',
         'recipients' => ['anna@example.test', 'bela@example.test'],
         'subject' => 'Hírlevél',
-        'headers' => [
-            'List-Unsubscribe' => '<https://sajat.example/leiratkozas>',
-            'List-Unsubscribe-Post' => 'List-Unsubscribe=One-Click',
-        ],
+        'headers' => ['List-Unsubscribe' => '<https://sajat.example/leiratkozas>'],
     ]);
 
-    expect($message->headersFor('bela@example.test')['List-Unsubscribe'])
-        ->toBe('<https://sajat.example/leiratkozas>');
+    $tokens = app(UnsubscribeTokens::class);
+
+    foreach (['anna@example.test', 'bela@example.test'] as $recipient) {
+        $outgoing = $message->fresh()->headersFor($recipient);
+
+        // EGY kulcs, és az a MIENK.
+        $keys = array_values(array_filter(
+            array_keys($outgoing),
+            fn (string $key) => str_starts_with(strtolower($key), 'list-unsubscribe'),
+        ));
+
+        expect($keys)->toBe(['List-Unsubscribe', 'List-Unsubscribe-Post']);
+        expect($outgoing['List-Unsubscribe'])->not->toContain('sajat.example');
+
+        $token = (string) preg_replace('#^.*/u/|>$#', '', (string) $outgoing['List-Unsubscribe']);
+
+        expect($tokens->parse($token)['recipient'])->toBe($recipient);
+    }
 });
 
 it('a `http://` leiratkozó hoszt NEM ad fejlécet — és a kapu elutasít', function () {
@@ -675,8 +735,7 @@ it('a leiratkozás VEGYES kis/nagybetűs címre és KÉTSZER is működik', func
     // A Gmail ÚJRAPRÓBÁLJA a one-click POST-ot, és a felhasználó a POST után a linkre is
     // rákattint. A nyers címmel kereső, normalizálva író `firstOrCreate` a MÁSODIK híváson
     // unique-violationnel szállt el — és a leiratkozás „sikertelen"-ként ment vissza.
-    $token = app(UnsubscribeTokens::class)
-        ->issue((int) $this->workspace->getKey(), 'msg-uuid', 'Anna@Pelda.HU');
+    $token = unsubscribeTokenFor('Anna@Pelda.HU');
 
     $this->post('/u/'.$token)->assertOk();
     $this->post('/u/'.$token)->assertOk();
@@ -696,8 +755,7 @@ it('a MÁR `all` hatókörrel tiltott címen a leiratkozás nem lazít és nem i
         'applies_to' => 'all',
     ]);
 
-    $token = app(UnsubscribeTokens::class)
-        ->issue((int) $this->workspace->getKey(), 'msg-uuid', 'anna@pelda.hu');
+    $token = unsubscribeTokenFor('anna@pelda.hu');
 
     $this->post('/u/'.$token)->assertOk();
 
@@ -714,8 +772,7 @@ it('a GET NEM ír — csak megerősítést kér', function () {
     // A levélben lévő linkeket a védelmi átjárók (SafeLinks, vírusszűrő proxy,
     // kliens-előtöltés) VÉGIGLÁTOGATJÁK. Írós GET-tel ezek csendben leiratkoztatnák azt, aki
     // soha nem kattintott — az RFC 8058 pontosan ezért ír elő POST-ot.
-    $token = app(UnsubscribeTokens::class)
-        ->issue((int) $this->workspace->getKey(), 'msg-uuid', 'anna@example.test');
+    $token = unsubscribeTokenFor('anna@example.test');
 
     $this->get('/u/'.$token)->assertOk();
 
@@ -1010,8 +1067,7 @@ it('a leiratkozás rate-limitje NEM az X-Forwarded-For fejlécből kulcsol', fun
     // A `TRUSTED_PROXIES` alapértéke `*`, tehát a `request->ip()` a KÉRŐ által beírt
     // fejlécből jön: rotáló XFF-fel a fék egy fejléccel kikapcsolható volt — egy
     // visszavonhatatlan suppression-listára író végponton.
-    $token = app(UnsubscribeTokens::class)
-        ->issue((int) $this->workspace->getKey(), 'msg-uuid', 'anna@example.test');
+    $token = unsubscribeTokenFor('anna@example.test');
 
     $statuses = [];
 
@@ -1089,14 +1145,15 @@ it('egy HAMIS jelentés nem írja felül a valódit', function () {
 it('a leiratkozás rögzíti, MELYIK levélből érkezett', function () {
     // A leiratkozás a consent VISSZAVONÁSA, és ugyanolyan bizonyítékot érdemel, mint a
     // megadása: egy későbbi panasznál meg kell tudnunk mutatni, melyik levélből jött.
-    $token = app(UnsubscribeTokens::class)
-        ->issue((int) $this->workspace->getKey(), 'uzenet-42', 'anna@example.test');
+    $token = unsubscribeTokenFor('anna@example.test');
+
+    $claim = app(UnsubscribeTokens::class)->parse($token);
 
     $this->post('/u/'.$token)->assertOk();
 
     app(WorkspaceContext::class)->set($this->workspace);
 
-    expect(Suppression::query()->firstOrFail()->detail)->toBe('message:uzenet-42');
+    expect(Suppression::query()->firstOrFail()->detail)->toBe('message:'.$claim['messageUuid']);
 });
 
 it('a `Reply-To` fejléc is kijut a MIME-ba', function () {
@@ -1186,36 +1243,41 @@ it('a MÁS BETŰZÉSŰ ügyfél-fejléc nem törli el a címzettenkénti tokent'
     }
 });
 
-it('IDEGEN workspace leiratkozó tokenjét a kapu ELUTASÍTJA', function () {
-    // Enélkül a kimenő levél MINDEN példánya egy idegen workspace címzettjének tokenjét
-    // hordozta — a MI DKIM-aláírásunkkal —, tehát minden one-click egy IDEGEN tenant
-    // suppression-listájára írt volna (golden rule 6). A puszta üzenet-kötés önmagában
-    // rosszabb lett volna: akkor a token „nem a miénk", és változatlanul kimegy.
+it('IDEGEN workspace leiratkozó tokenje BÁRMELY fejlécben elutasítás', function () {
+    // A `List-Unsubscribe` úton ez már nem is érhető el (a bemenet elutasítja, a
+    // `headersFor()` felülírja) — de az idegen token egy `X-*` fejlécben KIJUTOTT a levélbe
+    // (mérve). One-click nincs rajta, tehát emberi kattintás kell hozzá; a szűrés viszont
+    // nem lehet szűkebb, mint a felület, amin a token kijuthat.
+    //
+    // És DEKÓDOLVA is szűrünk: a router a dekódolt útvonalon illeszt, tehát a
+    // `/u/AAAA%42BBB` és a `/%75/AAAABBBB` is élő, hívható URL — a nyers szövegen futó minta
+    // mindkettőt átengedte.
     $foreign = Workspace::factory()->create();
 
     $stolen = app(UnsubscribeTokens::class)
-        ->issue((int) $foreign->getKey(), 'idegen-uzenet', 'aldozat@masik.test');
+        ->issue((int) $foreign->getKey(), (string) Str::uuid(), 'aldozat@masik.test');
 
     app(WorkspaceContext::class)->set($this->workspace);
 
-    $domain = Domain::create(['name' => 'pelda.hu', 'status' => 'verified', 'verified_at' => now()]);
+    Domain::create(['name' => 'pelda.hu', 'status' => 'verified', 'verified_at' => now()]);
 
-    $message = Message::create([
-        'domain_id' => $domain->getKey(),
-        'channel' => 'marketing',
-        'from_email' => 'no-reply@pelda.hu',
-        'recipients' => ['anna@example.test'],
-        'subject' => 'Hírlevél',
-        'headers' => [
-            'List-Unsubscribe' => '<https://pelda.hu/u/'.$stolen.'>',
-            'List-Unsubscribe-Post' => 'List-Unsubscribe=One-Click',
-        ],
-    ]);
+    $variants = [
+        'nyers' => 'https://pelda.hu/u/'.$stolen,
+        'kodolt token' => 'https://pelda.hu/u/'.substr($stolen, 0, 4).'%'.dechex(ord($stolen[4])).substr($stolen, 5),
+        'kodolt szegmens' => 'https://pelda.hu/%75/'.$stolen,
+    ];
 
-    $result = (new HeaderSafetyGate)->check($message->fresh());
+    foreach ($variants as $label => $url) {
+        $message = Message::create([
+            'channel' => 'transactional',
+            'from_email' => 'no-reply@pelda.hu',
+            'recipients' => ['anna@example.test'],
+            'subject' => 'Szia',
+            'headers' => ['X-Sajat-Link' => '<'.$url.'>'],
+        ]);
 
-    expect($result->passed)->toBeFalse();
-    expect($result->detail)->toContain('idegen leiratkozó tokent');
+        expect((new HeaderSafetyGate)->check($message->fresh())->passed)->toBeFalse($label);
+    }
 });
 
 it('a SAJÁT tokenünket viszont átengedi a kapu', function () {
@@ -1291,4 +1353,44 @@ it('az ÉRTELMEZHETETLEN `Reply-To`-ról a kapu SZÓL, nem hallgat', function ()
 
     expect($result->passed)->toBeFalse();
     expect($result->detail)->toContain('Reply-To');
+});
+
+it('az ÖSSZEFÜGGÉSTELEN igény nem iratkoztat le — akkor sem, ha a token érvényes', function () {
+    // Mélységi védelem az ELKAPOTT token ellen (a levél proxykon, továbbításon megy át). A
+    // token titkosított, tehát nem hamisítható — de bemutatóra szól. Ha csak a belsejét
+    // néznénk, beváltható lenne olyan üzenetre is, ami nem ehhez a workspace-hez tartozik,
+    // vagy olyan címre, ami soha nem volt a címzettje.
+    //
+    // Ez nem regexre épül, szemben a fejlécszintű felismeréssel — ami ebben a packetben
+    // négyszer nyílt ki.
+    $tokens = app(UnsubscribeTokens::class);
+
+    Domain::create(['name' => 'pelda.hu', 'status' => 'verified', 'verified_at' => now()]);
+
+    $message = Message::create([
+        'channel' => 'marketing',
+        'from_email' => 'no-reply@pelda.hu',
+        'recipients' => ['anna@example.test'],
+        'subject' => 'Hírlevél',
+        'headers' => [],
+    ]);
+
+    $esetek = [
+        // Nem létező üzenet — a token minden mása helyes.
+        'ismeretlen üzenet' => $tokens->issue((int) $this->workspace->getKey(), (string) Str::uuid(), 'anna@example.test'),
+        // Létező üzenet, de a cím NEM volt a címzettje.
+        'idegen címzett' => $tokens->issue((int) $this->workspace->getKey(), (string) $message->uuid, 'nemcimzett@example.test'),
+        // Nem UUID alakú hivatkozás: ez korábban 500-at adott (`invalid input syntax for
+        // type uuid`), ami egyszerre orákulum ÉS a levélkliensnek újrapróbálható hiba.
+        'nem UUID' => $tokens->issue((int) $this->workspace->getKey(), 'nem-uuid', 'anna@example.test'),
+    ];
+
+    foreach ($esetek as $label => $token) {
+        // A VÁLASZ ugyanaz, mint a jóra: a különbség orákulum lenne.
+        $this->post('/u/'.$token)->assertOk();
+
+        app(WorkspaceContext::class)->set($this->workspace);
+
+        expect(Suppression::query()->count())->toBe(0, $label);
+    }
 });

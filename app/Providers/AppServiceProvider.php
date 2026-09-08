@@ -143,26 +143,33 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('unsubscribe', function (Request $request) {
             $fingerprint = app(UnsubscribeTokens::class)->fingerprint((string) $request->route('token'));
 
+            /*
+             | ÉRVÉNYES tokenre NINCS platform-szintű plafon — és ez nem lazaság.
+             |
+             | Volt: 120/perc, majd 3000/perc a `REMOTE_ADDR`-ra. Mindkettő rossz, és a
+             | második rosszabb módon. A `REMOTE_ADDR` a Caddy mögött MINDEN kérésre a proxy
+             | IP-je, tehát EGYETLEN vödör a teljes platform leiratkozási forgalmára. Mérve
+             | 120-cal: 200 legitim címzettből a 121. már 429-et kapott. Mérve 3000-rel: egy
+             | támadó percenként 3000 kéréssel kimeríti a vödröt, és onnantól MINDEN valódi
+             | Gmail one-click POST 429-et kap — vagyis a „védelem" globális kill switch lett.
+             |
+             | Egy 429 a one-click POST-ra Gmail-szemmel MEGFELELÉSI hiba (golden rule 8): a
+             | szűk plafon itt nem védelem, hanem önkár, a bőkezű pedig fegyver a támadó
+             | kezében. Ezért az érvényes token fékje KIZÁRÓLAG az igényre kulcsol — az
+             | pontosan azt korlátozza, amit korlátozni kell (ugyanarra a címzettre irányuló
+             | ismétlést), és rotáló `X-Forwarded-For`-ral sem nyílik ki, mert a kulcs a
+             | tokenből származik.
+             |
+             | A hatás így is korlátos: érvényes tokent csak az kaphat, akinek levelet
+             | küldtünk, és minden token 10/perc keretet visz. Az ÉRTELMEZHETETLEN token —
+             | amiből végtelen sok gyártható — a valódi partnerre esik vissza.
+             */
             return [
-                // A PLATFORM-plafon bőkezű, és ez nem lazaság. A `REMOTE_ADDR` egyetlen proxy
-                // mögött MINDEN kérésre ugyanaz, tehát ez a vödör a teljes platform
-                // leiratkozási forgalmát fogja — és a one-click POST-ok a Gmail/Yahoo néhány
-                // szolgáltatói IP-jéről aggregálódnak. Mérve a korábbi 120/perc-cel: 200
-                // legitim címzett közül a 121. már 429-et kapott. Egy 429 a one-click POST-ra
-                // Gmail-szemmel MEGFELELÉSI hiba (golden rule 8) — a szűk plafon itt nem
-                // védelem, hanem önkár.
-                Limit::perMinute(3000)->by('peer:'.self::peer($request)),
-                // A FINOM fék az IGÉNYRE kulcsol: ugyanarra a címzettre percenként tíz
-                // kísérlet már nem legitim minta, és ez rotáló `X-Forwarded-For`-ral sem
-                // nyílik ki, mert a kulcs a tokenből származik.
-                //
-                // Az ÉRTELMEZHETETLEN token a partnerre esik vissza, NEM egy közös literálra.
-                // Egy `claim:invalid` vödör minden hibás tokent egyetlen 10/perces keretbe
-                // tett — mérve: 14 kérés 14 KÜLÖNBÖZŐ IP-ről 4 db 429-et adott, és utána egy
-                // MÁS felhasználó elrontott linkje is 429 lett. A szemetet küldő támadó a
-                // saját keretével fogyasztotta el másokét; pontosan az, amit a vektorfájl
-                // docblockja tilt.
                 $fingerprint === null
+                    // NEM egy közös literál: a `claim:invalid` vödör minden hibás tokent
+                    // egyetlen 10/perces keretbe tett — mérve: 14 kérés 14 KÜLÖNBÖZŐ IP-ről
+                    // 4 db 429-et adott, és utána egy MÁS felhasználó elrontott linkje is
+                    // 429 lett. A szemetet küldő a saját keretével fogyasztotta el másokét.
                     ? Limit::perMinute(60)->by('invalid:'.self::peer($request))
                     : Limit::perMinute(10)->by('claim:'.$fingerprint),
             ];

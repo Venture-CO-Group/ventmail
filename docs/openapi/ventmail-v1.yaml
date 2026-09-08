@@ -26,6 +26,17 @@ info:
       a védelem, nem az API.
     - `POST /v1/messages.mime`: a nem értelmezett `o:` vezérlő mostantól HIBA
       (`UNSUPPORTED_MIME_OPTION`), nem csendes eldobás.
+    - **A leiratkozó fejléc a ventMailé** (RFC 8058 one-click). A `h:List-Unsubscribe` a
+      strukturált végponton `VALIDATION_ERROR`, a nyers MIME-ban `UNSUPPORTED_MIME_HEADER`.
+      Indok: a fejléc a címzett SZEMÉLYÉHEZ kötött, visszavonhatatlan hatású tokent hordoz;
+      ha az értéke kívülről jöhetne, nekünk kellene felismernünk, hogy a benne lévő token a
+      miénk-e — és ez a felismerés (URL-alak, betűzés, százalék-kódolás) sorra
+      megkerülhetőnek bizonyult. A saját preference center linkje a levél TÖRZSÉBE megy.
+    - **Consent-köteles csatornán a nyers MIME EGY címzettre küldhető** (`MIME_BULK_MARKETING`).
+      A nyers levél egyetlen bájtsor, amit minden címzett ugyanúgy kap meg; egy közös
+      leiratkozó tokennel a második címzett leiratkozása az elsőt vinné a suppression-listára.
+      Tömeges marketinghez a strukturált végpont vagy a tárolt sablon való — ott a MIME-ot mi
+      építjük címzettenként.
     - Ugyanaz az `Idempotency-Key` MÁS kérés-tartalommal `409 IDEMPOTENCY_KEY_REUSED`
       (korábban csendben eldobta a második levelet).
 
@@ -1115,6 +1126,12 @@ components:
         - ENTITLEMENT_REQUIRED
         - IP_POOL_CHANNEL_MISMATCH
         - UNSUPPORTED_MIME_OPTION
+        # A nyers MIME-ban a leiratkozó fejléc nem engedett: a ventMail kezeli (RFC 8058),
+        # és egy közös bájtsorban nem tudjuk címzettenként átírni.
+        - UNSUPPORTED_MIME_HEADER
+        # Consent-köteles csatornán a nyers MIME EGY címzettre küldhető: a one-click token a
+        # címzett SZEMÉLYÉT hordozza, egy közös bájtsorba viszont csak egy token fér.
+        - MIME_BULK_MARKETING
         - TEMPLATE_VERSION_CONFLICT
         - INVALID_MIME_UPLOAD
         - UNKNOWN_DELIVERY
