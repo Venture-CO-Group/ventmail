@@ -48,9 +48,23 @@ it('a Tenancy modulon kívül senki nem kerüli meg a global scope-ot', function
         // bejelentkezés és kontextus nélkül — épp ez a lekérdezés állapítja meg, melyik
         // tenanté a domain. Mindkettő egyetlen, `name` + `status = verified` egyezésre
         // korlátozott lekérdezés, `limit(2)`-vel az egyértelműség őrzésére, teszttel fedve.
+        // B1 · A PUBLIKUS ŰRLAP ugyanaz a minta: a beküldés NÉVTELEN, tehát tenant-kontextus
+        // nélkül érkezik — épp ez a lekérdezés állapítja meg, melyik tenanté az űrlap.
+        // Egyetlen, `slug` + `active` egyezésre korlátozott lekérdezés, `limit(2)`-vel az
+        // egyértelműség őrzésére.
+        //
+        // A `ContactGdpr` NEM scope-megkerülés: a query buildert a KONTEXTUSON BELÜL
+        // használja, és pontosan azért, mert a modell-MUTÁTORT kell megkerülni. Az
+        // anonimizálás az `email` oszlopot üríti, miközben az `email_hash` MEGMARAD — a
+        // mutátor ezt újraszámolná az üres címből, és a suppression-tiltás
+        // felismerhetetlenné válna, vagyis a törlési kérés eredménye az lenne, hogy az
+        // érintett újra kap levelet. A lekérdezések elsődleges kulcsra mennek
+        // (`where('id', …)`), tehát tenant-határt nem tudnak átlépni.
         $exceptions = [
             'Deliverability/Services/DmarcReportIngestor.php',
             'Deliverability/Http/Controllers/MtaStsController.php',
+            'Audience/Http/Controllers/PublicFormController.php',
+            'Audience/Services/ContactGdpr.php',
             'Inbound/Services/VerifiedInboundResolver.php',
             'Logs/Services/TagStatistics.php',
             'Identity/Models/ApiKey.php',

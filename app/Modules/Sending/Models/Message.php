@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Sending\Models;
 
+use App\Modules\Consent\Services\PreferenceTokens;
 use App\Modules\Domains\Models\Domain;
 use App\Modules\IpPools\Models\IpAddress;
 use App\Modules\Sending\Enums\Channel;
@@ -272,9 +273,32 @@ final class Message extends Model
         );
 
         return [
-            'List-Unsubscribe' => '<'.$this->unsubscribeUrlPrefix().$token.'>',
+            // KÉT bejegyzés, RFC 2369 szerint vesszővel: az első a one-click végpont (ezt
+            // hívja a Gmail POST-tal), a második a PREFERENCE CENTER.
+            //
+            // A második nem dísz: a `.claude/rules/20-consent-gdpr.md` kimondja, hogy a
+            // preference centernek minden marketing levélben linkeltnek kell lennie — és a
+            // gyakorlati oka is erős: a „leiratkozom mindenről" gomb a hasznos levelekről is
+            // leiratkoztat, mert a címzett nem talál mást. A köztes lépés mérhetően kevesebb
+            // teljes leiratkozást ÉS kevesebb spam-panaszt jelent; a panasz a küldő
+            // reputációját viszi, nem a levélét.
+            'List-Unsubscribe' => '<'.$this->unsubscribeUrlPrefix().$token.'>, <'.$this->preferenceCenterUrl($recipient).'>',
             'List-Unsubscribe-Post' => 'List-Unsubscribe=One-Click',
         ];
+    }
+
+    /**
+     * A PREFERENCE CENTER linkje erre a címzettre (55. kritérium).
+     *
+     * Ugyanaz a hoszt, mint a leiratkozó linké, és ugyanaz a token-modell: titkosított,
+     * cél-elválasztott (`prefs`), LEJÁRÓ. A lejárat hosszabb, mert a címzett hetekkel később
+     * is joggal módosítja a beállításait.
+     */
+    public function preferenceCenterUrl(string $recipient): string
+    {
+        $base = app(UnsubscribeBaseUrl::class)->for($this->domain);
+
+        return $base.'/p/'.app(PreferenceTokens::class)->issue((int) $this->workspace_id, $recipient);
     }
 
     /**
