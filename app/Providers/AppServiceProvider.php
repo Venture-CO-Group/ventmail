@@ -86,16 +86,24 @@ class AppServiceProvider extends ServiceProvider
             // özön plafonja. A nyers kulcs sosem kerül cache-kulcsba — kulcsolt hash megy,
             // domain-elválasztással (a peppertelen SHA-256 egy Redis-dumpból offline
             // verifikátort adna az API-kulcsokhoz).
+            // A „hitelesítetlen özön" plafonja a VALÓDI TCP-partnerre kulcsol, nem a
+            // `request->ip()`-re. A `TRUSTED_PROXIES` alapértéke `*`, tehát a
+            // `request->ip()` a KÉRŐ által beírt `X-Forwarded-For`-ból jön (mérve) — aki a
+            // fejlécet írja, magának ad friss keretet, és épp a kulcs nélküli forgalom
+            // plafonja szűnik meg. A `peer()` a `REMOTE_ADDR`, amit a kérő nem tud átírni.
             $bearer = $request->bearerToken() ?? $request->getPassword();
-            $ip = (string) $request->ip();
+            $peer = self::peer($request);
 
             if (! is_string($bearer) || $bearer === '') {
-                return Limit::perMinute(60)->by('ip:'.$ip);
+                return Limit::perMinute(60)->by('peer:'.$peer);
             }
 
             return [
                 Limit::perMinute(300)->by('key:'.KeyedHash::of('rate_limit', $bearer)),
-                Limit::perMinute(1200)->by('ip:'.$ip),
+                // A partner-plafon a KULCS-FORGATÓ támadó ellen van: kérésenként más Bearer
+                // értékkel a `key:` vödör sosem telik meg. Bőkezű, mert egy CI-runner vagy
+                // NAT mögött több tenant is lehet — de nem átírható fejlécből származik.
+                Limit::perMinute(1200)->by('peer:'.$peer),
             ];
         });
 
@@ -171,7 +179,11 @@ class AppServiceProvider extends ServiceProvider
                     // 4 db 429-et adott, és utána egy MÁS felhasználó elrontott linkje is
                     // 429 lett. A szemetet küldő a saját keretével fogyasztotta el másokét.
                     ? Limit::perMinute(60)->by('invalid:'.self::peer($request))
-                    : Limit::perMinute(10)->by('claim:'.$fingerprint),
+                    // A GET és a POST KÜLÖN vödör: a megerősítő oldal betöltése (SafeLinks
+                    // előtöltés, a felhasználó visszalépése) nem fogyaszthatja el azt a
+                    // keretet, amiből a Gmail one-click POST-ja és annak újrapróbálása él.
+                    // Egy vödörből öt GET után a valódi leiratkozás 429-be futott volna.
+                    : Limit::perMinute(10)->by('claim:'.$request->method().':'.$fingerprint),
             ];
         });
 
@@ -191,12 +203,25 @@ class AppServiceProvider extends ServiceProvider
             // javítása után egy ilyen kulcs dekoratív lett volna: védeni látszik, de nem véd.
             Limit::perMinute(300)->by('host:'.strtolower((string) $request->headers->get('host'))),
             // A partner-plafon a FELSOROLÁS ellen van (a 200 vs. 404 orákulum arra, hogy egy
-            // domain verifikált ügyfelünk-e), de nem lehet szűk: a policy-t IDEGEN MTA-k
-            // kérik le, és a lekérés meghiúsulása `enforce` módban TLS-lefokozás felé nyit.
-            Limit::perMinute(600)->by('peer:'.self::peer($request)),
+            // domain verifikált ügyfelünk-e), de a HOSZTTAL PÁROSÍTVA kulcsol.
+            //
+            // Önálló partner-vödörként ugyanaz a „globális kill switch" alak lett volna,
+            // amit az `unsubscribe` limiterből épp eltávolítottunk: a `REMOTE_ADDR` a Caddy
+            // mögött MINDEN kérésre a proxy IP-je, tehát egyetlen vödör az összes idegen
+            // MTA-ra. Aki azt kimeríti, minden domain policy-lekérését 429-re állítja — és a
+            // policy elérhetetlensége `enforce` módban TLS-lefokozás felé nyit, vagyis a
+            // „védelem" pont a védendő dolgot rontja el.
+            //
+            // Párosítva a felsorolás továbbra is fékezett (domainenként külön vödör kell
+            // hozzá), egyetlen domain lekérdezése viszont nem tudja a többit kizárni.
+            Limit::perMinute(120)->by('peer-host:'.self::peer($request).'|'.strtolower((string) $request->headers->get('host'))),
         ]);
 
-        RateLimiter::for('oidc', fn (Request $request) => Limit::perMinute(20)->by((string) $request->ip()));
+        // A bejelentkezési folyamat hitelesítetlen, és minden hívás session-rekordot ír meg
+        // kimenő HTTP-t indít a ventSSO felé — ezért szűk a keret. A kulcs itt is a VALÓDI
+        // partner: `request->ip()`-vel egy `X-Forwarded-For` fejléccel bárki friss keretet
+        // adott volna magának, tehát a fék pont a hitelesítetlen úton nem fékezett.
+        RateLimiter::for('oidc', fn (Request $request) => Limit::perMinute(20)->by('peer:'.self::peer($request)));
     }
 
     /**

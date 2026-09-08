@@ -363,28 +363,12 @@ M0 után az **A és B sáv külön worktree-ben, külön runnerrel** futtatható
   része), de a forrásonkénti listát tudja szennyezni. A helyes hozzárendelés a FOGADÓ
   postafiókból/route-ból jön, a szállító levél DKIM-igazodásával a rekordban. → **C2: ez a
   bekötés ELŐFELTÉTELE** az inbound-alapú automatikus betöltésnek.
-- **`TRUSTED_PROXIES=*` felülvizsgálata.** MÉRVE: `REMOTE_ADDR=172.18.0.9` +
+- **`TRUSTED_PROXIES=*` leszűkítése a valódi proxy-hálóra.** MÉRVE: `REMOTE_ADDR=172.18.0.9` +
   `X-Forwarded-For: 9.9.9.9` mellett a `request->ip()` `9.9.9.9`, és a `getHost()` is az
-  `X-Forwarded-Host`-ot veszi — a beállítás tehát NEM no-op (a `bootstrap/app.php` korábbi
-  kommentje az ellenkezőjét állította, javítva). Az A6 publikus végpontjain ezt lezártuk (a
-  fékek a `REMOTE_ADDR`-ra és az igény lenyomatára kulcsolnak), de a `throttle:oidc`, az `api`
-  és az `api-auth-fail:ip:` vödör MÉG a `request->ip()`-re kulcsol: az API-kulcs
-  brute-force plafonja ma egy fejléccel átléphető. A helyes javítás nem limiterenkénti
-  kerülőút, hanem a `TRUSTED_PROXIES` leszűkítése a valódi proxy-hálóra.
-  → **devops + Identity, élesben KÖTELEZŐ.**
-- **A `TrackingTokens` és a `UnsubscribeTokens` kulcs-azonosító (`kid`) nélkül.** A `v`
-  verziómező megvan, tehát a formátumváltás detektálható, de az `APP_KEY` rotációja EGYSZERRE
-  némítaná el minden kimenő levélben a leiratkozó és a nyomkövetési linket. Átfedéses
-  kulcsellenőrzés kell hozzá. → C2, éles indulás ELŐTT.
-- **A DEV CADDY health-listenere nem szolgál ki PHP-t.** A `caddy` service-nek nincs kötése az alkalmazáshoz
-  (`docker compose exec caddy ls /var/www/public` → nincs ilyen könyvtár), tehát a belső
-  `:2020` health-listeneren a `php_fastcgi` implicit `try_files`-a semmire nem illeszt: `/up`,
-  `/u/{token}` és egy nem létező útvonal is egyaránt **200-at ad üres törzzsel**. A konténer
-  healthcheckje ezért MINDIG zöld anélkül, hogy Laravelt látna — pedig a Caddyfile kommentje
-  azt állítja, hogy „a TELJES láncot méri". (A publikált `:80` viszont rendben van: 401-et ad,
-  a Basic Auth ott VÉD.) Emiatt a `REMOTE_ADDR` éles értéke nem mérhető ebben a
-  környezetben, tehát a publikus végpontok rate-limit-plafonjai méréssel nem
-  hitelesítettek. → **devops, magas prioritás.**
+  `X-Forwarded-Host`-ot veszi — a beállítás tehát NEM no-op. MINDEN rate-limiter átkötve a
+  valódi `REMOTE_ADDR`-ra (`RateLimitKeyingTest` őrzi), tehát a fékek már nem a kérő szavára
+  kulcsolnak — de a `request->ip()` továbbra is az AUDIT-forrás és a naplósorok IP-je, és
+  ott hamisítható. → **devops, élesben KÖTELEZŐ.**
 - **`APP_KEY`-rotáció útja a leiratkozó tokenhez.** A tokennek nincs lejárata (szándékosan: régi
   levélből is legitim leiratkozni), viszont nincs kulcs-azonosító (`kid`) sem, tehát a rotáció
   EGYSZERRE némítaná el minden kimenő levélben a leiratkozó linket. → C2, átfedéses

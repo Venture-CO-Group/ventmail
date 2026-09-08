@@ -127,6 +127,13 @@ final class UnsubscribeController
             // hivatkozik, nem is ehhez a workspace-hez tartozik, vagy a címzett soha nem volt
             // a címzettje. Ez a lekérdezés nem drága, és nem regexre épül — szemben a
             // fejlécszintű felismeréssel, ami ebben a packetben négyszer nyílt ki.
+            //
+            // KÖVETKEZMÉNY, amit ki kell mondani: a GDPR-törlés (`logs:redact-subject`)
+            // kiveszi a címet a `messages.recipients`-ből, tehát a törölt érintett RÉGI
+            // levelében lévő leiratkozó link ettől kezdve nem ír semmit. Az érintettnél ez
+            // helyes kimenet (a címéről már nincs adatunk, és marketinget sem kap), de azt
+            // jelenti, hogy a leiratkozás működése a TÖRLÉSI ÁLLAPOTHOZ kötött — nem
+            // véletlen, hanem következmény.
             if (! $this->claimIsCoherent($claim)) {
                 return false;
             }
