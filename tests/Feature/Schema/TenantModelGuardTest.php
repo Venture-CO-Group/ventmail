@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 use App\Modules\Audit\Concerns\Auditable;
 use App\Modules\Audit\Models\AuditLog;
+use App\Modules\Deliverability\Models\BlocklistCheck;
+use App\Modules\Deliverability\Models\DmarcReport;
+use App\Modules\Deliverability\Models\DmarcReportRow;
+use App\Modules\Deliverability\Models\SeedTest;
 use App\Modules\Events\Models\MessageEvent;
 use App\Modules\Inbound\Models\InboundAttachment;
 use App\Modules\Inbound\Models\InboundMessage;
@@ -105,6 +109,14 @@ it('minden admin-felületű modell auditált', function () {
         // scope-ellenőrzés), a sorok maguk nem admin-műveletek.
         ValidationJob::class,
         ValidationResult::class,
+        // A blocklist-ellenőrzés gépi mérés a SAJÁT infrastruktúránkról, nem admin-művelet.
+        BlocklistCheck::class,
+        // A seed-mérés gépi eredmény: a futást az API indítja (ott van jogosultság-ellenőrzés).
+        SeedTest::class,
+        // A DMARC-jelentés IDEGEN fél (a fogadó levelezőrendszere) által írt, gépi adat: a
+        // betöltés nem admin-művelet, és a sorokat senki nem szerkeszti.
+        DmarcReport::class,
+        DmarcReportRow::class,
     ];
 
     $offenders = [];

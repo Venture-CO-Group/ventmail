@@ -54,6 +54,9 @@ final class SendingServiceProvider extends ModuleServiceProvider
         Gates\SuppressionGate::class,
         Gates\ConsentGate::class,
         Gates\ValidationRiskGate::class,
+        // One-click unsubscribe (RFC 8058) — a Gmail és a Yahoo 2024 óta MEGKÖVETELI a
+        // tömeges küldőktől; a hiánya nem rosszabb kézbesítés, hanem elutasítás.
+        Gates\UnsubscribeHeaderGate::class,
     ];
 
     public function register(): void

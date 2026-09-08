@@ -2,8 +2,10 @@
 
 declare(strict_types=1);
 
+use App\Modules\Consent\Models\Consent;
 use App\Modules\Domains\Models\Domain;
 use App\Modules\Identity\Models\ApiKey;
+use App\Modules\Sending\Drivers\FakeDriver;
 use App\Modules\Sending\Models\Message;
 use App\Modules\Sending\Models\RawMimeMessage;
 use App\Modules\Suppression\Models\Suppression;
@@ -136,4 +138,98 @@ it('a MIME-úton a nem támogatott vezérlő nem néma', function () {
     mimePost(mime(['From: no-reply@pelda.hu', 'To: c@example.test']), ['o:deliverytime' => now()->addHour()->toRfc2822String()])
         ->assertStatus(400)
         ->assertJsonPath('error.code', 'UNSUPPORTED_MIME_OPTION');
+});
+
+/*
+ | A LEIRATKOZÓ FEJLÉC A NYERS MIME ÚTON (A6 · 3. security-kör, BL-B).
+ |
+ | A nyers MIME EGY bájtsor, amit MINDEN címzett ugyanúgy kap meg. A `MimeParser` viszont
+ | korábban csak az `X-*` fejléceket adta tovább, tehát a `List-Unsubscribe` a modell és így
+ | MINDEN KAPU elől eltűnt — miközben a bájtokkal kiment.
+ */
+
+it('a nyers MIME-ban a leiratkozó fejléc ELUTASÍTÁS', function () {
+    // Az ügyfél fejléce ellenőrizetlenül, a MI DKIM-aláírásunkkal ment volna ki. Egy idegen
+    // tenant elkapott tokenjével minden one-click egy IDEGEN workspace visszavonhatatlan
+    // suppression-listájára írt — és itt még százalék-kódolás sem kellett hozzá, mert a
+    // kapu ezt a fejlécet nem is látta.
+    mimePost(mime([
+        'From: no-reply@pelda.hu',
+        'To: cimzett@example.test',
+        'Subject: Hírlevél',
+        'List-Unsubscribe: <https://idegen.example/u/ELKAPOTT-TOKEN>',
+    ]))->assertStatus(400)->assertJsonPath('error.code', 'UNSUPPORTED_MIME_HEADER');
+
+    expect(Message::count())->toBe(0);
+});
+
+it('consent-köteles csatornán a nyers MIME EGY címzettre küldhető', function () {
+    // Egy közös bájtsorba csak EGY leiratkozó token fér: két címzettnél a második
+    // leiratkozása az elsőt vinné a suppression-listára. Tudatos Mailgun-paritás-szűkítés —
+    // a tömeges marketing útja a strukturált végpont.
+    // A marketing csatornához a KULCS is jogosult kell legyen (`AuthorizeChannel`).
+    ['plain' => $this->plain] = ApiKey::issue(
+        'CI-marketing',
+        ['messages:send', 'messages:send:marketing'],
+        false,
+        ['transactional', 'marketing'],
+    );
+
+    mimePost(mime([
+        'From: no-reply@pelda.hu',
+        'To: egy@example.test',
+        'Subject: Hírlevél',
+    ]), ['to' => 'egy@example.test,ketto@example.test', 'o:channel' => 'marketing'])
+        ->assertStatus(400)
+        ->assertJsonPath('error.code', 'MIME_BULK_MARKETING');
+
+    expect(Message::count())->toBe(0);
+});
+
+it('a tranzakciós nyers MIME viszont több címzettre is mehet', function () {
+    // A szűkítés a consent-köteles csatornára szól: tranzakciós levélbe nem is teszünk
+    // leiratkozó fejlécet, tehát nincs mit címzettenként átírni.
+    mimePost(mime([
+        'From: no-reply@pelda.hu',
+        'To: egy@example.test',
+        'Subject: Számla',
+    ]), ['to' => 'egy@example.test,ketto@example.test'])->assertAccepted();
+});
+
+it('a nyers MIME-os marketing levélben BENNE VAN a leiratkozó fejléc', function () {
+    // Ez volt a másik fele a hibának: a `created` hook beírta a fejlécet a
+    // `messages.headers`-be, az `UnsubscribeHeaderGate` erre azt mondta, PASS — a kimenő
+    // BÁJTOKBAN viszont nem volt `List-Unsubscribe`. Vagyis minden nyers MIME-os marketing
+    // küldés RFC 8058-ra nem megfelelő volt (a Gmail és a Yahoo elutasítja), mind a tíz
+    // kapu zöldje mellett. Ugyanaz a „a kapu engedte, a levélbe nem jutott ki" hibaosztály,
+    // amit ez a packet a strukturált úton kétszer javított.
+    Consent::create([
+        'email' => 'egy@example.test',
+        'channel' => 'marketing',
+        'status' => 'confirmed',
+        'confirmed_at' => now()->subDay(),
+    ]);
+
+    ['plain' => $this->plain] = ApiKey::issue(
+        'CI-marketing',
+        ['messages:send', 'messages:send:marketing'],
+        false,
+        ['transactional', 'marketing'],
+    );
+
+    FakeDriver::reset();
+
+    mimePost(mime([
+        'From: no-reply@pelda.hu',
+        'To: egy@example.test',
+        'Subject: Hírlevél',
+    ]), ['o:channel' => 'marketing'])->assertAccepted();
+
+    $mime = (string) (FakeDriver::$sent[0]['bodies']['egy@example.test']['mime'] ?? '');
+
+    expect($mime)->toContain('List-Unsubscribe:');
+    expect($mime)->toContain('List-Unsubscribe-Post: List-Unsubscribe=One-Click');
+
+    // A fejléc a levél ELEJÉN van, tehát az aláírás (ha van kulcs) is fedi.
+    expect(strpos($mime, 'List-Unsubscribe:'))->toBeLessThan((int) strpos($mime, 'Subject:'));
 });

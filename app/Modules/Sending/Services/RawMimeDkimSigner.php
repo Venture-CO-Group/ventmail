@@ -33,7 +33,23 @@ final class RawMimeDkimSigner
      * (aláírt) `From`-ra épülne, több levélkliens viszont a felső, hamisítottat mutatja —
      * ez a klasszikus DKIM/DMARC From-hasítás.
      */
-    private const SIGNED_HEADERS = ['from', 'from', 'to', 'cc', 'subject', 'date', 'message-id', 'mime-version'];
+    /**
+     * A `list-unsubscribe*` NEM opcionális ebben a listában.
+     *
+     * Az RFC 8058 §3 KIMONDJA: a `List-Unsubscribe` és a `List-Unsubscribe-Post` fejlécet az
+     * aláírásnak FEDNIE kell, és szerepelnie kell a `h=` tagban — enélkül a fogadó „SHOULD
+     * NOT offer a one-click unsubscribe". Vagyis a fejléc bájtszinten ott volt a levélben, a
+     * Gmail viszont szabály szerint nem ajánlotta volna fel: a megfelelés a nyers MIME úton
+     * továbbra sem teljesült. A strukturált út (Symfony aláíró) ezt eleve fedte — a két út
+     * szétcsúszása volt a hiba.
+     *
+     * A nem létező fejlécet a signer amúgy is kihagyja, tehát a tranzakciós levélre ez
+     * semmit nem változtat.
+     */
+    private const SIGNED_HEADERS = [
+        'from', 'from', 'to', 'cc', 'subject', 'date', 'message-id', 'mime-version',
+        'list-unsubscribe', 'list-unsubscribe-post',
+    ];
 
     public function sign(string $rawMime, Domain $domain, ?int $timestamp = null): string
     {

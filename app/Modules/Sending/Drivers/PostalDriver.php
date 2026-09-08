@@ -145,7 +145,9 @@ final class PostalDriver implements SendingDriver
                 'subject' => $message->subject,
                 'html_body' => $bodies['html'],
                 'plain_body' => $bodies['text'],
-                'headers' => $message->headers,
+                // CÍMZETTENKÉNT: a leiratkozó token a leiratkozó SZEMÉLYÉT hordozza,
+                // tehát a batch minden levelébe a sajátja kell (lásd `headersFor`).
+                'headers' => $message->headersFor($recipient),
                 'tag' => $message->tags[0] ?? null,
                 // Idempotencia a MÁSIK oldalon is: egy retry különben kétszer kézbesítene.
                 // CÍMZETTENKÉNT egyedi, különben a második címzett a firstre futna rá.

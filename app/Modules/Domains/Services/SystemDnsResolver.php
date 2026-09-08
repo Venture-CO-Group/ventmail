@@ -46,7 +46,11 @@ final class SystemDnsResolver implements DnsResolver
                     return implode('', $record['entries']);
                 }
 
-                return $record['txt'] ?? $record['target'] ?? null;
+                // A KULCS rekordtípusonként más: TXT → `txt`, CNAME/MX → `target`,
+                // A → `ip`, AAAA → `ipv6`. Az `ip` hiánya csendes hiba volt: minden
+                // A-lekérdezés ÜRES listát adott, és a DNSBL-kliens ebből „tiszta" ítéletet
+                // olvasott — a blocklist-monitor élesben soha nem talált volna semmit.
+                return $record['txt'] ?? $record['target'] ?? $record['ip'] ?? $record['ipv6'] ?? null;
             },
             $records
         )));

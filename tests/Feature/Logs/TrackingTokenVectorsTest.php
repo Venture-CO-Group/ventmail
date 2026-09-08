@@ -5,6 +5,8 @@ declare(strict_types=1);
 use App\Modules\Events\Data\TrackingClaim;
 use App\Modules\Events\Http\Controllers\TrackingController;
 use App\Modules\Events\Services\TrackingTokens;
+use App\Modules\Suppression\Services\UnsubscribeTokens;
+use Illuminate\Support\Facades\Crypt;
 
 /*
  | A NYOMKÖVETÉSI TOKEN KANONICITÁS-VEKTORAI.
@@ -199,4 +201,80 @@ it('a whitespace beszúrása érvénytelen — a route-szűrőtől függetlenül
         expect($this->tokens->parse($ws.$token))->toBeNull();
         expect($this->tokens->parse($token.$ws))->toBeNull();
     }
+});
+
+it('a BORÍTÉK ÚJRASZERIALIZÁLÁSA érvényes marad — ezért kulcsol minden fék a lenyomatra', function () {
+    // Ez a vektor NEM azt bizonyítja, hogy jól védünk: azt rögzíti, MIT NEM védünk.
+    //
+    // A fenti vektorok mind a KÜLSŐ base64-et mutálják, és a kanonikus alak azokat zárja. A
+    // Laravel `Crypt` borítéka viszont egy JSON-objektum (`iv`, `value`, `mac`, `tag`), és a
+    // MAC csak az `iv`+`value` fölött van: a boríték szabadon újraszerializálható, és minden
+    // változat ugyanarra az igényre fejtődik meg.
+    //
+    // Vagyis a fájl tetején lévő „egy igény = EGY token" NEM a bájtokra igaz, hanem a
+    // `fingerprint()`-re — és pontosan ezért kulcsol minden fék (dedup, rate-limit) arra.
+    $token = $this->tokens->issue(7, 'aaaa-bbbb', 'cimzett@example.test', 'email.pelda.hu');
+
+    $envelope = json_decode((string) base64_decode(strtr($token, '-_~', '+/='), true), true);
+
+    $rebuilt = strtr(base64_encode((string) json_encode($envelope + ['pad' => 'xxxxx'])), '+/=', '-_~');
+
+    expect($rebuilt)->not->toBe($token);
+    expect($this->tokens->parse($rebuilt))->not->toBeNull();
+
+    // …de a lenyomat ugyanaz: a fék nem kerülhető meg.
+    expect($this->tokens->fingerprint($this->tokens->parse($rebuilt)))
+        ->toBe($this->tokens->fingerprint($this->tokens->parse($token)));
+});
+
+it('a LEIRATKOZÓ token itt nem érvényes', function () {
+    // Cél-elválasztás (`p`) mindkét irányban: az `APP_KEY` közös, tehát a másik célra
+    // kiadott tokenünk különben itt is megfejtődne.
+    $unsubscribe = app(UnsubscribeTokens::class)
+        ->issue(7, 'aaaa-bbbb', 'cimzett@example.test');
+
+    expect($this->tokens->parse($unsubscribe))->toBeNull();
+});
+
+it('a BEÉGETETT KAT-vektor: a nyomkövetési wire-formátum sem változhat csendben', function () {
+    // A `v` (verzió) mező ebbe a formátumba is bekerült, tehát a KORÁBBAN kiadott tokenek
+    // érvénytelenek. Élő telepítésen ez azt jelenti, hogy a már kiküldött kampányok
+    // klikk-linkjei 404-et adnak, a nyitás-pixelek pedig csendben elhalnak — minden
+    // `opened`/`clicked` esemény elveszik, jelzés nélkül.
+    //
+    // Ez a vektor a FORMÁTUMOT rögzíti egy fix `APP_KEY`-jel: aki változtatja, itt bukik el,
+    // a CI-ban. A leiratkozó token oldalán ugyanez a vektor áll — ott ez a hiba egy
+    // review-körrel korábban blokkolóként derült ki, és a tanulság ugyanaz mindkét
+    // formátumra: kripto-változás beégetett vektor nélkül nem ellenőrizhető.
+    config(['app.key' => 'base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=']);
+
+    app()->forgetInstance('encrypter');
+    Crypt::clearResolvedInstances();
+
+    $token = 'eyJpdiI6IkMyalFXUXFmTFM4NU1VMVZEc2dualE9PSIsInZhbHVlIjoiZnRwU0dROHZQTHZCN2kv'
+        .'RDIrNFdRZnN6N0tSdkwwVkdWUHFackIxbzNVN2lQZ1ZUQ0g1akQ0QjRFaG83b3ZEK3d1QTNsRGh5bFlL'
+        .'NUhrSUtTQlZFem1UTENZSGoyUCtuVG5wR0VEdHZrMkNyNzZTSDA2VG56WlBlZjNKbmFyYXpWMVF1UjM2'
+        .'MjNHamk2cE42eVNmQmJGUmU2SFBsSHFYMDhNNGtsWkpSb3VZPSIsIm1hYyI6IjllYTg0YjI4MDJiMTlk'
+        .'NDlhYjFkOTQxZDU5ZGQ2NzRlZjI3MDJhN2M3NTBjOGYxODlhOGJhYzBlZTlkZTdmYzciLCJ0YWciOiIifQ==';
+
+    $claim = app(TrackingTokens::class)->parse(strtr($token, '+/=', '-_~'));
+
+    expect($claim)->not->toBeNull();
+    expect($claim->workspaceId)->toBe(7);
+    expect($claim->messageUuid)->toBe('aaaa-bbbb');
+    expect($claim->recipient)->toBe('cimzett@example.test');
+    expect($claim->host)->toBe('email.pelda.hu');
+    expect($claim->destination)->toBe('https://cel.example/x');
+});
+
+it('a `p`/`v` NÉLKÜLI, RÉGI nyomkövetési alakot elutasítjuk', function () {
+    $legacy = strtr(
+        Crypt::encryptString((string) json_encode([
+            'w' => 7, 'm' => 'aaaa-bbbb', 'r' => 'cimzett@example.test', 'h' => 'email.pelda.hu',
+        ])),
+        '+/=',
+        '-_~',
+    );
+
+    expect($this->tokens->parse($legacy))->toBeNull();
 });

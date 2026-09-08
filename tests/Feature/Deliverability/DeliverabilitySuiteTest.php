@@ -1,0 +1,1438 @@
+<?php
+
+declare(strict_types=1);
+
+use App\Modules\Consent\Models\Consent;
+use App\Modules\Deliverability\Contracts\BlocklistClient;
+use App\Modules\Deliverability\Contracts\SeedListProvider;
+use App\Modules\Deliverability\Data\SeedAddress;
+use App\Modules\Deliverability\Data\SeedPlacement;
+use App\Modules\Deliverability\Models\BlocklistCheck;
+use App\Modules\Deliverability\Models\DmarcReport;
+use App\Modules\Deliverability\Models\DmarcReportRow;
+use App\Modules\Deliverability\Models\SeedTest;
+use App\Modules\Deliverability\Services\BlocklistMonitor;
+use App\Modules\Deliverability\Services\DmarcReportIngestor;
+use App\Modules\Deliverability\Services\DmarcReportParser;
+use App\Modules\Deliverability\Services\DnsBlocklistClient;
+use App\Modules\Deliverability\Services\MtaStsPolicy;
+use App\Modules\Deliverability\Services\SeedTestRunner;
+use App\Modules\Deliverability\Services\SpamScorer;
+use App\Modules\Deliverability\Testing\FakeBlocklistClient;
+use App\Modules\Deliverability\Testing\FakeSeedListProvider;
+use App\Modules\Domains\Contracts\DnsResolver;
+use App\Modules\Domains\Contracts\DnsUnavailable;
+use App\Modules\Domains\Jobs\VerifyDomainDns;
+use App\Modules\Domains\Models\Domain;
+use App\Modules\Domains\Testing\FakeDnsResolver;
+use App\Modules\Events\Services\TrackingTokens;
+use App\Modules\Inbound\Actions\VerifyInboundMx;
+use App\Modules\IpPools\Models\IpAddress;
+use App\Modules\IpPools\Models\IpPool;
+use App\Modules\Messages\Data\MailgunPayload;
+use App\Modules\Sending\Actions\SendMessage;
+use App\Modules\Sending\Gate\Gates\HeaderSafetyGate;
+use App\Modules\Sending\Gate\Gates\UnsubscribeHeaderGate;
+use App\Modules\Sending\Models\Message;
+use App\Modules\Sending\Services\OutboundMimeBuilder;
+use App\Modules\Suppression\Models\Suppression;
+use App\Modules\Suppression\Services\UnsubscribeTokens;
+use App\Modules\Tenancy\Models\Workspace;
+use App\Modules\Tenancy\Services\WorkspaceContext;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
+
+uses(RefreshDatabase::class);
+
+/*
+ | A6 · 43–48. kritérium — kézbesíthetőségi suite.
+ */
+
+beforeEach(function () {
+    $this->dns = new FakeDnsResolver;
+    $this->app->instance(DnsResolver::class, $this->dns);
+
+    $this->workspace = Workspace::factory()->create();
+    app(WorkspaceContext::class)->set($this->workspace);
+});
+
+/**
+ * Egy VALÓDI marketing üzenet és a hozzá tartozó leiratkozó token.
+ *
+ * A `/u/` végpont mostantól ELLENŐRZI, hogy az üzenet létezik-e ebben a workspace-ben, és
+ * hogy a cím tényleg a címzettje volt-e (mélységi védelem az elkapott token ellen). Ezért a
+ * tesztek sem dolgozhatnak kitalált `msg-uuid`-val: az a valóságban sem fordul elő.
+ */
+function unsubscribeTokenFor(string $recipient, ?Workspace $workspace = null): string
+{
+    Domain::query()->firstOrCreate(
+        ['name' => 'pelda.hu'],
+        ['status' => 'verified', 'verified_at' => now()],
+    );
+
+    $message = Message::create([
+        'channel' => 'marketing',
+        'from_email' => 'no-reply@pelda.hu',
+        'recipients' => [$recipient],
+        'subject' => 'Hírlevél',
+        'headers' => [],
+    ]);
+
+    return app(UnsubscribeTokens::class)->issue(
+        (int) ($workspace?->getKey() ?? $message->workspace_id),
+        (string) $message->uuid,
+        $recipient,
+    );
+}
+
+/*
+ | 43. BLOCKLIST-MONITOR
+ */
+
+function sendingIp(string $address = '203.0.113.20'): IpAddress
+{
+    $pool = IpPool::create(['name' => 'p-'.bin2hex(random_bytes(3)), 'type' => 'shared']);
+
+    return IpAddress::create([
+        'ip_pool_id' => $pool->getKey(),
+        'address' => $address,
+        'daily_limit' => 1000,
+        'status' => 'active',
+    ]);
+}
+
+it('a TISZTA állapot nem riaszt', function () {
+    // A riasztás akkor ér valamit, ha ritka. Egy „minden rendben" üzenet óránként megtanítja
+    // az ügyeletet, hogy ne olvassa el a következőt.
+    sendingIp();
+
+    $client = new FakeBlocklistClient;
+    $this->app->instance(BlocklistClient::class, $client);
+
+    $summary = app(BlocklistMonitor::class)->run();
+
+    expect($summary['alerts'])->toBe([]);
+    expect($summary['listed'])->toBe(0);
+    expect($summary['checked'])->toBeGreaterThan(0);
+});
+
+it('a TALÁLAT riaszt, és rögzül', function () {
+    $ip = sendingIp();
+
+    $client = (new FakeBlocklistClient)->listOn('203.0.113.20', 'zen.spamhaus.org', '127.0.0.2');
+    $this->app->instance(BlocklistClient::class, $client);
+
+    $summary = app(BlocklistMonitor::class)->run();
+
+    expect($summary['listed'])->toBe(1);
+    expect($summary['alerts'])->toHaveCount(1);
+    expect($summary['alerts'][0])->toContain('FELKERÜLT');
+    expect($summary['alerts'][0])->toContain('203.0.113.20');
+
+    $check = BlocklistCheck::query()->where('listed', true)->firstOrFail();
+
+    expect($check->zone)->toBe('zen.spamhaus.org');
+    expect($check->ip_address_id)->toBe($ip->getKey());
+});
+
+it('CSAK ÁLLAPOTVÁLTÁSKOR riaszt', function () {
+    // Egy óránként ismételt „még mindig listán vagyunk" két nap alatt megtanítja az
+    // ügyeletet, hogy figyelmen kívül hagyja a riasztásainkat — és akkor a következő,
+    // VALÓDI is elvész.
+    sendingIp();
+
+    $client = (new FakeBlocklistClient)->listOn('203.0.113.20', 'zen.spamhaus.org');
+    $this->app->instance(BlocklistClient::class, $client);
+
+    expect(app(BlocklistMonitor::class)->run()['alerts'])->toHaveCount(1);
+    expect(app(BlocklistMonitor::class)->run()['alerts'])->toBe([]);
+});
+
+it('a LEKERÜLÉS is riaszt', function () {
+    sendingIp();
+
+    $listed = (new FakeBlocklistClient)->listOn('203.0.113.20', 'zen.spamhaus.org');
+    $this->app->instance(BlocklistClient::class, $listed);
+    app(BlocklistMonitor::class)->run();
+
+    $this->app->instance(BlocklistClient::class, new FakeBlocklistClient);
+
+    $alerts = app(BlocklistMonitor::class)->run()['alerts'];
+
+    expect($alerts)->toHaveCount(1);
+    expect($alerts[0])->toContain('LEKERÜLT');
+});
+
+it('az ELDÖNTHETETLEN válasz NEM riaszt és nem is számít tisztának', function () {
+    // A DNSBL-szolgáltatók a lekérdezés-keret túllépését is válasszal jelzik. Aki ezt
+    // „listán van"-nak veszi, hamis riasztást ad; aki „tisztának", az elhallgat egy valódi
+    // problémát.
+    sendingIp();
+
+    $client = (new FakeBlocklistClient)->inconclusive('203.0.113.20', 'zen.spamhaus.org');
+    $this->app->instance(BlocklistClient::class, $client);
+
+    $summary = app(BlocklistMonitor::class)->run();
+
+    expect($summary['inconclusive'])->toBe(1);
+    expect($summary['alerts'])->toBe([]);
+    // …és NEM írtunk „tiszta" sort sem.
+    expect(BlocklistCheck::query()->where('zone', 'zen.spamhaus.org')->count())->toBe(0);
+});
+
+/*
+ | 44. DMARC RUA
+ */
+
+function dmarcXml(array $rows = []): string
+{
+    $records = '';
+
+    foreach ($rows as $row) {
+        $records .= sprintf(
+            '<record><row><source_ip>%s</source_ip><count>%d</count>'
+            .'<policy_evaluated><disposition>%s</disposition><dkim>%s</dkim><spf>%s</spf></policy_evaluated>'
+            .'</row><identifiers><header_from>%s</header_from></identifiers></record>',
+            $row['ip'],
+            $row['count'],
+            $row['disposition'] ?? 'none',
+            $row['dkim'] ?? 'fail',
+            $row['spf'] ?? 'fail',
+            $row['from'] ?? 'pelda.hu',
+        );
+    }
+
+    // A jelentés IDŐSZAKA a közeli múlt: a forrásonkénti aggregáció ablakos (alap 30 nap),
+    // és egy beégetett, régi időbélyeg attól kezdve adna üres listát, hogy a naptár elhalad
+    // mellette — a teszt pedig „idővel" romlana el, nem kódváltozásra.
+    $begin = now()->subDay()->getTimestamp();
+
+    return '<?xml version="1.0" encoding="UTF-8"?><feedback>'
+        .'<report_metadata><org_name>google.com</org_name><report_id>12345</report_id>'
+        .'<date_range><begin>'.$begin.'</begin><end>'.($begin + 86400).'</end></date_range></report_metadata>'
+        .'<policy_published><domain>pelda.hu</domain><p>quarantine</p></policy_published>'
+        .$records.'</feedback>';
+}
+
+it('értelmezi a DMARC-jelentést', function () {
+    $report = app(DmarcReportParser::class)->parse(dmarcXml([
+        ['ip' => '203.0.113.20', 'count' => 100, 'dkim' => 'pass', 'spf' => 'pass'],
+        ['ip' => '198.51.100.7', 'count' => 5, 'dkim' => 'fail', 'spf' => 'fail'],
+    ]));
+
+    expect($report->orgName)->toBe('google.com');
+    expect($report->domain)->toBe('pelda.hu');
+    expect($report->policy)->toBe('quarantine');
+    expect($report->total())->toBe(105);
+    expect($report->passed())->toBe(100);
+    expect($report->failed())->toBe(5);
+});
+
+it('a GZIP-ELT jelentést is értelmezi', function () {
+    // A fogadók így küldik: `.xml.gz` csatolmányként.
+    $report = app(DmarcReportParser::class)->parse((string) gzencode(dmarcXml([
+        ['ip' => '203.0.113.20', 'count' => 10, 'dkim' => 'pass', 'spf' => 'pass'],
+    ])));
+
+    expect($report->total())->toBe(10);
+});
+
+it('a GZIP-BOMBÁT elutasítja', function () {
+    // Ugyanaz a veszély, mint a bejövő csatolmánynál: a jelentés IDEGEN tartalom.
+    config(['deliverability.dmarc.max_report_bytes' => 1024]);
+
+    expect(fn () => app(DmarcReportParser::class)->parse((string) gzencode(str_repeat('A', 5_000_000))))
+        ->toThrow(RuntimeException::class);
+});
+
+it('az SPF VAGY DKIM elég a DMARC-hoz', function () {
+    // RFC 7489 §6.6.2: az igazodáshoz az egyik elég. Aki mindkettőt megköveteli, a saját,
+    // teljesen szabályos továbbított leveleit is bukottnak könyveli.
+    $report = app(DmarcReportParser::class)->parse(dmarcXml([
+        ['ip' => '203.0.113.20', 'count' => 7, 'dkim' => 'pass', 'spf' => 'fail'],
+        ['ip' => '203.0.113.21', 'count' => 3, 'dkim' => 'fail', 'spf' => 'pass'],
+    ]));
+
+    expect($report->passed())->toBe(10);
+});
+
+it('a malformált XML nem dönti el a feldolgozást', function () {
+    expect(fn () => app(DmarcReportParser::class)->parse('<nem xml'))->toThrow(RuntimeException::class);
+});
+
+it('az XXE-t nem hajtja végre', function () {
+    // A harmadik féltől érkező XML klasszikus vektora: külső entitással fájlt olvastatna fel.
+    $xxe = '<?xml version="1.0"?><!DOCTYPE feedback [<!ENTITY xxe SYSTEM "file:///etc/passwd">]>'
+        .'<feedback><report_metadata><org_name>&xxe;</org_name><report_id>1</report_id>'
+        .'<date_range><begin>1</begin><end>2</end></date_range></report_metadata>'
+        .'<policy_published><domain>pelda.hu</domain><p>none</p></policy_published></feedback>';
+
+    $report = app(DmarcReportParser::class)->parse($xxe);
+
+    expect($report->orgName)->not->toContain('root:');
+});
+
+/*
+ | 45. SEED / INBOX PLACEMENT
+ */
+
+it('a seed-mérés szolgáltatónként bontja az eredményt', function () {
+    // Az „összesített 82% beérkező" elrejti, hogy a Gmailen 40% — pedig a legtöbb listán a
+    // címek fele Gmail.
+    $provider = (new FakeSeedListProvider)
+        ->place('seed1@gmail.example', 'Gmail', SeedPlacement::SPAM)
+        ->place('seed2@outlook.example', 'Outlook', SeedPlacement::INBOX)
+        ->place('seed3@yahoo.example', 'Yahoo', SeedPlacement::PROMOTIONS);
+
+    $this->app->instance(SeedListProvider::class, $provider);
+
+    $test = app(SeedTestRunner::class)->evaluate(SeedTest::query()->create(['name' => 'kampány']));
+
+    expect($test->inbox)->toBe(1);
+    expect($test->spam)->toBe(1);
+    expect($test->promotions)->toBe(1);
+    expect($test->providers['Gmail']['spam'])->toBe(1);
+    expect($test->providers['Outlook']['inbox'])->toBe(1);
+    expect($test->inboxRate())->toBe(33.33);
+});
+
+it('a MEG NEM ÉRKEZETT levél is beleszámít', function () {
+    // Ez a legrosszabb eset, és a leggyakrabban elhallgatott: ha kihagynánk, a beérkező arány
+    // pont attól lenne szép, amitől rossznak kellene lennie.
+    $provider = (new FakeSeedListProvider)
+        ->place('seed1@gmail.example', 'Gmail', SeedPlacement::INBOX);
+
+    $this->app->instance(SeedListProvider::class, $provider);
+
+    $test = app(SeedTestRunner::class)->evaluate(SeedTest::query()->create());
+
+    expect($test->missing)->toBe(2);
+    // Egy beérkező háromból: 33.33%, NEM 100%.
+    expect($test->inboxRate())->toBe(33.33);
+});
+
+/*
+ | 46. KÜLDÉS ELŐTTI SPAM-PONTSZÁM
+ */
+
+it('a tiszta levél alacsony pontot kap', function () {
+    $score = app(SpamScorer::class)->score(
+        'Számla — 2026. szeptember',
+        '<p>Kedves Anna, mellékelten küldjük a számlát.</p>',
+        'Kedves Anna, mellékelten küldjük a számlát.',
+    );
+
+    expect($score->score)->toBeLessThan(1.0);
+    expect($score->warns())->toBeFalse();
+});
+
+it('a RÖVIDÍTŐ-linket jelzi, KONKRÉT javaslattal', function () {
+    // A szűrők nem tudják ellenőrizni, hova visznek — ezért régóta gyanúsnak veszik őket.
+    $score = app(SpamScorer::class)->score(
+        'Ajánlat',
+        '<p>Nézd meg</p>',
+        'Nézd meg',
+        ['https://bit.ly/abc', 'https://pelda.hu/rendes'],
+    );
+
+    $rules = array_column($score->findings, 'rule');
+
+    expect($rules)->toContain('URL_SHORTENER');
+
+    $finding = collect($score->findings)->firstWhere('rule', 'URL_SHORTENER');
+
+    // A JAVASLAT konkrét: megmondja, melyik domain a baj, és mit tegyen vele.
+    expect($finding['advice'])->toContain('bit.ly');
+    expect($finding['points'])->toBeGreaterThan(0);
+});
+
+it('a csupa nagybetűs tárgyat és a hiányzó szöveges változatot jelzi', function () {
+    $score = app(SpamScorer::class)->score(
+        'AKCIÓ MOST AZONNAL!!!',
+        '<p>Vásárolj</p>',
+        null,
+    );
+
+    $rules = array_column($score->findings, 'rule');
+
+    expect($rules)->toContain('SHOUTING_SUBJECT');
+    expect($rules)->toContain('EXCESSIVE_PUNCTUATION');
+    expect($rules)->toContain('NO_PLAIN_TEXT');
+});
+
+it('MINDEN ponthoz tartozik javaslat', function () {
+    // Egy fekete doboz „0.7"-e semmit nem ér: az ügyfél nem tudja, mit rontott el.
+    $score = app(SpamScorer::class)->score('', null, null, ['https://bit.ly/a']);
+
+    expect($score->findings)->not->toBeEmpty();
+
+    foreach ($score->findings as $finding) {
+        expect($finding['advice'])->toBeString()->not->toBe('');
+        expect($finding['points'])->toBeGreaterThan(0);
+    }
+});
+
+it('a pontszám NEM blokkol', function () {
+    // A küldés joga a tenanté; a mi dolgunk megmondani, mire számíthat.
+    $score = app(SpamScorer::class)->score('AKCIÓ!!!', null, null, ['https://bit.ly/a']);
+
+    expect($score->warns())->toBeTrue();
+    expect($score->toArray())->toHaveKey('threshold');
+});
+
+/*
+ | 48. MTA-STS / TLS-RPT
+ */
+
+it('az MTA-STS policy a valódi MX-eket sorolja', function () {
+    $domain = Domain::create(['name' => 'pelda.hu', 'status' => 'verified', 'verified_at' => now()]);
+
+    $this->dns->publish('pelda.hu', 'MX', '10 mx1.ventmail.app.');
+    $this->dns->publish('pelda.hu', 'MX', '20 mx2.ventmail.app.');
+
+    $policy = app(MtaStsPolicy::class)->policyFor($domain);
+
+    expect($policy)->toContain('version: STSv1');
+    expect($policy)->toContain('mx: mx1.ventmail.app');
+    expect($policy)->toContain('mx: mx2.ventmail.app');
+    expect($policy)->toContain('max_age:');
+});
+
+it('az MTA-STS alapból `testing` módban van', function () {
+    // `enforce`-ban egy elrontott MX-lista MINDEN bejövő levelet blokkolna, és a hibát csak
+    // akkor vennénk észre, amikor már senki nem ír nekünk.
+    $domain = Domain::create(['name' => 'pelda.hu', 'status' => 'verified', 'verified_at' => now()]);
+
+    $this->dns->publish('pelda.hu', 'MX', '10 mx1.ventmail.app.');
+
+    expect(app(MtaStsPolicy::class)->policyFor($domain))->toContain('mode: testing');
+});
+
+it('a DNS-kimaradás nem „nincs beállítva"', function () {
+    $domain = Domain::create(['name' => 'pelda.hu', 'status' => 'verified', 'verified_at' => now()]);
+
+    $this->app->instance(DnsResolver::class, new class implements DnsResolver
+    {
+        public function records(string $name, string $type): array
+        {
+            throw new DnsUnavailable('SERVFAIL');
+        }
+    });
+
+    expect(app(MtaStsPolicy::class)->status($domain))->toBe('unknown');
+});
+
+it('a wizard kiírja az MTA-STS és a TLS-RPT rekordot', function () {
+    $records = Domain::create(['name' => 'pelda.hu', 'status' => 'verified', 'verified_at' => now()])->dnsRecords();
+
+    expect($records)->toHaveKey('mta_sts');
+    expect($records)->toHaveKey('tls_rpt');
+    expect($records['mta_sts']['value'])->toContain('v=STSv1');
+    expect($records['tls_rpt']['value'])->toContain('v=TLSRPTv1');
+});
+
+/*
+ | 47. ONE-CLICK UNSUBSCRIBE (RFC 8058) — marketing levélben KÖTELEZŐ.
+ |
+ | Ez nem formaság: a Gmail és a Yahoo 2024 februárja óta MEGKÖVETELI a tömeges küldőktől, és
+ | a hiánya nem „rosszabb kézbesítés", hanem elutasítás.
+ */
+
+it('a marketing levél MEGKAPJA a leiratkozó fejléceket', function () {
+    Domain::create(['name' => 'pelda.hu', 'status' => 'verified', 'verified_at' => now()]);
+
+    Consent::create([
+        'email' => 'anna@example.test',
+        'channel' => 'marketing',
+        'status' => 'confirmed',
+        'confirmed_at' => now()->subDay(),
+    ]);
+
+    $message = app(SendMessage::class)([
+        'channel' => 'marketing',
+        'from_email' => 'no-reply@pelda.hu',
+        'to' => ['anna@example.test'],
+        'subject' => 'Hírlevél',
+        'html' => '<p>Szia</p>',
+        'text' => 'Szia',
+        'idempotency_key' => 'u-'.bin2hex(random_bytes(5)),
+    ])->message;
+
+    expect($message->headers['List-Unsubscribe'])->toContain('/u/');
+    // A `-Post` fejléc NÉLKÜL a `List-Unsubscribe` csak egy link: a levélkliens nem tudja,
+    // hogy egy kattintással elvégezheti.
+    expect($message->headers['List-Unsubscribe-Post'])->toBe('List-Unsubscribe=One-Click');
+    expect($message->status)->not->toBe('rejected');
+});
+
+it('a TRANZAKCIÓS levél NEM kap leiratkozó fejlécet', function () {
+    // Egy jelszó-visszaállítóról nem lehet leiratkozni, és a fejléc ott félrevezető lenne.
+    Domain::create(['name' => 'pelda.hu', 'status' => 'verified', 'verified_at' => now()]);
+
+    $message = app(SendMessage::class)([
+        'channel' => 'transactional',
+        'from_email' => 'no-reply@pelda.hu',
+        'to' => ['anna@example.test'],
+        'subject' => 'Jelszó',
+        'html' => '<p>Szia</p>',
+        'idempotency_key' => 'u-'.bin2hex(random_bytes(5)),
+    ])->message;
+
+    expect($message->headers)->not->toHaveKey('List-Unsubscribe');
+});
+
+it('a fejléc NÉLKÜLI marketing levelet a kapu elutasítja', function () {
+    // A kapu azt zárja ki, hogy BÁRMELY út (REST, SMTP relay, kampány) megkerülje a
+    // követelményt — akkor is, ha a fejléc-injektálás valaha elromlana.
+    $gate = new UnsubscribeHeaderGate;
+
+    $message = new Message(['channel' => 'marketing', 'headers' => []]);
+
+    $result = $gate->check($message);
+
+    expect($result->passed)->toBeFalse();
+    expect($result->detail)->toContain('List-Unsubscribe');
+});
+
+it('a `-Post` fejléc hiánya is elutasítás', function () {
+    $gate = new UnsubscribeHeaderGate;
+
+    $message = new Message([
+        'channel' => 'marketing',
+        'headers' => ['List-Unsubscribe' => '<https://pelda.hu/u/abc>'],
+    ]);
+
+    expect($gate->check($message)->passed)->toBeFalse();
+});
+
+it('a ONE-CLICK POST leiratkoztat — megerősítés nélkül', function () {
+    // Ha megerősítést kérnénk, a kattintás fele elveszne, és az olvasó a spam-gombot nyomná
+    // helyette — a panasz pedig a küldő reputációját viszi, nem a levélét.
+    $token = unsubscribeTokenFor('anna@example.test');
+
+    $this->post('/u/'.$token)->assertOk();
+
+    app(WorkspaceContext::class)->set($this->workspace);
+
+    $suppression = Suppression::query()->firstOrFail();
+
+    expect($suppression->email)->toBe('anna@example.test');
+    // A leiratkozás a MARKETINGRE szól: a számla és a jelszó-visszaállítás ettől még mehet.
+    expect($suppression->applies_to)->toBe('marketing');
+    expect($suppression->reason)->toBe('unsubscribe');
+});
+
+it('a HAMIS token ugyanazt a választ adja, mint a jó', function () {
+    // A különbség orákulum lenne arra, hogy egy cím szerepel-e a rendszerben.
+    $this->post('/u/teljesen-hamis')->assertOk();
+
+    app(WorkspaceContext::class)->set($this->workspace);
+
+    expect(Suppression::query()->count())->toBe(0);
+});
+
+it('a MALLEÁLT token érvénytelen', function () {
+    // A végpont ÍR (suppression-listára tesz): a token-variánsokkal a rate-limit is
+    // megkerülhető lenne.
+    $token = unsubscribeTokenFor('anna@example.test');
+
+    $elfogadott = [];
+
+    for ($i = 1; $i < strlen($token); $i++) {
+        if (app(UnsubscribeTokens::class)
+            ->parse(substr($token, 0, $i).'~'.substr($token, $i)) !== null) {
+            $elfogadott[] = $i;
+        }
+    }
+
+    expect($elfogadott)->toBe([]);
+});
+
+it('a GET-es leiratkozás oldalt mutat, és NEM igényel bejelentkezést', function () {
+    $token = unsubscribeTokenFor('anna@example.test');
+
+    $response = $this->get('/u/'.$token);
+
+    $response->assertOk();
+    $response->assertSee('Leiratkozás');
+    // A tranzakciós levelekről KIMONDJUK, hogy nem érinti — különben az olvasó azt hiszi,
+    // hogy a számlát sem kapja meg többé.
+    $response->assertSee('számlákat', false);
+});
+
+/*
+ | A REVIEW-BAN TALÁLT HIBÁK MÉRŐ TESZTJEI.
+ |
+ | Mindegyik olyan hiba, amit a FAKE takart el: a teszt zöld volt, az éles út nem működött.
+ */
+
+it('a KAMPÁNY és a JOURNEY is megkapja a leiratkozó fejlécet', function () {
+    // A `Channel` enumban NÉGY érték van, és a Studio TELJES tömegforgalma a `campaign` és a
+    // `journey` soron megy. Nyers `!== 'marketing'` összehasonlítással pont ez a forgalom
+    // ment volna ki `List-Unsubscribe` nélkül — amit a Gmail és a Yahoo 2024 óta elutasít.
+    Domain::create(['name' => 'pelda.hu', 'status' => 'verified', 'verified_at' => now()]);
+
+    foreach (['campaign', 'journey', 'marketing'] as $channel) {
+        $message = Message::create([
+            'channel' => $channel,
+            'from_email' => 'no-reply@pelda.hu',
+            'recipients' => ['anna@example.test'],
+            'subject' => 'Hírlevél',
+            'headers' => [],
+        ]);
+
+        expect(array_keys($message->headers))->toContain('List-Unsubscribe');
+        expect((new UnsubscribeHeaderGate)->check($message)->passed)->toBeTrue($channel);
+    }
+});
+
+it('a kapu a KAMPÁNY levelet is elutasítja fejléc nélkül', function () {
+    $gate = new UnsubscribeHeaderGate;
+
+    foreach (['campaign', 'journey'] as $channel) {
+        expect($gate->check(new Message(['channel' => $channel, 'headers' => []]))->passed)
+            ->toBeFalse($channel);
+    }
+});
+
+it('a `mailto:` tárgyába rejtett https NEM one-click URL', function () {
+    // Részsztring-vizsgálattal a `<mailto:le@pelda.hu?subject=https://>` átment volna: a
+    // fejléc tartalmazza a `https://`-t, de a fogadó one-click POST-ja sehova nem menne.
+    $gate = new UnsubscribeHeaderGate;
+
+    $message = new Message([
+        'channel' => 'marketing',
+        'headers' => [
+            'List-Unsubscribe' => '<mailto:le@pelda.hu?subject=https://>',
+            'List-Unsubscribe-Post' => 'List-Unsubscribe=One-Click',
+        ],
+    ]);
+
+    expect($gate->check($message)->passed)->toBeFalse();
+});
+
+it('BATCH-ben MINDEN címzett a SAJÁT leiratkozó tokenjét kapja', function () {
+    // Ha a batch mindhárom levele az ELSŐ címzett tokenjét vinné, Béla leiratkozása ANNÁT
+    // tenné suppression-listára — Béla pedig továbbra is kapná a levelet. Consent-sértés
+    // (golden rule 4) és rossz irányú GDPR-hatás, csendben.
+    $domain = Domain::create(['name' => 'pelda.hu', 'status' => 'verified', 'verified_at' => now()]);
+
+    $message = Message::create([
+        'domain_id' => $domain->getKey(),
+        'channel' => 'marketing',
+        'from_email' => 'no-reply@pelda.hu',
+        'recipients' => ['anna@example.test', 'bela@example.test', 'cili@example.test'],
+        'subject' => 'Hírlevél',
+        'headers' => [],
+    ]);
+
+    $tokens = app(UnsubscribeTokens::class);
+
+    foreach (['anna@example.test', 'bela@example.test', 'cili@example.test'] as $recipient) {
+        $header = (string) $message->headersFor($recipient)['List-Unsubscribe'];
+        $token = (string) preg_replace('#^.*/u/|>$#', '', $header);
+
+        expect($tokens->parse($token)['recipient'])->toBe($recipient);
+    }
+});
+
+it('a leiratkozó fejléc BEKERÜL a kimenő MIME-ba', function () {
+    // A modell beírta, a kapu látta — a MIME viszont csak az `x-` fejléceket engedte át,
+    // tehát a fogadóhoz SOHA nem jutott el. Az eredmény ugyanaz, mintha meg sem született
+    // volna.
+    $domain = Domain::create(['name' => 'pelda.hu', 'status' => 'verified', 'verified_at' => now()]);
+
+    $message = Message::create([
+        'domain_id' => $domain->getKey(),
+        'channel' => 'marketing',
+        'from_email' => 'no-reply@pelda.hu',
+        'recipients' => ['bela@example.test'],
+        'subject' => 'Hírlevél',
+        'headers' => [],
+    ]);
+
+    $mime = app(OutboundMimeBuilder::class)
+        ->build($message->withRenderedBodies(['bela@example.test' => ['html' => '<p>Szia</p>', 'text' => 'Szia']]), 'bela@example.test')
+        ->toString();
+
+    expect($mime)->toContain('List-Unsubscribe:');
+    expect($mime)->toContain('List-Unsubscribe-Post: List-Unsubscribe=One-Click');
+});
+
+it('az ÜGYFÉL leiratkozó fejlécét ELUTASÍTJUK a bemeneten', function () {
+    // Ez a viselkedés SZÁNDÉKOSAN változott. Korábban „tiszteletben tartottuk" az ügyfél
+    // saját fejlécét — és pontosan ezen nyílt ki NÉGYSZER ugyanaz a hiba: amíg az érték
+    // kívülről jöhetett, nekünk fel kellett ISMERNI, hogy a benne lévő token a miénk-e. Ez a
+    // felismerés (URL-előtag → betűzés → százalék-kódolás) sorra megkerülhető volt, mert egy
+    // KÉPESSÉGI tokent kerestünk regexszel egy támadó által írt szövegben.
+    //
+    // Ha az érték nem jöhet kívülről, nincs mit felismerni. Az ügyfél preference centere a
+    // levél TÖRZSÉBE megy — ott a linkje a sajátja, és nem a mi DKIM-aláírásunkkal
+    // hitelesített one-click végpontunkat imitálja.
+    expect(fn () => MailgunPayload::fromRequest([
+        'from' => 'no-reply@pelda.hu',
+        'to' => 'anna@example.test',
+        'subject' => 'Hírlevél',
+        'text' => 'Szia',
+        'h:List-Unsubscribe' => '<https://sajat.example/leiratkozas>',
+    ]))->toThrow(InvalidArgumentException::class);
+});
+
+it('a MODELLRE közvetlenül írt ügyfél-fejlécet is FELÜLÍRJUK', function () {
+    // Mélységi védelem: ha a bemeneti zárat valaha megkerülné valami, a `headersFor()`
+    // FELISMERÉS NÉLKÜL a sajátjával írja felül — és címzettenként.
+    $domain = Domain::create(['name' => 'pelda.hu', 'status' => 'verified', 'verified_at' => now()]);
+
+    $message = Message::create([
+        'domain_id' => $domain->getKey(),
+        'channel' => 'marketing',
+        'from_email' => 'no-reply@pelda.hu',
+        'recipients' => ['anna@example.test', 'bela@example.test'],
+        'subject' => 'Hírlevél',
+        'headers' => ['List-Unsubscribe' => '<https://sajat.example/leiratkozas>'],
+    ]);
+
+    $tokens = app(UnsubscribeTokens::class);
+
+    foreach (['anna@example.test', 'bela@example.test'] as $recipient) {
+        $outgoing = $message->fresh()->headersFor($recipient);
+
+        // EGY kulcs, és az a MIENK.
+        $keys = array_values(array_filter(
+            array_keys($outgoing),
+            fn (string $key) => str_starts_with(strtolower($key), 'list-unsubscribe'),
+        ));
+
+        expect($keys)->toBe(['List-Unsubscribe', 'List-Unsubscribe-Post']);
+        expect($outgoing['List-Unsubscribe'])->not->toContain('sajat.example');
+
+        $token = (string) preg_replace('#^.*/u/|>$#', '', (string) $outgoing['List-Unsubscribe']);
+
+        expect($tokens->parse($token)['recipient'])->toBe($recipient);
+    }
+});
+
+it('a `http://` leiratkozó hoszt NEM ad fejlécet — és a kapu elutasít', function () {
+    // A token a leiratkozó személyét hordozza, és a levélkliensen, proxyn és a Gmail
+    // szerverén megy át. Titkosítatlan csatornán nem mehet ki.
+    config(['sending.tracking_base_url' => 'http://nem-biztonsagos.example', 'app.url' => 'http://nem-biztonsagos.example']);
+
+    Domain::create(['name' => 'pelda.hu', 'status' => 'verified', 'verified_at' => now()]);
+
+    $message = Message::create([
+        'channel' => 'marketing',
+        'from_email' => 'no-reply@pelda.hu',
+        'recipients' => ['anna@example.test'],
+        'subject' => 'Hírlevél',
+        'headers' => [],
+    ]);
+
+    expect($message->headers)->not->toHaveKey('List-Unsubscribe');
+    expect((new UnsubscribeHeaderGate)->check($message)->passed)->toBeFalse();
+});
+
+it('a leiratkozás VEGYES kis/nagybetűs címre és KÉTSZER is működik', function () {
+    // A Gmail ÚJRAPRÓBÁLJA a one-click POST-ot, és a felhasználó a POST után a linkre is
+    // rákattint. A nyers címmel kereső, normalizálva író `firstOrCreate` a MÁSODIK híváson
+    // unique-violationnel szállt el — és a leiratkozás „sikertelen"-ként ment vissza.
+    $token = unsubscribeTokenFor('Anna@Pelda.HU');
+
+    $this->post('/u/'.$token)->assertOk();
+    $this->post('/u/'.$token)->assertOk();
+
+    app(WorkspaceContext::class)->set($this->workspace);
+
+    expect(Suppression::query()->count())->toBe(1);
+    expect(Suppression::query()->firstOrFail()->email)->toBe('anna@pelda.hu');
+});
+
+it('a MÁR `all` hatókörrel tiltott címen a leiratkozás nem lazít és nem is hibázik', function () {
+    // Ez volt a másik 500-as út: a `(workspace_id, email)` egyedi kulcs `applies_to` NÉLKÜL
+    // van, tehát egy meglévő `all` sor mellett már az ELSŐ POST elszállt.
+    Suppression::create([
+        'email' => 'anna@pelda.hu',
+        'reason' => 'complaint',
+        'applies_to' => 'all',
+    ]);
+
+    $token = unsubscribeTokenFor('anna@pelda.hu');
+
+    $this->post('/u/'.$token)->assertOk();
+
+    app(WorkspaceContext::class)->set($this->workspace);
+
+    $suppression = Suppression::query()->firstOrFail();
+
+    // A hatókör NEM szűkült `marketing`-re: a panasz a tranzakciós csatornát is zárta.
+    expect($suppression->applies_to)->toBe('all');
+    expect(Suppression::query()->count())->toBe(1);
+});
+
+it('a GET NEM ír — csak megerősítést kér', function () {
+    // A levélben lévő linkeket a védelmi átjárók (SafeLinks, vírusszűrő proxy,
+    // kliens-előtöltés) VÉGIGLÁTOGATJÁK. Írós GET-tel ezek csendben leiratkoztatnák azt, aki
+    // soha nem kattintott — az RFC 8058 pontosan ezért ír elő POST-ot.
+    $token = unsubscribeTokenFor('anna@example.test');
+
+    $this->get('/u/'.$token)->assertOk();
+
+    app(WorkspaceContext::class)->set($this->workspace);
+
+    expect(Suppression::query()->count())->toBe(0);
+});
+
+it('az A-rekordos DNSBL-választ a resolver TÉNYLEG visszaadja', function () {
+    // A resolver az A-rekordokat `txt`/`target` kulcsból képezte, a `dns_get_record` viszont
+    // `ip`-t ad: MINDEN A-lekérdezés üres listát adott, és a DNSBL-kliens ebből „tiszta"
+    // ítéletet olvasott. A blocklist-monitor élesben SOHA nem talált volna semmit.
+    $this->dns->publish('2.0.0.127.zen.spamhaus.org', 'A', '127.0.0.2');
+
+    $verdict = app(DnsBlocklistClient::class)->check('127.0.0.2', 'zen.spamhaus.org');
+
+    expect($verdict->listed)->toBeTrue();
+    expect($verdict->conclusive)->toBeTrue();
+    expect($verdict->detail)->toContain('127.0.0.2');
+});
+
+it('a szolgáltató HIBAJELZÉSE nem találat', function () {
+    // A `127.255.255.254` = „nyilvános resolveren keresztül kérdeztél", a `.252` =
+    // „lekérdezés-keret túllépve". Aki ezeket találatnak veszi, hamis riasztást ad.
+    $this->dns->publish('20.113.0.203.zen.spamhaus.org', 'A', '127.255.255.252');
+
+    $verdict = app(DnsBlocklistClient::class)->check('203.0.113.20', 'zen.spamhaus.org');
+
+    expect($verdict->listed)->toBeFalse();
+    expect($verdict->conclusive)->toBeFalse();
+});
+
+it('a DMARC-jelentés BETÖLTŐDIK, és az ismeretlen forrás megjelölődik', function () {
+    // A parser eddig csak DTO-t adott: a három tábla halott séma volt, a `known_source`
+    // sosem állt be — a 44. kritérium másik fele („forrásonkénti aggregáció, ismeretlen
+    // forrás kiemelve") így nem teljesült.
+    $domain = Domain::create(['name' => 'pelda.hu', 'status' => 'verified', 'verified_at' => now()]);
+
+    sendingIp('203.0.113.20');
+
+    $report = app(DmarcReportIngestor::class)->ingest(dmarcXml([
+        ['ip' => '203.0.113.20', 'count' => 100, 'dkim' => 'pass', 'spf' => 'pass'],
+        ['ip' => '198.51.100.7', 'count' => 5, 'dkim' => 'fail', 'spf' => 'fail'],
+    ]));
+
+    expect($report->domain_id)->toBe($domain->getKey());
+    expect($report->total)->toBe(105);
+    expect($report->passed)->toBe(100);
+
+    app(WorkspaceContext::class)->set($this->workspace);
+
+    expect(DmarcReportRow::query()->where('source_ip', '203.0.113.20')->firstOrFail()->known_source)->toBeTrue();
+    expect(DmarcReportRow::query()->where('source_ip', '198.51.100.7')->firstOrFail()->known_source)->toBeFalse();
+
+    // A forrás-lista az ISMERETLENNEL kezdődik: egy jelentésben több száz forrás lehet, és a
+    // lényeg a lista elején van.
+    $sources = app(DmarcReportIngestor::class)->sources($domain);
+
+    expect($sources[0]['source_ip'])->toBe('198.51.100.7');
+    expect($sources[0]['known'])->toBeFalse();
+});
+
+it('az ÚJRAKÜLDÖTT jelentés nem duplázza a számokat', function () {
+    // A fogadók újraküldenek. Duplikálva minden újraküldés megkétszerezné a forgalmi
+    // számokat, és a trend-grafikon hazudna.
+    Domain::create(['name' => 'pelda.hu', 'status' => 'verified', 'verified_at' => now()]);
+
+    $xml = dmarcXml([['ip' => '198.51.100.7', 'count' => 5]]);
+
+    app(DmarcReportIngestor::class)->ingest($xml);
+    app(DmarcReportIngestor::class)->ingest($xml);
+
+    app(WorkspaceContext::class)->set($this->workspace);
+
+    expect(DmarcReport::query()->count())->toBe(1);
+    expect(DmarcReportRow::query()->count())->toBe(1);
+});
+
+it('IDEGEN domainről szóló jelentést nem töltünk be', function () {
+    // A jelentést BÁRKI elküldheti nekünk (az RUA-cím nyilvános a DNS-ben). A feladó szavára
+    // írva egy hamisított jelentéssel bárki idegen tenant grafikonjára rajzolhatna.
+    expect(fn () => app(DmarcReportIngestor::class)->ingest(dmarcXml([['ip' => '1.2.3.4', 'count' => 1]])))
+        ->toThrow(InvalidArgumentException::class);
+});
+
+it('a `<style>` blokk NEM számít szövegnek', function () {
+    // A ventMail sablonmotorja MJML: MINDEN valódi levélben van style-blokk. A `strip_tags`
+    // a CSS-t szövegnek vette, tehát a két tartalmi szabály a gyakorlatban sosem tüzelt —
+    // egy csak-képes levél 5.5 pont helyett 1.0-t kapott.
+    $css = '<style>'.str_repeat('.a{color:#fff;background:#000;padding:10px}', 40).'</style>';
+
+    $bare = app(SpamScorer::class)->score('Ajánlat', '<img src="a.png"><img src="b.png">', null);
+    $styled = app(SpamScorer::class)->score('Ajánlat', $css.'<img src="a.png"><img src="b.png">', null);
+
+    expect($styled->score)->toBe($bare->score);
+    expect(array_column($styled->findings, 'rule'))->toContain('IMAGE_HEAVY');
+});
+
+it('a MOZAIKSZAVAS tárgy nem kiabálás', function () {
+    // Az „ÁFA IDŐ 2026" hétköznapi tárgy. A hamis találat pont az a fajta, amitől az ügyfél
+    // elkezdi figyelmen kívül hagyni az egész pontszámot.
+    $score = app(SpamScorer::class)->score('ÁFA IDŐ 2026 — a havi elszámolás', '<p>Szia</p>', 'Szia');
+
+    expect(array_column($score->findings, 'rule'))->not->toContain('SHOUTING_SUBJECT');
+});
+
+it('a FEKETELISTÁS link-domaint jelzi', function () {
+    // A küldő IP-je lehet makulátlan: ha a levélben lévő link listás domainre mutat, a
+    // fogadók a LEVELET minősítik spamnek.
+    $this->app->instance(BlocklistClient::class, (new FakeBlocklistClient)->listOn('rossz.example', 'dbl.spamhaus.org'));
+
+    $score = app(SpamScorer::class)->score('Ajánlat', '<p>Nézd</p>', 'Nézd', ['https://rossz.example/a']);
+
+    $rules = array_column($score->findings, 'rule');
+
+    expect($rules)->toContain('BLOCKLISTED_DOMAIN');
+    expect(collect($score->findings)->firstWhere('rule', 'BLOCKLISTED_DOMAIN')['advice'])->toContain('rossz.example');
+});
+
+it('az ISMERETLEN seed-mappa nem tűnik el a nevezőből', function () {
+    // Az `updates` a Gmail valódi fülneve. Ellenőrizetlenül átvéve a levél eltűnt a
+    // statisztikából: két címből egy `inbox`, egy `updates` → 100% beérkező.
+    expect(SeedPlacement::bucket('updates'))->toBe(SeedPlacement::PROMOTIONS);
+    expect(SeedPlacement::bucket('junk'))->toBe(SeedPlacement::SPAM);
+    expect(SeedPlacement::bucket('valami-uj-ful'))->toBeNull();
+
+    expect(fn () => new SeedPlacement('a@b.example', 'Gmail', 'updates'))
+        ->toThrow(InvalidArgumentException::class);
+});
+
+it('ugyanaz a szolgáltató EGY vödörbe kerül, akkor is, ha nem érkezett meg minden levél', function () {
+    // A megérkezett levél a jelentés címkéje alá (`Gmail`), a hiányzó a cím domainje alá
+    // (`gmail.com`) került: ugyanaz a szolgáltató KÉT vödörben látszott, és a
+    // „szolgáltatónkénti romlás" pont ott nem látszott, ahol a baj volt.
+    $provider = new FakeSeedListProvider;
+    $provider->addresses = [
+        new SeedAddress('a@gmail.example', 'Gmail'),
+        new SeedAddress('b@gmail.example', 'Gmail'),
+    ];
+    $provider->place('a@gmail.example', 'Gmail', SeedPlacement::INBOX);
+
+    $this->app->instance(SeedListProvider::class, $provider);
+
+    $test = app(SeedTestRunner::class)->evaluate(SeedTest::query()->create());
+
+    expect(array_keys($test->providers))->toBe(['Gmail']);
+    expect($test->providers['Gmail'])->toBe(['inbox' => 1, 'spam' => 0, 'promotions' => 0, 'missing' => 1]);
+});
+
+it('DNS-kimaradáskor NINCS MTA-STS policy', function () {
+    // Az üres `mx:` listájú policy azt jelenti, hogy EGYETLEN szerver sem jogosult levelet
+    // fogadni a domainre — `enforce` módban a fogadók ezt a `max_age` hosszán (alapból 7
+    // nap) cache-elik. Egy pillanatnyi DNS-hibából egy hetes, teljes bejövő leállás lenne.
+    $domain = Domain::create(['name' => 'pelda.hu', 'status' => 'verified', 'verified_at' => now()]);
+
+    $this->dns->blackhole('pelda.hu');
+
+    expect(app(MtaStsPolicy::class)->policyFor($domain))->toBeNull();
+});
+
+it('az MTA-STS policy CRLF sorvégekkel megy ki', function () {
+    // RFC 8461 §3.2. A szigorúbb fogadók a puszta LF-es változatot nem értelmezik — és a
+    // hibát semmi nem jelezné vissza nekünk.
+    $domain = Domain::create(['name' => 'pelda.hu', 'status' => 'verified', 'verified_at' => now()]);
+
+    $this->dns->publish('pelda.hu', 'MX', '10 mx1.ventmail.app.');
+
+    expect(app(MtaStsPolicy::class)->policyFor($domain))->toContain("\r\n");
+});
+
+it('a policy a `mta-sts.<domain>` hoszton kiszolgálódik — hitelesítés nélkül', function () {
+    $domain = Domain::create(['name' => 'pelda.hu', 'status' => 'verified', 'verified_at' => now()]);
+
+    $this->dns->publish('pelda.hu', 'MX', '10 mx1.ventmail.app.');
+
+    $response = $this->get('http://mta-sts.pelda.hu/.well-known/mta-sts.txt');
+
+    $response->assertOk();
+    $response->assertHeader('Content-Type', 'text/plain; charset=UTF-8');
+    expect($response->getContent())->toContain('mx: mx1.ventmail.app');
+});
+
+it('ismeretlen vagy nem verifikált domainre nincs policy', function () {
+    // Egy tetszőleges hosztra kiszolgált policy azt állítaná, hogy a domain levélforgalmát MI
+    // szabályozzuk — pedig nem.
+    Domain::create(['name' => 'nemkesz.hu', 'status' => 'pending']);
+
+    $this->get('http://mta-sts.nemkesz.hu/.well-known/mta-sts.txt')->assertNotFound();
+    $this->get('http://mta-sts.idegen.hu/.well-known/mta-sts.txt')->assertNotFound();
+    $this->get('http://pelda.hu/.well-known/mta-sts.txt')->assertNotFound();
+});
+
+it('a DNS-kimaradás nem rontja el a domain hitelesítését', function () {
+    // Ha a `verify` DNS-hibára `failed`-et írna, egy resolver-kimaradás MINDEN domaint
+    // hitelesítetlenné tenne, és a PreSendGate 1. kapuja a teljes platform küldését
+    // megállítaná.
+    $domain = Domain::create(['name' => 'pelda.hu', 'status' => 'verified', 'verified_at' => now(), 'spf_status' => 'verified']);
+
+    $this->app->instance(DnsResolver::class, new class implements DnsResolver
+    {
+        public function records(string $name, string $type): array
+        {
+            throw new DnsUnavailable('SERVFAIL');
+        }
+    });
+
+    app(VerifyDomainDns::class)->handle($domain);
+
+    expect($domain->fresh()->status)->toBe('verified');
+});
+
+it('a DNS-kimaradás nem szünteti meg a bejövő fogadást', function () {
+    // A „nem tudtuk megkérdezni" NEM „levették az MX-et": `failed`-del a levelek nem sorban
+    // állnának, hanem visszapattannának.
+    $domain = Domain::create([
+        'name' => 'pelda.hu', 'status' => 'verified', 'verified_at' => now(),
+        'inbound_mx_status' => 'verified',
+    ]);
+
+    $this->app->instance(DnsResolver::class, new class implements DnsResolver
+    {
+        public function records(string $name, string $type): array
+        {
+            throw new DnsUnavailable('SERVFAIL');
+        }
+    });
+
+    expect(app(VerifyInboundMx::class)($domain))->toBe('verified');
+});
+
+it('a lejárt kézbesíthetőségi adatok törlődnek', function () {
+    // Golden rule 10. A `blocklist_checks` óránként `IP × zóna` sorral nő: takarítás nélkül
+    // száz IP-vel évi másfél millió sor.
+    sendingIp();
+
+    BlocklistCheck::query()->create([
+        'target' => '203.0.113.20', 'zone' => 'zen.spamhaus.org', 'listed' => false,
+        'checked_at' => now()->subDays(400),
+    ]);
+
+    SeedTest::query()->create(['expires_at' => now()->subDay()]);
+
+    $this->artisan('deliverability:purge')->assertSuccessful();
+
+    expect(BlocklistCheck::query()->count())->toBe(0);
+
+    app(WorkspaceContext::class)->set($this->workspace);
+
+    expect(SeedTest::query()->count())->toBe(0);
+});
+
+/*
+ | A SECURITY-REVIEW TALÁLATAINAK MÉRŐ TESZTJEI.
+ */
+
+it('a leiratkozó fejléc felismerése NEM csúszik el, ha az URL-előtag megváltozik', function () {
+    // Az előző változat a futásidőben ÚJRASZÁMOLT URL-előtag részsztring-egyezését nézte. Az
+    // előtag viszont nem állandó: a `tracking_status`, a `tracking_domain`, az `APP_URL` és a
+    // `SENDING_TRACKING_BASE_URL` bármelyike változhat a fejléc megszületése és a KIKÜLDÉS
+    // között — ütemezett vagy újrapróbált küldésnél ez rutin. Elcsúszáskor a tárolt, ELSŐ
+    // címzettre szóló fejléc ment ki MINDENKINEK: Béla leiratkozása Annát tette volna
+    // suppression-listára, Béla pedig továbbra is kapta volna a marketinget.
+    $domain = Domain::create([
+        'name' => 'pelda.hu', 'status' => 'verified', 'verified_at' => now(),
+        'tracking_domain' => 'email.pelda.hu', 'tracking_status' => 'verified',
+    ]);
+
+    $message = Message::create([
+        'domain_id' => $domain->getKey(),
+        'channel' => 'marketing',
+        'from_email' => 'no-reply@pelda.hu',
+        'recipients' => ['anna@example.test', 'bela@example.test'],
+        'subject' => 'Hírlevél',
+        'headers' => [],
+    ]);
+
+    // A NYOMKÖVETÉSI DOMAIN visszavonása a fejléc megszületése UTÁN.
+    $domain->forceFill(['tracking_status' => 'pending'])->save();
+
+    $message = $message->fresh();
+    $tokens = app(UnsubscribeTokens::class);
+
+    foreach (['anna@example.test', 'bela@example.test'] as $recipient) {
+        $header = (string) $message->headersFor($recipient)['List-Unsubscribe'];
+        $token = (string) preg_replace('#^.*/u/|>$#', '', $header);
+
+        expect($tokens->parse($token)['recipient'])->toBe($recipient);
+    }
+});
+
+it('a leiratkozás rate-limitje NEM az X-Forwarded-For fejlécből kulcsol', function () {
+    // A `TRUSTED_PROXIES` alapértéke `*`, tehát a `request->ip()` a KÉRŐ által beírt
+    // fejlécből jön: rotáló XFF-fel a fék egy fejléccel kikapcsolható volt — egy
+    // visszavonhatatlan suppression-listára író végponton.
+    $token = unsubscribeTokenFor('anna@example.test');
+
+    $statuses = [];
+
+    for ($i = 0; $i < 14; $i++) {
+        $statuses[] = $this->post('/u/'.$token, [], ['X-Forwarded-For' => '9.9.9.'.$i])->getStatusCode();
+    }
+
+    // A CÍMZETTRE szóló bucket zár, akármit ír a kérő az XFF-be.
+    expect($statuses)->toContain(429);
+});
+
+it('a DNS-ből jövő MX-érték NEM injektálhat policy-sort', function () {
+    // A `mode: none` sor pont azt a TLS-kényszerítést kapcsolná ki, amiért a végpont
+    // létezik. A DNS-t itt a domain gazdája írja, de egy cache-poisoning harmadik félnek
+    // adná ezt a lefokozást.
+    $domain = Domain::create(['name' => 'pelda.hu', 'status' => 'verified', 'verified_at' => now()]);
+
+    $this->dns->publish('pelda.hu', 'MX', "10 mx1.ventmail.app\r\nmode: none\r\nmx: attacker.example");
+    $this->dns->publish('pelda.hu', 'MX', '20 mx2.ventmail.app.');
+
+    $policy = (string) app(MtaStsPolicy::class)->policyFor($domain);
+
+    expect($policy)->not->toContain('mode: none');
+    expect($policy)->not->toContain('attacker.example');
+    // A tiszta rekord átmegy: nem az egész lekérdezést dobjuk el, csak a rossz értéket.
+    expect($policy)->toContain('mx: mx2.ventmail.app');
+});
+
+it('az MTA-STS az X-Forwarded-Host fejlécet NEM fogadja el', function () {
+    // A `getHost()` a trusted-proxy beállítás miatt előnyben részesíti az
+    // `X-Forwarded-Host`-ot, amit bárki beírhat. Itt a hosztnév a végpont EGYETLEN
+    // azonosítója: abból derül ki, KINEK a policy-ját adjuk ki.
+    Domain::create(['name' => 'pelda.hu', 'status' => 'verified', 'verified_at' => now()]);
+
+    $this->dns->publish('pelda.hu', 'MX', '10 mx1.ventmail.app.');
+
+    $this->get('http://localhost/.well-known/mta-sts.txt', ['X-Forwarded-Host' => 'mta-sts.pelda.hu'])
+        ->assertNotFound();
+});
+
+it('a NYERS (nem tömörített) DMARC-jelentésre is van mérethatár', function () {
+    // A tömörített ágon a bomba ellen védtünk; a nem tömörített bemenetet csak a libxml
+    // belső limitje állította meg — a memóriacsúcsot egy queue-worker fizette volna meg.
+    config(['deliverability.dmarc.max_report_bytes' => 1024]);
+
+    expect(fn () => app(DmarcReportParser::class)->parse(str_repeat('A', 5000)))
+        ->toThrow(RuntimeException::class);
+});
+
+it('egy HAMIS jelentés nem írja felül a valódit', function () {
+    // Az `(org_name, report_id)` páros a FELADÓ SZAVA. Enélkül egy 1 üzenetes hamisítvány
+    // letörölte a valódi, 5900 üzenetes jelentés sorait — bizonyíték-hamisítás egy idegen
+    // tenant adatterében.
+    $domain = Domain::create(['name' => 'pelda.hu', 'status' => 'verified', 'verified_at' => now()]);
+
+    app(DmarcReportIngestor::class)->ingest(dmarcXml([
+        ['ip' => '203.0.113.20', 'count' => 5900, 'dkim' => 'pass', 'spf' => 'pass'],
+        ['ip' => '203.0.113.21', 'count' => 100, 'dkim' => 'pass', 'spf' => 'pass'],
+    ]));
+
+    // Ugyanaz az `org_name` és `report_id`, MÁS törzs.
+    app(DmarcReportIngestor::class)->ingest(dmarcXml([['ip' => '1.2.3.4', 'count' => 1]]));
+
+    app(WorkspaceContext::class)->set($this->workspace);
+
+    $sources = collect(app(DmarcReportIngestor::class)->sources($domain))->keyBy('source_ip');
+
+    // A valódi sorok MEGVANNAK.
+    expect($sources->has('203.0.113.20'))->toBeTrue();
+    expect($sources['203.0.113.20']['count'])->toBe(5900);
+    // …és a hamisítvány külön sor, nem felülírás.
+    expect($sources->has('1.2.3.4'))->toBeTrue();
+});
+
+it('a leiratkozás rögzíti, MELYIK levélből érkezett', function () {
+    // A leiratkozás a consent VISSZAVONÁSA, és ugyanolyan bizonyítékot érdemel, mint a
+    // megadása: egy későbbi panasznál meg kell tudnunk mutatni, melyik levélből jött.
+    $token = unsubscribeTokenFor('anna@example.test');
+
+    $claim = app(UnsubscribeTokens::class)->parse($token);
+
+    $this->post('/u/'.$token)->assertOk();
+
+    app(WorkspaceContext::class)->set($this->workspace);
+
+    expect(Suppression::query()->firstOrFail()->detail)->toBe('message:'.$claim['messageUuid']);
+});
+
+it('a `Reply-To` fejléc is kijut a MIME-ba', function () {
+    // Ugyanaz a hibaosztály, mint a `List-Unsubscribe`-nál: a kapu engedte, a builder nem
+    // ismerte, tehát az A4 továbbításához engedélyezett fejléc nyomtalanul eltűnt. A két
+    // lista mostantól EGY forrásból származik.
+    $domain = Domain::create(['name' => 'pelda.hu', 'status' => 'verified', 'verified_at' => now()]);
+
+    $message = Message::create([
+        'domain_id' => $domain->getKey(),
+        'channel' => 'transactional',
+        'from_email' => 'no-reply@pelda.hu',
+        'recipients' => ['anna@example.test'],
+        'subject' => 'Válasz',
+        'headers' => ['Reply-To' => 'ugyfelszolgalat@pelda.hu'],
+    ]);
+
+    $mime = app(OutboundMimeBuilder::class)
+        ->build($message->withRenderedBodies(['anna@example.test' => ['html' => null, 'text' => 'Szia']]), 'anna@example.test')
+        ->toString();
+
+    expect($mime)->toContain('ugyfelszolgalat@pelda.hu');
+});
+
+it('a NYOMKÖVETÉSI tokennel a leiratkozó végpont NEM iratkoztat le', function () {
+    // Ez a legsúlyosabb találat volt: az `APP_KEY` közös, és a `TrackingTokens` ugyanazt a
+    // `w`/`m`/`r` hármast adja ki ugyanabban a `Crypt`-borítékban. Cél-elválasztás nélkül a
+    // levél MINDEN linkje visszavonhatatlan one-click leiratkozás volt — és a nyomkövetési
+    // tokent a védelmi átjárók végiglátogatják ÉS naplózzák, a Gmail képproxyja lekéri,
+    // továbbított levélben is utazik. A parse-szintű zárat a vektorfájl méri; ez a VÉGPONTON.
+    $tracking = app(TrackingTokens::class)->issue(
+        (int) $this->workspace->getKey(),
+        'msg-uuid',
+        'anna@example.test',
+        'email.pelda.hu',
+        'https://cel.example/x',
+    );
+
+    // A válasz UGYANAZ, mint a jó tokenre: a különbség orákulum lenne.
+    $this->post('/u/'.$tracking)->assertOk();
+
+    app(WorkspaceContext::class)->set($this->workspace);
+
+    expect(Suppression::query()->count())->toBe(0);
+});
+
+/*
+ | A MÁSODIK SECURITY-KÖR TALÁLATAI.
+ |
+ | A `headersFor()` felismerése itt HARMADSZOR javul ugyanabban a packetben. Az első változat
+ | az első címzett tokenjét küldte mindenkinek; a második az URL-előtag elcsúszásán nyílt
+ | vissza; a harmadikat egy ÜGYFÉL-FEJLÉC nyitotta ki, config-változás nélkül.
+ */
+
+it('a MÁS BETŰZÉSŰ ügyfél-fejléc nem törli el a címzettenkénti tokent', function () {
+    // A `headers` jsonb: a kulcssorrend nem a beírásé, hanem a Postgres normalizálásáé
+    // (hossz, majd bájtsorrend). Az ügyfél `h:LIST-UNSUBSCRIBE=` ÜRES értékkel a felismerést
+    // a saját, üres kulcsára futtatta, a mi kulcsunk pedig a `break` miatt nem került sorra
+    // — MINDEN levél az ELSŐ címzett tokenjét vitte, mind a tíz kapu zöldje mellett.
+    $domain = Domain::create(['name' => 'pelda.hu', 'status' => 'verified', 'verified_at' => now()]);
+
+    $message = Message::create([
+        'domain_id' => $domain->getKey(),
+        'channel' => 'marketing',
+        'from_email' => 'no-reply@pelda.hu',
+        'recipients' => ['anna@example.test', 'bela@example.test'],
+        'subject' => 'Hírlevél',
+        'headers' => ['LIST-UNSUBSCRIBE' => ''],
+    ]);
+
+    // EGY kulcs marad, kanonikus betűzéssel: két `List-Unsubscribe` a kimenő MIME-ban
+    // önmagában is one-click megfelelési hiba (a fogadó nem tudja, melyiket hívja).
+    $keys = array_values(array_filter(
+        array_keys((array) $message->fresh()->headers),
+        fn (string $key) => strtolower($key) === 'list-unsubscribe',
+    ));
+
+    expect($keys)->toBe(['List-Unsubscribe']);
+
+    $tokens = app(UnsubscribeTokens::class);
+
+    foreach (['anna@example.test', 'bela@example.test'] as $recipient) {
+        $header = (string) $message->fresh()->headersFor($recipient)['List-Unsubscribe'];
+        $token = (string) preg_replace('#^.*/u/|>$#', '', $header);
+
+        expect($tokens->parse($token)['recipient'])->toBe($recipient);
+    }
+});
+
+it('IDEGEN workspace leiratkozó tokenje BÁRMELY fejlécben elutasítás', function () {
+    // A `List-Unsubscribe` úton ez már nem is érhető el (a bemenet elutasítja, a
+    // `headersFor()` felülírja) — de az idegen token egy `X-*` fejlécben KIJUTOTT a levélbe
+    // (mérve). One-click nincs rajta, tehát emberi kattintás kell hozzá; a szűrés viszont
+    // nem lehet szűkebb, mint a felület, amin a token kijuthat.
+    //
+    // És DEKÓDOLVA is szűrünk: a router a dekódolt útvonalon illeszt, tehát a
+    // `/u/AAAA%42BBB` és a `/%75/AAAABBBB` is élő, hívható URL — a nyers szövegen futó minta
+    // mindkettőt átengedte.
+    $foreign = Workspace::factory()->create();
+
+    $stolen = app(UnsubscribeTokens::class)
+        ->issue((int) $foreign->getKey(), (string) Str::uuid(), 'aldozat@masik.test');
+
+    app(WorkspaceContext::class)->set($this->workspace);
+
+    Domain::create(['name' => 'pelda.hu', 'status' => 'verified', 'verified_at' => now()]);
+
+    $variants = [
+        'nyers' => 'https://pelda.hu/u/'.$stolen,
+        'kodolt token' => 'https://pelda.hu/u/'.substr($stolen, 0, 4).'%'.dechex(ord($stolen[4])).substr($stolen, 5),
+        'kodolt szegmens' => 'https://pelda.hu/%75/'.$stolen,
+    ];
+
+    foreach ($variants as $label => $url) {
+        $message = Message::create([
+            'channel' => 'transactional',
+            'from_email' => 'no-reply@pelda.hu',
+            'recipients' => ['anna@example.test'],
+            'subject' => 'Szia',
+            'headers' => ['X-Sajat-Link' => '<'.$url.'>'],
+        ]);
+
+        expect((new HeaderSafetyGate)->check($message->fresh())->passed)->toBeFalse($label);
+    }
+});
+
+it('a SAJÁT tokenünket viszont átengedi a kapu', function () {
+    // A fenti zár nem lehet olyan szigorú, hogy a saját, helyes fejlécünket is elutasítsa.
+    Domain::create(['name' => 'pelda.hu', 'status' => 'verified', 'verified_at' => now()]);
+
+    $message = Message::create([
+        'channel' => 'marketing',
+        'from_email' => 'no-reply@pelda.hu',
+        'recipients' => ['anna@example.test'],
+        'subject' => 'Hírlevél',
+        'headers' => [],
+    ]);
+
+    expect((new HeaderSafetyGate)->check($message->fresh())->passed)->toBeTrue();
+});
+
+it('az MX-név záró LF-fel sem kerül be a policy-ba', function () {
+    // A PCRE `$` a záró ÚJSOR ELŐTT is illeszt: a `"mx1.pelda.hu\n"` érték átment volna, és
+    // egy nyers LF olyan fájlba került volna, aminek az RFC 8461 §3.2 CRLF-et ír elő.
+    // Szigorú fogadónál az egész policy értelmezhetetlen, `enforce` módban ez a teljes
+    // bejövő forgalom.
+    $domain = Domain::create(['name' => 'pelda.hu', 'status' => 'verified', 'verified_at' => now()]);
+
+    $this->dns->publish('pelda.hu', 'MX', "10 mx1.pelda.hu\n");
+    $this->dns->publish('pelda.hu', 'MX', '20 *.pelda.hu');
+    $this->dns->publish('pelda.hu', 'MX', '30 1.2.3.4');
+    $this->dns->publish('pelda.hu', 'MX', '40 mx4.ventmail.app.');
+
+    $policy = (string) app(MtaStsPolicy::class)->policyFor($domain);
+
+    // A wildcard és az IP-literál sem MX-név: egy `*.` minta poisonolt válaszból az egész
+    // `attacker.example` alá illeszkedő `mx:` sort adna.
+    expect($policy)->not->toContain('*.pelda.hu');
+    expect($policy)->not->toContain('1.2.3.4');
+    expect($policy)->not->toContain("\n\r\n");
+    expect($policy)->toContain('mx: mx4.ventmail.app');
+    // Kizárólag CRLF sorvégek.
+    expect(preg_match('/(?<!\r)\n/', $policy))->toBe(0);
+});
+
+it('a MEGJELENÍTÉSI NEVES `Reply-To` is kijut a MIME-ba', function () {
+    // A `filter_var` csak a csupasz címet érti, pedig a Mailgun-paritás legelterjedtebb
+    // alakja a nevesített. Az előző javítás így ugyanazt a csendes fejléc-elvesztést hozta
+    // vissza eggyel lejjebb, amit ez a packet kétszer javított.
+    $domain = Domain::create(['name' => 'pelda.hu', 'status' => 'verified', 'verified_at' => now()]);
+
+    $message = Message::create([
+        'domain_id' => $domain->getKey(),
+        'channel' => 'transactional',
+        'from_email' => 'no-reply@pelda.hu',
+        'recipients' => ['anna@example.test'],
+        'subject' => 'Válasz',
+        'headers' => ['Reply-To' => 'Ügyfélszolgálat <ugyfel@pelda.hu>'],
+    ]);
+
+    $mime = app(OutboundMimeBuilder::class)
+        ->build($message->withRenderedBodies(['anna@example.test' => ['html' => null, 'text' => 'Szia']]), 'anna@example.test')
+        ->toString();
+
+    expect($mime)->toContain('ugyfel@pelda.hu');
+});
+
+it('az ÉRTELMEZHETETLEN `Reply-To`-ról a kapu SZÓL, nem hallgat', function () {
+    // A MIME-építés a rossz címet kénytelen kihagyni. Ha a kapu nem szólna, az ügyfél soha
+    // nem tudná meg, hogy a válasz-címe nem ment ki.
+    $message = new Message([
+        'channel' => 'transactional',
+        'headers' => ['Reply-To' => 'ez nem cim'],
+    ]);
+
+    $result = (new HeaderSafetyGate)->check($message);
+
+    expect($result->passed)->toBeFalse();
+    expect($result->detail)->toContain('Reply-To');
+});
+
+it('az ÖSSZEFÜGGÉSTELEN igény nem iratkoztat le — akkor sem, ha a token érvényes', function () {
+    // Mélységi védelem az ELKAPOTT token ellen (a levél proxykon, továbbításon megy át). A
+    // token titkosított, tehát nem hamisítható — de bemutatóra szól. Ha csak a belsejét
+    // néznénk, beváltható lenne olyan üzenetre is, ami nem ehhez a workspace-hez tartozik,
+    // vagy olyan címre, ami soha nem volt a címzettje.
+    //
+    // Ez nem regexre épül, szemben a fejlécszintű felismeréssel — ami ebben a packetben
+    // négyszer nyílt ki.
+    $tokens = app(UnsubscribeTokens::class);
+
+    Domain::create(['name' => 'pelda.hu', 'status' => 'verified', 'verified_at' => now()]);
+
+    $message = Message::create([
+        'channel' => 'marketing',
+        'from_email' => 'no-reply@pelda.hu',
+        'recipients' => ['anna@example.test'],
+        'subject' => 'Hírlevél',
+        'headers' => [],
+    ]);
+
+    $esetek = [
+        // Nem létező üzenet — a token minden mása helyes.
+        'ismeretlen üzenet' => $tokens->issue((int) $this->workspace->getKey(), (string) Str::uuid(), 'anna@example.test'),
+        // Létező üzenet, de a cím NEM volt a címzettje.
+        'idegen címzett' => $tokens->issue((int) $this->workspace->getKey(), (string) $message->uuid, 'nemcimzett@example.test'),
+        // Nem UUID alakú hivatkozás: ez korábban 500-at adott (`invalid input syntax for
+        // type uuid`), ami egyszerre orákulum ÉS a levélkliensnek újrapróbálható hiba.
+        'nem UUID' => $tokens->issue((int) $this->workspace->getKey(), 'nem-uuid', 'anna@example.test'),
+    ];
+
+    foreach ($esetek as $label => $token) {
+        // A VÁLASZ ugyanaz, mint a jóra: a különbség orákulum lenne.
+        $this->post('/u/'.$token)->assertOk();
+
+        app(WorkspaceContext::class)->set($this->workspace);
+
+        expect(Suppression::query()->count())->toBe(0, $label);
+    }
+});
+
+it('a `Reply-To` CÍMLISTÁT is elfogad — kapun és MIME-ban egyformán', function () {
+    // Az `Address::create()` egyetlen címet ért, tehát az `a@pelda.hu, b@pelda.hu` és a
+    // nevesített lista is elutasításra futott — a Mailgun átengedi, vagyis LEGITIM forgalmat
+    // 422-eztünk. Az RFC 5322 szerint a `Reply-To` `address-list`.
+    //
+    // A kapu és a MIME-építés döntése MINDIG egyezik: a szétcsúszás azt jelentené, hogy a
+    // kapu átengedi, a levélből meg kiesik (ez a packet ezt a hibaosztályt háromszor javította).
+    $domain = Domain::create(['name' => 'pelda.hu', 'status' => 'verified', 'verified_at' => now()]);
+
+    foreach ([
+        'ugyfel@pelda.hu',
+        'Ügyfélszolgálat <ugyfel@pelda.hu>',
+        'a@pelda.hu, b@pelda.hu',
+        'A <a@pelda.hu>, B <b@pelda.hu>',
+    ] as $value) {
+        $message = Message::create([
+            'domain_id' => $domain->getKey(),
+            'channel' => 'transactional',
+            'from_email' => 'no-reply@pelda.hu',
+            'recipients' => ['anna@example.test'],
+            'subject' => 'Válasz',
+            'headers' => ['Reply-To' => $value],
+        ]);
+
+        expect((new HeaderSafetyGate)->check($message->fresh())->passed)->toBeTrue($value);
+
+        $mime = app(OutboundMimeBuilder::class)
+            ->build($message->withRenderedBodies(['anna@example.test' => ['html' => null, 'text' => 'Szia']]), 'anna@example.test')
+            ->toString();
+
+        // A megjelenítési nevet a MIME kódolja (`=?utf-8?Q?…`), ezért a CÍMET keressük.
+        expect($mime)->toContain('Reply-To:');
+        expect($mime)->toContain('@pelda.hu>');
+    }
+
+    // …az értelmezhetetlen viszont továbbra is elutasítás, hogy az ügyfél MEGTUDJA.
+    expect((new HeaderSafetyGate)->check(new Message([
+        'channel' => 'transactional',
+        'headers' => ['Reply-To' => 'ez nem cim'],
+    ]))->passed)->toBeFalse();
+});

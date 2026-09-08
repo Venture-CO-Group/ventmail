@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Validation\Services;
 
 use App\Modules\Domains\Contracts\DnsResolver;
+use App\Modules\Domains\Contracts\DnsUnavailable;
 use App\Modules\Sending\Services\DomainNormalizer;
 use App\Modules\Validation\Contracts\MailboxProbe;
 use App\Modules\Validation\Data\ProbeResult;
@@ -32,7 +33,15 @@ final class SmtpMailboxProbe implements MailboxProbe
     public function probe(string $email): ProbeResult
     {
         $domain = DomainNormalizer::ofEmail($email);
-        $hosts = $this->mailExchangers($domain);
+
+        try {
+            $hosts = $this->mailExchangers($domain);
+        } catch (DnsUnavailable) {
+            // A DNS kiesése NEM „nincs ilyen postafiók". A `unknown` a helyes válasz: a
+            // kockázat-pontszám 0.0 marad, és a hatodik kapu nem utasít el senkit egy
+            // resolver-kimaradás miatt.
+            return ProbeResult::unknown('a DNS most nem kérdezhető le');
+        }
 
         if ($hosts === []) {
             return ProbeResult::unknown('nincs elérhető MX');

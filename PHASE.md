@@ -6,7 +6,7 @@
 ## Cél
 **Mailgun + Mailchimp egyidejű kiváltása.** Két pillér (Platform / Studio) egy közös motoron.
 
-## Aktuális milestone: **M1 — A sáv (PLATFORM)** · aktív packet: **A4** *(az M0 lezárva: 2026-09-02)*
+## Aktuális milestone: **M1 — A sáv (PLATFORM)** · aktív packet: **A6** *(az M0 lezárva: 2026-09-02)*
 
 > **Fázis-névhasználat.** A roadmap sávokban gondolkodik, a napi munka fázisokban. A kettő
 > leképezése: **M1 = A sáv** (Platform, a Mailgun kiváltása) · **M2 = B sáv** (Studio, a
@@ -139,9 +139,9 @@ válaszol — a bejövő levél pedig route-motoron át kezelhető.
 - [x] **A1 · Messages API** — PR #13 (3 review-kör: reviewer + security, minden blokkoló javítva)
 - [x] **A2 · SMTP relay + IP-poolok + sorok** — PR #14 (ADR 0001; 3 review-kör: reviewer + security ×2, minden blokkoló javítva)
 - [x] **A3 · Napló + üzenet-trace + Events API + webhookok** — PR #16 MERGE-ELVE (3 review-kör: reviewer + security ×2, 6 blokkoló javítva)
-- [ ] **A4 · Inbound routing (MX)** — architect → test → backend → **security (kötelező)** → frontend *(FOLYAMATBAN)*
-- [ ] **A5 · Címellenőrzés** — test → backend → frontend
-- [ ] **A6 · Kézbesíthetőségi suite** — test → backend → frontend → mockup
+- [x] **A4 · Inbound routing (MX)** — PR #17 MERGE-ELVE (reviewer + security, minden blokkoló javítva)
+- [x] **A5 · Címellenőrzés** — PR #18 MERGE-ELVE (reviewer + security, minden blokkoló javítva)
+- [ ] **A6 · Kézbesíthetőségi suite** — PR #19 (reviewer: 6 blokkoló javítva; **security fut**) *(FOLYAMATBAN)*
 
 ### A1 · Messages API — elfogadási kritériumok
 1. `POST /v1/messages` strukturált küldés; **Idempotency-Key kötelező** (hiánya 400), ismételt kulcs
@@ -349,6 +349,51 @@ M0 után az **A és B sáv külön worktree-ben, külön runnerrel** futtatható
 - `smtp_transactions` + üzenet-trace, naplóretenciós törlő job → A3
 - MTA-STS / TLS-RPT / BIMI mezők KITÖLTÉSE (M0-2 csak a sémát hozza) → A6
 - `docs/ventmail-latvanytervek.html` bővítése a hiányzó M0-képernyőkkel (ma 10 képernyő, domain-wizard nincs)
+
+## A6 backlog (nevesített gazdával, NEM ebbe a packetbe)
+- **A seed-lista külső gazdája** (postafiók-kezelés + olvasás szolgáltatás) még nem él: a fake áll a
+  helyén, teszttel fedett kontraktusként, és **élesben kivételt dob** — kitalált 0% inbox-arány
+  rosszabb, mint a hiányzó funkció. → külső integráció, dátum nélkül.
+- **A DMARC-jelentések automatikus betöltése** az A4 inbound route-ján keresztül. A parse ÉS a
+  perzisztálás megvan (`DmarcReportIngestor`), a betöltés ma a `deliverability:ingest-dmarc`
+  paranccsal megy. → C2/devops.
+- **A DMARC-jelentés TENANT-HOZZÁRENDELÉSE a szállító levélből.** Ma a `policy_published >
+  domain` mező dönti el, kié a jelentés — az viszont a FELADÓ SZAVA, és az egyetlen ellenőrzés,
+  hogy a domain nálunk verifikált. A hamis jelentés így nem tud törölni (a `body_hash` a kulcs
+  része), de a forrásonkénti listát tudja szennyezni. A helyes hozzárendelés a FOGADÓ
+  postafiókból/route-ból jön, a szállító levél DKIM-igazodásával a rekordban. → **C2: ez a
+  bekötés ELŐFELTÉTELE** az inbound-alapú automatikus betöltésnek.
+- **`TRUSTED_PROXIES=*` felülvizsgálata.** MÉRVE: `REMOTE_ADDR=172.18.0.9` +
+  `X-Forwarded-For: 9.9.9.9` mellett a `request->ip()` `9.9.9.9`, és a `getHost()` is az
+  `X-Forwarded-Host`-ot veszi — a beállítás tehát NEM no-op (a `bootstrap/app.php` korábbi
+  kommentje az ellenkezőjét állította, javítva). Az A6 publikus végpontjain ezt lezártuk (a
+  fékek a `REMOTE_ADDR`-ra és az igény lenyomatára kulcsolnak), de a `throttle:oidc`, az `api`
+  és az `api-auth-fail:ip:` vödör MÉG a `request->ip()`-re kulcsol: az API-kulcs
+  brute-force plafonja ma egy fejléccel átléphető. A helyes javítás nem limiterenkénti
+  kerülőút, hanem a `TRUSTED_PROXIES` leszűkítése a valódi proxy-hálóra.
+  → **devops + Identity, élesben KÖTELEZŐ.**
+- **A `TrackingTokens` és a `UnsubscribeTokens` kulcs-azonosító (`kid`) nélkül.** A `v`
+  verziómező megvan, tehát a formátumváltás detektálható, de az `APP_KEY` rotációja EGYSZERRE
+  némítaná el minden kimenő levélben a leiratkozó és a nyomkövetési linket. Átfedéses
+  kulcsellenőrzés kell hozzá. → C2, éles indulás ELŐTT.
+- **A DEV CADDY health-listenere nem szolgál ki PHP-t.** A `caddy` service-nek nincs kötése az alkalmazáshoz
+  (`docker compose exec caddy ls /var/www/public` → nincs ilyen könyvtár), tehát a belső
+  `:2020` health-listeneren a `php_fastcgi` implicit `try_files`-a semmire nem illeszt: `/up`,
+  `/u/{token}` és egy nem létező útvonal is egyaránt **200-at ad üres törzzsel**. A konténer
+  healthcheckje ezért MINDIG zöld anélkül, hogy Laravelt látna — pedig a Caddyfile kommentje
+  azt állítja, hogy „a TELJES láncot méri". (A publikált `:80` viszont rendben van: 401-et ad,
+  a Basic Auth ott VÉD.) Emiatt a `REMOTE_ADDR` éles értéke nem mérhető ebben a
+  környezetben, tehát a publikus végpontok rate-limit-plafonjai méréssel nem
+  hitelesítettek. → **devops, magas prioritás.**
+- **`APP_KEY`-rotáció útja a leiratkozó tokenhez.** A tokennek nincs lejárata (szándékosan: régi
+  levélből is legitim leiratkozni), viszont nincs kulcs-azonosító (`kid`) sem, tehát a rotáció
+  EGYSZERRE némítaná el minden kimenő levélben a leiratkozó linket. → C2, átfedéses
+  kulcsellenőrzéssel.
+- **A blocklist-riasztás ügyeleti csatornája.** A `BlocklistStateChanged` esemény a csatlakozási
+  pont; e-mailben nem küldhető (épp a küldő IP-nk van listán). → C2 (super-admin) / devops.
+- **BIMI** — a `bimi_status` mező megvan, a kitöltés nem: VMC-tanúsítványt igényel, ami pénzbe és
+  emberi ügyintézésbe kerül. → külön döntés.
+- **TLS-RPT jelentések FOGADÁSA** (a rekord kiadása megvan). → C2/devops, a DMARC-ingest mintájára.
 
 ## Halasztva
 SMS/push · AI tárgysor (Clave AI) · AMP for Email · mobil SDK.

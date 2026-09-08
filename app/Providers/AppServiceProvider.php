@@ -6,6 +6,7 @@ namespace App\Providers;
 
 use App\Modules\Audit\Services\KeyedHash;
 use App\Modules\Events\Services\TrackingTokens;
+use App\Modules\Suppression\Services\UnsubscribeTokens;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
@@ -116,10 +117,102 @@ class AppServiceProvider extends ServiceProvider
             $claim = $tokens->parse((string) $request->route('token'));
 
             return Limit::perMinute(60)->by(
-                $claim === null ? 'ip:'.$request->ip() : 'claim:'.$tokens->fingerprint($claim),
+                $claim === null ? 'peer:'.self::peer($request) : 'claim:'.$tokens->fingerprint($claim),
             );
         });
 
+        /*
+         | LEIRATKOZÁS: publikus, HITELESÍTÉS NÉLKÜLI, ÍRÓ végpont. Két bucket, két különböző
+         | dolgot védve — és egyik sem a `request->ip()`.
+         |
+         | Miért nem az: a `TRUSTED_PROXIES` alapértéke `*`, tehát a `request->ip()` a KÉRŐ
+         | által beírt `X-Forwarded-For`-ból jön. Mérve: 150 kérés fix XFF-fel 30 db 429-et
+         | kapott, ROTÁLÓ XFF-fel egyet sem. Vagyis az egyetlen fék ezen a végponton egy
+         | fejléccel kikapcsolható volt — egy visszavonhatatlan suppression-listára író
+         | végponton, ami egy tenant teljes közönségét le tudta volna iratkoztatni.
+         |
+         |  - `claim:` — a KONKRÉT címzettre szóló kísérletek keretét zárja. Ez az áldozat
+         |    védelme, és rotáló XFF-fel sem nyílik ki, mert a kulcs a tokenből származik.
+         |  - `peer:` — a valódi TCP-partner (`REMOTE_ADDR`), amit a kérő nem tud átírni. Ez a
+         |    platform védelme az értelmezhetetlen tokenek özöne ellen.
+         |
+         | A keret bőséges: egy kampány után sokan iratkoznak le egyszerre, és a Gmail
+         | ÚJRAPRÓBÁLJA a one-click POST-ot. A `claim:` bucket ennél szűkebb — ugyanarra a
+         | címzettre percenként tíz kísérlet már nem legitim minta.
+         */
+        RateLimiter::for('unsubscribe', function (Request $request) {
+            $fingerprint = app(UnsubscribeTokens::class)->fingerprint((string) $request->route('token'));
+
+            /*
+             | ÉRVÉNYES tokenre NINCS platform-szintű plafon — és ez nem lazaság.
+             |
+             | Volt: 120/perc, majd 3000/perc a `REMOTE_ADDR`-ra. Mindkettő rossz, és a
+             | második rosszabb módon. A `REMOTE_ADDR` a Caddy mögött MINDEN kérésre a proxy
+             | IP-je, tehát EGYETLEN vödör a teljes platform leiratkozási forgalmára. Mérve
+             | 120-cal: 200 legitim címzettből a 121. már 429-et kapott. Mérve 3000-rel: egy
+             | támadó percenként 3000 kéréssel kimeríti a vödröt, és onnantól MINDEN valódi
+             | Gmail one-click POST 429-et kap — vagyis a „védelem" globális kill switch lett.
+             |
+             | Egy 429 a one-click POST-ra Gmail-szemmel MEGFELELÉSI hiba (golden rule 8): a
+             | szűk plafon itt nem védelem, hanem önkár, a bőkezű pedig fegyver a támadó
+             | kezében. Ezért az érvényes token fékje KIZÁRÓLAG az igényre kulcsol — az
+             | pontosan azt korlátozza, amit korlátozni kell (ugyanarra a címzettre irányuló
+             | ismétlést), és rotáló `X-Forwarded-For`-ral sem nyílik ki, mert a kulcs a
+             | tokenből származik.
+             |
+             | A hatás így is korlátos: érvényes tokent csak az kaphat, akinek levelet
+             | küldtünk, és minden token 10/perc keretet visz. Az ÉRTELMEZHETETLEN token —
+             | amiből végtelen sok gyártható — a valódi partnerre esik vissza.
+             */
+            return [
+                $fingerprint === null
+                    // NEM egy közös literál: a `claim:invalid` vödör minden hibás tokent
+                    // egyetlen 10/perces keretbe tett — mérve: 14 kérés 14 KÜLÖNBÖZŐ IP-ről
+                    // 4 db 429-et adott, és utána egy MÁS felhasználó elrontott linkje is
+                    // 429 lett. A szemetet küldő a saját keretével fogyasztotta el másokét.
+                    ? Limit::perMinute(60)->by('invalid:'.self::peer($request))
+                    : Limit::perMinute(10)->by('claim:'.$fingerprint),
+            ];
+        });
+
+        /*
+         | MTA-STS: idegen MTA-k kérik le, hosztonként. Bőkezű keret — a policy statikus, és a
+         | fogadók cache-elik.
+         |
+         | A HOSZT önmagában nem elég kulcs: a 200 vs. 404 különbség orákulum arra, hogy egy
+         | domain verifikált ventMail-ügyfél-e, és hosztonkénti kulccsal a felsorolás
+         | gyakorlatilag fékezetlen (minden próba új bucketet nyit). Ezért mellé a valódi
+         | TCP-partner is kap egy plafont.
+         */
+        RateLimiter::for('mta-sts', fn (Request $request) => [
+            // A HOSZT a NYERS `Host` fejlécből, ugyanúgy, ahogy a `MtaStsController` olvassa.
+            // A `getHost()` az `X-Forwarded-Host`-ot részesíti előnyben, amit bárki beírhat —
+            // mérve: rotáló `X-Forwarded-Host`-tal a 300/perces vödör kinyílt. A controller
+            // javítása után egy ilyen kulcs dekoratív lett volna: védeni látszik, de nem véd.
+            Limit::perMinute(300)->by('host:'.strtolower((string) $request->headers->get('host'))),
+            // A partner-plafon a FELSOROLÁS ellen van (a 200 vs. 404 orákulum arra, hogy egy
+            // domain verifikált ügyfelünk-e), de nem lehet szűk: a policy-t IDEGEN MTA-k
+            // kérik le, és a lekérés meghiúsulása `enforce` módban TLS-lefokozás felé nyit.
+            Limit::perMinute(600)->by('peer:'.self::peer($request)),
+        ]);
+
         RateLimiter::for('oidc', fn (Request $request) => Limit::perMinute(20)->by((string) $request->ip()));
+    }
+
+    /**
+     * A VALÓDI TCP-partner — nem a `request->ip()`.
+     *
+     * A `request->ip()` a `TRUSTED_PROXIES` (alapértéke `*`) miatt a KÉRŐ által beírt
+     * `X-Forwarded-For` fejlécből jön. Ez a naplózáshoz és a földrajzi jelzéshez elfogadható
+     * (ott a proxy adja a helyes értéket), egy RATE-LIMIT KULCSÁHOZ viszont nem: aki a
+     * fejlécet írja, magának ad friss keretet.
+     *
+     * A `REMOTE_ADDR` a proxy címe. Egyetlen proxy mögött ez minden kérésre ugyanaz, tehát
+     * DURVA kulcs — épp ezért csak PLATFORM-szintű plafonként használjuk, a finom fék pedig
+     * mindig az igényre kulcsol (`claim:`).
+     */
+    private static function peer(Request $request): string
+    {
+        return (string) ($request->server('REMOTE_ADDR') ?? 'unknown');
     }
 }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Messages\Services;
 
+use App\Modules\Sending\Services\UnsubscribeHeaderPolicy;
 use InvalidArgumentException;
 
 /**
@@ -35,7 +36,7 @@ final class MimeParser
     ];
 
     /**
-     * @return array{from_email: string, from_name: ?string, recipients: list<string>, subject: ?string, headers: array<string, string>}
+     * @return array{from_email: string, from_name: ?string, recipients: list<string>, subject: ?string, headers: array<string, string>, unsubscribe_headers: list<string>}
      */
     public function parseHeaders(string $raw): array
     {
@@ -118,7 +119,22 @@ final class MimeParser
         // a gate és a driver állítja elő.
         $preserved = [];
 
+        // A LEIRATKOZÓ fejléceket KÜLÖN jelentjük — nem eldobva, nem átvéve.
+        //
+        // Eldobva a hívó azt hitte volna, hogy a fejléce kimegy (a nyers bájtokkal ki is
+        // ment, csak a modell és így MINDEN KAPU elől eltűnt: a `HeaderSafetyGate` idegen
+        // tokent kereső zára ezen az úton soha nem futott le). Átvéve viszont a strukturált
+        // út szabályát sértené, ahol ez a fejléc a MIENK. A hívónak MEG KELL TUDNIA, hogy
+        // ezen az úton nem adható meg — ezért a controller ebből 400-at ad.
+        $unsubscribe = [];
+
         foreach ($headers as $name => $value) {
+            if (UnsubscribeHeaderPolicy::isManaged($name)) {
+                $unsubscribe[] = $this->canonicalName($name);
+
+                continue;
+            }
+
             if (str_starts_with($name, 'x-')) {
                 $preserved[$this->canonicalName($name)] = $value;
             }
@@ -130,6 +146,7 @@ final class MimeParser
             'recipients' => array_values(array_unique($recipients)),
             'subject' => $headers['subject'] ?? null,
             'headers' => $preserved,
+            'unsubscribe_headers' => $unsubscribe,
         ];
     }
 

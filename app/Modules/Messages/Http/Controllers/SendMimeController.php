@@ -8,6 +8,7 @@ use App\Modules\Api\Support\ApiError;
 use App\Modules\Identity\Models\ApiKey;
 use App\Modules\Messages\Services\MimeParser;
 use App\Modules\Sending\Actions\SendMessage;
+use App\Modules\Sending\Enums\Channel;
 use App\Modules\Sending\Gate\GateReason;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -96,12 +97,54 @@ final class SendMimeController
             ? array_map('trim', explode(',', (string) $to))
             : $parsed['recipients'];
 
+        $channel = $request->input('o:channel', 'transactional');
+
+        /*
+         | A NYERS MIME ÚT ÉS A LEIRATKOZÓ FEJLÉC.
+         |
+         | A nyers MIME EGY bájtsor, amit MINDEN címzett ugyanúgy kap meg (`sendRaw` egyetlen
+         | blobot ad át `rcpt_to` listával). Ebből két dolog következik, és mindkettőt itt
+         | kell lezárni, mert a `MimeParser` csak az `X-*` fejléceket adja tovább — a
+         | `List-Unsubscribe` a modell és így a KAPUK elől is eltűnik:
+         |
+         |  1. Az ügyfél `List-Unsubscribe` fejléce ellenőrizetlenül, a MI DKIM-aláírásunkkal
+         |     ment volna ki. Egy idegen tenant elkapott tokenjével minden one-click egy
+         |     IDEGEN workspace visszavonhatatlan suppression-listájára írt (mérve) — és itt
+         |     még százalék-kódolás sem kellett hozzá, mert a kapu ezt a fejlécet nem is látta.
+         |  2. Consent-köteles csatornán CÍMZETTENKÉNTI token kell (RFC 8058). Egy közös
+         |     blobba csak egyetlen token férne, tehát Béla leiratkozása Annát vinné a listára.
+         |     Ezért a marketing/kampány/journey nyers MIME EGY címzettre engedett — ott a
+         |     „címzettenkénti" és a „közös" token ugyanaz.
+         |
+         | A második pont Mailgun-paritás-szűkítés, és tudatos: a tömeges marketing útja a
+         | strukturált végpont vagy a tárolt sablon, ahol a MIME-ot mi építjük címzettenként.
+         */
+        if ($parsed['unsubscribe_headers'] !== []) {
+            return ApiError::badRequest('UNSUPPORTED_MIME_HEADER', sprintf(
+                'A(z) %s fejléc(ek) a nyers MIME-ban nem engedettek: a leiratkozó fejlécet a '
+                .'ventMail kezeli (RFC 8058 one-click), és a nyers levélben nem tudjuk '
+                .'címzettenként átírni. A saját preference centeredre mutató linket a levél '
+                .'törzsébe tedd.',
+                implode(', ', $parsed['unsubscribe_headers'])
+            ));
+        }
+
+        if (Channel::tryFrom(is_scalar($channel) ? (string) $channel : '')?->requiresConsent() === true
+            && count($recipients) > 1) {
+            return ApiError::badRequest('MIME_BULK_MARKETING', sprintf(
+                'Consent-köteles csatornán (%s) a nyers MIME EGY címzettre küldhető: a '
+                .'one-click leiratkozó token a címzett SZEMÉLYÉT hordozza, egy közös '
+                .'bájtsorba viszont csak egy token férne — a második címzett leiratkozása az '
+                .'elsőt vinné a suppression-listára. Tömeges küldéshez a strukturált '
+                .'végpontot vagy a tárolt sablont használd.',
+                (string) $channel
+            ));
+        }
+
         $result = $send([
             // A tömb-bemenet `(string)` castja korábban 500-at adott az egységes
             // hibaformátum helyett; a nem skalár érték itt egyszerűen érvénytelen csatorna.
-            'channel' => is_scalar($channel = $request->input('o:channel', 'transactional'))
-                ? (string) $channel
-                : '',
+            'channel' => is_scalar($channel) ? (string) $channel : '',
             'from_email' => $parsed['from_email'],
             'from_name' => $parsed['from_name'],
             'subject' => $parsed['subject'],

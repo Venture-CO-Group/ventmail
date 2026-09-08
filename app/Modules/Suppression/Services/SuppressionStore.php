@@ -43,9 +43,24 @@ final class SuppressionStore
 
         $this->assertNotPlatformWide($email);
 
-        // KIZÁRÓLAG a saját sorok között keresünk: a platform-sorokat a scope amúgy
-        // visszaadná, és egy globális találat vagy 500-at okozna, vagy elnyelné a tenant
-        // saját tiltását (ami az operátori feloldás után nyomtalanul eltűnne).
+        return $this->upsert($email, $reasonEnum, $scopeEnum, $expiresAt, 'api:'.$key->prefix);
+    }
+
+    /**
+     * A suppression-sor EGYETLEN írási pontja — monoton szigorítással.
+     *
+     * KIZÁRÓLAG a saját sorok között keresünk: a platform-sorokat a scope amúgy visszaadná,
+     * és egy globális találat vagy 500-at okozna, vagy elnyelné a tenant saját tiltását (ami
+     * az operátori feloldás után nyomtalanul eltűnne).
+     */
+    private function upsert(
+        string $email,
+        SuppressionReason $reasonEnum,
+        SuppressionScope $scopeEnum,
+        ?Carbon $expiresAt,
+        string $source,
+        ?string $detail = null,
+    ): Suppression {
         $existing = Suppression::query()
             ->whereNotNull('workspace_id')
             ->where('email', $email)
@@ -58,7 +73,8 @@ final class SuppressionStore
                 'reason' => $reasonEnum->value,
                 'applies_to' => $scopeEnum->value,
                 'expires_at' => $reasonEnum->isPermanent() ? null : $expiresAt,
-                'source' => 'api:'.$key->prefix,
+                'source' => $source,
+                'detail' => $detail,
             ]);
         }
 
@@ -79,6 +95,30 @@ final class SuppressionStore
         ]);
 
         return $existing->fresh();
+    }
+
+    /**
+     * ONE-CLICK LEIRATKOZÁS (RFC 8058) — a hitelesítés maga a TOKEN, nem API-kulcs.
+     *
+     * Külön metódus, és nem a controllerben elhelyezett `firstOrCreate`, mert a naiv
+     * változat két úton is 500-zal szállt el, és mindkettő a leiratkozást tette
+     * lehetetlenné:
+     *
+     *  - a keresés a NYERS címmel ment, az írás normalizálva (`setEmailAttribute`), tehát a
+     *    `Anna@pelda.hu`-ra érkező MÁSODIK one-click POST (a Gmail újrapróbál, és a
+     *    felhasználó a POST után a linkre is rákattint) unique-violationbe futott;
+     *  - a tábla egyedi kulcsa `(workspace_id, email)`, `applies_to` NÉLKÜL: ha a címnek már
+     *    volt `all` hatókörű sora (bounce, panasz, kézi tiltás — ez az alapérték), már az
+     *    ELSŐ POST elszállt.
+     *
+     * A hatókör MONOTON: aki már `all` hatókörrel tiltott, azon a leiratkozás nem lazít.
+     * A platform-szintű tiltásnál nincs mit tenni — és nem is áruljuk el, hogy létezik.
+     */
+    public function recordUnsubscribe(string $email, string $source = 'one_click', ?string $detail = null): Suppression
+    {
+        $email = DomainNormalizer::listKey(trim($email));
+
+        return $this->upsert($email, SuppressionReason::Unsubscribe, SuppressionScope::Marketing, null, $source, $detail);
     }
 
     /** @return CursorPaginator<Suppression> */

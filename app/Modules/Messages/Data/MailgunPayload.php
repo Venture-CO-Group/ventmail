@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Messages\Data;
 
 use App\Modules\Sending\Enums\Channel;
+use App\Modules\Sending\Services\UnsubscribeHeaderPolicy;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
@@ -234,7 +235,42 @@ final readonly class MailgunPayload
                 ));
             }
 
-            $result[Str::after($key, $prefix)] = is_array($value) ? $value : (string) $value;
+            // A LEIRATKOZÓ FEJLÉC A MIÉNK — az ügyfél nem adhatja meg.
+            //
+            // Ez a döntés három review-körből származik, és a harmadik után szerkezeti:
+            // amíg a fejléc értéke az ügyféltől jöhetett, nekünk FEL KELLETT ISMERNI, hogy
+            // a benne lévő token a miénk-e. Ez a felismerés négyszer nyílt ki egymás után
+            // (az első címzett tokenje mindenkinek → URL-előtag elcsúszása → más betűzésű
+            // kulcs → százalék-kódolt token), mert egy bemutatóra szóló KÉPESSÉGI TOKENT
+            // kerestünk regexszel egy támadó által írt szabadtextben. Az ilyen felismerés
+            // sosem lesz teljes.
+            //
+            // Ha az érték nem jöhet kívülről, nincs mit felismerni. Az ügyfél saját
+            // preference centere a levél TÖRZSÉBE megy — ott a linkje a sajátja, és nem a
+            // mi DKIM-aláírásunkkal hitelesített one-click végpontunkat imitálja.
+            if ($prefix === 'h:' && UnsubscribeHeaderPolicy::isManaged(Str::after($key, $prefix))) {
+                throw new InvalidArgumentException(sprintf(
+                    'VALIDATION_ERROR|A(z) `%s` fejléc nem engedett. %s',
+                    $key,
+                    UnsubscribeHeaderPolicy::reason(),
+                ));
+            }
+
+            $name = Str::after($key, $prefix);
+
+            // RFC 5322: a fejlécnév és a kettőspont KÖZÖTT nem lehet whitespace. A vezető
+            // szóköz korábban NEM volt hiba, csak épp minden réteg máshogy normalizálta —
+            // a `h: List-Unsubscribe` így átment a záron, majd kanonikus néven landolt a
+            // levélben. Egy zár, egy normalizálás: ami whitespace-szel érkezik, elutasítjuk.
+            if ($prefix === 'h:' && trim($name, " \t\r\n\0\x0B") !== $name) {
+                throw new InvalidArgumentException(sprintf(
+                    'VALIDATION_ERROR|A(z) `%s` fejlécnév vezető vagy záró whitespace-t '
+                    .'tartalmaz (RFC 5322 szerint nem megengedett).',
+                    $key
+                ));
+            }
+
+            $result[$name] = is_array($value) ? $value : (string) $value;
         }
 
         return $result;
