@@ -6,7 +6,7 @@
 ## Cél
 **Mailgun + Mailchimp egyidejű kiváltása.** Két pillér (Platform / Studio) egy közös motoron.
 
-## Aktuális milestone: **M1 — A sáv (PLATFORM)** · aktív packet: **A4** *(az M0 lezárva: 2026-09-02)*
+## Aktuális milestone: **M1 — A sáv (PLATFORM)** · aktív packet: **A6** *(az M0 lezárva: 2026-09-02)*
 
 > **Fázis-névhasználat.** A roadmap sávokban gondolkodik, a napi munka fázisokban. A kettő
 > leképezése: **M1 = A sáv** (Platform, a Mailgun kiváltása) · **M2 = B sáv** (Studio, a
@@ -139,9 +139,9 @@ válaszol — a bejövő levél pedig route-motoron át kezelhető.
 - [x] **A1 · Messages API** — PR #13 (3 review-kör: reviewer + security, minden blokkoló javítva)
 - [x] **A2 · SMTP relay + IP-poolok + sorok** — PR #14 (ADR 0001; 3 review-kör: reviewer + security ×2, minden blokkoló javítva)
 - [x] **A3 · Napló + üzenet-trace + Events API + webhookok** — PR #16 MERGE-ELVE (3 review-kör: reviewer + security ×2, 6 blokkoló javítva)
-- [ ] **A4 · Inbound routing (MX)** — architect → test → backend → **security (kötelező)** → frontend *(FOLYAMATBAN)*
-- [x] **A5 · Címellenőrzés** — test → backend → frontend
-- [ ] **A6 · Kézbesíthetőségi suite** — test → backend → frontend → mockup
+- [x] **A4 · Inbound routing (MX)** — PR #17 MERGE-ELVE (reviewer + security, minden blokkoló javítva)
+- [x] **A5 · Címellenőrzés** — PR #18 MERGE-ELVE (reviewer + security, minden blokkoló javítva)
+- [ ] **A6 · Kézbesíthetőségi suite** — PR #19 (reviewer: 6 blokkoló javítva; **security fut**) *(FOLYAMATBAN)*
 
 ### A1 · Messages API — elfogadási kritériumok
 1. `POST /v1/messages` strukturált küldés; **Idempotency-Key kötelező** (hiánya 400), ismételt kulcs
@@ -349,6 +349,19 @@ M0 után az **A és B sáv külön worktree-ben, külön runnerrel** futtatható
 - `smtp_transactions` + üzenet-trace, naplóretenciós törlő job → A3
 - MTA-STS / TLS-RPT / BIMI mezők KITÖLTÉSE (M0-2 csak a sémát hozza) → A6
 - `docs/ventmail-latvanytervek.html` bővítése a hiányzó M0-képernyőkkel (ma 10 képernyő, domain-wizard nincs)
+
+## A6 backlog (nevesített gazdával, NEM ebbe a packetbe)
+- **A seed-lista külső gazdája** (postafiók-kezelés + olvasás szolgáltatás) még nem él: a fake áll a
+  helyén, teszttel fedett kontraktusként, és **élesben kivételt dob** — kitalált 0% inbox-arány
+  rosszabb, mint a hiányzó funkció. → külső integráció, dátum nélkül.
+- **A DMARC-jelentések automatikus betöltése** az A4 inbound route-ján keresztül. A parse ÉS a
+  perzisztálás megvan (`DmarcReportIngestor`), a betöltés ma a `deliverability:ingest-dmarc`
+  paranccsal megy. → C2/devops.
+- **A blocklist-riasztás ügyeleti csatornája.** A `BlocklistStateChanged` esemény a csatlakozási
+  pont; e-mailben nem küldhető (épp a küldő IP-nk van listán). → C2 (super-admin) / devops.
+- **BIMI** — a `bimi_status` mező megvan, a kitöltés nem: VMC-tanúsítványt igényel, ami pénzbe és
+  emberi ügyintézésbe kerül. → külön döntés.
+- **TLS-RPT jelentések FOGADÁSA** (a rekord kiadása megvan). → C2/devops, a DMARC-ingest mintájára.
 
 ## Halasztva
 SMS/push · AI tárgysor (Clave AI) · AMP for Email · mobil SDK.
