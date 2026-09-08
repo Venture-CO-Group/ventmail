@@ -6,7 +6,7 @@
 ## Cél
 **Mailgun + Mailchimp egyidejű kiváltása.** Két pillér (Platform / Studio) egy közös motoron.
 
-## Aktuális milestone: **M1 — A sáv (PLATFORM)** · aktív packet: **A6** *(az M0 lezárva: 2026-09-02)*
+## Aktuális milestone: **M2 — B sáv (STUDIO)** · aktív packet: **B2** *(M0 lezárva: 2026-09-02 · M1 lezárva: 2026-09-08)*
 
 > **Fázis-névhasználat.** A roadmap sávokban gondolkodik, a napi munka fázisokban. A kettő
 > leképezése: **M1 = A sáv** (Platform, a Mailgun kiváltása) · **M2 = B sáv** (Studio, a
@@ -250,8 +250,8 @@ journey-t kap, a marketing analitika pedig **ugyanazt a delivered-számot** muta
 platform-napló — mert ugyanabból az esemény-forrásból dolgozik.
 
 ### M2 packetek — sorrend kötelező
-- [ ] **B1 · Közönség + consent + űrlapok + preference center** — test → backend → **security (PII)** → frontend
-- [ ] **B2 · Block editor + kampányok** — architect → test → backend → frontend → mockup
+- [x] **B1 · Közönség + consent + űrlapok + preference center** — PR #21 MERGE-ELVE (reviewer + security, minden blokkoló javítva)
+- [ ] **B2 · Block editor + kampányok** — backend kész, review FUT *(FOLYAMATBAN)*
 - [ ] **B3 · Journey motor + builder** — architect → test → backend → frontend → mockup
 - [ ] **B4 · Marketing analitika** — test → backend → frontend
 

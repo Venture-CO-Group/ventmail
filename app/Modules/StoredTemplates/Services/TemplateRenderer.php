@@ -18,13 +18,27 @@ use App\Modules\Sending\Services\DomainNormalizer;
  */
 final class TemplateRenderer
 {
+    /**
+     * A MERGE-TAG mintája — FALLBACKKEL (B2 · 60. kritérium).
+     *
+     * `{{ nev }}` vagy `{{ nev || Vásárló }}`. A fallback nem kényelmi elem: hiányzó változó
+     * esetén a behelyettesítés ÜRESRE cserél, és a levélben „Kedves !" jelenik meg. Ez a
+     * fajta hiba nem áll meg semmilyen kapun — szintaktikailag helyes a levél —, tehát csak
+     * a címzett veszi észre, és a küldő reputációját viszi.
+     *
+     * A `-` a névben szándékos: a block editor és a `v:*` változónevek megengedik.
+     */
+    private const TAG_INNER = '\{\{\s*([a-zA-Z0-9_.-]+)\s*(?:\|\|\s*([^}]*?)\s*)?\}\}';
+
+    private const TAG = '/'.self::TAG_INNER.'/';
+
     /** @param array<string, mixed> $variables */
     public function render(string $template, array $variables, bool $escape = true): string
     {
         return (string) preg_replace_callback(
-            '/\{\{\s*([a-zA-Z0-9_.]+)\s*\}\}/',
+            self::TAG,
             function (array $matches) use ($variables, $escape): string {
-                $value = data_get($variables, $matches[1], '');
+                $value = $this->value($variables, $matches[1], $matches[2] ?? '');
 
                 return $escape ? $this->escape($value) : (string) (is_array($value) ? json_encode($value) : $value);
             },
@@ -68,7 +82,7 @@ final class TemplateRenderer
         // átment a `{{ }}` renderelésen — a `htmlspecialchars` a `{` és a `%` karaktert
         // nem escape-eli, tehát a hívótól jövő érték MÁSODSZOR is kiértékelődött.
         return (string) preg_replace_callback(
-            '/%recipient\.([a-zA-Z0-9_]+)%|%recipient_email%|\{\{\s*([a-zA-Z0-9_.]+)\s*\}\}/',
+            '/%recipient\.([a-zA-Z0-9_]+)%|%recipient_email%|'.self::TAG_INNER.'/',
             function (array $matches) use ($variables, $escape): string {
                 $name = match (true) {
                     ($matches[1] ?? '') !== '' => $matches[1],
@@ -76,7 +90,7 @@ final class TemplateRenderer
                     default => 'recipient_email',
                 };
 
-                $value = data_get($variables, $name, '');
+                $value = $this->value($variables, $name, $matches[3] ?? '');
 
                 // A text/plain részben a HTML-escape hibás lenne (a címzett `&amp;`-et
                 // látna); a tartalmi kontrollt ott a ContentSafetyGate végzi.
@@ -86,6 +100,27 @@ final class TemplateRenderer
             },
             $template
         );
+    }
+
+    /**
+     * AZ ÉRTÉK a változóból, vagy a FALLBACKBŐL.
+     *
+     * A fallback akkor lép be, ha a változó NINCS MEG, vagy ha üres sztring. A második
+     * szándékos: egy üres `{{ nev }}` a gyakorlatban ugyanolyan rossz, mint a hiányzó — a
+     * levélben „Kedves !" jelenik meg. Egy `0` vagy `false` viszont VALÓDI érték, azt nem
+     * cseréljük ki (a `?:` operátor ezeket is elnyelte volna).
+     *
+     * @param  array<string, mixed>  $variables
+     */
+    private function value(array $variables, string $name, string $fallback): mixed
+    {
+        $value = data_get($variables, $name);
+
+        if ($value === null || $value === '') {
+            return $fallback;
+        }
+
+        return $value;
     }
 
     private function escape(mixed $value): string

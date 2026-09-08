@@ -56,5 +56,11 @@ Schedule::command('deliverability:blocklists')->hourly();
 // A `blocklist_checks` óránként `IP × zóna` sorral nő: takarítás nélkül évi milliós tábla.
 Schedule::command('deliverability:purge')->dailyAt('04:10');
 
+// AZ ESEDÉKES KAMPÁNYOK (65. kritérium). Percenként: a felhasználó „kedd 9:00"-ra ütemez,
+// és egy tizenöt perces ciklus azt jelentené, hogy a levél 9:14-kor megy ki. A
+// `withoutOverlapping` azért kell, mert egy nagy kampány materializálása másodpercekig tart,
+// és a következő futás különben újra elindítaná ugyanazt.
+Schedule::command('campaigns:dispatch-scheduled')->everyMinute()->withoutOverlapping();
+
 // A lejárt nyers MIME-levelek törlése (golden rule 10): a levéltest a legsűrűbb PII-tárolónk.
 Schedule::command('messages:purge-raw-mime')->dailyAt('03:20');

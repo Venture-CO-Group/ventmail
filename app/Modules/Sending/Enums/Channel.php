@@ -45,6 +45,27 @@ enum Channel: string
         return $this->requiresConsent() ? 'marketing' : 'transactional';
     }
 
+    /**
+     * A CONSENT HATÓKÖRE, amit ez a csatorna igényel.
+     *
+     * A hozzájárulást a címzett a MARKETINGRE adja, nem csatornánként: aki feliratkozott a
+     * hírlevélre, annak a `campaign` és a `journey` levél is mehet — ugyanaz a jogalap.
+     *
+     * Ez nem elméleti finomság. A `ConsentGate` a csatorna NEVÉVEL kérdezte a
+     * consent-táblát, ahol a sorok `channel = 'marketing'`-gel állnak: a `campaign` csatorna
+     * így SOHA nem talált egyetlen consentet sem, tehát a B2 EGYETLEN kampányt sem tudott
+     * volna kiküldeni (mérve: mind a három címzett `NO_CONSENT`-tel esett ki, a
+     * megerősített consentjük ellenére).
+     *
+     * A `suppressionScope()`-pal ma megegyezik az érték, de a KÉT FOGALOM külön: a
+     * suppression azt mondja meg, mit tilt egy tiltás, ez pedig azt, milyen jogalapot kér a
+     * csatorna. Ha egyszer szétválnak, két külön metódus válik szét, nem egy elágazás.
+     */
+    public function consentScope(): string
+    {
+        return $this->requiresConsent() ? 'marketing' : 'transactional';
+    }
+
     /** A sor prioritása (spec 7.): transactional > journey > campaign. */
     public function queuePriority(): int
     {

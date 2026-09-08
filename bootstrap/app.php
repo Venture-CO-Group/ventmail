@@ -20,6 +20,11 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
         web: __DIR__.'/../routes/web.php',
         commands: __DIR__.'/../routes/console.php',
+        // A KAMPÁNY-HALADÁS privát csatornán megy (B2 · 65. kritérium). A jogosultságot a
+        // `channels.php` őrzi: a ventMail SAJÁT `workspace_members` táblájából, mert a
+        // tenant-tagság gazdája a ventMail — egy OIDC-token önmagában nem mondja meg,
+        // melyik workspace-hez tartozik a felhasználó.
+        channels: __DIR__.'/../routes/channels.php',
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
