@@ -52,7 +52,12 @@ final class AuthenticateApiKey
         // KÉT vödör: a bemutatott hitelesítőé és a forrás-IP-é. Csak az IP-é önmagában
         // kizárná a szomszédokat egy közös NAT mögött; csak a hitelesítőé pedig
         // hatástalan, mert a támadó kulcsot forgat.
-        $ipKey = 'api-auth-fail:ip:'.$this->sourceBucket((string) $request->ip());
+        // A VALÓDI TCP-partner, nem a `request->ip()`. A `TRUSTED_PROXIES` alapértéke `*`,
+        // tehát a `request->ip()` a KÉRŐ által beírt `X-Forwarded-For`-ból jön (mérve) —
+        // rotáló fejléccel az IP-vödör kérésenként friss keretet adott, a `credentialKey`
+        // pedig kulcsforgatásnál nem fékez. Vagyis az API-kulcs brute-force plafonja
+        // gyakorlatilag megszűnt.
+        $ipKey = 'api-auth-fail:ip:'.$this->sourceBucket((string) ($request->server('REMOTE_ADDR') ?? 'unknown'));
         $credentialKey = 'api-auth-fail:key:'.hash('sha256', (string) $plain);
 
         // A fék a DRÁGA munka (kulcsolt hash + indexelt lekérdezés) ELŐTT csattan.

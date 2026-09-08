@@ -27,8 +27,33 @@
 
 # Csak a konténerhálón belül elérhető health-listener (nincs kimappelve a hosztra).
 # NEM a 2019, mert azt a Caddy admin API foglalja.
+#
+# ITT NINCS `php_fastcgi`, ÉS EZ SZÁNDÉKOS.
+#
+# A `php_fastcgi` implicit `try_files`-t tartalmaz, ami a CADDY konténer fájlrendszerét
+# nézi — nem az FPM-ét. Ha a `public/` bind mount a Caddy oldalán nem materializálódik
+# (macOS file sharing, egy régebbi képpel indított konténer), a `try_files` semmire nem
+# illeszt, a route SOHA nem fut le, és a listener MINDEN útvonalra ÜRES 200-at ad. Mérve:
+# `/up`, `/u/{token}` és egy nem létező útvonal is egyaránt `200`, `Content-Length: 0` —
+# vagyis a konténer-healthcheck vakon zöld volt, anélkül hogy Laravelt látott volna. Pedig
+# ennek a listenernek épp az a dolga, hogy a TELJES láncot (Caddy → FPM → Laravel) mérje.
+#
+# Ezért a `/up`-ot KÖZVETLENÜL az FPM-nek adjuk át, fájllétezés-ellenőrzés nélkül: a
+# `SCRIPT_FILENAME` fixen a front controller, a `REQUEST_URI` pedig érintetlen, tehát a
+# Laravel a saját route-ján válaszol. Minden más útvonal 404 — egy health-listener ne
+# legyen második, hitelesítés nélküli bejárat az alkalmazásba.
 :2020 {
-	root * /var/www/public
 	header X-Robots-Tag "noindex, nofollow, noarchive"
-	php_fastcgi app:9000
+
+	handle /up {
+		reverse_proxy app:9000 {
+			transport fastcgi {
+				env SCRIPT_FILENAME /var/www/public/index.php
+			}
+		}
+	}
+
+	handle {
+		respond 404
+	}
 }

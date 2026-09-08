@@ -63,12 +63,23 @@ use JsonException;
  * tehát NINCS kiküldött levél, amiben régi token utazna. Egy visszafelé-kompatibilis ág
  * viszont épp azt a tokent fogadná el, amit ez a kör bizonyítottan veszélyesnek talált.
  *
- * Ami ELŐFELTÉTELE minden JÖVŐBELI formátumváltásnak (és a backlogban szerepel):
+ * Ami ELŐFELTÉTELE minden JÖVŐBELI formátumváltásnak:
  *  - a `v` mező, hogy a változás detektálható legyen (ez itt van, most);
- *  - kulcs-azonosító (`kid`) + átfedéses ellenőrzés, mert `APP_KEY`-rotáció ma EGYSZERRE
- *    némítaná el minden kimenő levélben a leiratkozó linket;
  *  - a beégetett KAT-vektor (`UnsubscribeTokenVectorsTest`), ami a wire-formátumot RÖGZÍTI:
  *    egy néma formátumváltás onnantól a CI-ban bukik el, nem az ügyfél postafiókjában.
+ *
+ * ## KULCSROTÁCIÓ — `kid` helyett `APP_PREVIOUS_KEYS`
+ *
+ * A tokenben SZÁNDÉKOSAN nincs kulcs-azonosító. Nem is kell: a Laravel `Crypt` a
+ * `config('app.previous_keys')` listát VÉGIGPRÓBÁLJA a megfejtésnél, tehát a rotáció
+ * átfedéses ellenőrzést kap a keretrendszertől. Méréssel igazolt: a régi kulcsot a
+ * `previous_keys`-be helyezve a korábban kiadott token továbbra is megfejtődik, nélküle
+ * `null` (`TokenKeyRotationTest`).
+ *
+ * A KOCKÁZAT ezért nem kriptográfiai, hanem ÜZEMELTETÉSI: aki az `APP_KEY`-t a régi
+ * kulcs megőrzése nélkül cseréli, minden kiküldött levél leiratkozó linkjét elnémítja —
+ * és némán, mert ez a végpont nem ad orákulumot. Az `.env.example` ezért írja le a
+ * rotáció menetét, és ezért van rá teszt.
  */
 final class UnsubscribeTokens
 {
