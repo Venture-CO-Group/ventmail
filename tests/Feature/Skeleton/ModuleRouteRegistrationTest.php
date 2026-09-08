@@ -95,6 +95,14 @@ it('egyetlen modul-route sem hitelesítetlen', function () {
         // hitelesítést tesz, a leiratkozást teszi lehetetlenné — és a leiratkozás helyett a
         // spam-gomb következik.
         'u/{token}',
+        // MTA-STS POLICY (RFC 8461): ezt egy IDEGEN MTA kéri le, mielőtt levelet küldene
+        // nekünk — nincs se session, se API-kulcs, és nem is lehet. A hitelesség forrása a
+        // TANÚSÍTVÁNY (a policy azért érvényes, mert HTTPS-en, az `mta-sts.<domain>` hosztról
+        // jön), a hozzáférés-vezérlés pedig az, hogy csak VERIFIKÁLT domainre adunk ki
+        // policy-t; minden más hoszt 404. A kimenet egy statikus, tenant-független
+        // szövegfájl: MX-nevek, amik a nyilvános DNS-ben amúgy is benne vannak. Rate-limit
+        // van rajta (`throttle:mta-sts`).
+        '.well-known/mta-sts.txt',
     ];
 
     $offenders = [];

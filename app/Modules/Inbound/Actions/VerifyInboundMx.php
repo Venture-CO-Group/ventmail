@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Inbound\Actions;
 
 use App\Modules\Domains\Contracts\DnsResolver;
+use App\Modules\Domains\Contracts\DnsUnavailable;
 use App\Modules\Domains\Models\Domain;
 use App\Modules\Sending\Services\DomainNormalizer;
 
@@ -37,7 +38,14 @@ final class VerifyInboundMx
     {
         $target = strtolower(trim((string) config('inbound.mx_target'), '. '));
 
-        $records = $this->resolver->records((string) $domain->name, 'MX');
+        try {
+            $records = $this->resolver->records((string) $domain->name, 'MX');
+        } catch (DnsUnavailable) {
+            // A „nem tudtuk megkérdezni" NEM „levették az MX-et". Ha itt `failed`-et
+            // írnánk, egy resolver-kimaradás alatt MINDEN bejövő levelet elutasítanánk —
+            // és a levelek nem sorban állnának, hanem visszapattannának.
+            return (string) ($domain->inbound_mx_status ?? 'pending');
+        }
 
         $found = false;
 

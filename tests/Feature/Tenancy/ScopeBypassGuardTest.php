@@ -43,12 +43,14 @@ it('a Tenancy modulon kívül senki nem kerüli meg a global scope-ot', function
         // lekérdezés állapítja meg, melyik tenanté a levél. Ugyanaz a precedens, mint az
         // API-kulcsnál és az SMTP-hitelesítőnél: egyetlen, szűk, pontos egyezésre
         // korlátozott lekérdezés, izolációs teszttel fedve (InboundIsolationTest).
+        // A DMARC-jelentés BETÖLTÉSE és az MTA-STS policy KISZOLGÁLÁSA ugyanaz a minta: a
+        // kérést egy IDEGEN fél indítja (a fogadó levelezőrendszere, illetve egy távoli MTA),
+        // bejelentkezés és kontextus nélkül — épp ez a lekérdezés állapítja meg, melyik
+        // tenanté a domain. Mindkettő egyetlen, `name` + `status = verified` egyezésre
+        // korlátozott lekérdezés, `limit(2)`-vel az egyértelműség őrzésére, teszttel fedve.
         $exceptions = [
-            // A BLOCKLIST a küldő IP-nkről szól, nem egy tenant adatáról: a találat MINDEN
-            // tenantot érint, aki arról az IP-ről küld. Tenant-adatnak könyvelve az egyik
-            // ügyfél nem látná, hogy a másik forgalma miatt került listára a KÖZÖS IP —
-            // pedig épp őt sújtja. A `BlocklistCheck` ezért nem is workspace-hez kötött.
-            'Deliverability/Services/BlocklistMonitor.php',
+            'Deliverability/Services/DmarcReportIngestor.php',
+            'Deliverability/Http/Controllers/MtaStsController.php',
             'Inbound/Services/VerifiedInboundResolver.php',
             'Logs/Services/TagStatistics.php',
             'Identity/Models/ApiKey.php',

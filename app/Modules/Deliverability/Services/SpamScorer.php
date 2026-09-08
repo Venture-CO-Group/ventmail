@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Deliverability\Services;
 
+use App\Modules\Deliverability\Contracts\BlocklistClient;
 use App\Modules\Deliverability\Data\SpamScore;
 use App\Modules\Sending\Services\DomainNormalizer;
 
@@ -19,6 +20,16 @@ use App\Modules\Sending\Services\DomainNormalizer;
  */
 final class SpamScorer
 {
+    /**
+     * Hány KÜLÖNBÖZŐ link-domaint kérdezünk le a domain-feketelistán.
+     *
+     * A pontozás egy szinkron, felhasználó által indított művelet: száz DNS-lekérdezés
+     * időtúllépésbe futna, és a lassú válasz itt rosszabb, mint a hiányzó találat.
+     */
+    private const MAX_DOMAIN_LOOKUPS = 10;
+
+    public function __construct(private readonly BlocklistClient $blocklist) {}
+
     /** @param list<string> $links a törzsből kiszedett URL-ek */
     public function score(?string $subject, ?string $html, ?string $text, array $links = []): SpamScore
     {
@@ -26,7 +37,7 @@ final class SpamScorer
         $score = 0.0;
 
         $subject = trim((string) $subject);
-        $body = trim((string) ($text ?? '')).' '.strip_tags((string) ($html ?? ''));
+        $body = trim((string) ($text ?? '')).' '.$this->visibleText((string) ($html ?? ''));
 
         // TÁRGY
         if ($subject === '') {
@@ -109,6 +120,8 @@ final class SpamScorer
             ];
         }
 
+        $score += $this->scoreBlocklistedDomains($links, $findings);
+
         if (count($links) > 30) {
             $score += 1.0;
             $findings[] = ['rule' => 'MANY_LINKS', 'points' => 1.0, 'advice' => 'Csökkentsd a linkek számát: a nagyon sok link tömeges hirdetésre utal.'];
@@ -117,8 +130,96 @@ final class SpamScorer
         return $score;
     }
 
+    /**
+     * A LINK-DOMAINEK a domain-feketelistán (`dbl.spamhaus.org`).
+     *
+     * A küldő IP-je lehet makulátlan: ha a levélben lévő link egy listás domainre mutat, a
+     * fogadók a LEVELET minősítik spamnek. Ez a leggyakoribb eset a feltört ügyfélfióknál és
+     * az újrahasznosított sablonoknál — az ügyfél nem is tudja, hogy a lábléc egy régi,
+     * azóta elárverezett domainre mutat.
+     *
+     * Az ELDÖNTHETETLEN válasz (DNS-hiba, szolgáltatói hibajelzés) NEM pont: a hamis
+     * riasztás ugyanúgy rombolja a bizalmat, mint az elmaradt.
+     *
+     * @param  list<string>  $links
+     * @param  list<array<string, mixed>>  $findings
+     */
+    private function scoreBlocklistedDomains(array $links, array &$findings): float
+    {
+        $zone = (string) config('deliverability.spam_score.domain_blocklist_zone');
+
+        if ($zone === '') {
+            return 0.0;
+        }
+
+        $listed = [];
+        $checked = 0;
+
+        foreach ($this->linkHosts($links) as $host) {
+            if ($checked >= self::MAX_DOMAIN_LOOKUPS) {
+                break;
+            }
+
+            $checked++;
+
+            if ($this->blocklist->check($host, $zone)->listed) {
+                $listed[] = $host;
+            }
+        }
+
+        if ($listed === []) {
+            return 0.0;
+        }
+
+        $findings[] = [
+            'rule' => 'BLOCKLISTED_DOMAIN',
+            'points' => 3.0,
+            'advice' => 'A levélben szereplő domain feketelistán van ('.implode(', ', $listed).'): '
+                .'a fogadók a LEVELET minősítik spamnek, akkor is, ha a küldő IP tiszta. Vedd ki a linket.',
+        ];
+
+        return 3.0;
+    }
+
+    /**
+     * A linkek EGYEDI hosztjai, a saját nyomkövetési hosztunk nélkül.
+     *
+     * @param  list<string>  $links
+     * @return list<string>
+     */
+    private function linkHosts(array $links): array
+    {
+        $hosts = [];
+
+        foreach ($links as $link) {
+            $host = strtolower((string) parse_url((string) $link, PHP_URL_HOST));
+
+            if ($host === '' || in_array($host, $hosts, true)) {
+                continue;
+            }
+
+            $hosts[] = DomainNormalizer::canonical($host) ?: $host;
+        }
+
+        return array_values(array_unique($hosts));
+    }
+
+    /**
+     * A csupa nagybetűs betűk aránya — a HÁROMNÁL RÖVIDEBB szavak nélkül.
+     *
+     * A rövid, csupa nagybetűs szó jellemzően mozaikszó (ÁFA, EU, KFT, NAV), nem kiabálás.
+     * Nélküle az „ÁFA IDŐ 2026" tárgy 1.5 pontot kapott — és a hamis találat pont az a
+     * fajta, amitől az ügyfél elkezdi figyelmen kívül hagyni az egész pontszámot.
+     */
     private function shoutedRatio(string $text): float
     {
+        $words = preg_split('/\s+/u', $text) ?: [];
+
+        $text = implode(' ', array_filter(
+            $words,
+            static fn (string $word) => mb_strlen((string) preg_replace('/[^\p{L}]/u', '', $word)) >= 3,
+        ));
+
         $letters = preg_replace('/[^\p{L}]/u', '', $text) ?? '';
 
         if ($letters === '') {
@@ -130,10 +231,30 @@ final class SpamScorer
         return mb_strlen($upper) / mb_strlen($letters);
     }
 
+    /**
+     * A HTML LÁTHATÓ szövege.
+     *
+     * A `strip_tags()` a `<style>` és a `<script>` blokk TARTALMÁT meghagyja, tehát a CSS
+     * „szövegnek" számítana. Mivel a ventMail sablonmotorja MJML, MINDEN valódi levélben van
+     * style-blokk — enélkül a két tartalmi szabály (üres törzs, csak-képes levél) a
+     * gyakorlatban SOHA nem tüzelt volna: egy csak képet tartalmazó levél 40 sornyi CSS-sel
+     * 5.5 pont helyett 1.0-t kapott.
+     */
+    private function visibleText(string $html): string
+    {
+        $html = (string) preg_replace('#<(style|script)\b[^>]*>.*?</\1\s*>#is', ' ', $html);
+
+        // A LEZÁRATLAN blokk is ide tartozik: a `<style>` a levél végéig „nyelné" a
+        // tartalmat, a lezáratlan változatnál viszont a `strip_tags` visszaadná a CSS-t.
+        $html = (string) preg_replace('#<(style|script)\b[^>]*>.*$#is', ' ', $html);
+
+        return trim(strip_tags($html));
+    }
+
     private function imageToTextRatio(string $html): float
     {
         $images = preg_match_all('/<img\b/i', $html);
-        $text = mb_strlen(trim(strip_tags($html)));
+        $text = mb_strlen($this->visibleText($html));
 
         if ($images === 0) {
             return 0.0;

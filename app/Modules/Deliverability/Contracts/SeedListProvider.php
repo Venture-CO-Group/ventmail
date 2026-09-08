@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Deliverability\Contracts;
 
+use App\Modules\Deliverability\Data\SeedAddress;
 use App\Modules\Deliverability\Data\SeedPlacement;
 
 /**
@@ -20,7 +21,15 @@ use App\Modules\Deliverability\Data\SeedPlacement;
  */
 interface SeedListProvider
 {
-    /** @return list<string> a seed-címek, amikre küldeni kell */
+    /**
+     * A seed-címek, amikre küldeni kell — a szolgáltató CÍMKÉJÉVEL együtt.
+     *
+     * A címke a LISTÁTÓL jön, nem a mérésből: enélkül a megérkezett levél a jelentés
+     * címkéje alá (`Gmail`), a hiányzó viszont a cím domainje alá (`gmail.com`) kerülne, és
+     * ugyanaz a szolgáltató két vödörben látszana.
+     *
+     * @return list<SeedAddress>
+     */
     public function addresses(): array;
 
     /** @return list<SeedPlacement> hova érkeztek a levelek */

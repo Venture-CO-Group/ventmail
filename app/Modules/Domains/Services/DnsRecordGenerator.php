@@ -56,7 +56,10 @@ final class DnsRecordGenerator
             'mta_sts' => [
                 'type' => 'TXT',
                 'name' => '_mta-sts.'.$host,
-                'value' => 'v=STSv1; id='.now()->format('YmdHis'),
+                // Az `id` a policy VÁLTOZÁSÁT jelzi a fogadóknak — nem a lekérdezés idejét.
+                // `now()`-val minden wizard-megnyitás új értéket mutatott, tehát az ügyfél
+                // rekordja a beírás pillanatában elavult, és a `verified` sosem jött volna el.
+                'value' => 'v=STSv1; id='.($domain->updated_at ?? $domain->created_at ?? now())->format('YmdHis'),
                 'purpose' => 'MTA-STS: a beérkező levelekhez kötelező TLS (opcionális, de erősen ajánlott).',
             ],
             'tls_rpt' => [

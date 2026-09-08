@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Deliverability\Services;
 
 use App\Modules\Deliverability\Contracts\BlocklistClient;
+use App\Modules\Deliverability\Events\BlocklistStateChanged;
 use App\Modules\Deliverability\Models\BlocklistCheck;
 use App\Modules\IpPools\Models\IpAddress;
 use Illuminate\Support\Facades\Log;
@@ -33,8 +34,11 @@ final class BlocklistMonitor
 
         $summary = ['checked' => 0, 'listed' => 0, 'inconclusive' => 0, 'alerts' => []];
 
-        // A `withoutGlobalScopes` SZÁNDÉKOSAN nincs itt: az `IpAddress` platform-entitás,
-        // nem tenant-adat.
+        // Itt NINCS és nem is kell tenant-szűkítés-kikapcsolás: az `IpAddress` platform-
+        // entitás, nem tenant-adat, tehát global scope sem ül rajta. (A megfogalmazás
+        // szándékosan kerüli a metódusnevet: a `ScopeBypassGuardTest` a forrásszövegben
+        // keres, és egy magyarázó komment miatt nem szabad kivételt adni neki — a kivétel
+        // ettől a fájltól VÉGLEG elvenné az őrt.)
         IpAddress::query()->orderBy('id')->each(function (IpAddress $ip) use ($zones, &$summary): void {
             foreach ($zones as $zone) {
                 $verdict = $this->client->check((string) $ip->address, (string) $zone);
@@ -77,7 +81,16 @@ final class BlocklistMonitor
 
                     $summary['alerts'][] = $message;
 
-                    Log::warning('Blocklist-állapotváltás.', ['target' => $ip->address, 'zone' => $zone, 'listed' => $verdict->listed]);
+                    // A LOG önmagában nem riasztás: hajnali felkerülésről abból senki nem
+                    // tud. Az esemény a csatlakozási pont az ügyeleti csatornához (C2) —
+                    // e-mailben nem küldhetjük, hiszen épp a küldő IP-nk van listán.
+                    BlocklistStateChanged::dispatch((string) $ip->address, (string) $zone, $verdict->listed, $verdict->detail);
+
+                    // A FELKERÜLÉS hiba, nem figyelmeztetés: a szintjét a naplófigyelő
+                    // szűri, és egy `warning` a zajban maradna.
+                    $verdict->listed
+                        ? Log::error('Blocklist-felkerülés.', ['target' => $ip->address, 'zone' => $zone])
+                        : Log::info('Blocklist-lekerülés.', ['target' => $ip->address, 'zone' => $zone]);
                 }
             }
         });

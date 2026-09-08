@@ -12,16 +12,19 @@ return [
      */
     'blocklists' => [
         'enabled' => (bool) env('DELIVERABILITY_BLOCKLIST_ENABLED', true),
+        // A napló nem PII, de VÉGTELENÜL nő: óránként `IP × zóna` sor. A régi sorokat a
+        // trend kedvéért tartjuk, aztán elengedjük (`deliverability:purge`).
+        'retention_days' => (int) env('DELIVERABILITY_BLOCKLIST_RETENTION_DAYS', 180),
         // A leggyakrabban használt, ingyenes DNSBL-ek. A lista bővíthető; a lekérdezés
         // ugyanaz a minta minden szolgáltatónál (fordított IP + a zóna neve).
+        // A lista SZŰK és szándékosan az: a `dnsbl.sorbs.net` 2024-ben megszűnt, a
+        // `b.barracudacentral.org` pedig regisztrált lekérdező IP-t igényel — mindkettőt
+        // óránként hiába kérdeznénk. A lekérdezés mintája minden szolgáltatónál ugyanaz
+        // (fordított IP + a zóna neve), tehát a lista bővíthető.
         'zones' => [
             'zen.spamhaus.org',
             'bl.spamcop.net',
-            'b.barracudacentral.org',
-            'dnsbl.sorbs.net',
         ],
-        // Milyen gyakran nézzük meg ugyanazt az IP-t.
-        'check_interval_minutes' => (int) env('DELIVERABILITY_BLOCKLIST_INTERVAL', 60),
     ],
 
     /*
@@ -58,6 +61,10 @@ return [
             'bit.ly', 'tinyurl.com', 'goo.gl', 't.co', 'ow.ly', 'is.gd', 'buff.ly',
             'rebrand.ly', 'cutt.ly', 'shorturl.at', 'rb.gy', 'tiny.cc',
         ],
+        // A DOMAIN-feketelista: a küldő IP-je lehet makulátlan, ha a levélben lévő link
+        // listás domainre mutat, a fogadók a LEVELET minősítik spamnek. Üres értékkel a
+        // szabály kikapcsol (a lekérdezés DNS-t igényel).
+        'domain_blocklist_zone' => env('DELIVERABILITY_DOMAIN_BLOCKLIST_ZONE', 'dbl.spamhaus.org'),
         // A küszöb, ami fölött figyelmeztetünk. NEM blokkol: a döntés a tenanté.
         'warn_at' => (float) env('DELIVERABILITY_SPAM_WARN_AT', 5.0),
     ],

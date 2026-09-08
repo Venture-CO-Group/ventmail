@@ -124,6 +124,10 @@ class AppServiceProvider extends ServiceProvider
         // kampány után sokan iratkoznak le egyszerre —, de nem végtelen.
         RateLimiter::for('unsubscribe', fn (Request $request) => Limit::perMinute(120)->by((string) $request->ip()));
 
+        // MTA-STS: idegen MTA-k kérik le, hosztonként. Bőkezű keret — a policy statikus, és
+        // a fogadók cache-elik —, de nem korlátlan: publikus endpoint rate-limit nélkül nincs.
+        RateLimiter::for('mta-sts', fn (Request $request) => Limit::perMinute(300)->by((string) $request->getHost()));
+
         RateLimiter::for('oidc', fn (Request $request) => Limit::perMinute(20)->by((string) $request->ip()));
     }
 }

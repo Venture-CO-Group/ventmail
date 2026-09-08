@@ -22,7 +22,15 @@ description = """
    A felület loopbackra kötött, a jelszó dokumentált, a fájlnév is jelzi, hogy dev.
    Üres hash esetén a Caddy el sem indulna (fail-closed), ezért kell benne értéknek lennie.
 
-3) A REDAKCIÓT bizonyító tesztek szándékos ál-titkai (`vm_live_TITOK`, `NYERS-JELSZO`).
+3) tests/Feature/Schema/CryptoVectorsTest.php — a KeyedHash KAT-vektora.
+   A bejelölt „titok" a teszt FIX PEPPERE (`teszt-pepper-…`), amit a teszt maga állít be a
+   `config(['audit.pepper' => …])`-en. Ugyanaz az indok, mint a DKIM-kulcsnál: a KAT lényege
+   a literál elvárt kimenet — futásidőben generált pepperrel a teszt a saját
+   implementációját ismételné meg, és egy elcsúszó normalizálást nem venne észre.
+   Miért nem kockázat: az éles pepper KIZÁRÓLAG env-ből jön (`AUDIT_PEPPER`), és a hiánya
+   HANGOS hiba, nem csendes gyenge hash — ezt a szomszédos teszt bizonyítja.
+
+4) A REDAKCIÓT bizonyító tesztek szándékos ál-titkai (`vm_live_TITOK`, `NYERS-JELSZO`).
    Ezek pont attól hasznosak, hogy VALÓDINAK LÁTSZANAK: a teszt azt állítja, hogy az
    audit-naplóba nem kerülnek be. Ha a mintát „ártalmatlanabbra" cserélnénk, a teszt
    megszűnne bizonyítani bármit — épp azt a rést nyitná ki, amit a security-review talált.
@@ -33,5 +41,6 @@ paths = [
   '''docker/caddy\.dev\.env''',
   '''tests/Feature/Schema/AuditCoverageTest\.php''',
   '''tests/Feature/Schema/RedactionVectorsTest\.php''',
+  '''tests/Feature/Schema/CryptoVectorsTest\.php''',
   '''\.gitleaks\.toml''',
 ]

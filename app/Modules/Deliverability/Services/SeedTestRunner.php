@@ -23,14 +23,25 @@ final class SeedTestRunner
         $counts = ['inbox' => 0, 'spam' => 0, 'promotions' => 0, 'missing' => 0];
         $byProvider = [];
 
+        // A CÍMKE a listától jön, mindkét irányban ugyanaz: a megérkezett és a hiányzó levél
+        // is ugyanabba a vödörbe kerül. Enélkül a Gmail egyszer `Gmail`, egyszer `gmail.com`
+        // néven szerepelne — és a szolgáltatónkénti romlás pont ott nem látszana.
+        $labels = [];
+
+        foreach ($this->provider->addresses() as $seed) {
+            $labels[$seed->address] = $seed->provider;
+        }
+
         $placements = $this->provider->placements((string) $test->uuid);
         $seen = [];
 
         foreach ($placements as $placement) {
-            $counts[$placement->folder] = ($counts[$placement->folder] ?? 0) + 1;
+            $provider = $labels[$placement->address] ?? $placement->provider;
 
-            $byProvider[$placement->provider] ??= ['inbox' => 0, 'spam' => 0, 'promotions' => 0, 'missing' => 0];
-            $byProvider[$placement->provider][$placement->folder]++;
+            $counts[$placement->folder]++;
+
+            $byProvider[$provider] ??= ['inbox' => 0, 'spam' => 0, 'promotions' => 0, 'missing' => 0];
+            $byProvider[$provider][$placement->folder]++;
 
             $seen[] = $placement->address;
         }
@@ -40,14 +51,15 @@ final class SeedTestRunner
         // Ez a legrosszabb eset, és a leggyakrabban elhallgatott: a levél sehova nem jutott
         // el. Ha kihagynánk a statisztikából, a beérkező arány pont attól lenne szép, amitől
         // rossznak kellene lennie.
-        foreach ($this->provider->addresses() as $address) {
-            if (! in_array($address, $seen, true)) {
-                $counts['missing']++;
-
-                $provider = $this->providerOf($address);
-                $byProvider[$provider] ??= ['inbox' => 0, 'spam' => 0, 'promotions' => 0, 'missing' => 0];
-                $byProvider[$provider]['missing']++;
+        foreach ($this->provider->addresses() as $seed) {
+            if (in_array($seed->address, $seen, true)) {
+                continue;
             }
+
+            $counts['missing']++;
+
+            $byProvider[$seed->provider] ??= ['inbox' => 0, 'spam' => 0, 'promotions' => 0, 'missing' => 0];
+            $byProvider[$seed->provider]['missing']++;
         }
 
         $test->forceFill([
@@ -61,12 +73,5 @@ final class SeedTestRunner
         ])->save();
 
         return $test;
-    }
-
-    private function providerOf(string $address): string
-    {
-        $domain = strtolower((string) substr((string) strrchr($address, '@'), 1));
-
-        return $domain === '' ? 'ismeretlen' : $domain;
     }
 }

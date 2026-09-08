@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Domains\Jobs;
 
 use App\Modules\Domains\Contracts\DnsResolver;
+use App\Modules\Domains\Contracts\DnsUnavailable;
 use App\Modules\Domains\Models\Domain;
 use App\Modules\Domains\Services\DnsRecordMatcher;
 
@@ -30,6 +31,22 @@ final class VerifyDomainDns
     {
         $records = $domain->dnsRecords();
 
+        try {
+            return $this->evaluate($domain, $records);
+        } catch (DnsUnavailable) {
+            // A DNS KIESÉSE nem hitelesítési hiba. Ha itt `failed`-et írnánk, egy
+            // resolver-kimaradás MINDEN domaint hitelesítetlenné tenne, és a PreSendGate 1.
+            // kapuja a teljes platform küldését megállítaná — a DNS visszatérése után is,
+            // amíg a következő ellenőrzés le nem fut.
+            //
+            // A `last_checked_at`-et sem írjuk át: az azt jelentené, hogy megnéztük.
+            return $domain;
+        }
+    }
+
+    /** @param array<string, array<string, string>> $records */
+    private function evaluate(Domain $domain, array $records): Domain
+    {
         $spf = $this->matcher->spfMatches($this->lookup($records['spf']));
         $dmarc = $this->matcher->dmarcMatches($this->lookup($records['dmarc']));
         $tracking = $this->matcher->cnameMatches($this->lookup($records['tracking']), $records['tracking']['value']);

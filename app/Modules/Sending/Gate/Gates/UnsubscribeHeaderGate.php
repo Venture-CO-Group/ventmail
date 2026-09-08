@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Sending\Gate\Gates;
 
+use App\Modules\Sending\Enums\Channel;
 use App\Modules\Sending\Gate\GateReason;
 use App\Modules\Sending\Gate\GateResult;
 use App\Modules\Sending\Models\Message;
@@ -21,8 +22,14 @@ use App\Modules\Sending\Models\Message;
  *  - `List-Unsubscribe-Post: List-Unsubscribe=One-Click`: hogy a levélkliens EGY KATTINTÁSSAL
  *    elvégezhesse, megerősítő oldal nélkül. Ez utóbbi nélkül a fejléc csak egy link.
  *
- * A GATE a `marketing` csatornára szól. A tranzakciós levélre nem: egy jelszó-visszaállítóról
- * nem lehet leiratkozni, és a fejléc ott félrevezető lenne.
+ * A GATE MINDEN consent-köteles csatornára szól — `marketing`, `journey` ÉS `campaign` —,
+ * mert a Studio tömegforgalma épp az utóbbi kettőn megy. A tranzakciós levélre nem: egy
+ * jelszó-visszaállítóról nem lehet leiratkozni, és a fejléc ott félrevezető lenne.
+ *
+ * A csatornát ENUMMAL kérdezzük, MEGFORDÍTOTT logikával (ugyanaz a minta, mint a
+ * `ConsentGate`-ben): nem azt kérdezzük, „marketing-e", hanem hogy consent-mentes-e. Egy
+ * nyers `!== 'marketing'` összehasonlítás a `campaign` és a `journey` sorokat átengedte
+ * volna — pont azt a forgalmat, amit a Gmail és a Yahoo 2024 óta elutasít.
  *
  * A kapu NEM az ügyfél fejlécét követeli meg — a küldési út MAGA teszi be (a `MessageDispatcher`
  * a leiratkozó-linkből). A kapu azt zárja ki, hogy bármely ÚT (REST, SMTP relay, kampány)
@@ -37,8 +44,8 @@ final class UnsubscribeHeaderGate implements Gate
 
     public function check(Message $message): GateResult
     {
-        if ($message->channel !== 'marketing') {
-            return GateResult::pass('nem marketing');
+        if (! Channel::from((string) $message->channel)->requiresConsent()) {
+            return GateResult::pass('tranzakciós csatorna');
         }
 
         $headers = array_change_key_case((array) $message->headers, CASE_LOWER);
@@ -60,7 +67,7 @@ final class UnsubscribeHeaderGate implements Gate
         // követelménynek ott nincs értelme — a fejlesztői környezet viszont enélkül egyetlen
         // marketing levelet sem tudna kiküldeni, és a fejlesztő a saját gépén ütközne egy
         // ÉLES szabályba. A `http://` élesben így is elbukik.
-        if (! str_contains($unsubscribe, 'https://') && ! $this->isLocal($unsubscribe)) {
+        if (! $this->hasOneClickUrl($unsubscribe)) {
             return GateResult::reject(
                 GateReason::InvalidRequest,
                 'A `List-Unsubscribe` fejlécnek https URL-t is tartalmaznia kell (one-click).',
@@ -77,9 +84,35 @@ final class UnsubscribeHeaderGate implements Gate
         return GateResult::pass();
     }
 
-    /** Helyi cím-e? A `localhost`-ot egyetlen fogadó sem tudja meghívni. */
-    private function isLocal(string $header): bool
+    /**
+     * Van-e a fejlécben VALÓDI one-click URL?
+     *
+     * A fejléc `<…>`-be zárt címek vesszővel elválasztott listája (RFC 2369), és a
+     * részsztring-vizsgálat itt megtévedhet: a `<mailto:le@pelda.hu?subject=https://>` sor
+     * tartalmazza a `https://`-t, de nincs benne egyetlen hívható URL sem — a fogadó
+     * one-click POST-ja sehova nem menne, a levél pedig a kapun átcsúszott volna.
+     *
+     * Ezért a listát FELBONTJUK, és legalább egy elemtől megköveteljük, hogy `https://`-sel
+     * KEZDŐDJÖN.
+     */
+    private function hasOneClickUrl(string $header): bool
     {
-        return preg_match('#https?://(localhost|127\.0\.0\.1|\[::1\])[:/]#i', $header) === 1;
+        preg_match_all('/<([^>]*)>/', $header, $matches);
+
+        foreach ($matches[1] as $entry) {
+            $entry = trim((string) $entry);
+
+            if (str_starts_with(strtolower($entry), 'https://') || $this->isLocal($entry)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /** Helyi cím-e? A `localhost`-ot egyetlen fogadó sem tudja meghívni. */
+    private function isLocal(string $url): bool
+    {
+        return preg_match('#^https?://(localhost|127\.0\.0\.1|\[::1\])([:/]|$)#i', $url) === 1;
     }
 }

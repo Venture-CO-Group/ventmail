@@ -16,9 +16,10 @@ use RuntimeException;
  * marketinges regisztrált egy külső eszközt), vagy egy hamisító — mindkettő azonnali
  * figyelmet érdemel, és a DMARC-jelentés nélkül egyikről sem tudnánk.
  *
- * A bemenet IDEGEN, és tömörítve érkezik: a fogadók gzip-elve (`.xml.gz`) vagy zip-elve
- * küldik. A gzip-bomba ugyanaz a veszély, mint a bejövő csatolmánynál — a kicsomagolt méretet
- * KORLÁTOZZUK, és darabokban bontjuk ki.
+ * A bemenet IDEGEN, és tömörítve érkezik: a fogadók gzip-elve (`.xml.gz`) küldik. A
+ * gzip-bomba ugyanaz a veszély, mint a bejövő csatolmánynál — a kicsomagolt méretet
+ * KORLÁTOZZUK, és darabokban bontjuk ki. A ZIP-be csomagolt változat (néhány fogadó így
+ * küld) NEM támogatott: az A4 `ArchiveInspector`-a a gazdája, és a kettőt nem duplikáljuk.
  *
  * Az XML-parse `LIBXML_NONET`-tel megy: az XXE (külső entitás) klasszikus vektora épp az
  * ilyen, harmadik féltől érkező XML. Ezzel a parser nem tud fájlt olvasni és nem tud hálózatra
@@ -34,7 +35,12 @@ final class DmarcReportParser
         // különben a `/etc/passwd`-t vagy egy belső URL-t olvastathatna fel velünk.
         $previous = libxml_use_internal_errors(true);
 
-        $document = simplexml_load_string($xml, 'SimpleXMLElement', LIBXML_NONET | LIBXML_NOENT & 0);
+        // CSAK `LIBXML_NONET`. A `LIBXML_NOENT` (entitás-behelyettesítés) SZÁNDÉKOSAN nincs
+        // itt: az a kapcsoló ÉLESÍTENÉ az XXE-t, nem védene ellene — a neve félrevezető.
+        // Korábban `LIBXML_NONET | LIBXML_NOENT & 0` állt itt: az operátor-precedencia miatt
+        // pontosan ugyanez az érték (2048), de aki elírásnak nézi és leszedi a `& 0`-t, az
+        // egy karakterrel kinyitja a külső entitásokat.
+        $document = simplexml_load_string($xml, 'SimpleXMLElement', LIBXML_NONET);
 
         libxml_clear_errors();
         libxml_use_internal_errors($previous);

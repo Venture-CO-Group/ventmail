@@ -16,6 +16,16 @@ use Symfony\Component\Mime\Email;
  */
 final class OutboundMimeBuilder
 {
+    /**
+     * A NEM `x-` előtagú fejlécek, amiket átengedünk.
+     *
+     * Szűk, zárt lista: a `To`, a `From` és a `Message-ID` a MI dolgunk, és egy feladói
+     * `Bcc` vagy `Return-Path` fejléc a kimenő levélben csendes címzett-szivárgás lenne.
+     *
+     * @var list<string>
+     */
+    private const PASS_THROUGH = ['list-unsubscribe', 'list-unsubscribe-post'];
+
     public function build(Message $message, string $recipient): Email
     {
         return $this->assemble(
@@ -46,9 +56,24 @@ final class OutboundMimeBuilder
         $headers->addIdHeader('Message-ID', $message->uuid.'@'.$this->domainOf($message));
         $headers->addDateHeader('Date', now()->toDateTimeImmutable());
 
-        // A feladó `h:X-*` fejlécei — a vezérlőket a kapu már leválasztotta.
-        foreach ((array) $message->headers as $name => $value) {
-            if (is_scalar($value) && str_starts_with(strtolower((string) $name), 'x-')) {
+        // A feladó `h:X-*` fejlécei — a vezérlőket a kapu már leválasztotta —, ÉS a
+        // leiratkozó fejlécek.
+        //
+        // A `List-Unsubscribe` külön engedélyt kap, mert nem `x-` előtagú, és e nélkül SOHA
+        // nem jutott volna ki a levélbe: a modell beírta, a kapu látta, a MIME viszont
+        // eldobta. A fogadó szempontjából ez pontosan ugyanaz, mintha meg sem született
+        // volna — a Gmail és a Yahoo tömeges küldőtől 2024 óta elutasítja.
+        //
+        // A fejlécek CÍMZETTENKÉNT állnak elő (`headersFor`): a token a leiratkozó
+        // SZEMÉLYÉT hordozza, tehát egy batch minden levelébe a sajátja kell.
+        foreach ($message->headersFor($recipient) as $name => $value) {
+            if (! is_scalar($value)) {
+                continue;
+            }
+
+            $lower = strtolower((string) $name);
+
+            if (str_starts_with($lower, 'x-') || in_array($lower, self::PASS_THROUGH, true)) {
                 $headers->addTextHeader((string) $name, (string) $value);
             }
         }

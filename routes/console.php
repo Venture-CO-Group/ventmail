@@ -52,5 +52,9 @@ Schedule::command('validation:purge')->dailyAt('03:50');
 // szükséges időt adja meg.
 Schedule::command('deliverability:blocklists')->hourly();
 
+// A kézbesíthetőségi suite lejárt adatai (blocklist-napló, DMARC-jelentés, seed-mérés).
+// A `blocklist_checks` óránként `IP × zóna` sorral nő: takarítás nélkül évi milliós tábla.
+Schedule::command('deliverability:purge')->dailyAt('04:10');
+
 // A lejárt nyers MIME-levelek törlése (golden rule 10): a levéltest a legsűrűbb PII-tárolónk.
 Schedule::command('messages:purge-raw-mime')->dailyAt('03:20');

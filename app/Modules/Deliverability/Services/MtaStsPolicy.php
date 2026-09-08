@@ -32,20 +32,33 @@ final class MtaStsPolicy
      * és épp az a lényege, hogy HTTPS-en jön: a tanúsítvány igazolja, hogy tényleg a domain
      * tulajdonosa írta, nem egy útközbeni támadó.
      */
-    public function policyFor(Domain $domain): string
+    public function policyFor(Domain $domain): ?string
     {
+        $exchangers = $this->mailExchangers($domain);
+
+        // FAIL-CLOSED: `mx:` sor nélküli policy azt jelenti, hogy EGYETLEN szerver sem
+        // jogosult levelet fogadni a domainre. `enforce` módban a fogadók ezt a `max_age`
+        // hosszán (alapból 7 nap) cache-elik, tehát egy pillanatnyi DNS-kimaradásból egy
+        // hetes, teljes bejövő leállás lenne — és a hibát épp akkor vennénk észre, amikor
+        // már senki nem tud írni nekünk. Inkább NINCS policy, mint egy üres.
+        if ($exchangers === []) {
+            return null;
+        }
+
         $lines = [
             'version: STSv1',
             'mode: '.config('deliverability.mta_sts.mode'),
         ];
 
-        foreach ($this->mailExchangers($domain) as $mx) {
+        foreach ($exchangers as $mx) {
             $lines[] = 'mx: '.$mx;
         }
 
         $lines[] = 'max_age: '.config('deliverability.mta_sts.max_age');
 
-        return implode("\n", $lines)."\n";
+        // CRLF: az RFC 8461 §3.2 ezt írja elő a policy-fájlra. A szigorúbb fogadók a puszta
+        // LF-es változatot nem értelmezik — és a hibát semmi nem jelezné vissza nekünk.
+        return implode("\r\n", $lines)."\r\n";
     }
 
     /**
@@ -73,10 +86,26 @@ final class MtaStsPolicy
         return 'failed';
     }
 
-    /** A TLS-RPT rekord: hova jöjjenek a TLS-hibajelentések. */
+    /**
+     * A TLS-RPT rekord: hova jöjjenek a TLS-hibajelentések.
+     *
+     * A cím a MIENK, nem az ügyfélé, és ez tudatos: a TLS-hiba a mi MX-einken keletkezik, a
+     * javítás is a mi dolgunk. Az ügyfélnek egy `_smtp._tls.<domain>` TXT rekordot kell
+     * kitennie — a tartalmát a wizard adja meg.
+     *
+     * A rekord szövegét NEM itt állítjuk elő: a `DnsRecordGenerator` az egyetlen forrás, és
+     * a DNS-check ugyanonnan olvas. Két forrásból a kettő idővel szétcsúszna — az ügyfél a
+     * wizardból másolna, mi mást ellenőriznénk, és a hitelesítés a helyes rekorddal bukna el.
+     */
     public function tlsRptRecord(Domain $domain): string
     {
-        return sprintf('v=TLSRPTv1; rua=mailto:%s', config('domains.tls_rpt_rua', 'tls-reports@ventmail.app'));
+        return (string) ($domain->dnsRecords()['tls_rpt']['value'] ?? '');
+    }
+
+    /** A `_mta-sts.<domain>` TXT rekord — szintén a wizard rekordgenerátorából. */
+    public function stsRecord(Domain $domain): string
+    {
+        return (string) ($domain->dnsRecords()['mta_sts']['value'] ?? '');
     }
 
     /** @return list<string> */
