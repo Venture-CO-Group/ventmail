@@ -103,6 +103,24 @@ it('egyetlen modul-route sem hitelesítetlen', function () {
         // szövegfájl: MX-nevek, amik a nyilvános DNS-ben amúgy is benne vannak. Rate-limit
         // van rajta (`throttle:mta-sts`).
         '.well-known/mta-sts.txt',
+        /*
+         | B1 · A LEVÉLBŐL és az ÜGYFÉL WEBOLDALÁRÓL érkező végpontok.
+         |
+         | `f/{slug}` — publikus űrlap-beküldés. NÉVTELEN látogatóktól érkezik, tehát
+         | hitelesítés itt nem értelmezett, és a CSRF-token sem: a beküldő oldal a mi
+         | domainünkön kívül van. Ami VÉD: a honeypot + time-trap (a feldolgozás
+         | elválaszthatatlan része, nem elfelejthető middleware), a rate-limit, és hogy a
+         | végpont EGYETLEN hatása egy `pending` consent — jogalapot NEM teremt, és a
+         | suppression-lista erősebb nála.
+         |
+         | `c/{token}` — a double opt-in megerősítése. A hozzáférést a titkosított,
+         | cél-elválasztott, LEJÁRÓ token adja; a tenant-kontextus is belőle jön.
+         |
+         | `p/{token}` — preference center (GET olvas, POST ír). Ugyanaz a token-modell. A
+         | POST azért CSRF-mentes, mert a levélkliensből érkező kérésnek nincs session-je; a
+         | hatás a címzett SAJÁT beállításaira korlátozódik.
+         */
+        'f/{slug}', 'c/{token}', 'p/{token}',
     ];
 
     $offenders = [];

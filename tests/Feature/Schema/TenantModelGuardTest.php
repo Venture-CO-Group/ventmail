@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Modules\Audit\Concerns\Auditable;
 use App\Modules\Audit\Models\AuditLog;
+use App\Modules\Consent\Models\ConsentEvent;
 use App\Modules\Deliverability\Models\BlocklistCheck;
 use App\Modules\Deliverability\Models\DmarcReport;
 use App\Modules\Deliverability\Models\DmarcReportRow;
@@ -117,6 +118,11 @@ it('minden admin-felületű modell auditált', function () {
         // betöltés nem admin-művelet, és a sorokat senki nem szerkeszti.
         DmarcReport::class,
         DmarcReportRow::class,
+        // A CONSENT-BIZONYÍTÉK maga a napló: append-only, adatbázis-triggerrel védve. Egy
+        // audit-sor róla azt jelentené, hogy egy törölhetetlen tábla írását egy másik
+        // törölhetetlen táblába is beírjuk — és a bizonyíték nem „admin-művelet", hanem az
+        // érintett saját cselekedetének a rögzítése.
+        ConsentEvent::class,
     ];
 
     $offenders = [];

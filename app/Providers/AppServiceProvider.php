@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Providers;
 
 use App\Modules\Audit\Services\KeyedHash;
+use App\Modules\Consent\Services\ConfirmationTokens;
+use App\Modules\Consent\Services\PreferenceTokens;
 use App\Modules\Events\Services\TrackingTokens;
 use App\Modules\Suppression\Services\UnsubscribeTokens;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -222,6 +224,55 @@ class AppServiceProvider extends ServiceProvider
         // partner: `request->ip()`-vel egy `X-Forwarded-For` fejléccel bárki friss keretet
         // adott volna magának, tehát a fék pont a hitelesítetlen úton nem fékezett.
         RateLimiter::for('oidc', fn (Request $request) => Limit::perMinute(20)->by('peer:'.self::peer($request)));
+
+        /*
+         | B1 · A PUBLIKUS, HITELESÍTÉS NÉLKÜLI VÉGPONTOK.
+         |
+         | Mindhárom a levélből vagy az ügyfél weboldaláról érkezik, tehát nincs se session,
+         | se API-kulcs. A fékek ugyanazt a formát követik, amit az A6-ban négy review-kör
+         | alatt megtanultunk:
+         |
+         |  - a kulcs SOHA nem a `request->ip()` (az a kérő szava, lásd `peer()`);
+         |  - ahol van token, a finom fék az IGÉNY LENYOMATÁRA kulcsol — nem a token
+         |    bájtjaira, mert a `Crypt`-boríték újraszerializálható és IV-vel változik;
+         |  - az értelmezhetetlen token a valódi partnerre esik vissza, NEM egy közös
+         |    literálra: különben egy szemetet küldő támadó a saját keretével fogyasztaná el
+         |    a legitim felhasználókét.
+         */
+        RateLimiter::for('public-form', fn (Request $request) => [
+            // Az ŰRLAP-BEKÜLDÉS az egyetlen, ahol nincs token — a beküldő névtelen. A
+            // partner-plafon bőkezű (egy iskolai vagy céges NAT mögül sokan iratkozhatnak
+            // fel egyszerre), de nem korlátlan: e nélkül az űrlap egy `pending` consent-gyár
+            // lenne, és a megerősítő levelek a MI reputációnkat vinnék.
+            Limit::perMinute(30)->by('peer:'.self::peer($request)),
+            // Az ŰRLAPONKÉNTI plafon azt akadályozza meg, hogy egy elszabadult bot EGY
+            // űrlapon keresztül tömje a listát — akkor is, ha sok IP-ről jön.
+            Limit::perMinute(300)->by('form:'.$request->route('slug')),
+        ]);
+
+        RateLimiter::for('consent-confirm', function (Request $request) {
+            $fingerprint = app(ConfirmationTokens::class)->fingerprint((string) $request->route('token'));
+
+            return [
+                $fingerprint === null
+                    ? Limit::perMinute(60)->by('invalid:'.self::peer($request))
+                    // Ugyanarra a megerősítésre percenként tíz kattintás már nem legitim
+                    // minta (a kliens-előtöltés is belefér).
+                    : Limit::perMinute(10)->by('optin:'.$fingerprint),
+            ];
+        });
+
+        RateLimiter::for('preferences', function (Request $request) {
+            $fingerprint = app(PreferenceTokens::class)->fingerprint((string) $request->route('token'));
+
+            return [
+                $fingerprint === null
+                    ? Limit::perMinute(60)->by('invalid:'.self::peer($request))
+                    // A GET és a POST KÜLÖN vödör: az oldal betöltése (előtöltés,
+                    // visszalépés) ne fogyassza el a MENTÉS keretét.
+                    : Limit::perMinute(20)->by('prefs:'.$request->method().':'.$fingerprint),
+            ];
+        });
     }
 
     /**
