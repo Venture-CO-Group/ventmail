@@ -25,7 +25,9 @@ final class InboundRoute extends Model
 
     public const MATCH_TYPES = ['match_recipient', 'match_header', 'catch_all'];
 
-    public const ACTION_TYPES = ['forward', 'store', 'stop'];
+    // A `journey` akció a B3-ból (69. kritérium): egy beérkező levél automatizálást
+    // indíthat. A cél a journey uuid-ja — üresen MINDEN `inbound_email` triggerű journey.
+    public const ACTION_TYPES = ['forward', 'store', 'stop', 'journey'];
 
     /**
      * A `signing_secret` SZÁNDÉKOSAN nincs itt: a titkot MI generáljuk, és csak mi. Ha

@@ -8,6 +8,8 @@ use App\Modules\Inbound\Jobs\ForwardInboundToEmail;
 use App\Modules\Inbound\Jobs\ForwardInboundToUrl;
 use App\Modules\Inbound\Models\InboundMessage;
 use App\Modules\Inbound\Models\InboundRoute;
+use App\Modules\Journey\Enums\TriggerType;
+use App\Modules\Journey\Services\JourneyTrigger;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -119,6 +121,32 @@ final class RouteEngine
             // A `store()` maga NEM csinál semmit: a levél már el van tárolva. Ha van
             // értesítési URL, azt hívjuk.
             ForwardInboundToUrl::dispatch((int) $message->workspace_id, (string) $message->uuid, $target, (string) $route->uuid);
+
+            return true;
+        }
+
+        /*
+         | A `journey()` AKCIÓ (B3 · 69. kritérium): a beérkező levél automatizálást indít.
+         |
+         | A FELADÓ a levél `from` címe — és ez HAMISÍTHATÓ: bárki írhat levelet a világon
+         | `anna@pelda.hu` feladóval. Ezért a `JourneyTrigger` a 71. kritérium szerint
+         | MEGERŐSÍTETT consentet követel az `inbound_email` triggerű journey-knél; enélkül
+         | egy idegen bármikor levelezést indíthatna bárki nevében, a mi domainünkről.
+         |
+         | A beléptetés ITT csak a triggert TÜZELI — a döntést (entitlement, suppression,
+         | consent, újrabelépés) a `JourneyTrigger` hozza meg, egy helyen.
+         */
+        if ($type === 'journey') {
+            app(JourneyTrigger::class)->fire(
+                TriggerType::InboundEmail,
+                (string) $message->sender,
+                [
+                    'route' => (string) $route->uuid,
+                    'journey' => $target === '' ? null : $target,
+                    'inbound_message' => (string) $message->uuid,
+                    'subject' => (string) $message->subject,
+                ],
+            );
 
             return true;
         }

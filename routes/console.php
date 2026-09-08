@@ -56,6 +56,12 @@ Schedule::command('deliverability:blocklists')->hourly();
 // A `blocklist_checks` óránként `IP × zóna` sorral nő: takarítás nélkül évi milliós tábla.
 Schedule::command('deliverability:purge')->dailyAt('04:10');
 
+// A JOURNEY-FUTÁSOK LÉPTETÉSE (B3 · 68. kritérium). A motor nem „fut", hanem LÉPTET:
+// minden tick megkérdezi az esedékes futásokat. Percenként, mert egy `wait 5 perc` lépés
+// pontossága ennél nem lehet rosszabb — és `withoutOverlapping`, mert két párhuzamos tick
+// ugyanazt a futást próbálná léptetni (az idempotencia-zár megfogja, de a munka kárba menne).
+Schedule::command('journeys:tick')->everyMinute()->withoutOverlapping();
+
 // AZ ESEDÉKES KAMPÁNYOK (65. kritérium). Percenként: a felhasználó „kedd 9:00"-ra ütemez,
 // és egy tizenöt perces ciklus azt jelentené, hogy a levél 9:14-kor megy ki. A
 // `withoutOverlapping` azért kell, mert egy nagy kampány materializálása másodpercekig tart,
