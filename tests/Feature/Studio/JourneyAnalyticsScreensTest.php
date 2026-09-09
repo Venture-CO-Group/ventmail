@@ -11,7 +11,6 @@ use App\Modules\Tenancy\Models\Workspace;
 use App\Modules\Tenancy\Services\WorkspaceContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
-use InvalidArgumentException;
 
 uses(RefreshDatabase::class);
 

@@ -103,5 +103,10 @@ return [
             'down' => 'Non disponibile',
             'unknown' => 'Sconosciuto',
         ],
+        'impersonationEnded' => 'Vista di supporto chiusa.',
+        'overrideGranted' => 'Override concesso.',
+        'overrideRevoked' => 'Override revocato.',
+        'suppressionAdded' => 'Soppressione globale aggiunta.',
+        'suppressionRemoved' => 'Soppressione globale rimossa.',
     ],
 ];

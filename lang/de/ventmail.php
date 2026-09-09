@@ -103,5 +103,10 @@ return [
             'down' => 'Ausgefallen',
             'unknown' => 'Unbekannt',
         ],
+        'impersonationEnded' => 'Support-Ansicht geschlossen.',
+        'overrideGranted' => 'Override gewährt.',
+        'overrideRevoked' => 'Override widerrufen.',
+        'suppressionAdded' => 'Globale Sperre hinzugefügt.',
+        'suppressionRemoved' => 'Globale Sperre aufgehoben.',
     ],
 ];

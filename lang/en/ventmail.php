@@ -119,5 +119,10 @@ return [
             'down' => 'Down',
             'unknown' => 'Unknown',
         ],
+        'impersonationEnded' => 'Support view closed.',
+        'overrideGranted' => 'Override granted.',
+        'overrideRevoked' => 'Override revoked.',
+        'suppressionAdded' => 'Global suppression added.',
+        'suppressionRemoved' => 'Global suppression removed.',
     ],
 ];

@@ -103,5 +103,10 @@ return [
             'down' => 'Kiesett',
             'unknown' => 'Ismeretlen',
         ],
+        'impersonationEnded' => 'A támogatói nézet lezárva.',
+        'overrideGranted' => 'Az override megadva.',
+        'overrideRevoked' => 'Az override visszavonva.',
+        'suppressionAdded' => 'A globális tiltás felvéve.',
+        'suppressionRemoved' => 'A globális tiltás feloldva.',
     ],
 ];

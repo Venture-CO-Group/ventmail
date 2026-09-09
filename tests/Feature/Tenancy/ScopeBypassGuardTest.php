@@ -108,7 +108,20 @@ it('a Tenancy modulon kívül senki nem kerüli meg a global scope-ot', function
         // Scope-ot nem kerül meg: az `AuditLog`-on SZÁNDÉKOSAN nincs global scope (a
         // naplónak kontextus nélkül is íródnia kell), és a törlés a 365 napos DB-oldali
         // alsó időhatár alatt akkor sem megy át, ha a szándék-jelzés megvan.
+        // M4-5 · A PLATFORM-KONZOL TENANTEKEN ÁTNYÚLVA olvas — ez a rendeltetése.
+        //
+        // A konzol három helyen kapcsolja ki a scope-ot, és mindhárom OLVASÁS: a
+        // workspace-választó listája (impersonation és plan-override CÉLPONTJA), a
+        // GLOBÁLIS suppression-sorok (`workspace_id IS NULL` — a scope kontextussal a
+        // tenant sorait is hozzáadná, kontextus nélkül semmit), és a célpont-workspace
+        // feloldása uuid alapján.
+        //
+        // A JOGOSULTSÁGOT nem a scope adja: minden művelet `platform.admin`-hoz kötött, a
+        // szolgáltatások explicit `User $admin`-ra kapuznak, és minden művelet auditált.
+        // Az ÍRÁS pedig továbbra is a szolgáltatásokon megy (`Impersonation`,
+        // `PlanOverrides`, `GlobalSuppressions`), nem nyers lekérdezéssel.
         $exceptions = [
+            'SuperAdmin/Http/Controllers/PlatformConsoleController.php',
             'Audit/Models/AuditLog.php',
             'Billing/Services/Dunning.php',
             'SuperAdmin/Services/IpSupervision.php',

@@ -103,5 +103,10 @@ return [
             'down' => 'Недоступно',
             'unknown' => 'Неизвестно',
         ],
+        'impersonationEnded' => 'Режим поддержки закрыт.',
+        'overrideGranted' => 'Переопределение выдано.',
+        'overrideRevoked' => 'Переопределение отозвано.',
+        'suppressionAdded' => 'Глобальная блокировка добавлена.',
+        'suppressionRemoved' => 'Глобальная блокировка снята.',
     ],
 ];
