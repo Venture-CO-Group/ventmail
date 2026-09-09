@@ -314,5 +314,52 @@
     "resume": "Resume",
     "abTest": "A/B test",
     "winner": "winner"
+  },
+  "journeys": {
+    "title": "Journeys",
+    "new": "New journey",
+    "create": "Create journey",
+    "name": "Name",
+    "status": "Status",
+    "statusIs": "Status: {status} · trigger: {trigger}",
+    "trigger": "Trigger",
+    "triggerHint": "This starts the sequence — spoofable triggers are throttled separately by the engine.",
+    "steps": "Steps",
+    "activeRuns": "Active runs",
+    "completedRuns": "Completed",
+    "empty": "No journey yet.",
+    "idleWarning": "{count} active journey/journeys have no running instance — the trigger probably never fires.",
+    "chain": "Step chain",
+    "stepType": "Type",
+    "next": "Next",
+    "elseBranch": "Branch (else)",
+    "end": "end",
+    "noSteps": "This journey has no step yet.",
+    "activate": "Activate",
+    "pause": "Pause",
+    "activated": "Journey is active.",
+    "paused": "Journey paused.",
+    "activationNote": "Activation VALIDATES the chain: in a cyclic or exit-less sequence recipients would be stuck."
+  },
+  "analytics": {
+    "title": "Analytics",
+    "empty": "No sent campaign yet — a report exists only for what went out.",
+    "variants": "A/B variants",
+    "winner": "winner",
+    "clickMap": "Click map",
+    "link": "Link",
+    "clicks": "Clicks",
+    "uniqueClicks": "Unique clickers",
+    "lastClick": "Last click",
+    "noClicks": "No click yet.",
+    "mppNote": "The open rate is DISTORTED: Apple Mail Privacy Protection prefetches images, so some opens are machine-made. A click is a deliberate action — look at that.",
+    "metric": {
+      "recipients": "Recipients",
+      "delivered": "Delivered",
+      "opened": "Opened",
+      "clicked": "Clicked",
+      "bounced": "Bounced",
+      "unsubscribed": "Unsubscribed"
+    }
   }
 }

@@ -314,5 +314,52 @@
     "resume": "Fortsetzen",
     "abTest": "A/B-Test",
     "winner": "Gewinner"
+  },
+  "journeys": {
+    "title": "Journeys",
+    "new": "Neue Journey",
+    "create": "Journey anlegen",
+    "name": "Name",
+    "status": "Status",
+    "statusIs": "Status: {status} · Trigger: {trigger}",
+    "trigger": "Trigger",
+    "triggerHint": "Startet die Sequenz — fälschbare Trigger werden von der Engine separat gedrosselt.",
+    "steps": "Schritte",
+    "activeRuns": "Laufende Instanzen",
+    "completedRuns": "Abgeschlossen",
+    "empty": "Noch keine Journey.",
+    "idleWarning": "{count} aktive Journey(s) ohne laufende Instanz — der Trigger feuert vermutlich nie.",
+    "chain": "Schrittkette",
+    "stepType": "Typ",
+    "next": "Weiter",
+    "elseBranch": "Verzweigung (else)",
+    "end": "Ende",
+    "noSteps": "Diese Journey hat noch keinen Schritt.",
+    "activate": "Aktivieren",
+    "pause": "Pausieren",
+    "activated": "Journey ist aktiv.",
+    "paused": "Journey pausiert.",
+    "activationNote": "Die Aktivierung PRÜFT die Kette: in einer zyklischen oder ausgangslosen Sequenz blieben Empfänger stecken."
+  },
+  "analytics": {
+    "title": "Analytik",
+    "empty": "Noch keine versendete Kampagne — einen Report gibt es nur für Versendetes.",
+    "variants": "A/B-Varianten",
+    "winner": "Gewinner",
+    "clickMap": "Klick-Karte",
+    "link": "Link",
+    "clicks": "Klicks",
+    "uniqueClicks": "Eindeutige Klicker",
+    "lastClick": "Letzter Klick",
+    "noClicks": "Noch kein Klick.",
+    "mppNote": "Die Öffnungsrate ist VERZERRT: Apple Mail Privacy Protection lädt Bilder vor, ein Teil der Öffnungen ist maschinell. Ein Klick ist eine bewusste Handlung — darauf schauen.",
+    "metric": {
+      "recipients": "Empfänger",
+      "delivered": "Zugestellt",
+      "opened": "Geöffnet",
+      "clicked": "Geklickt",
+      "bounced": "Unzustellbar",
+      "unsubscribed": "Abgemeldet"
+    }
   }
 }

@@ -24,6 +24,8 @@ test('a Studio menüpontjai elérhetők', async ({ page }) => {
         ['nav-audience', '/audience'],
         ['nav-templates', '/templates'],
         ['nav-campaigns', '/campaigns'],
+        ['nav-journeys', '/journeys'],
+        ['nav-analytics', '/analytics'],
     ] as const) {
         await page.getByTestId(testid).click();
         await expect(page).toHaveURL(new RegExp(`${url}$`));
@@ -79,3 +81,23 @@ test('a kampány célzása a becsült közönséggel jelenik meg', async ({ page
     await expect(page.getByTestId('campaign-estimate')).toBeVisible();
     await expect(page.getByTestId('campaign-status')).toContainText('draft');
 });
+
+test('a journey a felületről aktiválható, ha a lánca érvényes', async ({ page }) => {
+    await page.goto('/journeys');
+
+    await page.getByTestId('journey-name').fill(`E2E journey ${run}`);
+    await page.getByTestId('journey-submit').click();
+
+    // LÉPÉS NÉLKÜL is aktiválható (a lánc üres, tehát nincs benne kör) — a lényeg, hogy a
+    // gomb a szerverrel beszél, és az állapot tényleg átvált.
+    await expect(page.getByTestId('journey-status')).toContainText('draft');
+
+    await page.getByTestId('journey-activate').click();
+
+    await expect(page.getByTestId('flash-success')).toBeVisible();
+    await expect(page.getByTestId('journey-status')).toContainText('active');
+
+    await page.getByTestId('journey-pause').click();
+    await expect(page.getByTestId('journey-status')).toContainText('paused');
+});
+

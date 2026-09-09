@@ -48,6 +48,10 @@ return [
         'pause' => 'A kampány szüneteltetve.',
         'resume' => 'A kampány folytatódik.',
     ],
+    'journeys' => [
+        'activated' => 'A journey aktív.',
+        'paused' => 'A journey szünetel.',
+    ],
     'gate' => [
         'domain_unverified' => 'A küldő domain nincs hitelesítve.',
         'suppressed' => 'A címzett a tiltólistán van.',

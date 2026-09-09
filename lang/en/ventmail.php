@@ -59,6 +59,10 @@ return [
         'pause' => 'Campaign paused.',
         'resume' => 'Campaign resumed.',
     ],
+    'journeys' => [
+        'activated' => 'Journey is active.',
+        'paused' => 'Journey paused.',
+    ],
     'gate' => [
         'domain_unverified' => 'The sending domain is not verified.',
         'suppressed' => 'The recipient is on the suppression list.',

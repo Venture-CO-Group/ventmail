@@ -314,5 +314,52 @@
     "resume": "Folytatás",
     "abTest": "A/B teszt",
     "winner": "nyertes"
+  },
+  "journeys": {
+    "title": "Journey-k",
+    "new": "Új journey",
+    "create": "Journey létrehozása",
+    "name": "Név",
+    "status": "Állapot",
+    "statusIs": "Állapot: {status} · trigger: {trigger}",
+    "trigger": "Trigger",
+    "triggerHint": "Ez indítja el a sorozatot — a hamisítható triggereket a motor külön fékezi.",
+    "steps": "Lépések",
+    "activeRuns": "Futó példány",
+    "completedRuns": "Befejezett",
+    "empty": "Még nincs journey.",
+    "idleWarning": "{count} aktív journey-ben nincs egyetlen futó példány sem — a trigger valószínűleg sosem tüzel.",
+    "chain": "Lépéslánc",
+    "stepType": "Típus",
+    "next": "Következő",
+    "elseBranch": "Elágazás (else)",
+    "end": "vége",
+    "noSteps": "Ehhez a journey-hez még nincs lépés.",
+    "activate": "Aktiválás",
+    "pause": "Szüneteltetés",
+    "activated": "A journey aktív.",
+    "paused": "A journey szünetel.",
+    "activationNote": "Az aktiválás ELLENŐRZI a láncot: körkörös vagy kilépés nélküli sorozatban a címzettek beragadnának."
+  },
+  "analytics": {
+    "title": "Analitika",
+    "empty": "Még nincs kiküldött kampány — riport arról van, ami elment.",
+    "variants": "A/B változatok",
+    "winner": "nyertes",
+    "clickMap": "Klikk-térkép",
+    "link": "Link",
+    "clicks": "Kattintás",
+    "uniqueClicks": "Egyedi kattintó",
+    "lastClick": "Utolsó kattintás",
+    "noClicks": "Még nincs kattintás.",
+    "mppNote": "A nyitási arány TORZÍT: az Apple Mail Privacy Protection előre letölti a képeket, tehát a nyitások egy része gépi. A kattintás szándékos cselekvés — arra érdemes nézni.",
+    "metric": {
+      "recipients": "Címzett",
+      "delivered": "Kézbesítve",
+      "opened": "Megnyitva",
+      "clicked": "Kattintva",
+      "bounced": "Visszapattant",
+      "unsubscribed": "Leiratkozott"
+    }
   }
 }

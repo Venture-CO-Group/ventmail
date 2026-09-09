@@ -314,5 +314,52 @@
     "resume": "Reanudar",
     "abTest": "Prueba A/B",
     "winner": "ganadora"
+  },
+  "journeys": {
+    "title": "Journeys",
+    "new": "Nueva journey",
+    "create": "Crear journey",
+    "name": "Nombre",
+    "status": "Estado",
+    "statusIs": "Estado: {status} · disparador: {trigger}",
+    "trigger": "Disparador",
+    "triggerHint": "Inicia la secuencia — los disparadores falsificables se limitan aparte en el motor.",
+    "steps": "Pasos",
+    "activeRuns": "Instancias activas",
+    "completedRuns": "Completadas",
+    "empty": "Aún no hay journeys.",
+    "idleWarning": "{count} journey(s) activas sin instancias en curso — el disparador probablemente nunca salta.",
+    "chain": "Cadena de pasos",
+    "stepType": "Tipo",
+    "next": "Siguiente",
+    "elseBranch": "Rama (else)",
+    "end": "fin",
+    "noSteps": "Esta journey aún no tiene pasos.",
+    "activate": "Activar",
+    "pause": "Pausar",
+    "activated": "Journey activa.",
+    "paused": "Journey pausada.",
+    "activationNote": "La activación VALIDA la cadena: en una secuencia cíclica o sin salida los destinatarios quedarían atrapados."
+  },
+  "analytics": {
+    "title": "Analítica",
+    "empty": "Aún no hay campañas enviadas — solo hay informe de lo que salió.",
+    "variants": "Variantes A/B",
+    "winner": "ganadora",
+    "clickMap": "Mapa de clics",
+    "link": "Enlace",
+    "clicks": "Clics",
+    "uniqueClicks": "Clicadores únicos",
+    "lastClick": "Último clic",
+    "noClicks": "Aún no hay clics.",
+    "mppNote": "La tasa de apertura está DISTORSIONADA: Apple Mail Privacy Protection precarga imágenes, así que parte de las aperturas son automáticas. El clic es una acción deliberada — mira eso.",
+    "metric": {
+      "recipients": "Destinatarios",
+      "delivered": "Entregados",
+      "opened": "Abiertos",
+      "clicked": "Clicados",
+      "bounced": "Rebotados",
+      "unsubscribed": "Bajas"
+    }
   }
 }

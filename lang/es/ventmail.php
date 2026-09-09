@@ -48,6 +48,10 @@ return [
         'pause' => 'Campaña pausada.',
         'resume' => 'Campaña reanudada.',
     ],
+    'journeys' => [
+        'activated' => 'Journey activa.',
+        'paused' => 'Journey pausada.',
+    ],
     'gate' => [
         'domain_unverified' => 'El dominio de envío no está verificado.',
         'suppressed' => 'El destinatario está en la lista de supresión.',

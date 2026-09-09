@@ -62,6 +62,8 @@ const studio = computed(() =>
         { href: '/audience', id: 'nav-audience', label: t('nav.audience'), show: can('audience.manage') },
         { href: '/templates', id: 'nav-templates', label: t('nav.templates'), show: can('template.create') },
         { href: '/campaigns', id: 'nav-campaigns', label: t('nav.campaigns'), show: can('campaign.create') },
+        { href: '/journeys', id: 'nav-journeys', label: t('nav.journeys'), show: can('campaign.create') },
+        { href: '/analytics', id: 'nav-analytics', label: t('nav.analytics'), show: can('analytics.view') },
     ].filter((item) => item.show),
 );
 
