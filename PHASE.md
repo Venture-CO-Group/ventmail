@@ -6,7 +6,13 @@
 ## Cél
 **Mailgun + Mailchimp egyidejű kiváltása.** Két pillér (Platform / Studio) egy közös motoron.
 
-## Aktuális milestone: **M3 — C sáv (ZÁRÁS)** · aktív packet: **C2 (lezárás alatt)** *(M0 lezárva: 2026-09-02 · M1 lezárva: 2026-09-08 · M2 backend lezárva: 2026-09-09)*
+## Aktuális milestone: **M4 — FELÜLET** · aktív packet: **nincs (fázisterv kell)**
+*(M0 lezárva: 2026-09-02 · M1 lezárva: 2026-09-08 · M2 backend: 2026-09-09 · M3 backend: 2026-09-09)*
+
+> **A MOTOR KÉSZ, A FELÜLET NEM.** A 89 elfogadási kritérium mindegyike backend-szinten
+> megfigyelhető és tesztelt (1494 teszt), tehát a Mailgun- és a Mailchimp-kiváltás
+> KÉPESSÉGE megvan — de a marketinges és az üzemeltető kezébe még nincs mit adni. A
+> `resources/js/Pages` alatt hat képernyő van, mind A-sávos. Ez a következő fázis.
 
 > **Fázis-névhasználat.** A roadmap sávokban gondolkodik, a napi munka fázisokban. A kettő
 > leképezése: **M1 = A sáv** (Platform, a Mailgun kiváltása) · **M2 = B sáv** (Studio, a
@@ -44,7 +50,7 @@
 > a talált blokkolók javítva. Összesen **357 teszt / 1189 assertion** zöld.
 
 ## Aktív packet
-> **M1-A1 · Messages API** — branch: `feat/a1-messages-api`.
+> **NINCS.** Az M0–M3 lezárva; az M4 (felület) fázisterve még nem készült el.
 
 ---
 
@@ -489,25 +495,73 @@ Amit a packet **NEM** hozott, és ezt kimondjuk, nem elhallgatjuk:
 B1: 5–6 nap · B2: 6–7 · B3: 4–5 · B4: 3–4 → **~18–22 nap**
 
 ## A sáv — PLATFORM (Mailgun-kiváltás), M0 után
-- [ ] A1 Messages API (MIME, batch/recipient-variables, `o:`/`h:`/`v:`, ütemezés, testmode, tárolt sablonok)
-- [ ] A2 SMTP relay + IP-poolok + warmup + prioritásos sorok + retry/deferral + bounce-osztályozó
-- [ ] A3 Napló + üzenet-trace (SMTP-párbeszéd) + retenció + tag-stat + Events API + webhook replay/DLQ
-- [ ] A4 **Inbound routing** (MX, route-motor, MIME-parse, stripped-text, csatolmány, store/forward/stop, FBL)
-- [ ] A5 Címellenőrzés (szintaxis/MX/szerep/eldobható/catch-all/szonda/kockázat, egyedi + bulk)
-- [ ] A6 Kézbesíthetőségi suite (blocklist, DMARC RUA, seed/inbox placement, spam-score, MTA-STS/TLS-RPT/BIMI)
+- [x] A1 Messages API (MIME, batch/recipient-variables, `o:`/`h:`/`v:`, ütemezés, testmode, tárolt sablonok) — PR #13
+- [x] A2 SMTP relay + IP-poolok + warmup + prioritásos sorok + retry/deferral + bounce-osztályozó — PR #14, #15
+- [x] A3 Napló + üzenet-trace (SMTP-párbeszéd) + retenció + tag-stat + Events API + webhook replay/DLQ — PR #16
+- [x] A4 **Inbound routing** (MX, route-motor, MIME-parse, stripped-text, csatolmány, store/forward/stop, FBL) — PR #17
+- [x] A5 Címellenőrzés (szintaxis/MX/szerep/eldobható/catch-all/szonda/kockázat, egyedi + bulk) — PR #18
+- [x] A6 Kézbesíthetőségi suite (blocklist, DMARC RUA, seed/inbox placement, spam-score, MTA-STS/TLS-RPT/BIMI) — PR #19, #20
 
 ## B sáv — STUDIO (Mailchimp-kiváltás), M0 után, A-val párhuzamosítható
-- [ ] B1 Közönség + consent (double opt-in) + űrlapok + preference center + ventOS sync (fake)
-- [ ] B2 Block editor (block-tree + MJML) + kampány-életciklus + célzás + A/B + ütemezés
-- [ ] B3 Journey motor + builder UI (API- és inbound-trigger)
-- [ ] B4 Marketing analitika
+- [x] B1 Közönség + consent (double opt-in) + űrlapok + preference center + ventOS sync (fake) — PR #21
+- [x] B2 Block editor (block-tree + MJML) + kampány-életciklus + célzás + A/B + ütemezés — PR #22 *(motor; felület M4)*
+- [x] B3 Journey motor (API- és inbound-trigger) — PR #23 *(a BUILDER UI az M4-ben)*
+- [x] B4 Marketing analitika — PR #24 *(riport-képernyők M4)*
 
 ## C sáv — Zárás
-- [ ] C1 ventPay számlázás + metering (6 dimenzió) + sub-accountok konszolidált számlázása
-- [x] C2 Super-admin + i18n (HU/EN/DE/IT/ES/RU) + teljes gate-sor — **backend kész**
+- [x] C1 ventPay számlázás + metering (6 dimenzió) + sub-accountok konszolidált számlázása — PR #26
+- [x] C2 Super-admin + i18n (HU/EN/DE/IT/ES/RU) + teljes gate-sor — PR #27, **backend kész**
       (reviewer + security átment, mindkettő BLOKKOLÓ verdikttel indult; minden találat
-      javítva mérő teszttel). A **platform-konzol FELÜLETE külön fázis** — lásd a „C2
-      állapota" szakaszt.
+      javítva mérő teszttel, majd egy VERIFIKÁCIÓS kör is futott). A **platform-konzol
+      FELÜLETE külön fázis** — lásd a „C2 állapota" szakaszt.
+
+## M4 — FELÜLET (a következő fázis, terv még nincs)
+
+A backend-fázisokban a „test → backend → frontend" sorrendből a frontend MINDEN packetnél
+hátramaradt. Egyben, önálló fázisként érdemes megcsinálni: a képernyők közös alapokra
+épülnek (táblázat + szűrő-sáv + állapot-jelző, block editor, célzás-választó,
+riport-grafikonok), és a Vue I18n lazy locale bundle is EGY bekötés mind a hatra.
+
+Ma `resources/js/Pages` alatt **hat** képernyő van (domain-wizard, napló, trace, tag-stat,
+inbound route-ok, smoke), az `e2e/` alatt **három** spec — mind A-sávos.
+
+Amit az M4-nek hoznia kell, nagyjából packet-méretben:
+- **M4-1 · Platform tenant-felület:** domainek, API-kulcsok, SMTP-hitelesítők, IP-poolok +
+  warmup, suppression-lista, címellenőrzés (egyedi + bulk), webhook-végpontok + replay,
+  kézbesíthetőségi áttekintő, számlák/kvóta, sub-accountok.
+- **M4-2 · Studio-felület:** közönség + szegmensek, consent/preference center admin,
+  **block editor** (a block-tree kontraktusra), kampány-varázsló + A/B + ütemezés,
+  **journey-builder**, marketing-riportok.
+- **M4-3 · Platform-konzol (a C2 felülete):** impersonation, plan-override, globális
+  suppression, audit-kereső, cluster-health, IP-felügyelet. **Két nevesített előfeltétel a
+  „C2 állapota" szakaszban** (platform-only scope a két platform-modellre; HTTP-szintű
+  írás-tilalom aktív munkamenet alatt) — ezek a packet ELSŐ lépései, nem utólagos
+  finomítás.
+- **M4-4 · i18n a felületen:** Vue I18n lazy locale bundle (a PHP-oldali hat nyelv és a
+  kulcs-teljességi teszt megvan; a `SetLocale` middleware a kérés nyelvét már beállítja).
+- **Playwright** minden fő flow-ra — ma három spec van, mind A-sávos.
+
+**Előfeltétel a CI-hoz:** a `VENTURE_PACKAGES_TOKEN` repo-secret nélkül a Frontend és az
+E2E job MINDEN PR-en elhasal (a `@venture/ui` és a `@venture/design` privát csomag). Amíg
+nincs, az M4 munkája nem tud zöld CI-t adni.
+
+## Mi maradt a felületen KÍVÜL (nevesített gazdával)
+
+- **Éles MTA:** a `PostalDriver` kész, a Postal cluster nem él. Vele együtt: MX- és
+  submission-listener üzemeltetése, PTR/rDNS, TLS-tanúsítványok, IP-warmup indítása.
+- **ventPay és ventOS:** mindkettő fake mögött (`FakeVentPayClient`, `FakeVentureOsSync`),
+  teszttel fedett kontraktussal. A valódi bekötés az ő élesedésükkor.
+- **Seed-lista szolgáltató** (A6 backlog): a fake élesben KIVÉTELT DOB — kitalált
+  inbox-arány rosszabb, mint a hiányzó funkció.
+- **DMARC:** automatikus betöltés az inbound route-on + a jelentés tenant-hozzárendelése a
+  szállító levélből (ma a `policy_published > domain`, ami a feladó szava). **TLS-RPT
+  fogadás** ugyanezen a mintán. **BIMI/VMC**: pénz- és ügyintézés-kérdés, külön döntés.
+- **`TRUSTED_PROXIES` leszűkítése** a valódi proxy-hálóra — élesben KÖTELEZŐ.
+- **ventSSO:** a `ventmail-platform` kliens és a
+  `resource_access.ventmail-platform.roles` claim regisztrálása. Enélkül senki nem
+  platform-admin (fail-closed) — a C2 konzolja emberi lépés nélkül üres.
+- **Ügyeleti végpont:** a `SUPERADMIN_ONCALL_URL/_SECRET` beállítása; enélkül a
+  blocklist-riasztás `error` naplósort ír, és senki nem kapja meg.
 
 ## Párhuzamosítás
 M0 után az **A és B sáv külön worktree-ben, külön runnerrel** futtatható:
