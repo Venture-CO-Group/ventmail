@@ -34,12 +34,36 @@ return new class extends Migration
 
     public function up(): void
     {
+        /*
+         | INDEX A LEJÁRAT-KERESÉSHEZ.
+         |
+         | A meglévő index `(workspace_id, created_at)` — a retenciós lekérdezés viszont
+         | workspace-től FÜGGETLENÜL keres (`where created_at < …`), tehát azt nem
+         | használhatja: mérve `Seq Scan` + `Sort`, és a parancs ezt kötegenként (500 sor)
+         | ismétli. Egy millió lejárt sor így kétezer teljes tábla-bejárást jelentene egy
+         | folyamatosan növő táblán.
+         */
+        DB::statement('create index if not exists audit_logs_created_at_id_index
+            on audit_logs (created_at, id)');
+
         DB::statement("create or replace function audit_logs_immutable() returns trigger as \$\$
             begin
                 if tg_op = 'UPDATE'
                    and to_jsonb(new) - 'workspace_id' - 'user_id' = to_jsonb(old) - 'workspace_id' - 'user_id'
                    and (new.workspace_id is null or new.workspace_id = old.workspace_id)
                    and (new.user_id is null or new.user_id = old.user_id)
+                   -- AZ FK-NULLÁZÁS CSAK AKKOR, HA A HIVATKOZOTT SOR TÉNYLEG ELTŰNT.
+                   --
+                   -- Enélkül a felmentés egy ELREJTÉSI útvonal is volt: egy nyers
+                   -- `update(workspace_id = null)` a `platform.impersonation_started` sort
+                   -- kivette a tenant naplójából (mérve), vagyis épp azt a tulajdonságot
+                   -- vette el, amiért a sor a tenanthoz tartozik (a tenant IS LÁTJA).
+                   -- A törlés és az elrejtés alakja ugyanaz — a különbség az, hogy törlés
+                   -- után a hivatkozott workspace/user MÁR NEM LÉTEZIK.
+                   and (new.workspace_id is not null or old.workspace_id is null
+                        or not exists (select 1 from workspaces where id = old.workspace_id))
+                   and (new.user_id is not null or old.user_id is null
+                        or not exists (select 1 from users where id = old.user_id))
                 then
                     -- Kizárólag az FK-k nullázása (workspace/user törlése). Az aktor-pillanatkép
                     -- oszlopai érintetlenek maradnak, tehát a nyom nem vész el.
@@ -61,6 +85,8 @@ return new class extends Migration
 
     public function down(): void
     {
+        DB::statement('drop index if exists audit_logs_created_at_id_index');
+
         DB::statement("create or replace function audit_logs_immutable() returns trigger as \$\$
             begin
                 if tg_op = 'UPDATE'

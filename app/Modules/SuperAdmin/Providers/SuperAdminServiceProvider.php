@@ -7,6 +7,7 @@ namespace App\Modules\SuperAdmin\Providers;
 use App\Models\User;
 use App\Modules\Deliverability\Events\BlocklistStateChanged;
 use App\Modules\SuperAdmin\Listeners\RaiseBlocklistAlert;
+use App\Modules\SuperAdmin\Services\Impersonation;
 use App\Modules\SuperAdmin\Services\ImpersonationReadOnlyGuard;
 use App\Modules\Support\ModuleServiceProvider;
 use Illuminate\Database\Eloquent\Model;
@@ -31,6 +32,20 @@ use Illuminate\Support\Facades\Gate;
  */
 final class SuperAdminServiceProvider extends ModuleServiceProvider
 {
+    public function register(): void
+    {
+        /*
+         | SINGLETON — a memó miatt, nem stílusból.
+         |
+         | Az írás-tilalom hallgatója MINDEN Eloquent-mentésre lefut, és `app()`-ből kéri a
+         | guardot. Új példány = új `Impersonation` = üres memó, tehát mentésenként egy plusz
+         | SELECT az `impersonation_sessions`-re (mérve: 20 mentés → +20 lekérdezés, aktív
+         | munkamenet nélkül is). Singletonként a feloldás kérésenként EGYSZER történik.
+         */
+        $this->app->singleton(Impersonation::class);
+        $this->app->singleton(ImpersonationReadOnlyGuard::class);
+    }
+
     protected function bootModule(): void
     {
         Gate::define('platform.admin', static fn (User $user): bool => $user->isPlatformAdmin());

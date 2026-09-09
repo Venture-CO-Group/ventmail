@@ -22,6 +22,20 @@ return [
     'allowed_ports' => array_map('intval', explode(',', (string) env('INBOUND_ALLOWED_PORTS', '25,2525'))),
 
     /*
+     | A HEALTH-PRÓBA CÉLJA (C2 · 86. kritérium): hol keresse a cluster-health az MX-fogadót.
+     |
+     | Miért külön config: a listener MÁS konténerben fut (`inbound-mx`, `--port=2525`), az
+     | `allowed_ports` pedig az ELFOGADHATÓ portok listája, nem a futó listener címe. A
+     | próba korábban `127.0.0.1` + `allowed_ports[0]` (= 25) volt, ami az app-konténerből
+     | SOHA nem érhető el — mérve: `Connection refused` mindkét porton, tehát a komponens
+     | bekapcsolt inbound mellett állandóan `down`-t adott, és lerontotta az egész riportot.
+     */
+    'health' => [
+        'host' => env('INBOUND_HEALTH_HOST', 'inbound-mx'),
+        'port' => (int) env('INBOUND_HEALTH_PORT', 2525),
+    ],
+
+    /*
      | A beérkezett levél retenciója. IDEGEN TARTALOM: nem mi írtuk, és nem a mi
      | jogalapunkon tároljuk — a rövid alapérték szándékos (spec 10.4).
      */

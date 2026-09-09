@@ -119,6 +119,10 @@ final class GlobalSuppressions
                 'reason' => $reason->value,
                 'admin_id' => (int) $admin->getKey(),
             ],
+            // PLATFORM-SZINTŰ művelet: MINDEN tenantra hat, tehát egyikük naplójába sem
+            // tartozik. A kontextusból örökölt `workspace_id` egy VÉLETLEN tenant naplójába
+            // vitte volna — ugyanaz a hiba, amit az `AuditSearch`-nél is javítottunk.
+            workspaceId: AuditLogger::NO_WORKSPACE,
             actor: $admin,
         );
 
@@ -158,6 +162,7 @@ final class GlobalSuppressions
                 'detail' => mb_substr(trim($detail), 0, 500),
                 'admin_id' => (int) $admin->getKey(),
             ],
+            workspaceId: AuditLogger::NO_WORKSPACE,
             actor: $admin,
         );
 

@@ -439,8 +439,16 @@ Amit a packet **NEM** hozott, és ezt kimondjuk, nem elhallgatjuk:
   lekérdezés minden tenant sorát látná. A konzol route-jaival együtt kell egy
   platform-only scope, ami kontextussal fail-closed.
 - **A hat nyelv PHP-oldali** (`lang/*/ventmail.php`), és a C2 óta **load-bearing**: a
-  `/v1` gate-üzenetei a fordító-rétegen mennek (`MessagesApiTest` mind a három nyelvre
-  méri). A Vue I18n bundle a frontend-fázissal jön.
+  `SetLocale` middleware a bejelentkezett felhasználó `locale`-jából, különben az
+  `Accept-Language`-ből választ (mindkettő a támogatott listára szűrve), a `/v1`
+  gate-üzenetei pedig a fordító-rétegen mennek — teszt méri mind a kettőt. A Vue I18n
+  lazy locale bundle a frontend-fázissal jön.
+- **Az audit-napló PII-védelme KÉT rétegű, és a második a retenció.** A minta a szabályos
+  e-mail-alakot fogja (a domain szándékosan olvasható marad: az a diagnózis); az emberi
+  obfuszkáció (`anna (at) example.com`) és a nem-e-mail PII (név, postai cím) NEM
+  mintázható — arra a `audit:prune` 730 napos lejárata a válasz, 365 napos DB-oldali
+  padlóval. A hash pszeudonim, nem anonim: a `suppressions` táblával összejoinolható,
+  és ez szándékos (`config/audit.php` kimondja).
 
 ### M2 Definition of Done
 - [x] Mind a 26 kritériumhoz (49–74) tartozik néven nevezhető zöld teszt

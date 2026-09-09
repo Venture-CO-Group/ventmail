@@ -114,7 +114,13 @@ class User extends Model implements AuthenticatableContract
      */
     public function isPlatformAdmin(): bool
     {
-        return (bool) ($this->attributes['platform_admin'] ?? false);
+        $raw = $this->attributes['platform_admin'] ?? false;
+
+        // SZIGORÚ összehasonlítás, nem `(bool)` cast: a Postgres-driver `bool`-t ad, de ha
+        // az érték bármikor sztringként érkezik (más driver, nyers lekérdezés, cache),
+        // akkor `(bool) 'f' === true` — vagyis a fail-closed olvasó fail-openné válna, épp
+        // a rendszer legerősebb jogosultságánál.
+        return $raw === true || $raw === 1 || $raw === '1' || $raw === 't';
     }
 
     /** A ventMail nem tárol jelszót — a jelszó-alapú hitelesítés nem értelmezett. */

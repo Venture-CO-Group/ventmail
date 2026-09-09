@@ -106,6 +106,18 @@ final class AuditLog extends Model
             return $callback();
         } finally {
             self::$pruningDepth--;
+
+            if (self::$pruningDepth === 0) {
+                /*
+                 | A JELZŐ VISSZAVÉTELE — a `set local` a TRANZAKCIÓ végéig élne, nem a
+                 | callbackéig. Enélkül ugyanabban a tranzakcióban minden későbbi
+                 | builder-DELETE átmenne a triggeren (a modell-event a builder-úton nem
+                 | fut), tehát a „szűk ajtó" a valóságban tranzakció-szintű lenne, nem
+                 | hívás-szintű. A 365 napos alsó határ tartaná a kárt, de a szándék-jelzés
+                 | pont attól jelzés, hogy pontosan addig tart, ameddig a szándék.
+                 */
+                DB::statement("set local ventmail.audit_prune = 'off'");
+            }
         }
     }
 

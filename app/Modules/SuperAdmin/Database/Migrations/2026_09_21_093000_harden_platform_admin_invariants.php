@@ -53,6 +53,9 @@ return new class extends Migration
                     if new.expires_at <> old.expires_at
                        or new.send_quota is distinct from old.send_quota
                        or new.features::text <> old.features::text
+                       -- A MIÉRT VONTUK VISSZA is a tartalom része: ha utólag átírható,
+                       -- a visszavonás indoka csendben megváltoztatható.
+                       or new.reason is distinct from old.reason
                     then
                         raise exception 'A visszavont plan-override tartalma nem irhato at.';
                     end if;
@@ -66,10 +69,26 @@ return new class extends Migration
         DB::statement('create trigger plan_overrides_revocation_final_trigger
             before update on plan_overrides
             for each row execute function plan_overrides_revocation_final()');
+
+        /*
+         | A 30 PERCES FELSŐ KORLÁT AZ ADATBÁZISBAN IS.
+         |
+         | A `Impersonation::MAX_MINUTES` alkalmazás-szintű, és a részleges unique index
+         | csak a munkamenetek SZÁMÁT őrzi — a HOSSZÚSÁGÁT nem. Mérve: közvetlen
+         | INSERT-tel 30 NAPOS nyitott munkamenet létrehozható volt. A támogatás percekig
+         | néz egy fiókot, nem hetekig; a másik két invariánsnak van DB-őre, ennek is kell.
+         |
+         | A korlát 31 perc, nem 30: a `now()` a PHP- és a DB-oldalon nem ugyanaz a
+         | pillanat, és egy másodperces csúszás nem lehet séma-hiba.
+         */
+        DB::statement("alter table impersonation_sessions
+            add constraint impersonation_sessions_max_duration
+            check (expires_at <= started_at + interval '31 minutes')");
     }
 
     public function down(): void
     {
+        DB::statement('alter table impersonation_sessions drop constraint if exists impersonation_sessions_max_duration');
         DB::statement('drop trigger if exists plan_overrides_revocation_final_trigger on plan_overrides');
         DB::statement('drop function if exists plan_overrides_revocation_final()');
         DB::statement('drop index if exists impersonation_sessions_one_open_per_user');

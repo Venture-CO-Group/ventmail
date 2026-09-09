@@ -40,6 +40,23 @@ final class Impersonation
     /** Egy munkamenet felső hossza percben. */
     public const MAX_MINUTES = 30;
 
+    /**
+     * KÉRÉS-ÉLETTARTAMÚ memó: `user_id => ImpersonationSession|null`.
+     *
+     * Miért kell: az `ImpersonationReadOnlyGuard` MINDEN Eloquent-mentésre lefut, és
+     * tenant-modellnél megkérdezi az aktív munkamenetet. Memó nélkül ez mentésenként EGY
+     * plusz SELECT — mérve: 20 `Domain::create()` 60 helyett 80 lekérdezés, AKTÍV
+     * munkamenet nélkül is. Egy tízezres import tízezer kört tett volna az
+     * `impersonation_sessions`-re.
+     *
+     * A memó a LEKÉRDEZÉST spórolja, nem az ÉRVÉNYESSÉGET dönti el: a lejáratot minden
+     * olvasás újraértékeli (`isActive()`), tehát az időutazás és a lejárat is érvényesül.
+     * A `start()` és az `end()` — az egyetlen két mutáló út — üríti.
+     *
+     * @var array<int, ImpersonationSession|null>
+     */
+    private array $memo = [];
+
     public function __construct(private readonly AuditLogger $audit) {}
 
     /**
@@ -99,6 +116,8 @@ final class Impersonation
         $session->workspace_id = $workspace->getKey();
         $session->save();
 
+        $this->forget((int) $admin->getKey());
+
         $this->audit->log(
             'platform.impersonation_started',
             $session,
@@ -123,6 +142,8 @@ final class Impersonation
         }
 
         $session->forceFill(['ended_at' => now()])->save();
+
+        $this->forget((int) $session->user_id);
 
         $this->audit->log(
             'platform.impersonation_ended',
@@ -150,12 +171,27 @@ final class Impersonation
      */
     public function active(User $admin): ?ImpersonationSession
     {
-        return ImpersonationSession::query()
-            ->where('user_id', $admin->getKey())
-            ->whereNull('ended_at')
-            ->where('expires_at', '>', now())
-            ->latest('started_at')
-            ->first();
+        $id = (int) $admin->getKey();
+
+        if (! array_key_exists($id, $this->memo)) {
+            $this->memo[$id] = ImpersonationSession::query()
+                ->where('user_id', $id)
+                ->whereNull('ended_at')
+                ->latest('started_at')
+                ->first();
+        }
+
+        $session = $this->memo[$id];
+
+        // A LEJÁRAT az olvasáskor dől el, nem a memó feltöltésekor: egy nyitott, de lejárt
+        // munkamenet nem ad nézetet és nem tart írás-tilalmat fenn.
+        return $session !== null && $session->isActive() ? $session : null;
+    }
+
+    /** A memó ürítése — a két mutáló út (`start`, `end`) hívja. */
+    private function forget(int $userId): void
+    {
+        unset($this->memo[$userId]);
     }
 
     /**

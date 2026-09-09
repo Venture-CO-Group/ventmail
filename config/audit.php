@@ -39,4 +39,22 @@ return [
      | naplót — épp azt, ami egy folyamatban lévő incidensnél a legértékesebb.
      */
     'retention_days' => (int) env('AUDIT_RETENTION_DAYS', 730),
+
+    /*
+     | MIT NEM VÁLLAL a pszeudonimizálás — hogy a retenció szerepe világos legyen.
+     |
+     | 1. PSZEUDONIM, NEM ANONIM. A `[pii:email:<hash>]` ugyanannak a
+     |    `KeyedHash::of('email', …)`-nek a prefixe, amit a `suppressions.email_hash`
+     |    teljes hosszban tárol — a `suppressions.email` pedig NYERS. Aki mindkét táblát
+     |    látja, egy joinnal visszafejti. Ez SZÁNDÉKOS (enélkül a napló-sor nem
+     |    kapcsolható a tiltáshoz), de GDPR-szempontból személyes adat marad, nem
+     |    anonimizált.
+     | 2. AZ EMBERI OBFUSZKÁCIÓ ÁTMEGY: `anna (at) example.com`, sortöréssel tört cím,
+     |    domain-literál (`anna@[192.168.0.9]`) — mérve. A minta a szabályos alakot fogja.
+     | 3. A NEM E-MAIL PII (név, postai cím, telefonszám) mintázhatatlan, tehát nyers marad.
+     |
+     | Mindhárom esetre a RETENCIÓ a válasz — ezért nem opcionális, és ezért van DB-oldali
+     | padlója is. Ami egyszer bement, azt UPDATE-tel nem lehet kitakarítani (a tábla
+     | tiltja): csak lejárni tud.
+     */
 ];

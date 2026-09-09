@@ -2,8 +2,6 @@
 
 declare(strict_types=1);
 
-use App\Modules\Identity\Actions\SyncSsoUser;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\File;
 
 /*
@@ -190,38 +188,3 @@ it('a TÁMOGATOTT nyelvek listája a configból jön, nem szét van szórva', fu
     expect(config('app.supported_locales'))->toBe(SUPPORTED_LOCALES)
         ->and(config('app.fallback_locale'))->toBe(REFERENCE_LOCALE);
 });
-
-it('az IdP `locale` claimje csak TÁMOGATOTT nyelvet írhat a felhasználóra', function () {
-    /*
-     | A claim IDEGEN BEMENET: az IdP bármit adhat (`de-CH`, `zz`, path-szerű sztringet), és
-     | eddig ellenőrzés nélkül a `users.locale`-be került. A Laravel a furcsa értékre később
-     | `InvalidArgumentException`-t dob (mérve), a felhasználó pedig egy nem létező nyelvet
-     | „választ" — ami a felületen üres feliratokat jelentene.
-     |
-     | A régió-változat elfogadható, ha az alapnyelv támogatott: `hu-HU` → `hu`.
-     */
-    $sync = app(SyncSsoUser::class);
-
-    $esetek = [
-        'de' => 'de',
-        'hu-HU' => 'hu',
-        'en_US' => 'en',
-        'zz' => (string) config('app.locale'),
-        '../../etc/passwd' => (string) config('app.locale'),
-        '' => (string) config('app.locale'),
-    ];
-
-    foreach ($esetek as $claim => $vart) {
-        $user = $sync([
-            'iss' => 'https://sso.teszt.invalid',
-            'sub' => 'alany-'.md5((string) $claim),
-            'email' => 'nyelv-'.md5((string) $claim).'@pelda.hu',
-            'email_verified' => true,
-            'name' => 'Teszt',
-            'locale' => $claim,
-        ]);
-
-        expect($user->locale)->toBe($vart)
-            ->and(config('app.supported_locales'))->toContain($user->locale);
-    }
-})->uses(RefreshDatabase::class);

@@ -110,14 +110,26 @@ it('a gate-üzenet a FORDÍTÓ-RÉTEGEN megy — a kód marad, a szöveg követi
      */
     Domain::query()->update(['status' => 'pending']);
 
+    /*
+     | A NYELVET A KÉRÉS választja, nem a teszt: az `Accept-Language` fejlécen megy, amit a
+     | `SetLocale` middleware a támogatott listára szűr. Így a teszt a VALÓDI úton mér — az
+     | első változat maga hívta a `setLocale()`-t, tehát átment volna akkor is, amikor (mint
+     | mérve is) a kódbázisban egyetlen nyelvválasztó hívás sem volt.
+     */
     foreach (['hu', 'en', 'de'] as $locale) {
-        app()->setLocale($locale);
-
-        apiPost('/v1/messages', validPayload())
+        apiPost('/v1/messages', validPayload(), ['Accept-Language' => $locale])
             ->assertStatus(422)
             ->assertJsonPath('error.code', 'DOMAIN_UNVERIFIED')
             ->assertJsonPath('error.message', trans('ventmail.gate.domain_unverified', locale: $locale));
     }
+
+    // A RÉGIÓ-VÁLTOZAT az alapnyelvre vezet: `hu-HU` → `hu`.
+    apiPost('/v1/messages', validPayload(), ['Accept-Language' => 'hu-HU,hu;q=0.9'])
+        ->assertJsonPath('error.message', trans('ventmail.gate.domain_unverified', locale: 'hu'));
+
+    // NEM TÁMOGATOTT nyelv → az alap, nem hiba és nem nyers kulcs.
+    apiPost('/v1/messages', validPayload(), ['Accept-Language' => 'zz'])
+        ->assertJsonPath('error.message', trans('ventmail.gate.domain_unverified', locale: (string) config('app.locale')));
 
     // ISMERETLEN kód esetén sem szivárog nyers kulcs a válaszba: az általános üzenet jön.
     expect(trans('ventmail.gate.rejected'))->not->toContain('ventmail.gate');

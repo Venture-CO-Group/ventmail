@@ -51,18 +51,24 @@ final class ResolveWorkspace
          |
          | A LEJÁRT munkamenet magától megszűnik: az `active()` `null`-t ad, és a
          | felhasználó a saját tagságaira esik vissza.
+         |
+         | AZ EXPLICIT VÁLTÁS ERŐSEBB: ha a kérés `?workspace=`-t ad, az dönt. Enélkül a
+         | platform-admin nyitott munkamenet alatt a SAJÁT workspace-ét sem érhetné el —
+         | üzemeltetői zsákutca. Az írás-tilalom ettől nem lazul: az a MUNKAMENET
+         | létezésén áll, nem a kontextuson, tehát a saját workspace-ében sem ír, amíg a
+         | nézet nyitva van.
          */
-        $impersonated = $this->impersonatedWorkspace($user);
+        // Explicit váltási kérés (query/route paraméter) SOSEM eshet vissza csendben:
+        // ha nincs rá tagság, az 403. A session-ben tárolt választás viszont elavulhat.
+        $explicit = (string) ($request->route('workspace') ?? $request->query('workspace', ''));
+
+        $impersonated = $explicit === '' ? $this->impersonatedWorkspace($user) : null;
 
         if ($impersonated !== null) {
             $this->context->set($impersonated);
 
             return $next($request);
         }
-
-        // Explicit váltási kérés (query/route paraméter) SOSEM eshet vissza csendben:
-        // ha nincs rá tagság, az 403. A session-ben tárolt választás viszont elavulhat.
-        $explicit = (string) ($request->route('workspace') ?? $request->query('workspace', ''));
 
         if ($explicit !== '') {
             $membership = $this->membershipFor($user->getKey(), $explicit);

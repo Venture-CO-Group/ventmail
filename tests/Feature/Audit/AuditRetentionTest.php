@@ -54,7 +54,16 @@ it('a NYERS E-MAIL-CÍM nem kerül az auditba — sem kulcs alatt, sem szabad sz
         ->toContain('[pii:email:')
         // A KÖRNYEZET MEGMARAD: a jegyzet szövege továbbra is olvasható, csak a cím nem.
         ->toContain('visszahívást kér')
-        ->toContain('Anna Kovacs');
+        ->toContain('Anna Kovacs')
+        /*
+         | A DOMAIN MEGMARAD, és ez nem engedmény: a helyi rész azonosítja a személyt, a
+         | domain viszont a DIAGNÓZIS. A minta nem tudja szétválasztani az ÉRINTETT címét a
+         | KONFIGURÁCIÓS célcímtől — a teljes csere miatt egy `attacker@evil.com`
+         | továbbítási cél csak hash lett volna, tehát egy levél-exfiltráció CÉLJA nem
+         | lenne visszakereshető egy törölhetetlen táblában.
+         */
+        ->toContain('@ugyfel-ceg.hu')
+        ->toContain('@pelda.hu');
 });
 
 it('a PSZEUDONIM audit-hash ÖSSZEKAPCSOLHATÓ a suppression-sorral', function () {
@@ -82,7 +91,7 @@ it('a PSZEUDONIM audit-hash ÖSSZEKAPCSOLHATÓ a suppression-sorral', function (
 
     $prefix = substr(KeyedHash::of('email', 'panaszos@pelda.hu'), 0, 16);
 
-    expect($audit->context['note'])->toBe('[pii:email:'.$prefix.']')
+    expect($audit->context['note'])->toBe('[pii:email:'.$prefix.']@pelda.hu')
         ->and((string) $suppression->email_hash)->toStartWith($prefix);
 });
 
@@ -162,4 +171,75 @@ it('az EGYEDI audit-sor törlése a modellen is tiltott', function () {
     $audit = app(WorkspaceContext::class)->runFor($workspace, fn () => app(AuditLogger::class)->log('teszt.modell'));
 
     expect(fn () => $audit->delete())->toThrow(RuntimeException::class, 'nem törölhető');
+});
+
+it('a URL-BE ÁGYAZOTT cím nem viszi el a HOSZTNEVET', function () {
+    /*
+     | A `https://user:titok@hook.pelda.hu/webhook` alakot a minta e-mail-címként fogja
+     | meg. A teljes csere a HOSZTNEVET tüntette el a naplóból (mérve) — vagyis egy webhook
+     | átirányítás-vizsgálatnál nem lehetett volna megállapítani, HOVA ment a kérés.
+     */
+    $workspace = Workspace::factory()->create();
+
+    app(WorkspaceContext::class)->runFor($workspace, function () {
+        app(AuditLogger::class)->log('teszt.url', null, context: [
+            'endpoint' => 'https://felhasznalo:titkos@hook.pelda.hu/webhook',
+        ]);
+    });
+
+    $audit = AuditLog::query()->where('action', 'teszt.url')->firstOrFail();
+
+    expect($audit->context['endpoint'])
+        ->toContain('hook.pelda.hu/webhook')
+        ->toContain('[pii:email:');
+});
+
+it('a PSZEUDONIM FORMÁTUM RÖGZÍTETT — a korrelálhatóság nem törhet el csendben', function () {
+    /*
+     | A C2 egy TARTÓS kimeneti formátumot vezetett be egy meglévő primitívre:
+     | `[pii:email:` + a `KeyedHash::of('email', DomainNormalizer::listKey($cim))` első 16
+     | hex karaktere + `]@domain`. Ez a kompozíció (normalizálás + purpose + csonkolási
+     | hossz + a domain megtartása) KORRELÁCIÓ-KULCS a `suppressions.email_hash` felé:
+     | ezen múlik, hogy egy napló-sorról meg lehet-e állapítani, ugyanarról a címről szól-e,
+     | mint egy tiltás.
+     |
+     | Egy csendes változás visszamenőleg és VÉGLEGESEN elvágná ezt: az audit-sor nem
+     | módosítható, tehát nem lehet újraszámolni. Ezért a teszt MINDEN alkotóelemet külön
+     | rögzít — a formátumot, a hosszt, a normalizálást (a KANONIKUS alak literál) és a
+     | domain megtartását.
+     |
+     | (A pepper-derivációt és a purpose-elválasztást a `CryptoVectorsTest` fix vektorai
+     | fedik; itt a KOMPOZÍCIÓ a tárgy, nem a HMAC.)
+     */
+    $workspace = Workspace::factory()->create();
+
+    app(WorkspaceContext::class)->runFor($workspace, function () {
+        // A bemenet SZÁNDÉKOSAN nem kanonikus: nagybetűs domain, nagybetűs helyi rész,
+        // plus-cím. A normalizálásnak mindezt egy alakra kell hoznia.
+        app(AuditLogger::class)->log('teszt.vektor', null, context: [
+            'note' => 'Címzett: Anna.Kovacs+szures@Pelda.HU',
+        ]);
+    });
+
+    $note = (string) AuditLog::query()->where('action', 'teszt.vektor')->firstOrFail()->context['note'];
+
+    // (a) A FORMÁTUM és a HOSSZ: 16 hex, szögletes zárójelben, a domainnel utána —
+    //     kisbetűsítve.
+    expect($note)->toMatch('/^Címzett: \[pii:email:[0-9a-f]{16}\]@pelda\.hu$/');
+
+    // (b) A NORMALIZÁLÁS és a PURPOSE: a hash a KANONIKUS teljes címből készül. Ha a
+    //     `listKey()` vagy a purpose elcsúszik, a két oldal szétválik.
+    $expected = substr(KeyedHash::of('email', 'anna.kovacs+szures@pelda.hu'), 0, 16);
+
+    expect($note)->toBe('Címzett: [pii:email:'.$expected.']@pelda.hu');
+
+    // (c) A KORRELÁLHATÓSÁG: ugyanez a prefix a suppression-sor `email_hash`-ében.
+    $suppression = app(WorkspaceContext::class)->runFor($workspace, fn () => Suppression::create([
+        'email' => 'Anna.Kovacs+szures@Pelda.HU',
+        'applies_to' => 'marketing',
+        'reason' => 'manual',
+        'source' => 'tenant',
+    ]));
+
+    expect((string) $suppression->email_hash)->toStartWith($expected);
 });

@@ -143,8 +143,27 @@ final class AuditLogger
         $redacted = [];
 
         foreach ($attributes as $key => $value) {
+            /*
+             | A KULCS IS PII LEHET.
+             |
+             | A tipikus alak egy `cím => állapot` map (`{"anna@example.com": "bounce"}`),
+             | ahol a személyes adat a KULCSBAN van — a security-review megmérte, hogy az
+             | ilyen kulcsok nyersen bekerültek a soha nem módosítható táblába.
+             */
+            $key = is_string($key) ? $this->pseudonymiseEmails($key) : $key;
+
             if ($this->isSecretKey((string) $key)) {
                 $redacted[$key] = '[redacted]';
+
+                continue;
+            }
+
+            // A SAJÁT KÜLDÉSI KONFIGURÁCIÓ nem címzett-adat: a feladó és a válasz-cím a
+            // tenant beállítása, amihez domain-hitelesítési lánc tartozik. Hasholva egy
+            // deliverability-vizsgálat nem tudná megállapítani, MELYIK feladóra állították
+            // át a kampányt (mérve: a `from_email` váltás kiolvashatatlan lett).
+            if (in_array(strtolower((string) $key), self::SENDER_CONFIG_KEYS, true) && is_string($value)) {
+                $redacted[$key] = $value;
 
                 continue;
             }
@@ -204,7 +223,11 @@ final class AuditLogger
     }
 
     /**
-     * E-MAIL-CÍM SOHA NEM KERÜL NYERSEN AZ AUDITBA — sem kulcs alatt, sem szabad szövegben.
+     * A CÍMZETT E-MAIL-CÍME SOHA NEM KERÜL NYERSEN AZ AUDIT-PAYLOADBA.
+     *
+     * (A `actor_email` oszlop KIVÉTEL, és szándékos: az a MŰVELET VÉGZŐJE — belső
+     * felhasználó vagy platform-admin —, és az `AuditSearch` aktor-szűrője rá épül. Az
+     * elszámoltathatóság enélkül nem működne: „ki tette" nem visszakereshető hashből.)
      *
      * Miért a choke pointon és nem a hívóknál: a szabály eddig HÍVÓI FEGYELEM volt („adj át
      * `email_hash`-t"), és a security-review meg is mérte, hogy a `context` szabad szöveges
@@ -217,6 +240,20 @@ final class AuditLogger
      * `KeyedHash::of('email', …)`, amit a `suppressions.email_hash` és a `contacts.email_hash`
      * használ — vagyis a napló-sor összekapcsolható a tiltással, a nyers cím ismerete nélkül.
      * A prefix 16 hex karakter: olvasható, és a hash erejét nem ez adja, hanem a pepper.
+     *
+     * ## A DOMAIN MEGMARAD — és ez nem engedmény
+     *
+     * A helyi rész az, ami a személyt azonosítja; a domain viszont a DIAGNÓZIS. A minta
+     * ugyanis nem tudja szétválasztani az ÉRINTETT címét a KONFIGURÁCIÓS célcímtől, és a
+     * review meg is mérte, mit vitt el a teljes csere:
+     *  - egy `InboundRoute` `forward` célja (`attacker@evil.com`) csak hash lett, tehát egy
+     *    levél-exfiltráció CÉLJA nem volt visszakereshető — egy törölhetetlen táblában,
+     *    utólag javíthatatlanul;
+     *  - a DMARC `rua=mailto:` és a userinfo-s URL is: `https://user:titok@hook.pelda.hu/x`
+     *    → a HOSZTNÉV tűnt el a naplóból.
+     * A domain megtartásával mindhárom eset diagnosztizálható marad, az azonosító rész
+     * viszont ugyanúgy nem szerepel. A hash TELJES normalizált címből készül, tehát a
+     * `email_hash`-sel való összekapcsolhatóság sem sérül.
      */
     private function pseudonymiseEmails(string $value): string
     {
@@ -225,10 +262,12 @@ final class AuditLogger
         }
 
         return (string) preg_replace_callback(
-            '/[\p{L}\p{N}._%+\-]+@[\p{L}\p{N}\-]+(?:\.[\p{L}\p{N}\-]+)+/u',
+            '/([\p{L}\p{N}._%+\-]+)@([\p{L}\p{N}\-]+(?:\.[\p{L}\p{N}\-]+)+)/u',
+            // A DOMAIN KISBETŰVEL megy tovább: a normalizált alak az, amit egy szűrő vagy
+            // egy grep keres, és a `Pelda.HU` / `pelda.hu` kettősség csak zavar.
             static fn (array $matches): string => '[pii:email:'.substr(
                 KeyedHash::of('email', DomainNormalizer::listKey($matches[0])), 0, 16
-            ).']',
+            ).']@'.mb_strtolower($matches[2]),
             $value,
         );
     }
@@ -285,6 +324,21 @@ final class AuditLogger
      * @var list<string>
      */
     private const REDACTED_EXACT = ['state'];
+
+    /**
+     * A TENANT SAJÁT KÜLDÉSI KONFIGURÁCIÓJA — nem címzett-PII, ezért nyersen marad.
+     *
+     * Ezek a mezők azt írják le, MI A MI OLDALUNK: melyik feladóval, melyik válasz-címmel
+     * megy a levél. A címzett címe hasholódik, ezek viszont a diagnózis: egy visszaélés-
+     * vagy kézbesíthetőségi vizsgálat épp azt kérdezi, melyik feladóra állították át a
+     * kampányt vagy a listát.
+     *
+     * @var list<string>
+     */
+    private const SENDER_CONFIG_KEYS = [
+        'from_email', 'from', 'sender', 'reply_to', 'return_path', 'envelope_from',
+        'mx_target', 'actor_email',
+    ];
 
     private function isSecretKey(string $key): bool
     {

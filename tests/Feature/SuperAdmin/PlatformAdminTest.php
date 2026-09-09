@@ -230,6 +230,45 @@ it('az IMPERSONÁLT munkamenetben az ÍRÁS TILOS — a támogatás LÁT, nem m�
     expect($domain->exists)->toBeTrue();
 });
 
+it('a PLATFORM-SZINTŰ írás aktív nézet alatt is megy — a tilalom a TENANT adatára szól', function () {
+    /*
+     | A tilalom első változata a modell TRAITJÉRE illesztett, és a `Suppression` a
+     | `BelongsToWorkspaceOrPlatform`-ot használja — mérve tehát a GLOBÁLIS tiltás
+     | felvétele is elbukott, kezeletlen `RuntimeException`-nel (HTTP 500).
+     |
+     | Ez pont a 84. kritérium fő munkafolyamata: a támogatás megnyitja a tenant nézetét,
+     | MEGLÁTJA a spam-csapdát, és letiltja MINDENKINÉL. A tilalom a tenant NEVÉBEN
+     | történő írásra szól, nem a támogatás saját, platform-szintű műveletére.
+     */
+    $workspace = Workspace::factory()->create();
+    $admin = platformAdmin();
+
+    app(Impersonation::class)->start($admin, $workspace, 'SUP-45: a kliens panaszol');
+
+    $this->actingAs($admin);
+
+    $suppression = app(WorkspaceContext::class)->runFor($workspace, fn () => app(GlobalSuppressions::class)
+        ->add($admin, 'csapda3@spamtrap.example', SuppressionReason::Policy, 'SUP-45: minden tenantnál panasz'));
+
+    expect($suppression->workspace_id)->toBeNull()
+        ->and($suppression->isPlatformWide())->toBeTrue();
+
+    // A FELOLDÁS is: ugyanaz a művelet, ugyanaz a jog.
+    app(GlobalSuppressions::class)->remove($admin, $suppression, 'SUP-45: tévedés volt');
+
+    expect(Suppression::query()->withoutGlobalScopes()->whereNull('workspace_id')->count())->toBe(0);
+
+    // …a TENANT adata viszont továbbra is tiltott.
+    app(WorkspaceContext::class)->runFor($workspace, function () {
+        expect(fn () => Suppression::create([
+            'email' => 'tenanté@pelda.hu',
+            'applies_to' => 'marketing',
+            'reason' => 'manual',
+            'source' => 'tenant',
+        ]))->toThrow(RuntimeException::class, 'ÍRÁS TILOS');
+    });
+});
+
 it('az IMPERSONATION tényleg ÁTVESZI a tenant nézetét — tagság nélkül is', function () {
     /*
      | A 82. kritérium másik fele: „átveheti egy tenant nézetét". A security-review
@@ -261,6 +300,27 @@ it('az IMPERSONATION tényleg ÁTVESZI a tenant nézetét — tagság nélkül i
     app(Impersonation::class)->end($session);
 
     $this->actingAs($admin)->get('/teszt/impersonalt')->assertForbidden();
+
+    /*
+     | AZ EXPLICIT VÁLTÁS ERŐSEBB a nézetnél: nyitott munkamenet alatt is elérheti a SAJÁT
+     | workspace-ét — különben a nyitva hagyott nézet üzemeltetői zsákutca lenne. Az
+     | ÍRÁS-TILALOM ettől nem lazul: az a MUNKAMENET létezésén áll, nem a kontextuson.
+     */
+    $sajat = Workspace::factory()->create();
+    $sajat->members()->create(['user_id' => $admin->getKey(), 'roles' => ['owner']]);
+
+    app(Impersonation::class)->start($admin, $workspace, 'SUP-4b: újra megnyitva');
+
+    $this->actingAs($admin)->get('/teszt/impersonalt?workspace='.$sajat->uuid)
+        ->assertOk()
+        ->assertJson(['workspace' => $sajat->uuid]);
+
+    expect(app(Impersonation::class)->isReadOnly($admin))->toBeTrue();
+
+    // …az IMPERSONÁLT workspace-re viszont EXPLICIT váltással sincs tagsága: 403. A nézetet
+    // a munkamenet adja, nem a query-paraméter — az nem lehet kiskapu.
+    $this->actingAs($admin)->get('/teszt/impersonalt?workspace='.$workspace->uuid)
+        ->assertForbidden();
 });
 
 it('EGY ADMINNAK EGYSZERRE EGY nyitott munkamenete van — az adatbázis őrzi', function () {

@@ -79,10 +79,28 @@ trait BelongsToWorkspaceOrPlatform
      */
     public static function onPlatform(callable $callback): mixed
     {
+        /*
+         | TRANZAKCIÓ KÖTELEZŐ — enélkül a szándék-jelzés CSENDBEN elveszik.
+         |
+         | A `set local` kizárólag tranzakció-blokkon belül él; azon kívül a Postgres
+         | figyelmeztetéssel eldobja. A security-review ezt mérte meg: éles kérésben
+         | (`transactionLevel = 0`) a `GlobalSuppressions::remove()` a
+         | `suppressions_platform_guard` triggerén elhasalt („csak szandekos
+         | platform-irasbol torolheto"), miközben a TESZTEK zöldek voltak — mert a
+         | `RefreshDatabase` minden tesztet tranzakcióba csomagol. Hamis zöld: a 84.
+         | kritérium feloldó ága élesben halott volt.
+         |
+         | Ezért ha nincs futó tranzakció, nyitunk egyet. Ha van, nem nyitunk újat: a hívó
+         | tranzakciója a helyes határ (a savepoint-ok fölösleges zárolást vinnének).
+         */
+        if (DB::transactionLevel() === 0) {
+            return DB::transaction(static fn () => self::onPlatform($callback));
+        }
+
         self::$platformWriteDepth++;
 
-        // A DB-trigger EZT nézi: a modell-event a builder-úton (Model::query()->update())
-        // nem futna le, ezért a valódi határ az adatbázisban van.
+        // A DB-trigger EZT nézi: a modell-event a builder-úton nem futna le, ezért a
+        // valódi határ az adatbázisban van.
         DB::statement("set local ventmail.platform_write = 'on'");
 
         try {
@@ -96,7 +114,17 @@ trait BelongsToWorkspaceOrPlatform
         }
     }
 
-    private static function isPlatformWrite(): bool
+    /**
+     * FUT-E ÉPP platform-szintű írás ezen a modellen?
+     *
+     * `public`, mert a `ImpersonationReadOnlyGuard`-nak meg kell tudnia kérdezni: a
+     * támogatói nézet a TENANT adatának írását tiltja, a PLATFORM-szintű műveletet (globális
+     * suppression felvétele, feloldása) NEM — az nem a tenant nevében történik, és épp a
+     * támogatás munkája. A `deleting`/`updating` hook itt az attribútumból is látja a
+     * platform-sort, de a `creating` ELŐTT (a `saving` eventben) a `workspace_id` még nincs
+     * beállítva — ott ez a jelző az egyetlen igazság.
+     */
+    public static function isPlatformWrite(): bool
     {
         return self::$platformWriteDepth > 0;
     }

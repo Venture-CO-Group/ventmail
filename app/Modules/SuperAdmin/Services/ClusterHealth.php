@@ -286,16 +286,25 @@ final class ClusterHealth
             return ['status' => self::DISABLED, 'detail' => 'a bejövő fogadás kikapcsolva'];
         }
 
-        $port = (int) (config('inbound.allowed_ports')[0] ?? 25);
-        $socket = @fsockopen('127.0.0.1', $port, $code, $message, 1.0);
+        // A CÉL configból: a listener KÜLÖN konténerben fut (`inbound-mx`, 2525), nem az
+        // app-konténer loopbackján, és az `allowed_ports` az elfogadott portok listája —
+        // nem a futó listener címe.
+        $host = (string) config('inbound.health.host');
+        $port = (int) config('inbound.health.port');
+
+        if ($host === '' || $port <= 0) {
+            return ['status' => self::UNKNOWN, 'detail' => 'az MX-próba célja nincs beállítva'];
+        }
+
+        $socket = @fsockopen($host, $port, $code, $message, 1.0);
 
         if ($socket === false) {
-            return ['status' => self::DOWN, 'detail' => 'az MX-listener nem elérhető (port '.$port.')'];
+            return ['status' => self::DOWN, 'detail' => 'az MX-listener nem elérhető ('.$host.':'.$port.')'];
         }
 
         fclose($socket);
 
-        return ['status' => self::HEALTHY, 'detail' => 'MX-listener a '.$port.' porton'];
+        return ['status' => self::HEALTHY, 'detail' => 'MX-listener: '.$host.':'.$port];
     }
 
     /** @return array{status: string, detail: ?string} */
