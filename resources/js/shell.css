@@ -155,3 +155,69 @@
     clip-path: inset(50%);
     white-space: nowrap;
 }
+
+/*
+ | KÓD-BLOKK (beágyazható űrlap-kód, diff).
+ |
+ | Saját osztály, mert a `@venture/ui`-ban ma nincs kód-primitív (a hiánylistán szerepel).
+ | Minden érték TOKEN — a betűtípus a `--vt-font-mono`, a keret és a háttér a felület
+ | többi doboza szerint.
+ */
+.vm-code {
+    font-family: var(--vt-font-mono);
+    font-size: var(--vt-fs-body-sm);
+    background: var(--vt-bg-elevated);
+    border: thin solid var(--vt-border);
+    border-radius: var(--vt-radius-md);
+    padding: var(--vt-space-3);
+    overflow-x: auto;
+    white-space: pre;
+}
+
+/*
+ | VERZIÓ-DIFF. A sor típusát NEM CSAK a szín jelöli: a bal oldali jel (+/−) a
+ | `::before`-ban van, mert a színvakság a piros/zöld párost pont ott mossa össze, ahol a
+ | különbség a lényeg.
+ */
+.vm-diff {
+    font-family: var(--vt-font-mono);
+    font-size: var(--vt-fs-body-sm);
+    border: thin solid var(--vt-border);
+    border-radius: var(--vt-radius-md);
+    overflow-x: auto;
+}
+
+.vm-diff__line {
+    display: flex;
+    gap: var(--vt-space-2);
+    padding-inline: var(--vt-space-2);
+    white-space: pre;
+}
+
+.vm-diff__gutter {
+    color: var(--vt-text-muted);
+    min-inline-size: var(--vt-space-8);
+    text-align: end;
+}
+
+.vm-diff__line--added {
+    background: var(--vt-bg-elevated);
+    border-inline-start: var(--vt-space-1) solid var(--vt-color-success);
+}
+
+.vm-diff__line--removed {
+    background: var(--vt-bg-elevated);
+    border-inline-start: var(--vt-space-1) solid var(--vt-color-danger);
+}
+
+.vm-diff__line--same {
+    border-inline-start: var(--vt-space-1) solid transparent;
+}
+
+.vm-diff__line--added .vm-diff__text::before {
+    content: '+ ';
+}
+
+.vm-diff__line--removed .vm-diff__text::before {
+    content: '- ';
+}

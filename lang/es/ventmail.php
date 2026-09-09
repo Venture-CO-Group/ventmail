@@ -36,6 +36,7 @@ return [
     ],
     'audience' => [
         'listCreated' => 'Lista creada.',
+        'listUpdated' => 'Lista actualizada.',
     ],
     'templates' => [
         'saved' => 'Plantilla guardada.',
@@ -47,6 +48,25 @@ return [
         'start' => 'Campaña iniciada.',
         'pause' => 'Campaña pausada.',
         'resume' => 'Campaña reanudada.',
+        'variantAdded' => 'Variante creada.',
+        'variantLocked' => 'No se añaden variantes durante el envío: el reparto se decidió al empezar.',
+        'variantRemoved' => 'Variante eliminada.',
+    ],
+    'members' => [
+        'notFound' => 'No se encuentra la membresía.',
+        'rolesUpdated' => 'Roles actualizados.',
+        'invited' => 'Invitación creada.',
+        'invitationRevoked' => 'Invitación revocada.',
+        'removed' => 'Acceso revocado.',
+        'subAccountCreated' => 'Subcuenta creada.',
+    ],
+    'forms' => [
+        'created' => 'Formulario creado.',
+        'updated' => 'Formulario actualizado.',
+        'submitLabel' => 'Suscribirme',
+    ],
+    'storedTemplates' => [
+        'activated' => 'La versión ya está activa.',
     ],
     'journeys' => [
         'activated' => 'Journey activa.',

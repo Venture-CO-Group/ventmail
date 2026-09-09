@@ -36,6 +36,7 @@ return [
     ],
     'audience' => [
         'listCreated' => 'A lista létrejött.',
+        'listUpdated' => 'A lista frissült.',
     ],
     'templates' => [
         'saved' => 'A sablon mentve.',
@@ -47,6 +48,25 @@ return [
         'start' => 'A kampány elindult.',
         'pause' => 'A kampány szüneteltetve.',
         'resume' => 'A kampány folytatódik.',
+        'variantAdded' => 'A változat létrejött.',
+        'variantLocked' => 'Küldés közben nem vehető fel új változat: a kiosztás a küldés elején eldőlt.',
+        'variantRemoved' => 'A változat törölve.',
+    ],
+    'members' => [
+        'notFound' => 'A tagság nem található.',
+        'rolesUpdated' => 'A szerepek frissültek.',
+        'invited' => 'A meghívó elkészült.',
+        'invitationRevoked' => 'A meghívó visszavonva.',
+        'removed' => 'A tagság visszavonva.',
+        'subAccountCreated' => 'Az al-fiók létrejött.',
+    ],
+    'forms' => [
+        'created' => 'Az űrlap létrejött.',
+        'updated' => 'Az űrlap frissült.',
+        'submitLabel' => 'Feliratkozom',
+    ],
+    'storedTemplates' => [
+        'activated' => 'A verzió aktív lett.',
     ],
     'journeys' => [
         'activated' => 'A journey aktív.',

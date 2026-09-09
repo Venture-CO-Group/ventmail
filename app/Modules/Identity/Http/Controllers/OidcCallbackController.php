@@ -9,6 +9,7 @@ use App\Modules\Identity\Actions\SyncSsoUser;
 use App\Modules\Identity\Services\OidcClient;
 use App\Modules\Identity\Services\PlatformAdminSync;
 use App\Modules\Identity\Services\RoleMapper;
+use App\Modules\Tenancy\Actions\RedeemInvitations;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -29,6 +30,7 @@ final class OidcCallbackController
         RoleMapper $roleMapper,
         PlatformAdminSync $platformAdmin,
         AuthorizeSsoSubject $authorizeSubject,
+        RedeemInvitations $redeemInvitations,
     ): RedirectResponse {
         $claims = $client->handleCallback($request);
 
@@ -50,6 +52,15 @@ final class OidcCallbackController
 
         Auth::login($user);
         $request->session()->regenerate();
+
+        /*
+         | A NYITOTT MEGHÍVÓK BEVÁLTÁSA — a bejelentkezés UTÁN, a workspace-választás ELŐTT.
+         |
+         | Itt, és nem a meghíváskor: a tagsághoz `users` sor kell, azt pedig a ventSSO
+         | első belépése hozza létre (golden rule 1 — identitást nem gyártunk). A beváltás
+         | KIZÁRÓLAG verifikált címre fut, ezt a `RedeemInvitations` őrzi.
+         */
+        $redeemInvitations($user);
 
         // DIAGNOSZTIKA. Jogosultsági döntéshez TILOS használni: a hozzáférés egyetlen
         // forrása a `workspace_members` tábla (golden rule 1).

@@ -27,6 +27,7 @@ use App\Modules\SuperAdmin\Models\PlanOverride;
 use App\Modules\Tenancy\Concerns\BelongsToWorkspace;
 use App\Modules\Tenancy\Concerns\BelongsToWorkspaceOrPlatform;
 use App\Modules\Tenancy\Models\Workspace;
+use App\Modules\Tenancy\Models\WorkspaceInvitation;
 use App\Modules\Tenancy\Models\WorkspaceMember;
 use App\Modules\Validation\Models\ValidationJob;
 use App\Modules\Validation\Models\ValidationResult;
@@ -192,6 +193,17 @@ it('minden admin-felületű modell auditált', function () {
          */
         ImpersonationSession::class,
         PlanOverride::class,
+        /*
+         | M4-6 · A `WorkspaceInvitation` auditját is a HÍVÓ írja, három beszédes
+         | művelettel (`member.invited`, `member.invitation.redeemed`, `member.invitation.revoked`).
+         |
+         | A trait itt rosszabb lenne, nem csak szegényesebb: a BEVÁLTÁS a bejelentkezés
+         | pillanatában fut, amikor még NINCS workspace-kontextus — a trait a tenant
+         | naplója helyett a „nincs workspace" gyűjtőbe írná a tagság keletkezését, pont
+         | oda, ahol a tenant sosem keresi. Az explicit hívás a meghívó SAJÁT
+         | `workspace_id`-jét és a belépő felhasználót adja át.
+         */
+        WorkspaceInvitation::class,
     ];
 
     $offenders = [];

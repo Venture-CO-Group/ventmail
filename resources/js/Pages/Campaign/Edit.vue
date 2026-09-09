@@ -29,7 +29,17 @@ const props = defineProps<{
         excludeSegments: string[];
         scheduledAt: string | null;
         timezone: string | null;
-        variants: Array<{ uuid: string; label: string; subject: string; share: number; winner: boolean }>;
+        variantWeightTotal: number;
+        variants: Array<{
+            uuid: string;
+            label: string;
+            subject: string;
+            weight: number;
+            winner: boolean;
+            sent: number;
+            opened: number;
+            clicked: number;
+        }>;
     };
     templates: Array<{ uuid: string; name: string }>;
     lists: Array<{ uuid: string; name: string }>;
@@ -52,6 +62,7 @@ const form = ref({
     excludeSegments: [...props.campaign.excludeSegments],
 });
 
+const variantForm = ref({ label: '', subject: '', weight: '50' });
 const localTime = ref('');
 const timezone = ref(props.campaign.timezone ?? 'Europe/Budapest');
 
@@ -68,6 +79,23 @@ function toggleTarget(kind: 'targetLists' | 'targetSegments' | 'excludeLists' | 
 
 function save(): void {
     router.put(`/campaigns/${props.campaign.uuid}`, form.value, { preserveScroll: true });
+}
+
+function addVariant(): void {
+    router.post(
+        `/campaigns/${props.campaign.uuid}/variants`,
+        { ...variantForm.value, weight: Number(variantForm.value.weight) },
+        {
+            preserveScroll: true,
+            onSuccess: () => {
+                variantForm.value = { label: '', subject: '', weight: '50' };
+            },
+        },
+    );
+}
+
+function removeVariant(uuid: string): void {
+    router.delete(`/campaigns/${props.campaign.uuid}/variants/${uuid}`, { preserveScroll: true });
 }
 
 function transition(action: string): void {
@@ -181,13 +209,65 @@ function transition(action: string): void {
             </div>
         </VtCard>
 
-        <VtCard v-if="campaign.variants.length" data-testid="campaign-variants">
+        <VtCard data-testid="campaign-variants">
             <h2>{{ t('campaigns.abTest') }}</h2>
+
+            <p>{{ t('campaigns.abHint') }}</p>
+
+            <!-- AZ ÖSSZEG az indítás feltétele (pontosan 100), a „legalább kettő" pedig
+                 ugyanaz: egyetlen változat nem A/B teszt. A felhasználó ne az indítás
+                 hibaüzenetéből tudja meg. -->
+            <p
+                v-if="campaign.variants.length"
+                class="vm-banner"
+                :class="{ 'vm-banner--warning': campaign.variantWeightTotal !== 100 || campaign.variants.length < 2 }"
+                data-testid="variant-total"
+            >
+                {{ t('campaigns.weightTotal', { total: campaign.variantWeightTotal }) }}
+                <template v-if="campaign.variants.length === 1">{{ t('campaigns.variantSingle') }}</template>
+            </p>
+
+            <!-- A VÁLTOZAT csak DRAFT állapotban vehető fel: a kiosztás a küldés elején
+                 dől el, egy menet közben érkező variáns a már kiküldött felével
+                 összehasonlíthatatlan lenne. -->
+            <template v-if="campaign.editable">
+                <VtField :label="t('campaigns.variantLabel')">
+                    <VtInput v-model="variantForm.label" data-testid="variant-label" placeholder="B" />
+                </VtField>
+
+                <VtField :label="t('campaigns.subject')">
+                    <VtInput v-model="variantForm.subject" data-testid="variant-subject" />
+                </VtField>
+
+                <VtField :label="t('campaigns.weight')" :hint="t('campaigns.weightHint')">
+                    <VtInput v-model="variantForm.weight" data-testid="variant-weight" />
+                </VtField>
+
+                <VtButton
+                    :disabled="!variantForm.label.trim() || !variantForm.subject.trim()"
+                    data-testid="variant-submit"
+                    @click="addVariant"
+                >
+                    {{ t('campaigns.addVariant') }}
+                </VtButton>
+            </template>
 
             <div v-for="variant in campaign.variants" :key="variant.uuid" class="vm-cluster">
                 <strong>{{ variant.label }}</strong>
                 <span>{{ variant.subject }}</span>
-                <span>{{ variant.share }}%</span>
+                <span>{{ t('campaigns.weight') }}: {{ variant.weight }}</span>
+                <span :data-testid="`variant-stats-${variant.label}`">
+                    {{ variant.sent }} / {{ variant.opened }} / {{ variant.clicked }}
+                </span>
+
+                <VtButton
+                    v-if="campaign.editable"
+                    variant="ghost"
+                    :data-testid="`variant-remove-${variant.label}`"
+                    @click="removeVariant(variant.uuid)"
+                >
+                    {{ t('campaigns.removeVariant') }}
+                </VtButton>
                 <span v-if="variant.winner" :data-testid="`winner-${variant.uuid}`">{{ t('campaigns.winner') }}</span>
             </div>
         </VtCard>

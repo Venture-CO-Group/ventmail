@@ -47,6 +47,7 @@ return [
     ],
     'audience' => [
         'listCreated' => 'List created.',
+        'listUpdated' => 'List updated.',
     ],
     'templates' => [
         'saved' => 'Template saved.',
@@ -58,6 +59,25 @@ return [
         'start' => 'Campaign started.',
         'pause' => 'Campaign paused.',
         'resume' => 'Campaign resumed.',
+        'variantAdded' => 'Variant created.',
+        'variantLocked' => 'No new variant while sending: the split was decided when sending started.',
+        'variantRemoved' => 'Variant deleted.',
+    ],
+    'members' => [
+        'notFound' => 'Membership not found.',
+        'rolesUpdated' => 'Roles updated.',
+        'invited' => 'Invitation created.',
+        'invitationRevoked' => 'Invitation revoked.',
+        'removed' => 'Membership revoked.',
+        'subAccountCreated' => 'Sub-account created.',
+    ],
+    'forms' => [
+        'created' => 'Form created.',
+        'updated' => 'Form updated.',
+        'submitLabel' => 'Subscribe',
+    ],
+    'storedTemplates' => [
+        'activated' => 'The version is now live.',
     ],
     'journeys' => [
         'activated' => 'Journey is active.',

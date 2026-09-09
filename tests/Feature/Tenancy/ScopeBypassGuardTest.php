@@ -120,7 +120,14 @@ it('a Tenancy modulon kívül senki nem kerüli meg a global scope-ot', function
         // szolgáltatások explicit `User $admin`-ra kapuznak, és minden művelet auditált.
         // Az ÍRÁS pedig továbbra is a szolgáltatásokon megy (`Impersonation`,
         // `PlanOverrides`, `GlobalSuppressions`), nem nyers lekérdezéssel.
+        // M4-6 · A BELÉPÉSI JOGCÍM ELLENŐRZÉSE (`AuthorizeSsoSubject`) a bejelentkezés
+        // legelső lépése: ekkor még NINCS workspace-kontextus — épp a meghívó mondja meg,
+        // melyik workspace-ről van szó. A lekérdezés EGYETLEN, szűk feltételre megy
+        // (pontos cím-egyezés + nyitott + le nem járt meghívó), csak LÉTEZÉST kérdez, és a
+        // cím VERIFIKÁLTSÁGA előfeltétel. Tagságot nem ad: azt a `RedeemInvitations` írja,
+        // a Tenancy modulon belül.
         $exceptions = [
+            'Identity/Actions/AuthorizeSsoSubject.php',
             'SuperAdmin/Http/Controllers/PlatformConsoleController.php',
             'Audit/Models/AuditLog.php',
             'Billing/Services/Dunning.php',

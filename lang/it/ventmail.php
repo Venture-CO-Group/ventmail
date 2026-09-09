@@ -36,6 +36,7 @@ return [
     ],
     'audience' => [
         'listCreated' => 'Lista creata.',
+        'listUpdated' => 'Lista aggiornata.',
     ],
     'templates' => [
         'saved' => 'Modello salvato.',
@@ -47,6 +48,25 @@ return [
         'start' => 'Campagna avviata.',
         'pause' => 'Campagna in pausa.',
         'resume' => 'Campagna ripresa.',
+        'variantAdded' => 'Variante creata.',
+        'variantLocked' => 'Nessuna nuova variante durante l’invio: la ripartizione è stata decisa all’avvio.',
+        'variantRemoved' => 'Variante eliminata.',
+    ],
+    'members' => [
+        'notFound' => 'Iscrizione non trovata.',
+        'rolesUpdated' => 'Ruoli aggiornati.',
+        'invited' => 'Invito creato.',
+        'invitationRevoked' => 'Invito revocato.',
+        'removed' => 'Accesso revocato.',
+        'subAccountCreated' => 'Sotto-account creato.',
+    ],
+    'forms' => [
+        'created' => 'Modulo creato.',
+        'updated' => 'Modulo aggiornato.',
+        'submitLabel' => 'Iscriviti',
+    ],
+    'storedTemplates' => [
+        'activated' => 'La versione è ora attiva.',
     ],
     'journeys' => [
         'activated' => 'Journey attiva.',

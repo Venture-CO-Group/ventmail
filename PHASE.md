@@ -6,7 +6,7 @@
 ## Cél
 **Mailgun + Mailchimp egyidejű kiváltása.** Két pillér (Platform / Studio) egy közös motoron.
 
-## Aktuális milestone: **M4 — FELÜLET** · aktív packet: **M4-5 (platform-konzol) — lezárás alatt**
+## Aktuális milestone: **M4 — FELÜLET** · aktív packet: **M4-6 (tagok, űrlapok, tárolt sablonok, A/B) — lezárás alatt**
 *(M0 lezárva: 2026-09-02 · M1 lezárva: 2026-09-08 · M2 backend: 2026-09-09 · M3 backend: 2026-09-09)*
 
 > **A MOTOR KÉSZ, A FELÜLET NEM.** A 89 elfogadási kritérium mindegyike backend-szinten
@@ -544,9 +544,21 @@ inbound route-ok, smoke), az `e2e/` alatt **három** spec — mind A-sávos.
 - [x] **M4-4 · Journey és analitika** — lépéslánc az `else`-ágakkal, aktiválás
       lánc-validálással, kampány-riport A/B-bontással és klikk-térképpel.
 - [x] **M4-5 · Platform-konzol** — a C2 felülete, a két nevesített előfeltétellel együtt.
-- [ ] **Hátralévő képernyők:** űrlapok + preference-center admin, tagok és sub-accountok
-      kezelése, sablon-verziók összehasonlítása, kampány A/B-varázsló (a variánsokat ma
-      csak MUTATJA a felület, létrehozni API-ból lehet).
+- [x] **M4-6 · A hátralévő képernyők** — űrlap-admin (slug + generált honeypot-mezőnév +
+      szerveren összeállított beágyazható kód), tagok · meghívók · sub-accountok,
+      tárolt sablonok verzió-diffel és aktiválással, kampány A/B (változat felvétele,
+      törlése, súly-összeg kiírása).
+
+      Amit közben MÉRTÜNK, nem terveztünk:
+      - a kampány-szerkesztő MINDEN variánssal rendelkező kampányon 500-zal esett el
+        (`share` és `winner` oszlop nem létezik — az igazi neve `weight` és `is_winner`);
+      - a `subAccount.manage` képességet SEMMI nem hívta (halott képesség);
+      - a felületről felvett tagságnál hiányzott az „utolsó tulajdonos" védelme: az owner
+        egy kattintással lefokozhatta magát, és a workspace kezelhetetlenné vált;
+      - a böngésző-suite `logs` specje azt feltételezte, hogy a közös dev-tenantban
+        PONTOSAN egy üzenet van — az első levelet küldő új teszt megbuktatta;
+      - a `shell.css` két helyen NEM LÉTEZŐ token-nevet használt (`--vt-text-sm`), tehát
+        a betűméret csendben az örököltre esett vissza.
 - [ ] **Vizuális réteg:** a `@venture/ui` hiánylistája (lásd lent) — amíg nincs meg,
       az elrendezés a `shell.css` token-alapú primitívjeire épül.
 

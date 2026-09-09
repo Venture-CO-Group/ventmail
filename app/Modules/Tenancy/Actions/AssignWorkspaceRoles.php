@@ -34,16 +34,71 @@ final class AssignWorkspaceRoles
     /** @param list<string> $roles */
     public function __invoke(User $target, array $roles): WorkspaceMember
     {
+        $roleValues = array_map(
+            fn (Role $role) => $role->value,
+            $this->assertGrantable($roles)
+        );
+
+        $existing = WorkspaceMember::query()
+            ->where('workspace_id', $this->context->workspaceId())
+            ->where('user_id', $target->getKey())
+            ->first();
+
+        // AZ UTOLSÓ TULAJDONOS nem fokozható le.
+        //
+        // Nem elméleti: az `owner` egyetlen kattintással `analyst`-tá tehette magát, és a
+        // workspace-ben onnantól SENKI nem tudott tagot kezelni, számlázni vagy törölni —
+        // a saját felületén nem volt visszaút, csak platform-adminnal.
+        $this->assertOwnerRemains($existing, in_array(Role::Owner->value, $roleValues, true));
+
+        $member = WorkspaceMember::updateOrCreate(
+            ['workspace_id' => $this->context->workspaceId(), 'user_id' => $target->getKey()],
+            ['roles' => $roleValues],
+        );
+
+        // Golden rule 11: a szerep-kiosztás a legprivilegizáltabb admin-művelet — enélkül
+        // valaki jogot oszthatna magának úgy, hogy nyoma sem marad.
+        $this->audit->log(
+            'member.roles.assigned',
+            $member,
+            before: ['roles' => $existing?->roles() ?? []],
+            after: ['roles' => $roleValues],
+            context: [
+                'target_user_id' => $target->getKey(),
+                'target_sso_subject' => $target->sso_subject,
+            ],
+        );
+
+        return $member;
+    }
+
+    /**
+     * A KIOSZTHATÓSÁG ellenőrzése — a MEGHÍVÓ is ezt hívja.
+     *
+     * Miért nem maradt a `__invoke()` belsejében: a meghívó ugyanezt a döntést hozza meg,
+     * csak KÉSŐBBRE — a szerepek a beváltáskor lépnek életbe. Ha a szabály két helyen élne,
+     * a meghívó úton ki lehetne kerülni: az `admin` `owner` meghívót írna, és a szerepet a
+     * beváltás adná ki, ellenőrzés nélkül.
+     *
+     * @param  list<string>  $roles
+     * @return list<Role>
+     */
+    public function assertGrantable(array $roles): array
+    {
         $actor = Auth::user();
 
         if ($actor === null || ! Gate::forUser($actor)->allows('member.manage')) {
             throw new AuthorizationException('Nincs jogosultságod tagságot kezelni.');
         }
 
+        if ($roles === []) {
+            throw new InvalidArgumentException('Legalább egy szerepet meg kell adni.');
+        }
+
         $validated = array_map(
             fn (string $role) => Role::tryFromClaim($role)
                 ?? throw new InvalidArgumentException("Ismeretlen szerep: {$role}"),
-            $roles
+            array_values($roles)
         );
 
         $actorRoles = $this->rolesOf($actor);
@@ -67,32 +122,30 @@ final class AssignWorkspaceRoles
             }
         }
 
-        $roleValues = array_map(fn (Role $role) => $role->value, $validated);
+        return $validated;
+    }
 
-        $existing = WorkspaceMember::query()
+    /**
+     * Marad-e tulajdonos, ha ez a tagság elveszíti (vagy megszűnik)?
+     *
+     * A kérdést a HÍVÁS ELŐTT kell feltenni: utána már nem lehet megkülönböztetni, hogy
+     * azért nincs owner, mert épp most vettük el, vagy mert sosem volt.
+     */
+    public function assertOwnerRemains(?WorkspaceMember $existing, bool $keepsOwner): void
+    {
+        if ($existing === null || $keepsOwner || ! in_array(Role::Owner->value, $existing->roles(), true)) {
+            return;
+        }
+
+        $otherOwners = WorkspaceMember::query()
             ->where('workspace_id', $this->context->workspaceId())
-            ->where('user_id', $target->getKey())
-            ->first();
+            ->whereKeyNot($existing->getKey())
+            ->get()
+            ->contains(fn (WorkspaceMember $member) => in_array(Role::Owner->value, $member->roles(), true));
 
-        $member = WorkspaceMember::updateOrCreate(
-            ['workspace_id' => $this->context->workspaceId(), 'user_id' => $target->getKey()],
-            ['roles' => $roleValues],
-        );
-
-        // Golden rule 11: a szerep-kiosztás a legprivilegizáltabb admin-művelet — enélkül
-        // valaki jogot oszthatna magának úgy, hogy nyoma sem marad.
-        $this->audit->log(
-            'member.roles.assigned',
-            $member,
-            before: ['roles' => $existing?->roles() ?? []],
-            after: ['roles' => $roleValues],
-            context: [
-                'target_user_id' => $target->getKey(),
-                'target_sso_subject' => $target->sso_subject,
-            ],
-        );
-
-        return $member;
+        if (! $otherOwners) {
+            throw new AuthorizationException('A workspace utolsó tulajdonosa nem távolítható el és nem fokozható le.');
+        }
     }
 
     /** @return list<string> */
