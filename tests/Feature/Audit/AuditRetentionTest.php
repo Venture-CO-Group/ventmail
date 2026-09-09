@@ -175,15 +175,21 @@ it('az EGYEDI audit-sor törlése a modellen is tiltott', function () {
 
 it('a URL-BE ÁGYAZOTT cím nem viszi el a HOSZTNEVET', function () {
     /*
-     | A `https://user:titok@hook.pelda.hu/webhook` alakot a minta e-mail-címként fogja
-     | meg. A teljes csere a HOSZTNEVET tüntette el a naplóból (mérve) — vagyis egy webhook
-     | átirányítás-vizsgálatnál nem lehetett volna megállapítani, HOVA ment a kérés.
+     | A userinfo-t tartalmazó URL-t (`https://<felhasznalo>@hoszt/utvonal`) a minta
+     | e-mail-címként fogja meg. A teljes csere a HOSZTNEVET tüntette el a naplóból
+     | (mérve) — vagyis egy webhook átirányítás-vizsgálatnál nem lehetett volna
+     | megállapítani, HOVA ment a kérés.
+     |
+     | A fixtúrában SZÁNDÉKOSAN nincs jelszó a userinfóban: a nevet ÉS jelszót is tartalmazó
+     | userinfo Basic Auth hitelesítőnek látszik, és a titok-szkennerek — helyesen —
+     | riasztanak rá (a GitGuardian meg is tette). A teszt tárgyához a jelszó nem kell: a
+     | pszeudonimizáló ugyanazon az ágon fut, és a hosztnév megtartása ugyanúgy mérhető.
      */
     $workspace = Workspace::factory()->create();
 
     app(WorkspaceContext::class)->runFor($workspace, function () {
         app(AuditLogger::class)->log('teszt.url', null, context: [
-            'endpoint' => 'https://felhasznalo:titkos@hook.pelda.hu/webhook',
+            'endpoint' => 'https://felhasznalo@hook.pelda.hu/webhook',
         ]);
     });
 
