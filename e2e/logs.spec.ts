@@ -12,7 +12,7 @@ import { expect, test } from '@playwright/test';
  * képernyőt méri, hanem a saját türelmét.
  */
 test.beforeEach(async ({ page }) => {
-    await page.goto('/auth/dev-login');
+    // A bejelentkezés a `setup` projektből öröklődik; itt már csak a demó-adat kell.
     await page.goto('/dev/seed-logs');
 });
 

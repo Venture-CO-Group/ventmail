@@ -17,6 +17,23 @@ return [
         'workspace_switched' => 'Workspace cambiato.',
         'locale_switched' => 'Lingua aggiornata.',
     ],
+    'apiKeys' => [
+        'revoked' => 'Chiave revocata.',
+    ],
+    'smtp' => [
+        'revoked' => 'Credenziale revocata.',
+    ],
+    'suppressions' => [
+        'added' => 'Indirizzo aggiunto alla lista.',
+        'removed' => 'Soppressione rimossa.',
+        'missing' => 'Questo indirizzo non è nella lista.',
+        'irrevocable' => 'Le soppressioni da reclamo e disiscrizione non si rimuovono: è la volontà del destinatario.',
+    ],
+    'webhooks' => [
+        'deleted' => 'Endpoint eliminato.',
+        'replayed' => 'Consegna rimessa in coda.',
+        'alreadyDelivered' => 'Questa consegna è già riuscita.',
+    ],
     'gate' => [
         'domain_unverified' => 'Il dominio di invio non è verificato.',
         'suppressed' => 'Il destinatario è nella lista di soppressione.',

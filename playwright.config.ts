@@ -3,7 +3,22 @@ import { defineConfig, devices } from '@playwright/test';
 /* A flow-kat Playwright fedi; a unit/feature réteg Pest. */
 export default defineConfig({
     testDir: './e2e',
-    fullyParallel: true,
+
+    /*
+     | EGY WORKER, NEM PÁRHUZAMOS — és ez nem lustaság.
+     |
+     | A böngésző-suite EGYETLEN dev-munkamenetet és EGYETLEN tenantot használ (a
+     | `/auth/dev-login` mindig ugyanazt a felhasználót és workspace-t adja). Párhuzamosan
+     | tehát a tesztek UGYANAZOKON a sorokon dolgoznak: az egyik nyelvet vált, a másik épp
+     | magyar feliratot vár; az egyik kulcsot állít ki, a másik a listát számolja. Mérve: a
+     | bukások random teszteken jelentek meg, futásonként máshol — vagyis a hiba ott
+     | látszott, ahol nem volt.
+     |
+     | A helyes alternatíva tesztenként külön tenant lenne; azt a dev-belépő ma nem tudja,
+     | és amíg nem tudja, a determinizmus fontosabb, mint a néhány másodperc.
+     */
+    fullyParallel: false,
+    workers: 1,
     forbidOnly: !!process.env.CI,
     retries: process.env.CI ? 2 : 0,
     reporter: process.env.CI ? 'github' : 'list',
@@ -16,7 +31,16 @@ export default defineConfig({
                 ? { username: process.env.E2E_BASIC_AUTH_USER, password: process.env.E2E_BASIC_AUTH_PASS }
                 : undefined,
     },
-    projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+    projects: [
+        // A BEJELENTKEZÉS külön projekt: egyszer fut le, és a mentett munkamenetet
+        // örökli minden teszt (lásd `e2e/auth.setup.ts` — a `throttle:oidc` miatt).
+        { name: 'setup', testMatch: /auth\.setup\.ts/ },
+        {
+            name: 'chromium',
+            use: { ...devices['Desktop Chrome'], storageState: 'e2e/.auth/state.json' },
+            dependencies: ['setup'],
+        },
+    ],
 
     /* Alapból saját szervert indít (auth nélkül); a dev stack Caddyje mögé APP_URL-lel lehet mutatni. */
     webServer: process.env.APP_URL

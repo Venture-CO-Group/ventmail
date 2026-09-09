@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\Route;
  | CSRF-védelem nélkül lehetne.
  */
 
+Route::get('/domains', [DomainController::class, 'index'])->name('domains.index');
 Route::get('/domains/wizard', DomainWizardController::class)->name('domains.wizard');
 /*
  | A SAJÁT KÜLDŐ DOMAIN CSOMAG-FUNKCIÓ (C1 · 76. kritérium).

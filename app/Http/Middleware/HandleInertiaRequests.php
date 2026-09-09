@@ -96,6 +96,20 @@ final class HandleInertiaRequests extends Middleware
             'flash' => fn (): array => [
                 'success' => $request->session()->get('success'),
                 'error' => $request->session()->get('error'),
+
+                /*
+                 | AZ EGYSZER MEGMUTATOTT TITOK (API-kulcs, SMTP-jelszó, webhook-secret).
+                 |
+                 | Miért a flash-ben és miért NEM oldal-propban: a props a HTML-be
+                 | szerializálódik, tehát a böngésző history-jában és a lap forrásában is
+                 | ott maradna — egy visszalépés újra megmutatná. A flash a session-ben él,
+                 | és a következő kérésnél eltűnik.
+                 |
+                 | Egy közös kulcs, nem képernyőnként külön: a szabály („egyszer látszik,
+                 | utána soha") azonos mindhárom titokra, és három külön propból előbb-utóbb
+                 | kimaradna valamelyik.
+                 */
+                'secret' => $request->session()->get('secret'),
             ],
         ];
     }

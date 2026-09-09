@@ -17,6 +17,23 @@ return [
         'workspace_switched' => 'Workspace gewechselt.',
         'locale_switched' => 'Sprache aktualisiert.',
     ],
+    'apiKeys' => [
+        'revoked' => 'Schlüssel widerrufen.',
+    ],
+    'smtp' => [
+        'revoked' => 'Zugangsdaten widerrufen.',
+    ],
+    'suppressions' => [
+        'added' => 'Adresse zur Sperrliste hinzugefügt.',
+        'removed' => 'Sperre aufgehoben.',
+        'missing' => 'Diese Adresse steht nicht auf der Sperrliste.',
+        'irrevocable' => 'Beschwerde- und Abmelde-Sperren lassen sich nicht aufheben: das ist der Wille des Empfängers.',
+    ],
+    'webhooks' => [
+        'deleted' => 'Endpunkt gelöscht.',
+        'replayed' => 'Zustellung erneut eingereiht.',
+        'alreadyDelivered' => 'Diese Zustellung war bereits erfolgreich.',
+    ],
     'gate' => [
         'domain_unverified' => 'Die Absenderdomain ist nicht verifiziert.',
         'suppressed' => 'Der Empfänger steht auf der Sperrliste.',

@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Modules\Identity\Http\Controllers\ApiKeyController;
 use App\Modules\Identity\Http\Controllers\DevLoginController;
 use App\Modules\Identity\Http\Controllers\DevSeedController;
 use App\Modules\Identity\Http\Controllers\LocaleController;
@@ -33,7 +34,36 @@ Route::post('/auth/logout', LogoutController::class)->name('auth.logout');
  */
 Route::post('/locale', LocaleController::class)
     ->middleware(['auth', 'workspace'])
+    // Ugyanaz az érv, mint az API-kulcsoknál: a nyelvváltás nem bejelentkezési kísérlet.
+    ->withoutMiddleware('throttle:oidc')
     ->name('locale.update');
+
+/*
+ | API-KULCSOK felülete. A `/v1` gépi felület kulcsai innen születnek és itt halnak meg.
+ |
+ | A modul route-jai hitelesítés ELŐTTIEK (OIDC-folyamat), ezért itt EXPLICIT a stack — a
+ | kulcskezelés session-hitelesítést ÉS workspace-kontextust követel, a szerep-ellenőrzést
+ | (`apiKey.manage`) pedig a kontroller végzi.
+ */
+Route::middleware(['auth', 'workspace'])
+    /*
+     | A `throttle:oidc` NEM erre való, és ez nem kozmetika.
+     |
+     | A limiter (20/perc/peer) a BEJELENTKEZÉSI folyamatot védi a brute-force ellen. A
+     | modul minden route-ja megkapja, tehát ez a képernyő is — pedig ez egy közönséges,
+     | session-hitelesített felület. Mérve: a párhuzamos böngésző-tesztek átlépték a
+     | keretet, és a képernyő 429-cel jött vissza; élesben ugyanez történne egy aktívabb
+     | csapatnál (a limit PEER-re szól, tehát az egész iroda EGY vödörben van).
+     |
+     | A védelem nem szűnik meg: marad az `auth`, a `workspace`, a CSRF és a szerep-
+     | ellenőrzés — plusz a `web` csoport általános fékei.
+     */
+    ->withoutMiddleware('throttle:oidc')
+    ->group(function (): void {
+        Route::get('/api-keys', [ApiKeyController::class, 'index'])->name('api-keys.index');
+        Route::post('/api-keys', [ApiKeyController::class, 'store'])->name('api-keys.store');
+        Route::delete('/api-keys/{uuid}', [ApiKeyController::class, 'destroy'])->name('api-keys.destroy');
+    });
 
 // KIZÁRÓLAG fejlesztői/teszt környezetben: a Playwright nem tudja végigjátszani a ventSSO
 // OIDC-folyamatát, a flow-tesztek viszont hitelesített munkamenetet igényelnek.

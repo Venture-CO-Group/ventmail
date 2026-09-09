@@ -38,10 +38,14 @@ const can = (ability: string): boolean => abilities.value.includes(ability);
  */
 const platform = computed(() =>
     [
-        { href: '/domains/wizard', id: 'nav-domains', label: t('nav.domains'), show: can('domain.manage') },
+        { href: '/domains', id: 'nav-domains', label: t('nav.domains'), show: can('domain.manage') },
+        { href: '/api-keys', id: 'nav-api-keys', label: t('nav.apiKeys'), show: can('apiKey.manage') },
+        { href: '/smtp-credentials', id: 'nav-smtp', label: t('nav.smtp'), show: can('smtpCredential.manage') },
+        { href: '/suppressions', id: 'nav-suppressions', label: t('nav.suppressions'), show: can('suppression.manage') },
+        { href: '/webhooks', id: 'nav-webhooks', label: t('nav.webhooks'), show: can('webhook.manage') },
         { href: '/logs', id: 'nav-logs', label: t('nav.logs'), show: can('logs.view') },
         { href: '/logs/statistics', id: 'nav-statistics', label: t('nav.statistics'), show: can('logs.view') },
-        { href: '/inbound/routes', id: 'nav-inbound', label: t('nav.inbound'), show: can('domain.manage') },
+        { href: '/inbound', id: 'nav-inbound', label: t('nav.inbound'), show: can('domain.manage') },
     ].filter((item) => item.show),
 );
 

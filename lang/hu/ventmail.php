@@ -17,6 +17,23 @@ return [
         'workspace_switched' => 'Workspace átváltva.',
         'locale_switched' => 'A nyelv beállítva.',
     ],
+    'apiKeys' => [
+        'revoked' => 'A kulcs visszavonva.',
+    ],
+    'smtp' => [
+        'revoked' => 'A hitelesítő visszavonva.',
+    ],
+    'suppressions' => [
+        'added' => 'A cím felvéve a tiltólistára.',
+        'removed' => 'A tiltás feloldva.',
+        'missing' => 'Ez a cím nem szerepel a tiltólistán.',
+        'irrevocable' => 'A panasz- és leiratkozás-alapú tiltás nem oldható fel: az az érintett akarata.',
+    ],
+    'webhooks' => [
+        'deleted' => 'A végpont törölve.',
+        'replayed' => 'A kézbesítés újra sorba állítva.',
+        'alreadyDelivered' => 'Ez a kézbesítés már sikeres volt.',
+    ],
     'gate' => [
         'domain_unverified' => 'A küldő domain nincs hitelesítve.',
         'suppressed' => 'A címzett a tiltólistán van.',

@@ -7,15 +7,19 @@ import { expect, test } from '@playwright/test';
  * elromlik, az MINDEN oldalon elromlik. Ezért van rá saját spec, és ezért méri a
  * NYELVVÁLTÁST is — a hat nyelv addig díszlet, amíg a felületen nem lehet váltani köztük.
  */
-test.beforeEach(async ({ page }) => {
-    await page.goto('/auth/dev-login');
-});
-
 /*
- | A NYELV a felhasználó SORÁN él, tehát átnyúlik a teszteken (a dev-belépő mindig ugyanazt
- | a felhasználót adja). Egy elbukó futás különben németre állítva hagyná a fiókot, és a
- | KÖVETKEZŐ futás első tesztje bukna el — a hiba pedig ott látszana, ahol nincs.
+ | A NYELV a felhasználó SORÁN él, tehát átnyúlik a teszteken (a suite egyetlen
+ | munkamenetet használ). Ebből két dolog következik:
+ |
+ | 1. A fájl tesztjei SOROSAN futnak. Párhuzamosan az egyik teszt `afterEach`-e
+ |    visszaállítaná a nyelvet, miközben a másik épp a váltást méri — mérve: a német
+ |    felirat ellenőrzése véletlenszerűen bukott el, mert közben egy másik worker
+ |    magyarra állította a fiókot.
+ | 2. Minden teszt UTÁN visszaállítunk: egy elbukó futás különben németre állítva hagyná a
+ |    fiókot, és a KÖVETKEZŐ futás első tesztje bukna el — ott, ahol nincs is hiba.
  */
+test.describe.configure({ mode: 'serial' });
+
 test.afterEach(async ({ page }) => {
     await page.goto('/dashboard');
     await page.getByTestId('locale-switch').locator('select').selectOption('hu');
