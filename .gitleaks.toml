@@ -9,6 +9,46 @@ title = "ventMail"
 [extend]
 useDefault = true
 
+# ─────────────────────────────────────────────────────────────────────────────
+# SAJÁT SZABÁLY: URL-be ágyazott Basic Auth hitelesítő — a userinfo két tagja (név ÉS
+# jelszó) a séma és a hoszt között.
+#
+# Miért kell, ha a gitleaks alap-szabálykészlete fut: mérve NEM fogja meg. A
+# GitGuardian igen — és egy TESZT-FIXTÚRÁN kapott el minket
+# (egy webhook-URL, aminek a userinfója nevet ÉS jelszót is tartalmazott, C2). A saját kapunknak
+# ugyanazt kell tudnia, mint a külső szkennernek: ha csak a külső fogja meg, a
+# hibát a PR-en látjuk meg, nem a commit előtt — és a történetből már nem
+# takarítható ki.
+#
+# A fixtúra ettől nem lesz „ártalmatlanabb": a helyes válasz az, hogy a teszt NE
+# hitelesítő-alakot használjon, ha nem a hitelesítő a tárgya.
+# ─────────────────────────────────────────────────────────────────────────────
+[[rules]]
+id = "url-basic-auth"
+description = "URL-be ágyazott Basic Auth hitelesítő a userinfo mezőben"
+regex = '''[a-zA-Z][a-zA-Z0-9+.-]*:\/\/[^\s:@\/]{1,64}:[^\s:@\/]{1,64}@[^\s\/]{1,255}'''
+tags = ["basic-auth", "url"]
+
+[rules.allowlist]
+# A séma-példák és a dokumentált placeholderek nem hitelesítők.
+regexes = [
+  ''':\/\/[^\s:@\/]{1,64}:(jelszo|password|jelszó|<[^>]+>|\$\{[^}]+\}|:[a-z_]+)@''',
+]
+
+# A C2 MERGE-COMMITJA (`aa43085b…`) — TÖRTÉNETI kivétel, egyetlen SHA-ra.
+#
+# Ebben a commitban egy teszt-fixtúra olyan URL-t használt, aminek a userinfója nevet ÉS
+# jelszót is tartalmazott — azért, hogy
+# bizonyítsa: az audit-pszeudonimizálás nem eszi meg a HOSZTNEVET. Nem valódi hitelesítő —
+# nincs mit visszavonni —, és a fixtúra a következő commitban jelszó nélküli userinfóra
+# cserélődött (a teszt tárgyához a jelszó nem kellett).
+#
+# Miért SHA-ra szól a kivétel, és nem fájlnévre: a már MERGELT `main`-történet átírása egy
+# fake teszt-hitelesítőért aránytalan (más ágakat törne el), viszont ha ugyanezekben a
+# fájlokban ÚJRA megjelenik egy ilyen alak, annak el KELL buknia. Egy fájl-alapú kivétel
+# ezt örökre kinyitná.
+commits = ["aa43085b20a32fbdb415764ff2473a6675aa2489"]
+
 [allowlist]
 description = """
 1) tests/Fixtures/dkim-test-key.pem — DKIM KAT-vektor (known-answer test).

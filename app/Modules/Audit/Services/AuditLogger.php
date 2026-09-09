@@ -249,7 +249,7 @@ final class AuditLogger
      *  - egy `InboundRoute` `forward` célja (`attacker@evil.com`) csak hash lett, tehát egy
      *    levél-exfiltráció CÉLJA nem volt visszakereshető — egy törölhetetlen táblában,
      *    utólag javíthatatlanul;
-     *  - a DMARC `rua=mailto:` és a userinfo-s URL is: `https://user:titok@hook.pelda.hu/x`
+     *  - a DMARC `rua=mailto:` és a userinfo-t tartalmazó URL is (`https://<user>@hoszt/x`)
      *    → a HOSZTNÉV tűnt el a naplóból.
      * A domain megtartásával mindhárom eset diagnosztizálható marad, az azonosító rész
      * viszont ugyanúgy nem szerepel. A hash TELJES normalizált címből készül, tehát a
