@@ -45,6 +45,20 @@ return [
         'replayed' => 'Delivery re-queued.',
         'alreadyDelivered' => 'This delivery already succeeded.',
     ],
+    'audience' => [
+        'listCreated' => 'List created.',
+    ],
+    'templates' => [
+        'saved' => 'Template saved.',
+    ],
+    'campaigns' => [
+        'saved' => 'Campaign saved.',
+        'schedule' => 'Campaign scheduled.',
+        'unschedule' => 'Schedule removed.',
+        'start' => 'Campaign started.',
+        'pause' => 'Campaign paused.',
+        'resume' => 'Campaign resumed.',
+    ],
     'gate' => [
         'domain_unverified' => 'The sending domain is not verified.',
         'suppressed' => 'The recipient is on the suppression list.',

@@ -19,27 +19,38 @@ use App\Modules\Identity\Enums\Role;
  */
 final class AbilityMap
 {
+    /*
+     | ÚJ KÉPESSÉG (M4): `validation.run`.
+     |
+     | A címellenőrzés eddig KIZÁRÓLAG API-kulccsal volt elérhető (`/v1/validate`), a
+     | felületről nem — pedig a legtöbb elgépelt cím ott keletkezik, ahol egy ember
+     | begépeli. A képesség a három ÜZEMELTETŐ szerephez tartozik (owner, admin,
+     | developer): a mailbox-szonda RBL-kockázatot hordoz és mérve is van (metering),
+     | tehát nem futtathatja bárki — az `analyst` és a tartalmi szerepek szándékosan
+     | maradnak ki.
+     */
+
     /** @var array<string, list<string>> */
     private const ABILITIES = [
         'owner' => [
             'workspace.manage', 'workspace.delete', 'member.manage', 'billing.manage',
             'subAccount.manage', 'domain.manage', 'ipPool.manage',
             'apiKey.manage', 'smtpCredential.manage', 'webhook.manage',
-            'suppression.manage', 'logs.view', 'analytics.view',
+            'suppression.manage', 'validation.run', 'logs.view', 'analytics.view',
             'campaign.create', 'campaign.publish', 'template.create', 'template.publish', 'audience.manage',
         ],
         'admin' => [
             'workspace.manage', 'member.manage',
             'subAccount.manage', 'domain.manage', 'ipPool.manage',
             'apiKey.manage', 'smtpCredential.manage', 'webhook.manage',
-            'suppression.manage', 'logs.view', 'analytics.view',
+            'suppression.manage', 'validation.run', 'logs.view', 'analytics.view',
             'campaign.create', 'campaign.publish', 'template.create', 'template.publish', 'audience.manage',
         ],
         // Fejlesztő: a küldő infrastruktúra igen, a marketing tartalom nem.
         'developer' => [
             'domain.manage', 'ipPool.manage',
             'apiKey.manage', 'smtpCredential.manage', 'webhook.manage',
-            'suppression.manage', 'logs.view', 'analytics.view',
+            'suppression.manage', 'validation.run', 'logs.view', 'analytics.view',
         ],
         'editor' => [
             'campaign.create', 'campaign.publish', 'template.create', 'template.publish', 'audience.manage',

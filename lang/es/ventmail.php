@@ -34,6 +34,20 @@ return [
         'replayed' => 'Entrega reencolada.',
         'alreadyDelivered' => 'Esta entrega ya tuvo éxito.',
     ],
+    'audience' => [
+        'listCreated' => 'Lista creada.',
+    ],
+    'templates' => [
+        'saved' => 'Plantilla guardada.',
+    ],
+    'campaigns' => [
+        'saved' => 'Campaña guardada.',
+        'schedule' => 'Campaña programada.',
+        'unschedule' => 'Programación cancelada.',
+        'start' => 'Campaña iniciada.',
+        'pause' => 'Campaña pausada.',
+        'resume' => 'Campaña reanudada.',
+    ],
     'gate' => [
         'domain_unverified' => 'El dominio de envío no está verificado.',
         'suppressed' => 'El destinatario está en la lista de supresión.',

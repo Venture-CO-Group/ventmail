@@ -43,9 +43,25 @@ const platform = computed(() =>
         { href: '/smtp-credentials', id: 'nav-smtp', label: t('nav.smtp'), show: can('smtpCredential.manage') },
         { href: '/suppressions', id: 'nav-suppressions', label: t('nav.suppressions'), show: can('suppression.manage') },
         { href: '/webhooks', id: 'nav-webhooks', label: t('nav.webhooks'), show: can('webhook.manage') },
+        { href: '/ip-pools', id: 'nav-ip-pools', label: t('nav.ipPools'), show: can('ipPool.manage') },
+        { href: '/validation', id: 'nav-validation', label: t('nav.validation'), show: can('validation.run') },
+        { href: '/deliverability', id: 'nav-deliverability', label: t('nav.deliverability'), show: can('analytics.view') },
         { href: '/logs', id: 'nav-logs', label: t('nav.logs'), show: can('logs.view') },
         { href: '/logs/statistics', id: 'nav-statistics', label: t('nav.statistics'), show: can('logs.view') },
         { href: '/inbound', id: 'nav-inbound', label: t('nav.inbound'), show: can('domain.manage') },
+        { href: '/billing', id: 'nav-billing', label: t('nav.billing'), show: can('billing.manage') },
+    ].filter((item) => item.show),
+);
+
+/*
+ | A STUDIO külön menü-csoport: a Mailchimp-oldal más munkakör (marketinges), mint a
+ | platform-oldal (fejlesztő, üzemeltető). Egy közös listában a kettő elfedné egymást.
+ */
+const studio = computed(() =>
+    [
+        { href: '/audience', id: 'nav-audience', label: t('nav.audience'), show: can('audience.manage') },
+        { href: '/templates', id: 'nav-templates', label: t('nav.templates'), show: can('template.create') },
+        { href: '/campaigns', id: 'nav-campaigns', label: t('nav.campaigns'), show: can('campaign.create') },
     ].filter((item) => item.show),
 );
 
@@ -104,6 +120,20 @@ async function switchLocale(code: string): Promise<void> {
                 <span class="vm-nav-group__title vt-eyebrow">{{ t('nav.platform') }}</span>
                 <Link
                     v-for="item in platform"
+                    :key="item.href"
+                    class="vm-nav-link"
+                    :href="item.href"
+                    :data-testid="item.id"
+                    :aria-current="$page.url.startsWith(item.href) ? 'page' : undefined"
+                >
+                    {{ item.label }}
+                </Link>
+            </div>
+
+            <div v-if="studio.length" class="vm-nav-group" data-testid="nav-studio">
+                <span class="vm-nav-group__title vt-eyebrow">{{ t('nav.studio') }}</span>
+                <Link
+                    v-for="item in studio"
                     :key="item.href"
                     class="vm-nav-link"
                     :href="item.href"

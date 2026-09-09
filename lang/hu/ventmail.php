@@ -34,6 +34,20 @@ return [
         'replayed' => 'A kézbesítés újra sorba állítva.',
         'alreadyDelivered' => 'Ez a kézbesítés már sikeres volt.',
     ],
+    'audience' => [
+        'listCreated' => 'A lista létrejött.',
+    ],
+    'templates' => [
+        'saved' => 'A sablon mentve.',
+    ],
+    'campaigns' => [
+        'saved' => 'A kampány mentve.',
+        'schedule' => 'A kampány ütemezve.',
+        'unschedule' => 'Az ütemezés visszavonva.',
+        'start' => 'A kampány elindult.',
+        'pause' => 'A kampány szüneteltetve.',
+        'resume' => 'A kampány folytatódik.',
+    ],
     'gate' => [
         'domain_unverified' => 'A küldő domain nincs hitelesítve.',
         'suppressed' => 'A címzett a tiltólistán van.',

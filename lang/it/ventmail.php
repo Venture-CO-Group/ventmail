@@ -34,6 +34,20 @@ return [
         'replayed' => 'Consegna rimessa in coda.',
         'alreadyDelivered' => 'Questa consegna è già riuscita.',
     ],
+    'audience' => [
+        'listCreated' => 'Lista creata.',
+    ],
+    'templates' => [
+        'saved' => 'Modello salvato.',
+    ],
+    'campaigns' => [
+        'saved' => 'Campagna salvata.',
+        'schedule' => 'Campagna pianificata.',
+        'unschedule' => 'Pianificazione annullata.',
+        'start' => 'Campagna avviata.',
+        'pause' => 'Campagna in pausa.',
+        'resume' => 'Campagna ripresa.',
+    ],
     'gate' => [
         'domain_unverified' => 'Il dominio di invio non è verificato.',
         'suppressed' => 'Il destinatario è nella lista di soppressione.',
