@@ -37,13 +37,23 @@ final class PurgeClickMapCommand extends Command
         $days = (int) config('sending.delivery_attempt_retention_days', 90);
         $cutoff = now()->subDays($days);
         $collapsed = 0;
+        $aggregated = 0;
 
         $previous = $context->hasWorkspace() ? $context->workspace() : null;
 
         try {
-            Workspace::query()->withTrashed()->orderBy('id')->chunkById(100, function ($workspaces) use ($context, $map, $cutoff, &$collapsed): void {
+            Workspace::query()->withTrashed()->orderBy('id')->chunkById(100, function ($workspaces) use ($context, $map, $cutoff, &$collapsed, &$aggregated): void {
                 foreach ($workspaces as $workspace) {
                     $context->set($workspace);
+
+                    // A SZÁMOLÁS A KONTEXTUSON BELÜL. Korábban a `finally` UTÁN futott,
+                    // ahol a `forget()` már törölte a kontextust, tehát a `WorkspaceScope`
+                    // `1 = 0`-ra vitte: a jelentés NULLÁT mondott, miközben két összevont
+                    // sor volt. Egy retenciós jelentés, ami nullát mond, rosszabb, mintha
+                    // nem mondana semmit.
+                    $aggregated += LinkClick::query()
+                        ->where('recipient_hash', ClickMap::AGGREGATED_HASH)
+                        ->count();
 
                     $collapsed += $map->collapse(fn ($query) => $query
                         ->where('last_clicked_at', '<=', $cutoff)
@@ -60,7 +70,7 @@ final class PurgeClickMapCommand extends Command
             'Összevont klikk-sor: %d (retenció: %d nap). Aggregált sorok: %d',
             $collapsed,
             $days,
-            LinkClick::query()->where('recipient_hash', ClickMap::AGGREGATED_HASH)->count(),
+            $aggregated,
         ));
 
         return self::SUCCESS;

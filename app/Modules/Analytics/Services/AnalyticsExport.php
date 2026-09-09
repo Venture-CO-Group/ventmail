@@ -6,6 +6,7 @@ namespace App\Modules\Analytics\Services;
 
 use App\Modules\Campaign\Models\Campaign;
 use App\Modules\Journey\Models\Journey;
+use RuntimeException;
 
 /**
  * EXPORT CSV-be (74. kritérium).
@@ -95,12 +96,16 @@ final class AnalyticsExport
         // mezőket — és a hibát az veszi észre, aki a táblázatot megnyitja.
         $handle = fopen('php://temp', 'r+');
 
+        if ($handle === false) {
+            throw new RuntimeException('A CSV-puffer nem nyitható meg.');
+        }
+
         foreach (array_merge($header, $rows) as $row) {
-            fputcsv($handle, array_map(static fn ($value) => match (true) {
+            fputcsv($handle, array_map(static fn ($value): string => self::csvSafe(match (true) {
                 is_bool($value) => $value ? '1' : '0',
                 $value === null => '',
                 default => (string) $value,
-            }, $row));
+            }), $row));
         }
 
         rewind($handle);
@@ -108,5 +113,27 @@ final class AnalyticsExport
         fclose($handle);
 
         return $csv;
+    }
+
+    /**
+     * FORMULA-INJEKCIÓ elleni prefix — ugyanaz a védelem, mint a `ValidationController`-ben.
+     *
+     * ## Miért nem elég az `fputcsv`
+     *
+     * Mert az idézőjelezés CSV-SZINTŰ: a táblázatkezelő a beolvasáskor leszedi, és a
+     * `=`-kezdetű cellát KÉPLETKÉNT értékeli. A review megmérte a valódi kimenetet egy
+     * `=cmd|'/c calc'!A0` kampánynévvel: a mező idézőjelben, de érintetlenül került a
+     * fájlba. A DDE-változat parancsvégrehajtás — az EXPORTÁLÓ gépén, nem a támadóén.
+     *
+     * A támadási út teljes: sub-account felállásban a child adja a kampány nevét vagy a
+     * variáns tárgyát, a parent nyitja meg a riportot. A repóban ugyanez a védelem már
+     * létezik (`ValidationController::csvSafe`) saját docblockkal — ez a modul nem hívta.
+     *
+     * A védekezés a szabvány szerinti aposztróf-prefix: a táblázatkezelőnek azt jelenti,
+     * „ez szöveg". A név maga olvasható marad.
+     */
+    private static function csvSafe(string $value): string
+    {
+        return preg_match('/^[=+\-@\t\r]/', $value) === 1 ? "'".$value : $value;
     }
 }

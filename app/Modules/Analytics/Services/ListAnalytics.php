@@ -42,6 +42,11 @@ final class ListAnalytics
      */
     public function summary(ContactList $list): array
     {
+        // FAIL-CLOSED, ugyanúgy, mint a `growth()`-ban: a docblock kimondja, hogy a
+        // kontextus hiánya KIVÉTEL, nem „minden tenant" — akkor ez a metódus se legyen
+        // kivétel a szabály alól.
+        $this->workspaceId();
+
         /*
          | A LEKÉRDEZÉS A RELÁCIÓN megy, nem nyers query builderen.
          |
@@ -50,13 +55,20 @@ final class ListAnalytics
          | és így a `contacts.workspace_id` szűrőt a global scope adja, nem egy kézzel
          | odaírt `where`, amit el lehet felejteni.
          |
-         | A `withTrashed()` KELL: a GDPR-törlés a kontaktot soft-delete-eli, a tagság-sor
-         | viszont megmarad. Nélküle a lista MÉRETE visszamenőleg csökkenne minden törlési
-         | kérésnél — a tenant azt látná, hogy a közönsége magától fogy, és a fél évvel
-         | korábbi növekedési görbe ma más számot mutatna, mint tegnap.
+         | ITT NINCS `withTrashed()`, és ez a NÖVEKEDÉSI GÖRBÉVEL ellentétes döntés.
+         |
+         | Ez a metódus a JELENLEGI állapotot állítja: „hány feliratkozóm van MOST". Egy
+         | törölt (GDPR-erased) ember NEM küldhető cím, tehát nem feliratkozó. A review
+         | megmérte: `withTrashed()`-del a `summary.subscribed` 3-at mondott, miközben a
+         | valóban kiküldhető közönség 2 volt — és minden további törlési kéréssel nagyobbat
+         | hazudott volna. A C1 `contacts_peak` meteringje épp erre a számra épülhet: ott
+         | ez TÚLSZÁMLÁZÁS lenne.
+         |
+         | A `growth()` ezzel szemben MEGTARTJA a `withTrashed()`-et: ott a historikus
+         | görbe a kérdés, és az nem változhat visszamenőleg attól, hogy valaki ma törlést
+         | kért.
          */
         $byStatus = $list->contacts()
-            ->withTrashed()
             ->reorder()
             ->selectRaw('contact_list_memberships.status as status, count(*) as total')
             ->groupBy('contact_list_memberships.status')

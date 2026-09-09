@@ -93,8 +93,17 @@ return new class extends Migration
             $table->timestampTz('last_clicked_at');
             $table->timestamps();
 
-            // AZ IDEMPOTENCIA: egy újratöltött link nem duplikál sort.
-            $table->unique(['message_uuid', 'url_hash', 'recipient_hash'], 'link_clicks_unique');
+            /*
+             | AZ IDEMPOTENCIA: egy újratöltött link nem duplikál sort.
+             |
+             | A `workspace_id` BENNE VAN, és ez a TENANT-HATÁR. Az `upsert` INSERT, tehát a
+             | global scope nem hat rá, és az `ON CONFLICT` ág a `workspace_id`-t se a
+             | kulcsban, se a frissítendő mezők között nem látta. A review megmérte: a B
+             | tenant kattintása az A tenant sorának számlálóját növelte (`clicks` 2 → 3),
+             | miközben B-nél nem jelent meg semmi. HTTP-n nem volt elérhető (a workspace a
+             | titkosított tokenből jön), de a szolgáltatás-API így viselkedett.
+             */
+            $table->unique(['workspace_id', 'message_uuid', 'url_hash', 'recipient_hash'], 'link_clicks_unique');
 
             // A TÉRKÉP lekérdezése: kampány + link szerinti csoportosítás.
             $table->index(['workspace_id', 'campaign_uuid', 'url_hash'], 'link_clicks_map');

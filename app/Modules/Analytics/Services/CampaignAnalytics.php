@@ -23,7 +23,10 @@ final class CampaignAnalytics
 {
     public function __construct(private readonly EventCounters $counters) {}
 
-    /** A kampány TAGJE — a küldés ezt írja minden üzenetre (`SendCampaignChunk`). */
+    /**
+     * A kampány TAGJE — a küldés ezt írja minden üzenetre (`SendCampaignChunk`), és
+     * egyben a ténytábla `scope`-ja.
+     */
     public static function tag(Campaign $campaign): string
     {
         return 'campaign:'.$campaign->uuid;
@@ -34,7 +37,7 @@ final class CampaignAnalytics
      */
     public function summary(Campaign $campaign): array
     {
-        $counts = $this->counters->forTags([self::tag($campaign)]);
+        $counts = $this->counters->forScope(self::tag($campaign));
 
         return array_merge(
             [
@@ -54,9 +57,9 @@ final class CampaignAnalytics
     /**
      * A/B VARIÁNS-BONTÁS — ugyanabból a forrásból.
      *
-     * A `variant:<label>` tag a kampány-tag MELLETT szerepel az eseményen, tehát a két tag
-     * ÉS-kapcsolatban szűr. Így a variánsok összege a kampány-összesítőt adja: ha külön
-     * számlálókból jönnének, a két nézet mást mondana ugyanarról a küldésről.
+     * A ténytábla grainje `(hatókör, VARIÁNS, címzett)`, tehát a variáns-szűrés ugyanazon
+     * sorokon megy, mint a kampány-összesítő — a variánsok összege szerkezetileg a
+     * kampányt adja. Ha külön számlálókból jönnének, a két nézet mást mondana ugyanarról.
      *
      * @return list<array<string, int|float|string>>
      */
@@ -65,10 +68,7 @@ final class CampaignAnalytics
         $rows = [];
 
         foreach ($campaign->variants()->orderBy('id')->get() as $variant) {
-            $counts = $this->counters->forTags([
-                self::tag($campaign),
-                'variant:'.$variant->label,
-            ]);
+            $counts = $this->counters->forScope(self::tag($campaign), (string) $variant->label);
 
             $rows[] = array_merge(
                 [
@@ -88,11 +88,15 @@ final class CampaignAnalytics
     /**
      * NAPI IDŐSOR a riport grafikonjához.
      *
-     * @return list<array{day: string, delivered: int, unique_opened: int, unique_clicked: int}>
+     * ESEMÉNY-számokat ad, nem egyedieket: a Timescale folytonos aggregátum nem támogat
+     * `DISTINCT`-et, és a napi „hányan" amúgy sem összegezhető (aki két napon nyit, két
+     * napba tartozik, de egy ember).
+     *
+     * @return list<array{day: string, delivered: int, opened: int, clicked: int}>
      */
     public function daily(Campaign $campaign): array
     {
-        return $this->counters->dailyForTags([self::tag($campaign)]);
+        return $this->counters->dailyForTag(self::tag($campaign));
     }
 
     /**

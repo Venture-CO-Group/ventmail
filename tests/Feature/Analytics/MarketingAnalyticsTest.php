@@ -17,6 +17,7 @@ use App\Modules\Consent\Services\ConsentRecorder;
 use App\Modules\Domains\Models\Domain;
 use App\Modules\Events\Models\MessageEvent;
 use App\Modules\Events\Services\TrackingTokens;
+use App\Modules\Identity\Models\ApiKey;
 use App\Modules\Journey\Enums\TriggerType;
 use App\Modules\Journey\Models\Journey;
 use App\Modules\Journey\Models\JourneyRun;
@@ -406,13 +407,15 @@ it('a KLIKK-TÉRKÉP linkenkénti FELSŐ KORLÁTJA látszik a riportban', functi
     $mapper = app(ClickMap::class);
     $message = (string) Str::uuid7();
 
-    for ($i = 0; $i < ClickMap::MAX_LINKS_PER_MESSAGE + 5; $i++) {
-        $mapper->record($message, (string) $campaign->uuid, null, "https://pelda.hu/x{$i}", "e{$i}@pelda.hu");
+    // KÜLÖN üzenetek: a kampány címzettenként külön `messages` sort küld, és a korlátnak
+    // ezért KAMPÁNY-szinten kell fognia, nem üzenet-szinten.
+    for ($i = 0; $i < ClickMap::MAX_LINKS_PER_SCOPE + 5; $i++) {
+        $mapper->record((string) Str::uuid7(), (string) $campaign->uuid, null, "https://pelda.hu/x{$i}", "e{$i}@pelda.hu");
     }
 
     $links = $mapper->forCampaign($campaign);
 
-    expect(count($links))->toBeLessThanOrEqual(ClickMap::MAX_LINKS_PER_MESSAGE + 1)
+    expect(count($links))->toBeLessThanOrEqual(ClickMap::MAX_LINKS_PER_SCOPE + 1)
         ->and(collect($links)->pluck('url'))->toContain(ClickMap::OVERFLOW_URL);
 });
 
@@ -497,12 +500,108 @@ it('az EXPORT nem szivárogtat NYERS címet', function () {
     expect($csv)->not->toContain('titkos@pelda.hu');
 });
 
-it('az ANALITIKA-API a kampány riportját adja, és tenant-szűrt', function () {
-    $campaign = campaignWith();
+it('az ANALITIKA-API VALÓDI HTTP-n működik, és a scope-ot ÉRVÉNYESÍTI', function () {
+    /*
+     | Ez a teszt korábban csak `expect(Route::has(...))->toBeTrue()` volt — egy állítás,
+     | ami nem tud elhasalni. A review emiatt mérte meg, hogy a végpont VALÓDI kéréssel
+     | 401-et ad érvényes `analytics:read` kulccsal is: a modul-provider nem állította a
+     | `routesPrecedeAuthentication`-t, tehát a böngésző-session `auth` middleware került
+     | az `api.auth` ELÉ. A 74. kritérium API-fele nem működött, miközben az OpenAPI
+     | működőként dokumentálta.
+     |
+     | Egy route-jelenlét-állítás nem teszt. Ez az.
+     */
+    $campaign = campaignWith(['name' => 'Riportált']);
 
     trackEvent('delivered', 'api@pelda.hu', ['campaign:'.$campaign->uuid]);
+    trackEvent('opened', 'api@pelda.hu', ['campaign:'.$campaign->uuid]);
 
-    expect(Route::has('v1.analytics.campaign'))->toBeTrue();
+    ['plain' => $olvaso] = ApiKey::issue('Riport', ['analytics:read']);
+
+    $response = $this->withHeader('Authorization', 'Bearer '.$olvaso)
+        ->getJson('/v1/analytics/campaigns/'.$campaign->uuid);
+
+    $response->assertOk()
+        ->assertJsonPath('summary.delivered', 1)
+        ->assertJsonPath('summary.unique_opened', 1)
+        ->assertJsonPath('summary.campaign', 'Riportált');
+
+    // AZ AGGREGÁLT válasz egyetlen címzett-címet sem tartalmaz.
+    expect($response->getContent())->not->toContain('api@pelda.hu');
+
+    // MÁS SCOPE nem nyitja: a marketing-riport és a napló két különböző jogosultság.
+    ['plain' => $naplo] = ApiKey::issue('Napló', ['logs:read', 'events:read']);
+
+    $this->withHeader('Authorization', 'Bearer '.$naplo)
+        ->getJson('/v1/analytics/campaigns/'.$campaign->uuid)
+        ->assertForbidden();
+
+    // KULCS NÉLKÜL sem: az `api.auth` a hiányzó kulcsot 403-cal utasítja el (nincs
+    // `WWW-Authenticate` kihívás, mert nem böngésző-hitelesítés).
+    $this->getJson('/v1/analytics/campaigns/'.$campaign->uuid)->assertForbidden();
+});
+
+it('az ANALITIKA-API más TENANT kampányára 404-et ad, nem adatot', function () {
+    // 404, nem 403: egy „létezik, de nem a tiéd" válasz megmondaná, hogy az uuid valós — a
+    // riport-végpont nem lehet létezés-orákulum más tenantok kampányaira.
+    $other = Workspace::factory()->create();
+    app(WorkspaceContext::class)->set($other);
+
+    Domain::create(['name' => 'masik.hu', 'status' => 'verified', 'verified_at' => now()]);
+
+    $idegenSablon = Template::create([
+        'name' => 'Idegen',
+        'blocks' => [['type' => 'section', 'children' => [['type' => 'column', 'children' => [
+            ['type' => 'text', 'attrs' => ['content' => 'x']],
+            ['type' => 'unsubscribe', 'attrs' => []],
+        ]]]]],
+    ]);
+
+    $idegen = Campaign::create([
+        'template_id' => $idegenSablon->getKey(),
+        'name' => 'Idegen kampány',
+        'subject' => 'Tárgy',
+        'from_email' => 'no-reply@masik.hu',
+        'target_lists' => [],
+    ]);
+
+    app(WorkspaceContext::class)->set($this->workspace);
+
+    ['plain' => $kulcs] = ApiKey::issue('Riport', ['analytics:read']);
+
+    $this->withHeader('Authorization', 'Bearer '.$kulcs)
+        ->getJson('/v1/analytics/campaigns/'.$idegen->uuid)
+        ->assertNotFound();
+});
+
+it('az ANALITIKA-API CSV-t ad, és a SZAKASZOK mind elérhetők', function () {
+    $campaign = campaignWith();
+
+    $variant = CampaignVariant::create(['campaign_id' => $campaign->getKey(), 'label' => 'A', 'weight' => 100]);
+
+    trackEvent('delivered', 'csv@pelda.hu', ['campaign:'.$campaign->uuid, 'variant:A']);
+
+    app(ClickMap::class)->record((string) Str::uuid7(), (string) $campaign->uuid, null, 'https://pelda.hu/akcio', 'csv@pelda.hu');
+
+    ['plain' => $kulcs] = ApiKey::issue('Riport', ['analytics:read']);
+
+    foreach (['summary' => 'delivered', 'variants' => 'label', 'clicks' => 'unique_clicks'] as $section => $fejlec) {
+        $response = $this->withHeader('Authorization', 'Bearer '.$kulcs)
+            ->get('/v1/analytics/campaigns/'.$campaign->uuid.'?format=csv&section='.$section);
+
+        $response->assertOk()
+            ->assertHeader('Content-Type', 'text/csv; charset=UTF-8')
+            ->assertHeader('X-Content-Type-Options', 'nosniff');
+
+        // A `toContain` a további argumentumokat KERESETT ÉRTÉKKÉNT érti, nem üzenetként
+        // (ezt a B2 tesztfájlja már megtanulta) — ezért itt nincs üzenet-paraméter.
+        expect($response->getContent())->toContain($fejlec);
+    }
+
+    // ISMERETLEN szakasz: 404, nem csendes visszaesés az összesítőre.
+    $this->withHeader('Authorization', 'Bearer '.$kulcs)
+        ->get('/v1/analytics/campaigns/'.$campaign->uuid.'?format=csv&section=talalgatas')
+        ->assertNotFound();
 });
 
 /*
@@ -600,4 +699,250 @@ it('a KLIKK-TÉRKÉP nem lát át a TENANT-HATÁRON', function () {
     app(WorkspaceContext::class)->set($this->workspace);
 
     expect(app(ClickMap::class)->forCampaign($campaign)[0]['unique_clicks'])->toBe(1);
+});
+
+/*
+ | A REVIEW-BAN MÉRT HIBÁK regressziós tesztjei (reviewer + security).
+ */
+
+it('a RIPORT TÚLÉLI a nyers események RETENCIÓJÁT — a 73. kritérium nem szűnik meg', function () {
+    /*
+     | EZ a packet legfontosabb regressziós tesztje.
+     |
+     | A riport először a NYERS `message_events`-ből számolt, amin 90 napos retenció van
+     | (`add_retention_policy`). A review ezt megmérte egy 100 napos kampányon, `drop_chunks`
+     | után:
+     |
+     |     Studio-riport:   delivered 0,  opened 0,  open_rate 0%
+     |     Platform-napló:  delivered 50, opened 20, open_rate 40%
+     |
+     | Ugyanaz a kampány, KÉT felület, KÉT szám — pontosan az, amit a 73. kritérium tilt, és
+     | amit a `TagStatistics` docblockja előre kimondott: „aki ezt a szolgáltatást
+     | megkerüli, az egy önmagát törlő statisztikát épít".
+     |
+     | A teszt a retenciót a nyers sorok TÖRLÉSÉVEL szimulálja (a `drop_chunks` ugyanezt
+     | teszi, csak chunk-szinten): a ténytábla ettől érintetlen, tehát a riport áll.
+     */
+    $campaign = campaignWith();
+    $tag = 'campaign:'.$campaign->uuid;
+
+    foreach (range(1, 5) as $i) {
+        trackEvent('delivered', "r{$i}@pelda.hu", [$tag]);
+    }
+
+    trackEvent('opened', 'r1@pelda.hu', [$tag]);
+    trackEvent('opened', 'r2@pelda.hu', [$tag]);
+
+    $before = app(CampaignAnalytics::class)->summary($campaign);
+
+    expect($before['delivered'])->toBe(5)->and($before['unique_opened'])->toBe(2);
+
+    // A RETENCIÓ: a nyers események eltűnnek.
+    DB::table('message_events')->delete();
+
+    expect(MessageEvent::query()->count())->toBe(0);
+
+    $after = app(CampaignAnalytics::class)->summary($campaign);
+
+    // A RIPORT VÁLTOZATLAN — a ténytábla túlélte.
+    expect($after['delivered'])->toBe(5)
+        ->and($after['unique_opened'])->toBe(2)
+        ->and($after['open_rate'])->toBe($before['open_rate']);
+});
+
+it('a CTOR nem megy 100% FÖLÉ kép-blokkoló kliensnél', function () {
+    /*
+     | MÉRVE 266,67%: 10 kézbesítve / 3 nyitva / 8 kattintva. Ez nem elméleti bemenet —
+     | kép-blokkoló kliensben (Outlook desktop, céges gateway, plain-text) a nyomkövető
+     | pixel NEM tölt be, a link viszont kattintható, tehát TÖBB kattintó van, mint nyitó.
+     |
+     | A kattintás BIZONYÍTJA a megnyitást, ezért a CTOR nevezője a két halmaz UNIÓJA.
+     */
+    $campaign = campaignWith();
+    $tag = 'campaign:'.$campaign->uuid;
+
+    foreach (range(1, 10) as $i) {
+        trackEvent('delivered', "c{$i}@pelda.hu", [$tag]);
+    }
+
+    // HÁROM nyitó…
+    foreach (range(1, 3) as $i) {
+        trackEvent('opened', "c{$i}@pelda.hu", [$tag]);
+    }
+
+    // …és NYOLC kattintó, köztük öt olyan, aki nem „nyitott".
+    foreach (range(1, 8) as $i) {
+        trackEvent('clicked', "c{$i}@pelda.hu", [$tag]);
+    }
+
+    $summary = app(CampaignAnalytics::class)->summary($campaign);
+
+    expect($summary['unique_opened'])->toBe(3)
+        ->and($summary['unique_clicked'])->toBe(8)
+        // AZ ELÉRT közönség a két halmaz uniója: 8 (a három nyitó mind kattintott is).
+        ->and($summary['engaged'])->toBe(8)
+        ->and($summary['click_to_open_rate'])->toBe(100.0)
+        ->and($summary['click_to_open_rate'])->toBeLessThanOrEqual(100.0);
+});
+
+it('a KÉTSZER írt `accepted` nem felezi a BOUNCE-ARÁNYT', function () {
+    /*
+     | A MÉRT HIBA: az éles driver-úton címzettenként KÉTSZER keletkezik `accepted` — a
+     | `SendMessage` a kapun átjutáskor, a `MessageDispatcher` a driver válaszán (a
+     | `PostalDriver` `DispatchResult::accepted()`-et ad, nem `delivered()`-et). A
+     | `bounce_rate = bounced / accepted` így 1 küldés / 1 bounce esetén 50%-ot mutatott
+     | 100% helyett.
+     |
+     | A bounce-arány a kézbesíthetőségi megfelelés száma (spam-ráta < 0,3%) — a `Rates`
+     | docblockja szerint „nem lehet kozmetikázva". Ezért a riport CÍMZETTET számol, nem
+     | eseményt: két `accepted` egy címzettre továbbra is EGY.
+     |
+     | A tesztkörnyezetben ez azért nem látszott, mert a `FakeDriver` `delivered()`-et ad.
+     */
+    $campaign = campaignWith();
+    $tag = 'campaign:'.$campaign->uuid;
+
+    // UGYANARRA a címzettre KÉT `accepted` — ahogy az éles út teszi.
+    trackEvent('accepted', 'egy@pelda.hu', [$tag]);
+    trackEvent('accepted', 'egy@pelda.hu', [$tag]);
+    trackEvent('bounced', 'egy@pelda.hu', [$tag]);
+
+    $summary = app(CampaignAnalytics::class)->summary($campaign);
+
+    expect($summary['accepted'])->toBe(1)
+        ->and($summary['bounced'])->toBe(1)
+        ->and($summary['bounce_rate'])->toBe(100.0);
+});
+
+it('a KAPU ELUTASÍTÁSA látszik a riportban', function () {
+    // Korábban a `recipients: 100000` mellett `accepted: 60000` állt, MAGYARÁZAT NÉLKÜL: a
+    // tenant nem látta, hogy a listája 40%-a ki sem ment. A listahigiénia romlása a
+    // kézbesíthetőségi probléma ELSŐ jele.
+    $campaign = campaignWith();
+    $tag = 'campaign:'.$campaign->uuid;
+
+    foreach (range(1, 6) as $i) {
+        trackEvent('accepted', "ok{$i}@pelda.hu", [$tag]);
+    }
+
+    foreach (range(1, 4) as $i) {
+        trackEvent('rejected', "nem{$i}@pelda.hu", [$tag]);
+    }
+
+    $summary = app(CampaignAnalytics::class)->summary($campaign);
+
+    expect($summary['rejected'])->toBe(4)
+        ->and($summary['accepted'])->toBe(6)
+        // A NEVEZŐ a megkísérelt küldés (elutasított + elfogadott), nem a célzás mérete.
+        ->and($summary['rejection_rate'])->toBe(40.0);
+});
+
+it('a SZEMÉLYRE SZABOTT LINK nem visz PII-t a klikk-térképbe', function () {
+    /*
+     | A MÉRT HIBA: a `link_clicks.url` NYERSEN tárolta a behelyettesített címet, tehát egy
+     | merge-tagelt `href` személyes adatot vitt a táblába — amit sem az Art. 17 törlés, sem
+     | a retenció nem szedett ki (mindkettő csak a `recipient_hash`-t vonja össze), és amit
+     | a CSV-export meg az API-válasz kiadott. Az OpenAPI ugyanerről a végpontról azt
+     | állítja: „a válasz aggregált: egyetlen címzett-címet sem tartalmaz."
+     |
+     | Ez EGYBEN a soklinkes hasadást is javítja: a személyre szabott linkek
+     | címzettenként más `url_hash`-t adtak, tehát 300 címzett 300 soros térképet
+     | eredményezett.
+     */
+    $campaign = campaignWith();
+    $map = app(ClickMap::class);
+
+    $map->record((string) Str::uuid7(), (string) $campaign->uuid, null,
+        'https://pelda.hu/r?email=titkos@pelda.hu&nev=Anna+Kiss&utm_source=hirlevel', 'titkos@pelda.hu');
+
+    $map->record((string) Str::uuid7(), (string) $campaign->uuid, null,
+        'https://pelda.hu/r?email=masik@pelda.hu&nev=Bela+Nagy&utm_source=hirlevel', 'masik@pelda.hu');
+
+    $links = $map->forCampaign($campaign);
+
+    // EGY sor: a személyre szabott paraméterek kiestek, tehát a két kattintás UGYANARRA a
+    // linkre esik — a térkép nem hasad szét címzettenként.
+    expect($links)->toHaveCount(1)
+        ->and($links[0]['unique_clicks'])->toBe(2)
+        ->and($links[0]['url'])->not->toContain('titkos@pelda.hu')
+        ->and($links[0]['url'])->not->toContain('Anna+Kiss')
+        // …de a KAMPÁNY-MÉRŐ paraméter megmarad: az a térkép értelmes dimenziója.
+        ->and($links[0]['url'])->toContain('utm_source=hirlevel');
+
+    // A TÁBLÁBAN sem, és az EXPORTBAN sem.
+    expect(json_encode(DB::table('link_clicks')->get()))->not->toContain('titkos@pelda.hu')
+        ->and(app(AnalyticsExport::class)->clickMapCsv($campaign))
+        ->not->toContain('titkos@pelda.hu');
+});
+
+it('a KLIKK-TÉRKÉP a HOSZTOT kisbetűsíti, és a záró `/`-t csak az ÚTVONALON vágja', function () {
+    /*
+     | MÉRVE, a `rtrim($url, '/')` a TELJES URL-re futott:
+     |   KÉT KÜLÖNBÖZŐ cél EGY sorba: `?next=https://a.hu/` + `?next=https://a.hu`
+     |   KÉT AZONOS cél KETTŐBE:      `https://PELDA.hu/akcio` + `https://pelda.hu/akcio`
+     | Az elsőnél a tárolt cím olyan lett, ami sosem volt a levélben; a másodiknál a
+     | rangsor hasadt — pontosan az, amit a docblock „a térkép hazudik a rangsorról"-ként ír le.
+     */
+    $campaign = campaignWith();
+    $map = app(ClickMap::class);
+
+    $map->record((string) Str::uuid7(), (string) $campaign->uuid, null, 'https://PELDA.hu/akcio', 'a@pelda.hu');
+    $map->record((string) Str::uuid7(), (string) $campaign->uuid, null, 'https://pelda.hu/akcio/', 'b@pelda.hu');
+    $map->record((string) Str::uuid7(), (string) $campaign->uuid, null, 'https://pelda.hu/akcio#reszletek', 'c@pelda.hu');
+
+    $links = $map->forCampaign($campaign);
+
+    // MIND A HÁROM ugyanaz a cél: egy sor, három egyedi kattintó.
+    expect($links)->toHaveCount(1)
+        ->and($links[0]['url'])->toBe('https://pelda.hu/akcio')
+        ->and($links[0]['unique_clicks'])->toBe(3);
+});
+
+it('a KLIKK-TÉRKÉP UPSERTJE nem lép át a TENANT-HATÁRON', function () {
+    /*
+     | A MÉRT HIBA: az egyedi index `(message_uuid, url_hash, recipient_hash)` volt,
+     | `workspace_id` NÉLKÜL, és az `upsert` INSERT — tehát a global scope nem hat rá. A B
+     | tenant kattintása az A tenant sorának számlálóját növelte (`clicks` 2 → 3), miközben
+     | B-nél nem jelent meg semmi.
+     */
+    $campaign = campaignWith();
+    $message = (string) Str::uuid7();
+
+    app(ClickMap::class)->record($message, (string) $campaign->uuid, null, 'https://pelda.hu/x', 'ugyanaz@pelda.hu');
+    app(ClickMap::class)->record($message, (string) $campaign->uuid, null, 'https://pelda.hu/x', 'ugyanaz@pelda.hu');
+
+    expect(app(ClickMap::class)->forCampaign($campaign)[0]['clicks'])->toBe(2);
+
+    // UGYANAZ az (üzenet, link, címzett) hármas EGY MÁS tenantból.
+    $other = Workspace::factory()->create();
+    app(WorkspaceContext::class)->set($other);
+
+    app(ClickMap::class)->record($message, (string) $campaign->uuid, null, 'https://pelda.hu/x', 'ugyanaz@pelda.hu');
+
+    app(WorkspaceContext::class)->set($this->workspace);
+
+    // AZ A TENANT SORA ÉRINTETLEN: a másik tenant SAJÁT sort kapott.
+    expect(app(ClickMap::class)->forCampaign($campaign)[0]['clicks'])->toBe(2)
+        ->and(DB::table('link_clicks')->count())->toBe(2);
+});
+
+it('a CSV-EXPORT nem ad FORMULÁT a táblázatkezelőnek', function () {
+    /*
+     | A MÉRT HIBA: az `fputcsv` idézőjelezése CSV-SZINTŰ — a táblázatkezelő a beolvasáskor
+     | leszedi, és a `=`-kezdetű cellát KÉPLETKÉNT értékeli. A DDE-változat
+     | parancsvégrehajtás az EXPORTÁLÓ gépén.
+     |
+     | A repóban ugyanez a védelem már létezett (`ValidationController::csvSafe`) saját
+     | docblockkal — ez a modul nem hívta. Sub-account felállásban a child adja a kampány
+     | nevét, a parent nyitja meg a riportot.
+     */
+    $campaign = campaignWith(['name' => "=cmd|'/c calc'!A0"]);
+
+    trackEvent('delivered', 'egy@pelda.hu', ['campaign:'.$campaign->uuid]);
+
+    $csv = app(AnalyticsExport::class)->campaignCsv($campaign);
+
+    // A NÉV megmarad OLVASHATÓNAK, de aposztróf-prefixszel: a táblázatkezelőnek ez „szöveg".
+    expect($csv)->toContain("'=cmd")
+        ->and($csv)->not->toMatch('/(^|,)"?=cmd/');
 });

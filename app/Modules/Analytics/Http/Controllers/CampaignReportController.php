@@ -53,11 +53,37 @@ final class CampaignReportController
         }
 
         if (strtolower((string) $request->query('format', 'json')) === 'csv') {
-            return new Response($this->export->campaignCsv($campaign), 200, [
+            /*
+             | A SZAKASZ dönti el, MELYIK táblázat jön le.
+             |
+             | Enélkül három export-metódus (`variantsCsv`, `clickMapCsv`, `journeyCsv`)
+             | HÍVÓ NÉLKÜL állt a kódban — pontosan az a hibaosztály, amit ez a packet a B2
+             | `VariantWinner`-jéről és a B3 `segment_entered`-jéről idéz: a képesség
+             | megvolt, működött, és az éles úton senki nem hívta.
+             */
+            $section = strtolower((string) $request->query('section', 'summary'));
+
+            $csv = match ($section) {
+                'variants' => $this->export->variantsCsv($campaign),
+                'clicks' => $this->export->clickMapCsv($campaign),
+                'summary' => $this->export->campaignCsv($campaign),
+                default => throw new NotFoundHttpException,
+            };
+
+            return new Response($csv, 200, [
                 'Content-Type' => 'text/csv; charset=UTF-8',
-                // A FÁJLNÉV a kampány uuid-ja, nem a NEVE: a név a tenant szövege, és egy
-                // `Content-Disposition` fejlécbe kerülő idézőjel vagy újsor fejléc-injekció.
-                'Content-Disposition' => 'attachment; filename="kampany-'.$campaign->uuid.'.csv"',
+                // A FÁJLNÉV a kampány uuid-ja és a FIX szakasz-név, nem a kampány NEVE: a
+                // név a tenant szövege, és egy `Content-Disposition` fejlécbe kerülő
+                // idézőjel vagy újsor fejléc-injekció.
+                'Content-Disposition' => 'attachment; filename="kampany-'.$campaign->uuid.'-'.$section.'.csv"',
+                /*
+                 | `nosniff`: a böngésző ne találgassa a típust.
+                 |
+                 | A `text/csv` válaszban a tenant szövege (kampánynév, link) is benne van;
+                 | tartalom-alapú találgatással egy böngésző HTML-ként renderelhetne egy
+                 | CSV-t. A validációs export ugyanezt a fejlécet adja.
+                 */
+                'X-Content-Type-Options' => 'nosniff',
             ]);
         }
 

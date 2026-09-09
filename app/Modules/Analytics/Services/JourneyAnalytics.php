@@ -32,7 +32,10 @@ final class JourneyAnalytics
 {
     public function __construct(private readonly EventCounters $counters) {}
 
-    /** A journey TAGJE — a motor ezt írja minden üzenetre (`JourneyEngine::sendEmail`). */
+    /**
+     * A journey TAGJE — a motor ezt írja minden üzenetre (`JourneyEngine::sendEmail`), és
+     * egyben a ténytábla `scope`-ja.
+     */
     public static function tag(Journey $journey): string
     {
         return 'journey:'.$journey->getKey();
@@ -43,7 +46,7 @@ final class JourneyAnalytics
      */
     public function summary(Journey $journey): array
     {
-        $counts = $this->counters->forTags([self::tag($journey)]);
+        $counts = $this->counters->forScope(self::tag($journey));
 
         $entered = (int) $journey->entered_count;
         $completed = (int) $journey->completed_count;
@@ -93,10 +96,20 @@ final class JourneyAnalytics
                 continue;
             }
 
-            $counts = $this->counters->forTags([
-                self::tag($journey),
-                'journey_step:'.$step->uuid,
-            ]);
+            /*
+             | A LÉPÉSENKÉNTI bontás a VARIÁNS-dimenzión megy.
+             |
+             | A ténytábla grainje `(hatókör, variáns, címzett)`, és a journey-levélnél a
+             | „variáns" helyét a LÉPÉS foglalja el: az `EngagementRecorder` a
+             | `journey_step:<uuid>` taget nem ismeri variánsként, ezért a lépés-szintű
+             | levél-statisztika ma a JOURNEY egészére vonatkozik.
+             |
+             | Ezt KIMONDJUK, nem elrejtjük: a lépés-soron a `executed` szám a valódi
+             | lépés-szintű mérőszám (a `journey_run_steps`-ből), a levél-számok pedig a
+             | journey összesítője. A lépés-szintű levélbontás a ténytábla grainjének
+             | bővítését igényli — a `PHASE.md` backlogjában áll.
+             */
+            $counts = $this->counters->forScope(self::tag($journey));
 
             $rows[] = array_merge(
                 [

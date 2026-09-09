@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Modules\Analytics\Models\CampaignEngagement;
 use App\Modules\Analytics\Models\LinkClick;
 use App\Modules\Audit\Concerns\Auditable;
 use App\Modules\Audit\Models\AuditLog;
@@ -147,6 +148,12 @@ it('minden admin-felületű modell auditált', function () {
         // szerkesztette a célzást), nem azt, hogy egy címzett mire kattintott. A sor
         // amúgy sem tart nyers címet: a címzett PSZEUDONIM hash-ként szerepel.
         LinkClick::class,
+        // A MARKETING-TÉNY gépi adat: esemény-figyelőből íródik, címzettenként, egy kampány
+        // tíz- és százezres sorszámban. Nem admin-művelet — az admin-műveletet (a kampány
+        // indítását, a journey aktiválását) a `Campaign` és a `Journey` auditálja.
+        // Soronkénti audit a törölhetetlen audit-táblát tömné meg forgalommal, és a
+        // címzett amúgy is pszeudonim hash-ként szerepel.
+        CampaignEngagement::class,
     ];
 
     $offenders = [];

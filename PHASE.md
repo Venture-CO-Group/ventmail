@@ -286,7 +286,21 @@ platform-napló — mert ugyanabból az esemény-forrásból dolgozik.
     ARC-lánc igazolja. A security-review ezt kifejezetten „ne vaktában"-ként jelölte meg,
     mert a naiv szigorítás legitim forgalmat zárna ki.
 - [ ] **B3 · Journey motor + builder** — architect → test → backend → frontend → mockup
-- [ ] **B4 · Marketing analitika** — backend kész (18 elfogadási teszt), review FUT
+- [ ] **B4 · Marketing analitika** — backend kész, reviewer + security ÁTMENT (mindkettő
+      BLOKKOLÓ verdikttel jött, minden találat javítva mérő teszttel) *(PR-re vár)*
+
+  **B4 backlogba tett tételek:**
+  - **Lépés-szintű journey-levélbontás.** A ténytábla grainje `(hatókör, variáns, címzett)`,
+    és a journey-levélnél a „variáns" helyét a lépés foglalná el — de az `EngagementRecorder`
+    ma a `journey_step:<uuid>` taget nem ismeri variánsként. A lépés-soron ezért a
+    `executed` szám a valódi lépés-szintű mérőszám, a levél-számok a journey egészére
+    vonatkoznak. A bontás a grain bővítését igényli, tehát önálló packet.
+  - **Journey- és lista-riport FELÜLETE.** A szolgáltatások (`JourneyAnalytics`,
+    `ListAnalytics`, `ClickMap::forJourney`, `JourneyAnalytics::exitReasons`) készen állnak
+    és teszteltek, de csak a KAMPÁNY-riportnak van `/v1` végpontja. A 72. kritérium
+    „kampány/journey/lista/tag" felsorolása így backend-szinten teljes, API-szinten nem.
+  - **`@venture/sdk` metódus** a `GET /v1/analytics/campaigns/{uuid}`-hoz és a B3
+    `POST /v1/journeys/events`-hez (golden rule 7). A sibling repó saját review-t igényel.
 
 ### B1 · Közönség + consent — elfogadási kritériumok
 49. Lista / tag / group CRUD; **SegmentEngine DSL** determinisztikus (attribútum + esemény +

@@ -93,6 +93,27 @@ final class RedactSubjectCommand extends Command
                 foreach ($workspaces as $workspace) {
                     $context->set($workspace);
 
+                    /*
+                     | A TARTÓS TILTÁS ELŐBB, minden redakció ELŐTT.
+                     |
+                     | Enélkül a kiküldött levélben lévő pixel egyetlen betöltéssel
+                     | visszaírná a címet — és a `MessageEvent::created` hookja a webhookon
+                     | harmadik félhez is kiküldené. Az Apple MPP és a Gmail képproxyja ezt
+                     | felhasználói szándék nélkül, magától megteszi.
+                     |
+                     | MIÉRT ELSŐKÉNT: a valódi (nem `--dry-run`) futás NINCS egyetlen
+                     | tranzakcióban — táblánként, illetve csoportonként dolgozik. Ha a
+                     | sorrend végén állna, és közben bármi elhasal (deadlock, timeout a
+                     | klikk-térkép ezres összevonásain), akkor a redakciók egy része már
+                     | megtörtént, a visszaírás-védelem viszont NEM születik meg: a törlés
+                     | részlegesen teljesül, és a pixel a maradékot visszahozza. Egyetlen
+                     | sor beszúrása a legkisebb kockázatú lépés — az megy előre.
+                     */
+                    ErasedRecipient::query()->firstOrCreate(
+                        ['recipient_hash' => ErasedRecipient::hash($key)],
+                        ['erased_at' => now()],
+                    );
+
                     $redacted['messages'] += $this->redactMessages($key, $redacted);
                     $redacted['events'] += $this->redactEvents($key);
 
@@ -119,12 +140,6 @@ final class RedactSubjectCommand extends Command
                         ->whereRaw('lower(address) = ?', [$key])
                         ->update(['address' => '(redaktált)', 'suggestion' => null, 'redacted_at' => now()]);
 
-                    // A TARTÓS TILTÁS. Enélkül a kiküldött levélben lévő pixel egyetlen
-                    // betöltéssel visszaírná a címet — és a webhookon harmadik félhez is.
-                    ErasedRecipient::query()->firstOrCreate(
-                        ['recipient_hash' => ErasedRecipient::hash($key)],
-                        ['erased_at' => now()],
-                    );
                 }
             });
         } finally {
@@ -150,7 +165,8 @@ final class RedactSubjectCommand extends Command
         $this->info(sprintf(
             ($dryRun ? '[SZÁRAZ FUTÁS] ' : '')
                 .'Redaktálva — üzenet: %d, nyers MIME: %d, esemény: %d, SMTP-párbeszéd: %d, '
-                .'kísérlet: %d, webhook-sor: %d, suppression: %d, bejövő levél: %d, címellenőrzés: %d',
+                .'kísérlet: %d, webhook-sor: %d, suppression: %d, bejövő levél: %d, '
+                .'címellenőrzés: %d, kampány-címzett: %d, journey-futás: %d, klikk-sor: %d',
             $redacted['messages'],
             $redacted['mime'],
             $redacted['events'],
@@ -160,6 +176,13 @@ final class RedactSubjectCommand extends Command
             $redacted['suppressions'],
             $redacted['inbound'],
             $redacted['validation'],
+            // A HÁROM ÚJ TÁBLA is a kimeneten van, nem csak az audit-payloadban: egy Art. 17
+            // kérést futtató operátornak LÁTNIA kell, mi történt velük. A klikk-sor száma
+            // épp az, ami korábban csendben nulla lett volna (a `ClickMap` nem normalizált
+            // címet hashelt, tehát a redakció nem találta meg a sort).
+            $redacted['campaign_recipients'],
+            $redacted['journey_runs'],
+            $redacted['link_clicks'],
         ));
 
         // RÉSZLEGES TÖRLÉS: az operátornak tudnia kell, hogy más workspace-eken a cím

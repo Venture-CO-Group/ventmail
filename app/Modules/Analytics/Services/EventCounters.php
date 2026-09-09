@@ -4,75 +4,96 @@ declare(strict_types=1);
 
 namespace App\Modules\Analytics\Services;
 
-use App\Modules\Events\Models\MessageEvent;
+use App\Modules\Analytics\Models\CampaignEngagement;
+use App\Modules\Logs\Services\TagStatistics;
+use App\Modules\Tenancy\Services\WorkspaceContext;
+use RuntimeException;
 
 /**
- * A SZÁMLÁLÓK EGYETLEN FORRÁSA: a `message_events` (73. kritérium).
+ * A SZÁMLÁLÓK — a TÉNYTÁBLÁBÓL, nem a nyers eseményekből (72., 73. kritérium).
  *
- * ## Miért nincs saját számláló az analitikában
+ * ## Miért NEM a `message_events`-ből, pedig az „az egy forrás"
  *
- * Mert két számláló elkerülhetetlenül elcsúszik. Az egyik a küldésnél nő, a másik az
- * esemény beérkezésénél; az egyik újrapróbálásnál is, a másik nem; az egyiket egy
- * migráció újraszámolja, a másikat nem. Onnantól a tenant KÉT „delivered" számot lát
- * ugyanarra a kampányra a napló-oldalon és a marketing-riportban — és joggal nem hisz
- * egyikben sem.
+ * Mert azon 90 napos RETENCIÓ van, és a review ezt megmérte egy 100 napos kampányon,
+ * `drop_chunks` után:
  *
- * A `campaigns.sent_count` SZÁNDÉKOSAN nem forrás: az a KÜLDÉSI folyamat számlálója
- * (kötegenként nő, a kapu-elutasításokat `failed`-ként könyveli), a `delivered` viszont a
- * FOGADÓ visszajelzése. A kettő elvileg sem ugyanaz.
+ *     Studio-riport:   delivered 0,  opened 0,  open_rate 0%
+ *     Platform-napló:  delivered 50, opened 20, open_rate 40%
  *
- * ## EGY LEKÉRDEZÉS, feltételes aggregátumokkal
+ * Vagyis a „egy forrás" elv a nyers táblával ELLENTÉTES eredményt adott: a napló a
+ * folytonos aggregátumból még látta a számokat, a Studio már nem. A 73. kritérium tehát
+ * nem attól teljesül, hogy ugyanazt a TÁBLÁT olvassuk, hanem attól, hogy ugyanazokból az
+ * ESEMÉNYEKBŐL származunk — és mindkét származék túléli a retenciót.
  *
- * Nyolc típusra nyolc `count()` nyolc körutazás lenne, a riport-oldalon soronként. A
- * `filter (where …)` a Postgres módja arra, hogy egy pásztázásból mind a nyolc szám
- * kijöjjön — és mellé az EGYEDI címzett-szám is (`count(distinct recipient)`), ami a
- * ráták nevezőjéhez kell.
+ * A ténytáblát ugyanaz az esemény-folyam táplálja (`EngagementRecorder`, a
+ * `MessageEvent::created`-en), tehát a forrás továbbra is EGY. A napi idősor a MEGLÉVŐ
+ * Timescale folytonos aggregátumból jön (`message_event_daily`) — abból, amit a napló is
+ * olvas.
  *
- * ## A TENANT-HATÁR a modellen van
+ * ## Miért CÍMZETTET számol, nem eseményt
  *
- * A `MessageEvent` tenant-kötött modell, tehát a global scope adja a `workspace_id`
- * szűrőt. Ez nem apróság: a tag a kampány uuid-ja, de a tagek a HÍVÓ szavai — egy hibás
- * integráció bármit beírhat a sajátjába, és egy elfelejtett `where` idegen tenant számát
- * adná a riportba.
+ * A `delivered`, `accepted`, `bounced` egy címzettre elvileg egyszer jön — a valóságban
+ * nem. A review megmérte, hogy az éles driver-úton KÉTSZER keletkezik `accepted`
+ * (`SendMessage` a kapun, `MessageDispatcher` a driver válaszán, mert a `PostalDriver`
+ * `accepted`-et ad, nem `delivered`-et), és emiatt a `bounce_rate` nevezője megduplázódott:
+ * 1 küldés / 1 bounce **50%-ot** mutatott 100% helyett. A bounce-arány a kézbesíthetőségi
+ * megfelelés száma (spam-ráta < 0,3%) — nem lehet felére kozmetikázva.
+ *
+ * Ezért az állapot-számok CÍMZETTET számolnak (`count(*) where oszlop > 0`). A nyitás és a
+ * klikk viszont KÉT számot ad: a `total` az esemény-szám (mennyi megnyitás), az `unique` a
+ * címzett-szám (hányan) — a kettő külön kérdés.
  */
 final class EventCounters
 {
     /** @var list<string> */
     public const TYPES = [
-        'accepted', 'delivered', 'deferred', 'bounced',
+        'rejected', 'accepted', 'delivered', 'deferred', 'bounced',
         'complained', 'unsubscribed', 'opened', 'clicked',
     ];
 
+    public function __construct(
+        private readonly WorkspaceContext $context,
+        private readonly TagStatistics $tags,
+    ) {}
+
     /**
-     * A SZÁMOK egy tag-halmazra.
+     * A SZÁMOK egy hatókörre (`campaign:<uuid>` / `journey:<id>`), opcionális variánssal.
      *
-     * @param  list<string>  $tags  MINDEGYIKNEK szerepelnie kell az eseményen (ÉS-kapcsolat)
      * @return array<string, int>
      */
-    public function forTags(array $tags): array
+    public function forScope(string $scope, ?string $variant = null): array
     {
-        $query = MessageEvent::query();
+        $this->assertContext();
 
-        foreach ($tags as $tag) {
-            // `whereJsonContains` → `tags @> '["…"]'`: a jsonb tömb TARTALMAZZA a taget. A
-            // több hívás ÉS-kapcsolat, tehát a `variant:A` a kampány-tag MELLETT szűr.
-            $query->whereJsonContains('tags', $tag);
-        }
-
-        $selects = [];
-
-        foreach (self::TYPES as $type) {
-            // A TÍPUS-LISTA konstans, nem kívülről jövő érték — a `DB::raw` itt biztonságos.
-            $selects[] = "count(*) filter (where type = '{$type}') as {$type}";
-
-            // AZ EGYEDI CÍMZETT csak ott számít, ahol a többszöri esemény VALÓS: a nyitást
-            // egy Apple MPP-s postafiók tízszer kiváltja, a `delivered` viszont egyszer jön.
-            if (in_array($type, ['opened', 'clicked'], true)) {
-                $selects[] = "count(distinct recipient) filter (where type = '{$type}') as unique_{$type}";
-            }
-        }
-
-        $row = $query->selectRaw(implode(', ', $selects))->first();
+        $row = CampaignEngagement::query()
+            ->where('scope', $scope)
+            ->when($variant !== null, fn ($query) => $query->where('variant_label', $variant))
+            // A CÍMZETT-SZÁMOK: `count(*) filter (…)`, nem `sum(…)`. Lásd az osztály
+            // docblockját a kétszer írt `accepted`-ről.
+            ->selectRaw('count(*) filter (where rejected > 0) as rejected')
+            ->selectRaw('count(*) filter (where accepted > 0) as accepted')
+            ->selectRaw('count(*) filter (where delivered > 0) as delivered')
+            ->selectRaw('count(*) filter (where deferred > 0) as deferred')
+            ->selectRaw('count(*) filter (where bounced > 0) as bounced')
+            ->selectRaw('count(*) filter (where complained > 0) as complained')
+            ->selectRaw('count(*) filter (where unsubscribed > 0) as unsubscribed')
+            // A NYITÁS ÉS A KLIKK KÉT számot ad: mennyi történt, és hányan tették.
+            ->selectRaw('coalesce(sum(opens), 0) as opened')
+            ->selectRaw('count(*) filter (where opens > 0) as unique_opened')
+            ->selectRaw('coalesce(sum(clicks), 0) as clicked')
+            ->selectRaw('count(*) filter (where clicks > 0) as unique_clicked')
+            /*
+             | AZ ELÉRT KÖZÖNSÉG: aki nyitott VAGY kattintott.
+             |
+             | Ez a CTOR helyes nevezője. A `unique_clicked / unique_opened` mérve 266%-ot
+             | adott egy hétköznapi bemeneten (10 kézbesítve / 3 nyitva / 8 kattintva):
+             | kép-blokkoló kliensben (Outlook desktop, céges gateway, plain-text) a pixel
+             | NEM tölt be, a link viszont kattintható — tehát több kattintó van, mint
+             | nyitó. A kattintás BIZONYÍTJA a megnyitást, ezért a nevező a két halmaz
+             | UNIÓJA, és a ráta nem tud 100% fölé menni.
+             */
+            ->selectRaw('count(*) filter (where opens > 0 or clicks > 0) as engaged')
+            ->first();
 
         $counts = [];
 
@@ -82,6 +103,7 @@ final class EventCounters
 
         $counts['unique_opened'] = (int) ($row->unique_opened ?? 0);
         $counts['unique_clicked'] = (int) ($row->unique_clicked ?? 0);
+        $counts['engaged'] = (int) ($row->engaged ?? 0);
 
         return $counts;
     }
@@ -100,49 +122,57 @@ final class EventCounters
         return [
             'open_rate' => Rates::percent($counts['unique_opened'] ?? 0, $delivered),
             'click_rate' => Rates::percent($counts['unique_clicked'] ?? 0, $delivered),
-            'click_to_open_rate' => Rates::percent($counts['unique_clicked'] ?? 0, $counts['unique_opened'] ?? 0),
+            // A NEVEZŐ az ELÉRT közönség (nyitott VAGY kattintott) — lásd a `forScope()`
+            // `engaged` oszlopának indoklását.
+            'click_to_open_rate' => Rates::percent($counts['unique_clicked'] ?? 0, $counts['engaged'] ?? 0),
             'bounce_rate' => Rates::percent($counts['bounced'] ?? 0, $accepted),
             'complaint_rate' => Rates::percent($counts['complained'] ?? 0, $delivered),
             'unsubscribe_rate' => Rates::percent($counts['unsubscribed'] ?? 0, $delivered),
+            /*
+             | AZ ELUTASÍTÁSI ARÁNY nevezője a MEGKÍSÉRELT küldés: elutasított + elfogadott.
+             |
+             | Ez a listahigiénia mérőszáma („a célzott közönség hány százaléka nem is
+             | kapható meg"), és a nevezője NEM a `recipients` — az a célzás mérete, ami a
+             | materializálás után is változhat (a kampány folytatható, szüneteltethető).
+             */
+            'rejection_rate' => Rates::percent($counts['rejected'] ?? 0, ($counts['rejected'] ?? 0) + $accepted),
         ];
     }
 
     /**
-     * A NAPI IDŐSOR egy tag-halmazra — a riport grafikonjához.
+     * A NAPI IDŐSOR — a NAPLÓ szolgáltatásán keresztül (72., 73. kritérium).
      *
-     * A `message_event_daily` folytonos aggregátumot SZÁNDÉKOSAN nem használjuk itt: az a
-     * (nap, csatorna, típus, TAG) grain-en áll, tehát egy kampány + variáns szűrés (két tag
-     * EGYÜTT) nem kérdezhető belőle — az aggregátum a taget szétszórja, nem kombinálja. A
-     * napi bontás ezért a nyers eseményekből jön, ugyanabból a táblából, amiből az
-     * aggregátum is épül: a szám így nem tud elcsúszni.
+     * ## Miért a `TagStatistics`-en, és nem közvetlenül a nézeten
      *
-     * @param  list<string>  $tags
-     * @return list<array{day: string, delivered: int, unique_opened: int, unique_clicked: int}>
+     * Mert a `message_event_daily` folytonos aggregátum gazdája a `Logs\TagStatistics`
+     * („egy képesség, egy gazda"). A nézeten nincs Eloquent-modell, tehát global scope sem,
+     * és a workspace-szűrő EGYETLEN helyre van bezárva. Amikor ez a szolgáltatás maga
+     * kérdezte a nézetet, az arch-őr (`ScopeBypassGuardTest`) helyesen tüzelt: az egy
+     * MÁSODIK hely lett volna, ahol egy elfelejtett `where` cross-tenant számot adna.
+     *
+     * Ez EGYBEN a 73. kritérium szerkezeti garanciája: a Studio idősora szó szerint
+     * ugyanazt a lekérdezést futtatja, amit a platform-napló — nem tud elcsúszni tőle.
+     *
+     * @return list<array{day: string, delivered: int, opened: int, clicked: int}>
      */
-    public function dailyForTags(array $tags): array
+    public function dailyForTag(string $tag): array
     {
-        $query = MessageEvent::query();
+        $this->assertContext();
 
-        foreach ($tags as $tag) {
-            $query->whereJsonContains('tags', $tag);
+        return $this->tags->dailyForTag($tag);
+    }
+
+    /**
+     * FAIL-CLOSED: kontextus nélkül nem indul lekérdezés.
+     *
+     * A ténytáblát a `CampaignEngagement` global scope-ja szűri; ez az őr azt biztosítja,
+     * hogy a nézetre menő kézi szűrő se maradhasson el, és hogy a „nincs kontextus" ne
+     * „minden tenant"-ot jelentsen.
+     */
+    private function assertContext(): void
+    {
+        if (! $this->context->hasWorkspace()) {
+            throw new RuntimeException('A marketing-riport workspace-kontextus nélkül nem kérdezhető le.');
         }
-
-        $rows = $query
-            ->selectRaw("date_trunc('day', occurred_at) as day")
-            ->selectRaw("count(*) filter (where type = 'delivered') as delivered")
-            ->selectRaw("count(distinct recipient) filter (where type = 'opened') as unique_opened")
-            ->selectRaw("count(distinct recipient) filter (where type = 'clicked') as unique_clicked")
-            ->groupByRaw("date_trunc('day', occurred_at)")
-            ->orderByRaw("date_trunc('day', occurred_at)")
-            ->get();
-
-        return $rows->map(static fn (object $row): array => [
-            // A NAP dátum-sztringként: a grafikon tengelye ezt kapja, és így nem a hívó
-            // időzónája dönti el, melyik naphoz tartozik egy esemény.
-            'day' => substr((string) $row->day, 0, 10),
-            'delivered' => (int) $row->delivered,
-            'unique_opened' => (int) $row->unique_opened,
-            'unique_clicked' => (int) $row->unique_clicked,
-        ])->all();
     }
 }
