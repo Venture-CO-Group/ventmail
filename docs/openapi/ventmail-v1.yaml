@@ -766,6 +766,53 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
 
+  /journeys/events:
+    post:
+      tags: [journeys]
+      summary: API-esemény küldése egy journey-triggerhez
+      description: |
+        A `api_event` triggerű Customer Journey-k indítása egy külső rendszer eseményéből
+        (elhagyott kosár, előfizetés-lejárat, CRM-állapotváltás).
+
+        **Az `Idempotency-Key` kötelező** (golden rule 5): egy újrapróbált integráció-hívás
+        különben MÁSODIK journey-futást indítana ugyanarra az emberre, tehát a címzett két
+        párhuzamos levélsorozatot kapna. A `journey_runs` részleges egyedi indexe csak az
+        AKTÍV futást védi — egy már befejezett journey-be az ismételt hívás újra beléptetne.
+
+        **A `data` KORLÁTOS és csak skalár.** A payload a futás kontextusába kerül, ahol a
+        `condition` lépés szűrhet rá — de ott nincs séma, és a mező a törlési kérés meg a
+        retenció tárgya is. Legfeljebb 20 kulcs, értékenként 500 karakter, beágyazott
+        objektum nélkül. Aki több adatot akar a döntéshez, szegmenst használ: az a
+        kontakt-rekordból dolgozik, ami a GDPR-törlés útján amúgy is anonimizálódik.
+
+        **A válasz nem mondja meg, létezik-e a cím a közönségben.** A `started` a nálunk
+        indult futásokat számolja. Egy „ez a cím nincs a listán" válasz cím-létezés-
+        orákulummá tenné a végpontot.
+      operationId: createJourneyEvent
+      security: [{ bearerAuth: [] }, { basicAuth: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/JourneyEventInput' }
+      responses:
+        '202':
+          description: |
+            Elfogadva. A `started` az elindult journey-futások száma — nulla is lehet
+            (nincs ilyen triggerű aktív journey, nincs consent, vagy a címzett már fut).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  accepted: { type: boolean, example: true }
+                  started: { type: integer, example: 1 }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -815,6 +862,31 @@ components:
           schema: { $ref: '#/components/schemas/Error' }
 
   schemas:
+    JourneyEventInput:
+      type: object
+      required: [email, event]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 320
+          description: A címzett. A journey-be lépés a consent- és suppression-kapukon múlik.
+        event:
+          type: string
+          maxLength: 100
+          pattern: '^[A-Za-z0-9_.:-]+$'
+          example: checkout_abandoned
+          description: Az esemény neve — a journey trigger-configja ehhez illeszkedik.
+        data:
+          type: object
+          maxProperties: 20
+          additionalProperties: { type: string, maxLength: 500 }
+          description: |
+            Legfeljebb 20 SKALÁR kulcs. A futás kontextusába kerül, ahol a `condition`
+            lépés `context_equals`-szel szűrhet rá. Beágyazott objektum nincs: az korlátlan
+            mélységű személyes adatot hordozna egy séma nélküli mezőbe.
+          example: { cart_total: '149000' }
+
     SendMessageRequest:
       type: object
       required: [from, to]

@@ -39,6 +39,20 @@ final class DispatchScheduledCampaignsCommand extends Command
         $started = 0;
         $failed = 0;
 
+        /*
+         | A HÍVÓ KONTEXTUSÁT VISSZAÁLLÍTJUK, nem eldobjuk.
+         |
+         | A `forget()` egy tiszta CLI-futásnál helyes — de ezt a parancsot egy szolgáltatás
+         | is meghívhatja (`Artisan::call`), és akkor a hívó tenant-kontextusa elveszik: az
+         | utána következő lekérdezések a `WorkspaceScope` fail-closed ágára futnak (`1 = 0`),
+         | és a hívó ÜRES eredményt lát valódi adat helyett.
+         |
+         | Ez mérve megtörtént a `ContactGdpr`-ban (a `logs:redact-subject` hívása után a
+         | művelet HAMISAN jelentette, hogy nincs mit megőrizni), és a saját tesztem is
+         | ebbe futott bele. A `finally` így a KORÁBBI kontextust adja vissza.
+         */
+        $previous = $context->hasWorkspace() ? $context->workspace() : null;
+
         try {
             Workspace::query()->orderBy('id')->chunkById(50, function ($workspaces) use ($context, $start, &$started, &$failed): void {
                 foreach ($workspaces as $workspace) {
@@ -63,7 +77,7 @@ final class DispatchScheduledCampaignsCommand extends Command
                 }
             });
         } finally {
-            $context->forget();
+            $previous === null ? $context->forget() : $context->set($previous);
         }
 
         $this->info("Indítva: {$started}, hibás: {$failed}");

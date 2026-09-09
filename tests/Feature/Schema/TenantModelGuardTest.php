@@ -13,6 +13,8 @@ use App\Modules\Deliverability\Models\SeedTest;
 use App\Modules\Events\Models\MessageEvent;
 use App\Modules\Inbound\Models\InboundAttachment;
 use App\Modules\Inbound\Models\InboundMessage;
+use App\Modules\Journey\Models\JourneyRun;
+use App\Modules\Journey\Models\JourneyRunStep;
 use App\Modules\Logs\Models\SmtpTransaction;
 use App\Modules\Sending\Models\DeliveryAttempt;
 use App\Modules\Sending\Models\Message;
@@ -119,6 +121,13 @@ it('minden admin-felületű modell auditált', function () {
         // betöltés nem admin-művelet, és a sorokat senki nem szerkeszti.
         DmarcReport::class,
         DmarcReportRow::class,
+        // A JOURNEY-FUTÁS és a VÉGREHAJTOTT LÉPÉS gépi adat: a motor írja, tickenként,
+        // futásonként. Nem admin-művelet — az admin-műveletet (a journey szerkesztését,
+        // aktiválását) a `Journey` és a `JourneyStep` auditálja. Soronkénti audit mellett
+        // egy tízezres journey lépésenként tízezer törölhetetlen sort írna, a címzettek
+        // e-mail-címével együtt.
+        JourneyRun::class,
+        JourneyRunStep::class,
         // A KAMPÁNY-CÍMZETT gépi adat: a célzás feloldásából keletkezik, kötegelt
         // beszúrással, százezer soronként. Nem admin-művelet — az admin-műveletet (a kampány
         // indítását, a célzás szerkesztését) a `Campaign` auditálja. Soronkénti audit-sor

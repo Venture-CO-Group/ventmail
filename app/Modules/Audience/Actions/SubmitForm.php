@@ -9,6 +9,8 @@ use App\Modules\Audience\Models\Contact;
 use App\Modules\Audience\Models\Form;
 use App\Modules\Consent\Services\ConfirmationTokens;
 use App\Modules\Consent\Services\ConsentRecorder;
+use App\Modules\Journey\Enums\TriggerType;
+use App\Modules\Journey\Services\JourneyTrigger;
 use App\Modules\Sending\Actions\SendMessage;
 use App\Modules\Sending\Contracts\AddressRiskScorer;
 use App\Modules\Sending\Services\DomainNormalizer;
@@ -51,6 +53,7 @@ final class SubmitForm
         private readonly ConsentRecorder $consent,
         private readonly ConfirmationTokens $tokens,
         private readonly AddressRiskScorer $risk,
+        private readonly JourneyTrigger $journeys,
     ) {}
 
     public function __invoke(Form $form, FormSubmission $submission): bool
@@ -145,6 +148,24 @@ final class SubmitForm
             // egyszeri használatra kötött és visszavont consentet nem támaszt fel.
             $this->sendConfirmation($form, $contact, $email);
         });
+
+        /*
+         | JOURNEY-TRIGGER (B3 · 69. kritérium) — a TRANZAKCIÓ UTÁN.
+         |
+         | Nem a tranzakción belül: a beléptetés levelet küldhet (a journey első lépése),
+         | és egy még nem commitolt kontaktra hivatkozó levél a worker oldalán „nem
+         | találom" hibába futna. Ugyanaz az `afterCommit`-gondolat, mint az indexelő jobnál.
+         |
+         | A `form_signup` trigger a MI rendszerünkből jön, tehát a forrás bizonyított — a
+         | 71. kritérium hamisítható-trigger szabálya (megerősített consent) ide nem
+         | vonatkozik. A journey első levele viszont a PreSendGate 3. kapuján megy át, ami a
+         | `pending` consenttel elutasít: a beléptetés megtörténik, a marketing levél nem
+         | megy ki, amíg a címzett nem erősít meg.
+         */
+        $this->journeys->fire(TriggerType::FormSignup, $email, [
+            'form' => (string) $form->uuid,
+            'list' => $form->contact_list_id === null ? null : (string) $form->list?->uuid,
+        ]);
 
         return true;
     }

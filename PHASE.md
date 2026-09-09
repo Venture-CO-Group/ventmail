@@ -252,7 +252,8 @@ platform-napló — mert ugyanabból az esemény-forrásból dolgozik.
 ### M2 packetek — sorrend kötelező
 - [x] **B1 · Közönség + consent + űrlapok + preference center** — PR #21 MERGE-ELVE (reviewer + security, minden blokkoló javítva)
 - [ ] **B2 · Block editor + kampányok** — backend kész, reviewer + security ÁTMENT, minden
-      blokkoló javítva mérő teszttel *(merge-re vár)*
+      blokkoló javítva mérő teszttel · **PR #22, backend CI zöld — MERGE-re vár**
+      *(a `gh pr merge` engedélyt a session közben visszavonta a classifier)*
 
   **B2 backlogba tett tételek** (a review SHOULD-jai, amikhez külön packet kell):
   - **Policy/authorizáció a Studio-modulokra** (M0-1 9. kritérium: `developer` nem indíthat
@@ -266,6 +267,25 @@ platform-napló — mert ugyanabból az esemény-forrásból dolgozik.
     materializálódik, tehát nincs mit visszatáplálni. A holdback (a közönség X%-a a
     teszt, a maradék a győztest kapja) az életciklust és a köteg-indítást is érinti,
     tehát önálló packet.
+
+- [ ] **B3 · Journey-motor** — backend kész, reviewer + security ÁTMENT (mindkettő BLOKKOLÓ
+      verdikttel jött, minden találat javítva mérő teszttel) *(PR-re vár)*
+
+  **B3 backlogba tett tételek:**
+  - **`tag_added` trigger bekötése.** A trigger nem tüzel élesben, és ez MÉRT állapot, nem
+    elfelejtett bekötés: az appban ma EGYETLEN hely ír kontakt-címkét, a journey `add_tag`
+    lépése (`grep -rn "tags()->" app`). Épp azt az egy helyet nem lehet bekötni — a journey
+    így önmagát indíthatná el egy másik journey-ben, két journey egymást tüzelve pedig
+    végtelen ciklust adna. A bekötés a **címkézés belépési pontjával** jön (Audience
+    tag-API vagy felület); a `FireJourneyEvent::tagAdded()` kontraktusa készen áll.
+  - **`@venture/sdk` metódus a `POST /v1/journeys/events`-hez** (golden rule 7: drift = 0).
+    A sibling repó (`~/Developer/venture/venture-sdk`) SAJÁT review-t igényel, ezért nem
+    írtam bele. A jelenlegi drift-teszt csak a `mail.ts` küldő felületét fedi, tehát semmi
+    nem zöldül hamisan — de a szabály teljesítéséhez az SDK-ban kell egy `journeys.event()`.
+  - **ARC / megbízható továbbító az inbound triggeren.** A `dmarc_result === 'fail'` most
+    elutasít; a legitim levelezőlistán átjött levél DMARC-ja szintén elhasalhat, és azt az
+    ARC-lánc igazolja. A security-review ezt kifejezetten „ne vaktában"-ként jelölte meg,
+    mert a naiv szigorítás legitim forgalmat zárna ki.
 - [ ] **B3 · Journey motor + builder** — architect → test → backend → frontend → mockup
 - [ ] **B4 · Marketing analitika** — test → backend → frontend
 

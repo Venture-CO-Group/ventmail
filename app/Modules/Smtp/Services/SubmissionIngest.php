@@ -51,6 +51,8 @@ final class SubmissionIngest implements SubmissionSink
             return new SmtpReply(451, 'Temporary failure', '4.3.0');
         }
 
+        $previous = $this->context->hasWorkspace() ? $this->context->workspace() : null;
+
         $this->context->set($workspace);
 
         try {
@@ -60,7 +62,17 @@ final class SubmissionIngest implements SubmissionSink
 
             return new SmtpReply(550, 'Malformed message: '.$code, '5.6.0');
         } finally {
-            $this->context->forget();
+            /*
+             | A HÍVÓ KONTEXTUSÁT VISSZAADJUK — nem eldobjuk.
+             |
+             | Az SMTP-munkamenet saját kontextust állít a hitelesítőből, és a végén
+             | törölni KELL, hogy a következő munkamenet ne örökölje. De ha VOLT korábbi
+             | kontextus, akkor ez a hívás egy lánc közepén fut, és a `forget()` a hívó
+             | lekérdezéseit a `WorkspaceScope` fail-closed ágára vinné — üres eredményt
+             | adva valódi adat helyett. Ugyanez a hiba a `DeliverMessage`-ben mérve egy
+             | journey-futást ölt meg félúton.
+             */
+            $previous === null ? $this->context->forget() : $this->context->set($previous);
         }
     }
 

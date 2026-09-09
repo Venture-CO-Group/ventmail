@@ -56,6 +56,12 @@ Schedule::command('deliverability:blocklists')->hourly();
 // A `blocklist_checks` óránként `IP × zóna` sorral nő: takarítás nélkül évi milliós tábla.
 Schedule::command('deliverability:purge')->dailyAt('04:10');
 
+// A JOURNEY-FUTÁSOK LÉPTETÉSE (B3 · 68. kritérium). A motor nem „fut", hanem LÉPTET:
+// minden tick megkérdezi az esedékes futásokat. Percenként, mert egy `wait 5 perc` lépés
+// pontossága ennél nem lehet rosszabb — és `withoutOverlapping`, mert két párhuzamos tick
+// ugyanazt a futást próbálná léptetni (az idempotencia-zár megfogja, de a munka kárba menne).
+Schedule::command('journeys:tick')->everyMinute()->withoutOverlapping();
+
 // AZ ESEDÉKES KAMPÁNYOK (65. kritérium). Percenként: a felhasználó „kedd 9:00"-ra ütemez,
 // és egy tizenöt perces ciklus azt jelentené, hogy a levél 9:14-kor megy ki. A
 // `withoutOverlapping` azért kell, mert egy nagy kampány materializálása másodpercekig tart,
@@ -70,6 +76,17 @@ Schedule::command('campaigns:announce-winners')->everyFifteenMinutes()->withoutO
 // a B2-vel jött, és semmilyen lejárat nem érte: mérve az `erase()` után is NYERS cím maradt
 // benne, miközben a `contacts.email` már anonimizált volt.
 Schedule::command('campaigns:purge-recipients')->dailyAt('03:50');
+
+// A LEZÁRT journey-futások címének és kontextusának redakciója (golden rule 10). A
+// `journey_runs` a B3-mal jött, és semmilyen lejárat nem érte: mérve az `erase()` után is
+// nyers cím ÉS nyers trigger-payload (telefonszám, cím) maradt benne.
+Schedule::command('journeys:purge-runs')->dailyAt('03:55');
+
+// SZEGMENSBE LÉPÉS mint trigger (69. kritérium). A szegmens egy LEKÉRDEZÉS, nincs „belépés"
+// pillanata — ezért ütemezett összehasonlítás adja. A `FireJourneyEvent::segmentEntered()`
+// megvolt, a docblock erre a parancsra hivatkozott, de a parancs NEM LÉTEZETT: a
+// `segment_entered` triggerű journey élesben soha nem tüzelt.
+Schedule::command('journeys:detect-segment-entries')->everyFiveMinutes()->withoutOverlapping();
 
 // A lejárt nyers MIME-levelek törlése (golden rule 10): a levéltest a legsűrűbb PII-tárolónk.
 Schedule::command('messages:purge-raw-mime')->dailyAt('03:20');
