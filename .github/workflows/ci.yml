@@ -169,7 +169,25 @@ jobs:
       # `tsup: not found` (127) hibával áll meg — mérve, az első futáson, amikor a
       # `VENTURE_PACKAGES_TOKEN` végre megvolt.
       - name: '@venture csomagok telepítése és építése'
+        env:
+          PACKAGES_TOKEN: ${{ secrets.VENTURE_PACKAGES_TOKEN }}
         run: |
+          # A csomagok EGYMÁST `git+ssh` URL-lel hivatkozzák (a `venture-ui` a
+          # `venture-design`-t), a runneren viszont nincs SSH-kulcs: `Permission denied
+          # (publickey)`, exit 128 — mérve. A rewrite ezért kell.
+          #
+          # A token KIZÁRÓLAG ennek a lépésnek a környezetében él (`GIT_CONFIG_*`), NEM a
+          # globális `~/.gitconfig`-ban: a workflow végig `persist-credentials: false`-szal
+          # dolgozik, épp azért, hogy egy PR-ből érkező npm lifecycle-script ne tudja
+          # kiolvasni a tokent (security-review B2). Egy globális gitconfig ezt a rést
+          # nyitná ki újra — a step-szintű env csak a mi HÁROM csomagunk saját scriptjeinek
+          # látszik, a ventMail `npm ci`-jének már nem.
+          export GIT_CONFIG_COUNT=2
+          export GIT_CONFIG_KEY_0="url.https://x-access-token:${PACKAGES_TOKEN}@github.com/.insteadOf"
+          export GIT_CONFIG_VALUE_0="ssh://git@github.com/"
+          export GIT_CONFIG_KEY_1="url.https://x-access-token:${PACKAGES_TOKEN}@github.com/.insteadOf"
+          export GIT_CONFIG_VALUE_1="git@github.com:"
+
           for pkg in venture-design venture-ui venture-sdk; do
             dir="${GITHUB_WORKSPACE}/_packages/${pkg}"
             [ -f "${dir}/package.json" ] || continue
@@ -283,7 +301,25 @@ jobs:
       # `tsup: not found` (127) hibával áll meg — mérve, az első futáson, amikor a
       # `VENTURE_PACKAGES_TOKEN` végre megvolt.
       - name: '@venture csomagok telepítése és építése'
+        env:
+          PACKAGES_TOKEN: ${{ secrets.VENTURE_PACKAGES_TOKEN }}
         run: |
+          # A csomagok EGYMÁST `git+ssh` URL-lel hivatkozzák (a `venture-ui` a
+          # `venture-design`-t), a runneren viszont nincs SSH-kulcs: `Permission denied
+          # (publickey)`, exit 128 — mérve. A rewrite ezért kell.
+          #
+          # A token KIZÁRÓLAG ennek a lépésnek a környezetében él (`GIT_CONFIG_*`), NEM a
+          # globális `~/.gitconfig`-ban: a workflow végig `persist-credentials: false`-szal
+          # dolgozik, épp azért, hogy egy PR-ből érkező npm lifecycle-script ne tudja
+          # kiolvasni a tokent (security-review B2). Egy globális gitconfig ezt a rést
+          # nyitná ki újra — a step-szintű env csak a mi HÁROM csomagunk saját scriptjeinek
+          # látszik, a ventMail `npm ci`-jének már nem.
+          export GIT_CONFIG_COUNT=2
+          export GIT_CONFIG_KEY_0="url.https://x-access-token:${PACKAGES_TOKEN}@github.com/.insteadOf"
+          export GIT_CONFIG_VALUE_0="ssh://git@github.com/"
+          export GIT_CONFIG_KEY_1="url.https://x-access-token:${PACKAGES_TOKEN}@github.com/.insteadOf"
+          export GIT_CONFIG_VALUE_1="git@github.com:"
+
           for pkg in venture-design venture-ui venture-sdk; do
             dir="${GITHUB_WORKSPACE}/_packages/${pkg}"
             [ -f "${dir}/package.json" ] || continue
