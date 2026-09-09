@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Events\Http\Controllers;
 
+use App\Modules\Analytics\Services\ClickMap;
 use App\Modules\Events\Data\TrackingClaim;
 use App\Modules\Events\Models\MessageEvent;
 use App\Modules\Events\Services\TrackingTokens;
@@ -15,7 +16,9 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+use Throwable;
 
 /**
  * A nyitás- és klikk-események FOGADÁSA (23. és 26. kritérium).
@@ -64,9 +67,51 @@ final class TrackingController
             throw new NotFoundHttpException;
         }
 
-        $this->record($request, $token, 'clicked', $tokens, $context);
+        $this->record($request, $token, 'clicked', $tokens, $context, $claim->destination);
 
         return redirect()->away($claim->destination, 302);
+    }
+
+    /**
+     * A KATTINTÁS a klikk-térképbe.
+     *
+     * A kampány/journey hozzárendelés a TAG-ekből jön: a küldés `campaign:<uuid>` és
+     * `journey:<id>` taget ír minden üzenetre, tehát a térkép ugyanahhoz az entitáshoz
+     * kötődik, mint a riport összes többi száma. A hiba NEM buktatja el az átirányítást:
+     * a címzett a linkre kattintott, és azt meg kell kapnia — egy riport-sor nem érhet
+     * ennyit.
+     */
+    private function mapClick(Message $message, string $recipient, string $destination): void
+    {
+        $campaignUuid = null;
+        $journeyId = null;
+
+        foreach ((array) $message->tags as $tag) {
+            $tag = (string) $tag;
+
+            if (str_starts_with($tag, 'campaign:')) {
+                $campaignUuid = substr($tag, strlen('campaign:'));
+            }
+
+            if (str_starts_with($tag, 'journey:')) {
+                $journeyId = (int) substr($tag, strlen('journey:'));
+            }
+        }
+
+        try {
+            app(ClickMap::class)->record(
+                (string) $message->uuid,
+                $campaignUuid,
+                $journeyId,
+                $destination,
+                $recipient,
+            );
+        } catch (Throwable $e) {
+            Log::warning('A klikk nem került a térképbe', [
+                'message_uuid' => (string) $message->uuid,
+                'exception' => $e::class,
+            ]);
+        }
     }
 
     /**
@@ -110,8 +155,14 @@ final class TrackingController
         return strcasecmp($request->getHost(), $claim->host) === 0;
     }
 
-    private function record(Request $request, string $token, string $type, TrackingTokens $tokens, WorkspaceContext $context): void
-    {
+    private function record(
+        Request $request,
+        string $token,
+        string $type,
+        TrackingTokens $tokens,
+        WorkspaceContext $context,
+        ?string $destination = null,
+    ): void {
         $claim = $tokens->parse($token);
 
         if ($claim === null || ! $this->hostMatches($request, $claim)) {
@@ -170,6 +221,22 @@ final class TrackingController
                 // ki, és egy link gyakran tokent vagy azonosítót hordoz.
                 'payload' => [],
             ]);
+
+            /*
+             | A KLIKK-TÉRKÉP (B4 · 74. kritérium) SAJÁT táblába megy.
+             |
+             | A cím az eseményből fentebb SZÁNDÉKOSAN kimarad — de a „melyik linkre
+             | kattintottak" kérdésre a riportnak válaszolnia kell. A `link_clicks` tábla
+             | soha nem kerül webhook-payloadba, és a címzettet PSZEUDONIM hash-sel tartja.
+             |
+             | A rögzítés ITT van, nem egy külön szolgáltatásban, amit majd valaki hív: a
+             | B2-ben a `VariantWinner`, a B3-ban a `segment_entered` pontosan attól volt
+             | halott, hogy a képesség megvolt és működött, de a VALÓDI úton senki nem
+             | hívta. A klikk-térkép a valódi kattintásból épül, vagy nem létezik.
+             */
+            if ($type === 'clicked' && $destination !== null) {
+                $this->mapClick($message, $claim->recipient, $destination);
+            }
         } finally {
             // A végpont NYILVÁNOS: a bent felejtett kontextus a következő, akár egészen más
             // tenanthoz tartozó kérést szennyezné. A hívó korábbi kontextusát viszont nem a

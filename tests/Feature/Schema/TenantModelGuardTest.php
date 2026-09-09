@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Modules\Analytics\Models\LinkClick;
 use App\Modules\Audit\Concerns\Auditable;
 use App\Modules\Audit\Models\AuditLog;
 use App\Modules\Campaign\Models\CampaignRecipient;
@@ -139,6 +140,13 @@ it('minden admin-felületű modell auditált', function () {
         // törölhetetlen táblába is beírjuk — és a bizonyíték nem „admin-művelet", hanem az
         // érintett saját cselekedetének a rögzítése.
         ConsentEvent::class,
+        // A KLIKK gépi adat: a címzett kattintására keletkezik, a nyilvános
+        // tracking-végponton, felhasználói admin-művelet nélkül. Egy kampány tíz- és
+        // százezres sorszámban ír ide — soronkénti audit a törölhetetlen audit-táblát
+        // tömné meg forgalommal. Az audit a DÖNTÉSEKET őrzi (ki indított kampányt, ki
+        // szerkesztette a célzást), nem azt, hogy egy címzett mire kattintott. A sor
+        // amúgy sem tart nyers címet: a címzett PSZEUDONIM hash-ként szerepel.
+        LinkClick::class,
     ];
 
     $offenders = [];

@@ -82,6 +82,11 @@ Schedule::command('campaigns:purge-recipients')->dailyAt('03:50');
 // nyers cím ÉS nyers trigger-payload (telefonszám, cím) maradt benne.
 Schedule::command('journeys:purge-runs')->dailyAt('03:55');
 
+// A KLIKK-TÉRKÉP címzett-dimenziójának összevonása (golden rule 10: „a nyers esemény
+// törlődik, az aggregátum marad"). A per-link szám MEGMARAD — ha törölnénk, a fél évvel
+// korábbi kampány klikk-térképe kiürülne.
+Schedule::command('analytics:purge-click-map')->dailyAt('04:05');
+
 // SZEGMENSBE LÉPÉS mint trigger (69. kritérium). A szegmens egy LEKÉRDEZÉS, nincs „belépés"
 // pillanata — ezért ütemezett összehasonlítás adja. A `FireJourneyEvent::segmentEntered()`
 // megvolt, a docblock erre a parancsra hivatkozott, de a parancs NEM LÉTEZETT: a

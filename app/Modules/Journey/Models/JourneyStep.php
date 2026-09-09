@@ -11,6 +11,7 @@ use App\Modules\Tenancy\Concerns\BelongsToWorkspace;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * Egy journey-lépés.
@@ -82,5 +83,17 @@ final class JourneyStep extends Model
     public function otherwise(): BelongsTo
     {
         return $this->belongsTo(self::class, 'else_step_id');
+    }
+
+    /**
+     * A LÉPÉS VÉGREHAJTÁSAI.
+     *
+     * A B4 riportja ezt kérdezi: „hányszor futott le ez a lépés?" — ami NEM ugyanaz, mint
+     * „hány levél ment ki". A kapu-elutasítás is végrehajtás, csak `skipped` kimenettel, és
+     * egy ciklikus journey-ben ugyanaz a lépés több `iteration`-nal is szerepel.
+     */
+    public function runSteps(): HasMany
+    {
+        return $this->hasMany(JourneyRunStep::class, 'journey_step_id');
     }
 }

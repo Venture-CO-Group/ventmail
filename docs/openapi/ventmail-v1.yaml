@@ -813,6 +813,74 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
 
+  /analytics/campaigns/{uuid}:
+    get:
+      tags: [analytics]
+      summary: Kampány-riport (összesítő, variánsok, napi idősor, klikk-térkép)
+      description: |
+        A marketing analitika és a platform-napló UGYANARRA az esemény-forrásra épül
+        (`message_events`, a kampány tagjén keresztül) — ugyanaz a kampány ugyanazt a
+        `delivered` számot adja mindkét felületen. A kampány saját számlálói
+        (`sent_count`, `failed_count`) SZÁNDÉKOSAN nem forrás: azok a küldési folyamat
+        állapotát írják le, nem a fogadó visszajelzését.
+
+        **A ráták nevezői kimondva:** a nyitás, a klikk, a panasz és a leiratkozás a
+        KÉZBESÍTETT-re vetül (aki nem kapta meg, nem is nyithatta meg); a bounce az
+        ELFOGADOTT-ra (a bounce épp a kézbesítés kudarca, a kézbesítettre osztva mindig
+        szebb számot adna); a CTOR az EGYEDI NYITÓK-ra. A nyitás és a klikk EGYEDI
+        címzettben számol — egy Apple MPP-s postafiók ugyanazt a levelet tízszer
+        „megnyitja".
+
+        **A nyitás mérése 2021 óta megbízhatatlan** (Apple Mail Privacy Protection: a proxy
+        minden levelet letölt). A számot kiszámoljuk, mert a trendje használható, de nem
+        hazudjuk pontosnak — döntéshez a klikk a mérőszám.
+
+        **A válasz aggregált: egyetlen címzett-címet sem tartalmaz.** Címzett-szintű adat
+        csak az érintetti exporton (auditált, egy emberre szóló út) érhető el.
+
+        `?format=csv` ugyanezeket a számokat adja fájlként — nem külön lekérdezés.
+      operationId: getCampaignReport
+      security: [{ bearerAuth: [] }, { basicAuth: [] }]
+      parameters:
+        - name: uuid
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: format
+          in: query
+          required: false
+          schema: { type: string, enum: [json, csv], default: json }
+          description: A `csv` az összesítőt adja letölthető fájlként.
+      responses:
+        '200':
+          description: A kampány riportja
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  summary: { $ref: '#/components/schemas/CampaignReportSummary' }
+                  variants:
+                    type: array
+                    items: { $ref: '#/components/schemas/CampaignReportSummary' }
+                  daily:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        day: { type: string, format: date }
+                        delivered: { type: integer }
+                        unique_opened: { type: integer }
+                        unique_clicked: { type: integer }
+                  click_map:
+                    type: array
+                    items: { $ref: '#/components/schemas/ClickMapEntry' }
+            text/csv:
+              schema: { type: string }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -862,6 +930,48 @@ components:
           schema: { $ref: '#/components/schemas/Error' }
 
   schemas:
+    CampaignReportSummary:
+      type: object
+      description: |
+        Az összes szám a `message_events`-ből. A `total` és az `unique` KÜLÖN mező, mert
+        mást mondanak: az `opened` az események száma, az `unique_opened` az egyedi
+        címzettek száma.
+      properties:
+        campaign: { type: string }
+        campaign_uuid: { type: string, format: uuid }
+        status: { type: string }
+        recipients:
+          type: integer
+          description: A materializált címzett-halmaz mérete (a célzásból, nem eseményből).
+        accepted: { type: integer }
+        delivered: { type: integer }
+        deferred: { type: integer }
+        bounced: { type: integer }
+        complained: { type: integer }
+        unsubscribed: { type: integer }
+        opened: { type: integer, description: 'Esemény-szám (MPP-vel felfelé torzít).' }
+        unique_opened: { type: integer, description: 'Egyedi címzett.' }
+        clicked: { type: integer }
+        unique_clicked: { type: integer }
+        open_rate: { type: number, format: float, description: 'unique_opened / delivered' }
+        click_rate: { type: number, format: float, description: 'unique_clicked / delivered' }
+        click_to_open_rate: { type: number, format: float, description: 'unique_clicked / unique_opened' }
+        bounce_rate: { type: number, format: float, description: 'bounced / accepted' }
+        complaint_rate: { type: number, format: float, description: 'complained / delivered' }
+        unsubscribe_rate: { type: number, format: float, description: 'unsubscribed / delivered' }
+
+    ClickMapEntry:
+      type: object
+      description: |
+        RANGSOR: a legtöbbet kattintott link az első. A `(egyéb link)` sor a linkenkénti
+        felső korlát fölötti kattintásokat gyűjti — a csonkítás ténye látszik, nem csendes.
+      properties:
+        url: { type: string }
+        clicks: { type: integer, description: 'Összes kattintás.' }
+        unique_clicks: { type: integer, description: 'Egyedi kattintó (pszeudonim hash alapján).' }
+        first_clicked_at: { type: string, format: date-time, nullable: true }
+        last_clicked_at: { type: string, format: date-time, nullable: true }
+
     JourneyEventInput:
       type: object
       required: [email, event]

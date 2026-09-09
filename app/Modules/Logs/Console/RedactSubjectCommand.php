@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Modules\Logs\Console;
 
+use App\Modules\Analytics\Services\ClickMap;
 use App\Modules\Audit\Services\AuditLogger;
+use App\Modules\Audit\Services\KeyedHash;
 use App\Modules\Campaign\Models\CampaignRecipient;
 use App\Modules\Events\Models\MessageEvent;
 use App\Modules\Inbound\Contracts\RawMailStore;
@@ -76,7 +78,7 @@ final class RedactSubjectCommand extends Command
             return self::FAILURE;
         }
 
-        $redacted = ['messages' => 0, 'mime' => 0, 'events' => 0, 'smtp' => 0, 'attempts' => 0, 'webhooks' => 0, 'suppressions' => 0, 'inbound' => 0, 'validation' => 0, 'campaign_recipients' => 0, 'journey_runs' => 0];
+        $redacted = ['messages' => 0, 'mime' => 0, 'events' => 0, 'smtp' => 0, 'attempts' => 0, 'webhooks' => 0, 'suppressions' => 0, 'inbound' => 0, 'validation' => 0, 'campaign_recipients' => 0, 'journey_runs' => 0, 'link_clicks' => 0];
 
         // SZÁRAZ FUTÁS: egy visszavonhatatlan, tenanteken átnyúló művelet előtt látni kell,
         // mit érintene. A tranzakció a végén visszagördül — a számok viszont valódiak.
@@ -107,6 +109,7 @@ final class RedactSubjectCommand extends Command
                     $redacted['inbound'] += $this->redactInbound($key);
                     $redacted['campaign_recipients'] += $this->redactCampaignRecipients($key);
                     $redacted['journey_runs'] += $this->redactJourneyRuns($key);
+                    $redacted['link_clicks'] += $this->redactLinkClicks($key);
 
                     // A CÍMELLENŐRZÉS eredményei. Ez az ügyfél TELJES címlistája — a
                     // `PurgeValidationCommand` saját docblockja mondja ki, hogy ennél
@@ -403,6 +406,24 @@ final class RedactSubjectCommand extends Command
         return JourneyRun::query()
             ->whereRaw('lower(email) = ?', [$key])
             ->update(['email' => '(redaktált)', 'context' => '{}', 'updated_at' => now()]);
+    }
+
+    /**
+     * A KLIKK-TÉRKÉP — a kattintások MEGMARADNAK, a KI eltűnik.
+     *
+     * A címzett itt már PSZEUDONIM (kulcsolt HMAC), nem nyers cím — de a pepper a miénk,
+     * tehát a hash összekapcsolható, és egy Art. 17 kérés után nem tarthatjuk meg. Az
+     * összevonás a `clicks` és az egyedi kattintók számát megőrzi: a kampány
+     * klikk-térképe nem változik visszamenőleg attól, hogy valaki törlést kért.
+     *
+     * A sor TÖRLÉSE rossz válasz lenne: a fél évvel korábbi kampány riportja csökkenne, és
+     * a tenant azt látná, hogy a számai maguktól romlanak.
+     */
+    private function redactLinkClicks(string $key): int
+    {
+        $hash = KeyedHash::of('email', $key);
+
+        return app(ClickMap::class)->collapse(fn ($query) => $query->where('recipient_hash', $hash));
     }
 
     private function redactEvents(string $key): int
