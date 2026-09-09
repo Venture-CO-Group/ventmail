@@ -99,6 +99,30 @@ it('verifikálatlan domainről a gate elutasít, strukturált kóddal', function
         ->assertJsonPath('error.code', 'DOMAIN_UNVERIFIED');
 });
 
+it('a gate-üzenet a FORDÍTÓ-RÉTEGEN megy — a kód marad, a szöveg követi a nyelvet', function () {
+    /*
+     | C2 · 89. kritérium. A hat nyelv kulcsai HASZNÁLAT NÉLKÜL álltak: a
+     | `LocaleCompletenessTest` őrizte a teljességüket, miközben az API beégetett magyar
+     | szöveggel válaszolt. Egy fordítás, amit semmi nem hív, nem fordítás.
+     |
+     | A KÓD a szerződés (golden rule 7), ezért az MINDEN nyelven ugyanaz — a `message`
+     | viszont a beállított nyelven jön, és pontosan a lang-fájl szövege.
+     */
+    Domain::query()->update(['status' => 'pending']);
+
+    foreach (['hu', 'en', 'de'] as $locale) {
+        app()->setLocale($locale);
+
+        apiPost('/v1/messages', validPayload())
+            ->assertStatus(422)
+            ->assertJsonPath('error.code', 'DOMAIN_UNVERIFIED')
+            ->assertJsonPath('error.message', trans('ventmail.gate.domain_unverified', locale: $locale));
+    }
+
+    // ISMERETLEN kód esetén sem szivárog nyers kulcs a válaszba: az általános üzenet jön.
+    expect(trans('ventmail.gate.rejected'))->not->toContain('ventmail.gate');
+});
+
 it('a feladó neve és címe külön is megadható', function () {
     apiPost('/v1/messages', validPayload(['from' => 'no-reply@pelda.hu']))->assertAccepted();
 

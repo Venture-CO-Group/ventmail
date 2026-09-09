@@ -35,6 +35,12 @@ Schedule::command('webhooks:retry')->everyMinute()->withoutOverlapping();
 // A lejárt napló-melléktáblák (SMTP-párbeszéd, kísérletek, webhook-sorok) takarítása.
 Schedule::command('logs:purge')->dailyAt('03:40');
 
+// AZ AUDIT-NAPLÓ LEJÁRATA (C2 security-review). A napló megváltoztathatatlan, de nem örök:
+// a `context` szabad szöveges mezőin PII is bekerülhet, amit minta-alapú redakció nem fog
+// meg — arra a retenció a válasz. Heti futás elég: a tábla napi növekménye kicsi, a
+// törlési ablak pedig 365+ napos.
+Schedule::command('audit:prune')->weeklyOn(0, '04:30');
+
 // A bejövő levél IDEGEN tartalom, rövid retencióval (alap 3 nap): GYAKRABBAN takarítunk,
 // mint a saját naplónkat, és a fájltárat is ürítjük vele.
 Schedule::command('inbound:purge')->hourly();

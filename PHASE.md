@@ -6,7 +6,7 @@
 ## Cél
 **Mailgun + Mailchimp egyidejű kiváltása.** Két pillér (Platform / Studio) egy közös motoron.
 
-## Aktuális milestone: **M2 — B sáv (STUDIO)** · aktív packet: **B4** *(M0 lezárva: 2026-09-02 · M1 lezárva: 2026-09-08)*
+## Aktuális milestone: **M3 — C sáv (ZÁRÁS)** · aktív packet: **C2 (lezárás alatt)** *(M0 lezárva: 2026-09-02 · M1 lezárva: 2026-09-08 · M2 backend lezárva: 2026-09-09)*
 
 > **Fázis-névhasználat.** A roadmap sávokban gondolkodik, a napi munka fázisokban. A kettő
 > leképezése: **M1 = A sáv** (Platform, a Mailgun kiváltása) · **M2 = B sáv** (Studio, a
@@ -377,6 +377,71 @@ platform-napló — mert ugyanabból az esemény-forrásból dolgozik.
 > hogy „használhatja-e ezt a képességet". Egy `custom_domain` ellenőrzés a küldési kapuban
 > már késő: a domaint akkor hozták létre, amikor a csomag még tartalmazta.
 
+### C2 · Super-admin + i18n — elfogadási kritériumok
+
+> A roadmap prózáját a packet indításakor kritériumokra bontva. A számozás a 80. után
+> folytatódik.
+
+81. **A super-admin felület NEM tenant-felület.** Külön jogosultság dönt
+    (`platform.admin`), amit egy sima tenant-felhasználó nem kap meg; a tenant-kontextus
+    hiánya itt NEM hiba (a platform-admin tenanteken átnyúlva dolgozik), viszont MINDEN
+    művelet auditált, és a jogosultság a ventSSO claimjéből jön — **KÜLÖN kliens claimje**
+    (`resource_access.ventmail-platform.roles`, `OIDC_PLATFORM_ADMIN_CLAIM`), NEM a
+    tenant-szerepek alól. Az eredeti szöveg a tenant-claimet írta; a security-review
+    megmérte, hogy azon az úton egy workspace-en belül kiosztott `platform_admin` NEVŰ
+    szerep platform-hozzáférést adna, vagyis bármelyik tenant-owner adhatna magának
+    mindent. **Emberi ventSSO-lépés: a `ventmail-platform` kliens/claim regisztrálása** —
+    addig senki nem platform-admin (fail-closed, mérve).
+82. **AUDITÁLT IMPERSONATION.** A platform-admin átveheti egy tenant nézetét; a művelet
+    KEZDETE és VÉGE is auditált, IDŐKORLÁTOS, és az impersonált munkamenetben az ÍRÁS
+    TILOS — a támogatás lát, nem módosít. Az impersonation ténye a tenant audit-naplójában
+    is megjelenik: nem a mi belső ügyünk, hanem az övé.
+83. **PLAN-OVERRIDE**: a platform-admin felülírhatja egy workspace entitlementjét és
+    kvótáját a ventPay-től függetlenül — LEJÁRATTAL és auditáltan. A PreSendGate 4. kapuja
+    és az `EntitlementChecker` az override-ot veszi figyelembe; a lejárt override
+    magától megszűnik (nem kell külön visszavonni).
+84. **GLOBÁLIS SUPPRESSION**: platform-szintű tiltás, ami MINDEN tenantra érvényes, a
+    PreSendGate 2. kapujában fog, és auditált. A séma ezt már tudja
+    (`workspace_id = NULL`); a packet a KEZELÉST és a bizonyítást hozza.
+85. **AUDIT-KERESŐ**: művelet, workspace, aktor és időszak szerint, lapozva. A keresés MAGA
+    is auditált (ki nézte meg, mit), és nyers személyes adatot nem ad ki — az audit-sorok
+    redaktált alakja megy tovább.
+86. **CLUSTER HEALTH**: Postal, MX-fogadó, Redis/Horizon, Postgres és Meilisearch állapota
+    egy nézetben. Az ISMERETLEN állapot NEM zöld: ami nem válaszol, az `unknown`, és az a
+    riportban látszik — „zöld, mert nem tudjuk" nem elfogadható.
+87. **IP-POOL ÉS WARMUP FELÜGYELET**: pool- és IP-állapot, warmup-görbe, karantén be- és
+    kikapcsolása — auditáltan, indoklással.
+88. **DELIVERABILITY-RIASZTÁS ÜGYELETI CSATORNÁN.** A blocklist-, DMARC- és
+    spam-ráta-riasztás NEM e-mailben megy: épp a küldő IP-nk lehet listán. Webhookon megy,
+    HMAC-aláírással, retry-val és dead-letterrel — ugyanaz a minta, mint az A3
+    tenant-webhookjai.
+89. **i18n HAT NYELVEN kulcs-teljességgel** (HU/EN/DE/IT/ES/RU). A hiányzó VAGY extra kulcs
+    TESZT-BUKÁS, nem futásidejű fallback: egy hiányzó kulcs az angol szöveget mutatná egy
+    magyar felületen, és azt senki nem jelenti be.
+
+### C2 ÁLLAPOTA — a backend LEZÁRVA, a PLATFORM-KONZOL FELÜLETE NEM
+
+A 81–89. kritérium mindegyike **szolgáltatás-szinten** megfigyelhető és tesztelt (53 teszt),
+és minden invariáns, ami elrontható, DB-szinten is védett (impersonation-unicitás,
+override-visszavonás véglegessége, audit-retenció alsó határa).
+
+Amit a packet **NEM** hozott, és ezt kimondjuk, nem elhallgatjuk:
+
+- **Nincs HTTP- és Vue-felület** a SuperAdmin modulban (`route:list` → 0 platform-route). A
+  81., 85., 86. és 87. kritérium szövege „felületet"/„nézetet" mond, a `docs/
+  ventmail-indito-promptok.md` pedig kifejezetten Vue I18n lazy locale bundle-t. **A
+  platform-konzol felülete ÖNÁLLÓ munkafázis** — ugyanaz a döntés, mint a Studio
+  felületénél (M2), és ugyanabba a frontend-fázisba tartozik. Amikor megjön, az egész C2-t
+  ÚJRA kell review-zni: a jogosultsági megállapítások ma mind szolgáltatás-szintűek.
+  **Nevesített előfeltétel a konzol-packetnek:** a `PlanOverride` és az
+  `ImpersonationSession` modellen ma NINCS global scope (szándékosan — platform-adatok,
+  a `TenantModelGuardTest` kivétel-listája indokolja is), tehát az első tenant-felületi
+  lekérdezés minden tenant sorát látná. A konzol route-jaival együtt kell egy
+  platform-only scope, ami kontextussal fail-closed.
+- **A hat nyelv PHP-oldali** (`lang/*/ventmail.php`), és a C2 óta **load-bearing**: a
+  `/v1` gate-üzenetei a fordító-rétegen mennek (`MessagesApiTest` mind a három nyelvre
+  méri). A Vue I18n bundle a frontend-fázissal jön.
+
 ### M2 Definition of Done
 - [x] Mind a 26 kritériumhoz (49–74) tartozik néven nevezhető zöld teszt
 - [x] `venture-security` átment a B1–B4 mindegyikén (mind a négyen BLOKKOLÓ verdikttel
@@ -397,6 +462,10 @@ platform-napló — mert ugyanabból az esemény-forrásból dolgozik.
 > packetekhez „test → backend → frontend" sorrendet írt; a frontend mind a négy packetnél
 > hátramaradt, és egyben, önálló fázisként érdemes megcsinálni (közös komponensek: block
 > editor, célzás-választó, riport-grafikonok).
+>
+> **A C2 platform-konzolja UGYANEBBE a fázisba tartozik** (SuperAdmin route-ok + Vue-oldalak
+> + Vue I18n lazy locale bundle): ugyanaz a hiányosság, ugyanaz a döntés, és a két
+> felület közös alapokra épül (táblázat, szűrő-sáv, állapot-jelző).
 
 ### M2 kockázatok
 - **A block-tree séma a ventStudio közös kontraktusa** — ha itt eltérünk tőle, a landing-page
@@ -427,7 +496,10 @@ B1: 5–6 nap · B2: 6–7 · B3: 4–5 · B4: 3–4 → **~18–22 nap**
 
 ## C sáv — Zárás
 - [ ] C1 ventPay számlázás + metering (6 dimenzió) + sub-accountok konszolidált számlázása
-- [ ] C2 Super-admin + i18n (HU/EN/DE/IT/ES/RU) + teljes gate-sor
+- [x] C2 Super-admin + i18n (HU/EN/DE/IT/ES/RU) + teljes gate-sor — **backend kész**
+      (reviewer + security átment, mindkettő BLOKKOLÓ verdikttel indult; minden találat
+      javítva mérő teszttel). A **platform-konzol FELÜLETE külön fázis** — lásd a „C2
+      állapota" szakaszt.
 
 ## Párhuzamosítás
 M0 után az **A és B sáv külön worktree-ben, külön runnerrel** futtatható:
@@ -463,12 +535,17 @@ M0 után az **A és B sáv külön worktree-ben, külön runnerrel** futtatható
   valódi `REMOTE_ADDR`-ra (`RateLimitKeyingTest` őrzi), tehát a fékek már nem a kérő szavára
   kulcsolnak — de a `request->ip()` továbbra is az AUDIT-forrás és a naplósorok IP-je, és
   ott hamisítható. → **devops, élesben KÖTELEZŐ.**
-- **`APP_KEY`-rotáció útja a leiratkozó tokenhez.** A tokennek nincs lejárata (szándékosan: régi
-  levélből is legitim leiratkozni), viszont nincs kulcs-azonosító (`kid`) sem, tehát a rotáció
-  EGYSZERRE némítaná el minden kimenő levélben a leiratkozó linket. → C2, átfedéses
-  kulcsellenőrzéssel.
-- **A blocklist-riasztás ügyeleti csatornája.** A `BlocklistStateChanged` esemény a csatlakozási
-  pont; e-mailben nem küldhető (épp a küldő IP-nk van listán). → C2 (super-admin) / devops.
+- ~~**`APP_KEY`-rotáció útja a leiratkozó tokenhez.**~~ **MEGOLDVA az A6-ban**, `kid` NÉLKÜL:
+  a `config('app.previous_keys')` listát a megfejtés VÉGIGPRÓBÁLJA, tehát a rotáció nem
+  némítja el a már kiküldött levelek leiratkozó linkjét. A `TokenKeyRotationTest` négy
+  tesztje őrzi — köztük az, hogy a régi kulcs ELDOBÁSA viszont elnémítja (ez a rotációs
+  procedúra kényszere, nem hiba). A C2-ben nincs mit tenni vele.
+- ~~**A blocklist-riasztás ügyeleti csatornája.**~~ **MEGOLDVA a C2-ben**: a
+  `BlocklistStateChanged` eseményre `RaiseBlocklistAlert` hallgat, és az `OnCallAlerts`
+  HMAC-aláírt webhookon küldi ki (retry + dead-letter), NEM e-mailben. A LEKERÜLÉS is
+  riasztás — aki éjjel felkelt, tudja meg, mikor mehet vissza aludni. A beállítatlan
+  csatorna `error` szintű naplósort ír: egy nem konfigurált ügyeleti út a legrosszabb
+  állapot, mert a rendszer azt hiszi, riasztott.
 - **BIMI** — a `bimi_status` mező megvan, a kitöltés nem: VMC-tanúsítványt igényel, ami pénzbe és
   emberi ügyintézésbe kerül. → külön döntés.
 - **TLS-RPT jelentések FOGADÁSA** (a rekord kiadása megvan). → C2/devops, a DMARC-ingest mintájára.

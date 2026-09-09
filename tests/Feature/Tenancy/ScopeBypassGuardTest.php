@@ -88,8 +88,30 @@ it('a Tenancy modulon kívül senki nem kerüli meg a global scope-ot', function
         // A `workspace_id` KÖTÖTT PARAMÉTERként megy be, a kontextusból (`assertContext()`
         // fail-closed) — nem sztring-interpolációval, és nem is elhagyhatóan. A lekérdezés
         // egyetlen sorra hat, aminek mindhárom kulcsmezője kötött.
+        // C2 · A PLATFORM-ADMIN IP-FELÜGYELETE tenanteken átnyúlva olvas.
+        //
+        // Az `IpAddress` SZÁNDÉKOSAN nem workspace-kötött (a küldő IP a MI
+        // infrastruktúránk), a `IpPool` viszont tenant- VAGY platform-szintű: kontextus
+        // nélkül a scope fail-closed módon SEMMIT nem ad. Egy üzemeltetői felület, ami
+        // csak az „aktuális tenant" pooljait mutatja, nem üzemeltetői felület — a
+        // karanténba tett IP MINDEN tenant forgalmát átirányítja.
+        //
+        // A kikapcsolás EGYETLEN lekérdezésre szól (a poolok betöltése `keyBy`-jal), és
+        // csak OLVASÁSRA: az írás (karantén, feloldás) az `IpAddress`-en megy, amin nincs
+        // scope, és minden művelet auditált + `platform.admin`-hoz kötött.
+        // C2 · A `AuditLog::whileRetentionPruning()` `DB::statement`-je SÉMA-NYELV, nem
+        // lekérdezés: egyetlen session-változót állít be (`ventmail.audit_prune`), amit a
+        // tábla triggere követel meg a retenciós törléshez. UGYANAZ a minta, mint a
+        // Tenancy `BelongsToWorkspaceOrPlatform::onPlatform()`-jánál — a valódi határ az
+        // adatbázisban van, mert a builder-úton a modell-event nem fut le.
+        //
+        // Scope-ot nem kerül meg: az `AuditLog`-on SZÁNDÉKOSAN nincs global scope (a
+        // naplónak kontextus nélkül is íródnia kell), és a törlés a 365 napos DB-oldali
+        // alsó időhatár alatt akkor sem megy át, ha a szándék-jelzés megvan.
         $exceptions = [
+            'Audit/Models/AuditLog.php',
             'Billing/Services/Dunning.php',
+            'SuperAdmin/Services/IpSupervision.php',
             'Billing/Services/Metering.php',
             'Billing/Services/MonthlyClose.php',
             'Deliverability/Services/DmarcReportIngestor.php',

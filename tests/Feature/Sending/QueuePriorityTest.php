@@ -82,6 +82,9 @@ it('a visszalépés exponenciális és van felső korlátja', function () {
 });
 
 it('a fogadó-domain throttle KÜLÖN bucketben fut', function () {
+    // A vödör kulcsa perchez kötött: percváltás közben a kimerítés „elfelejtődik".
+    $this->freezeTime();
+
     $throttle = app(DomainThrottle::class);
 
     // A gmail.com kimerítése nem érintheti az example.test-et.
@@ -94,6 +97,10 @@ it('a fogadó-domain throttle KÜLÖN bucketben fut', function () {
 });
 
 it('a throttle ablaka lejár', function () {
+    // A fagyasztás nélkül a kimerítés és az ellenőrzés KÖZÉ eshetne a percváltás, és a
+    // teszt akkor is zöld lenne, ha a lejárat nem működne.
+    $this->freezeTime();
+
     $throttle = app(DomainThrottle::class);
 
     foreach (range(1, $throttle->limitFor('gmail.com')) as $i) {
@@ -130,6 +137,12 @@ it('bekapcsolt sorral a küldés a CSATORNA sorára kerül, nem szinkron megy', 
 
 it('a fogadó-domain throttle VALÓBAN fut a küldési úton', function () {
     // „Meg van írva, de senki nem hívja" — ez a teszt pont ezt zárja ki.
+    //
+    // AZ IDŐ FAGYASZTVA: a throttle kulcsa PERCHEZ kötött (`YmdHi`), tehát ha a percváltás
+    // a vödör feltöltése és a küldés KÖZÉ esik, a levél friss vödörbe kerül és kimegy —
+    // a teszt óránként egyszer, kiszámíthatatlanul elbukott (a párhuzamos futásban mérve).
+    $this->freezeTime();
+
     app(WorkspaceContext::class)->set(Workspace::factory()->create());
     Domain::create(['name' => 'pelda.hu', 'status' => 'verified', 'verified_at' => now()]);
 

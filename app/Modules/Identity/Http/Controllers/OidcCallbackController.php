@@ -7,6 +7,7 @@ namespace App\Modules\Identity\Http\Controllers;
 use App\Modules\Identity\Actions\AuthorizeSsoSubject;
 use App\Modules\Identity\Actions\SyncSsoUser;
 use App\Modules\Identity\Services\OidcClient;
+use App\Modules\Identity\Services\PlatformAdminSync;
 use App\Modules\Identity\Services\RoleMapper;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -26,6 +27,7 @@ final class OidcCallbackController
         OidcClient $client,
         SyncSsoUser $syncUser,
         RoleMapper $roleMapper,
+        PlatformAdminSync $platformAdmin,
         AuthorizeSsoSubject $authorizeSubject,
     ): RedirectResponse {
         $claims = $client->handleCallback($request);
@@ -36,6 +38,15 @@ final class OidcCallbackController
         $authorizeSubject($claims, $roles);
 
         $user = $syncUser($claims);
+
+        /*
+         | A PLATFORM-ADMIN JOGOSULTSÁG ÚJRASZÁMOLÁSA minden bejelentkezésnél (C2 · 81.).
+         |
+         | A `users.platform_admin` oszlop CACHE, nem forrás. Enélkül egy ventSSO-oldali
+         | visszavonás nálunk nem érvényesülne: a leszerelt kollégának másnap is lenne
+         | hozzáférése MINDEN tenant adatához.
+         */
+        $platformAdmin->sync($user, $claims);
 
         Auth::login($user);
         $request->session()->regenerate();

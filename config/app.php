@@ -82,6 +82,18 @@ return [
 
     'fallback_locale' => env('APP_FALLBACK_LOCALE', 'en'),
 
+    /*
+     | A TÁMOGATOTT NYELVEK (C2 · 89. kritérium) — EGY helyen.
+     |
+     | Egy hetedik nyelv hozzáadása egyetlen ponton történjen. Ha a lista a kódban
+     | szóródna szét (route-constraint, felület-választó, teszt), az új nyelv valahol
+     | kimaradna — és ott CSENDBEN az angol jelenne meg.
+     |
+     | A `LocaleCompletenessTest` ezt a listát járja végig: a hiányzó VAGY extra kulcs
+     | teszt-bukás, nem futásidejű fallback.
+     */
+    'supported_locales' => ['hu', 'en', 'de', 'it', 'es', 'ru'],
+
     'faker_locale' => env('APP_FAKER_LOCALE', 'en_US'),
 
     /*

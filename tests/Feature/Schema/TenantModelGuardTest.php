@@ -22,6 +22,8 @@ use App\Modules\Logs\Models\SmtpTransaction;
 use App\Modules\Sending\Models\DeliveryAttempt;
 use App\Modules\Sending\Models\Message;
 use App\Modules\Sending\Models\RawMimeMessage;
+use App\Modules\SuperAdmin\Models\ImpersonationSession;
+use App\Modules\SuperAdmin\Models\PlanOverride;
 use App\Modules\Tenancy\Concerns\BelongsToWorkspace;
 use App\Modules\Tenancy\Concerns\BelongsToWorkspaceOrPlatform;
 use App\Modules\Tenancy\Models\Workspace;
@@ -51,6 +53,23 @@ uses(RefreshDatabase::class);
 const TENANT_SCOPE_EXCEPTIONS = [
     AuditLog::class,
     WorkspaceMember::class,
+    /*
+     | C2 · PLATFORM-SZINTŰ sorok EGY tenantRÓL — nem a tenantÉ.
+     |
+     | A `workspace_id` itt nem a sor TULAJDONOSÁT jelöli, hanem a MEGNÉZETT, illetve az
+     | ÉRINTETT tenantot. A tenant nem indíthat impersonationt magára, és nem adhat magának
+     | plan-override-ot — épp az a lényeg, hogy ezek FÖLÖTTE állnak. A
+     | `BelongsToWorkspace` tehát nem hogy nem elég, hanem HELYTELEN lenne: a global scope
+     | a platform-admin elől rejtené el a saját sorait (nincs workspace-kontextusa), a
+     | `creating` hook pedig a kontextusból írná át a `workspace_id`-t — vagyis az admin
+     | mindig a SAJÁT (nem létező) workspace-ére nyitna nézetet.
+     |
+     | A tenant a TÉNYT a saját audit-naplójában látja: az `Impersonation` és a
+     | `PlanOverrides` explicit `workspaceId`-vel írja az audit-sort, épp azért, hogy
+     | ne a mi belső naplónkban maradjon. A `workspace_id` egyik modellen sem `fillable`.
+     */
+    ImpersonationSession::class,
+    PlanOverride::class,
 ];
 
 it('minden tenant-tábla modellje használja a BelongsToWorkspace traitet', function () {
@@ -161,6 +180,18 @@ it('minden admin-felületű modell auditált', function () {
         // auditálja, ami `Auditable`. Soronkénti audit itt a törölhetetlen audit-táblát
         // tömné meg forgalommal, és a fogyás-sor amúgy sem tart személyes adatot.
         UsageRecord::class,
+        /*
+         | C2 · A `ImpersonationSession` és a `PlanOverride` auditálását a SZOLGÁLTATÁS
+         | írja EXPLICITEN — és jobban, mint a trait tudná.
+         |
+         | A modell `created`/`updated` hookja nem tudná megmondani, hogy egy `ended_at`
+         | írás lezárás volt-e vagy lejárat-korrekció, és a TENANT audit-naplójába sem
+         | tudná a helyes `workspace_id`-t tenni (a platform-adminnak nincs kontextusa).
+         | Az `Impersonation::start/end` és a `PlanOverrides::grant/revoke` négy külön,
+         | beszédes audit-műveletet ír — a trait kettő általánost írna.
+         */
+        ImpersonationSession::class,
+        PlanOverride::class,
     ];
 
     $offenders = [];

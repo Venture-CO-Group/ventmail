@@ -38,6 +38,21 @@
         </include>
     </source>
     <php>
+        <!--
+          A TESZT-PROCESSZ MEMÓRIA-LIMITJE az ÉLES WORKERÉVEL egyezik (a compose is 512M).
+
+          Miért kell kimondani: a bejövő MIME-parser plafonja a PROCESSZ `memory_limit`-jéhez
+          igazodik (`InboundMimeParser::ceiling()`), és HANGOSAN elbukik, ha a maradék
+          headroom kevés — ez helyes viselkedés, csak a SOROS teszt-futásban félrevezető: a
+          PHPUnit halmozza a memóriát, tehát ~1500 teszt után a 128M-os alapon a parser
+          minden bejövő tesztnél „nincs elég memória" hibát ad, miközben a kód jó (mérve: 34
+          teszt bukott így, párhuzamosan mind zöld volt).
+
+          A limit tehát nem a tesztet gyengíti, hanem a futtatókörnyezetet igazítja ahhoz,
+          amit a `docker-compose` a workernek ad. A parser saját plafon-logikáját külön,
+          EXPLICIT `memory_limit`-et állító tesztek fedik.
+        -->
+        <ini name="memory_limit" value="512M"/>
         <env force="true" name="APP_ENV" value="testing"/>
         <env force="true" name="APP_MAINTENANCE_DRIVER" value="file"/>
         <env force="true" name="BCRYPT_ROUNDS" value="4"/>
