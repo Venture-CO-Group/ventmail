@@ -79,6 +79,24 @@ return [
     // 4. kapu — amíg a ventPay nem él, innen jön a kvóta és az entitlement.
     'fake_entitlement' => [
         'remaining' => (int) env('FAKE_SEND_QUOTA', 10000),
-        'features' => ['journeys', 'custom_domain', 'inbound_routes', 'dedicated_ip'],
+        // MIND AZ ÖT funkció (C1 · 76. kritérium). A `validation_bulk` korábban KIMARADT
+        // ebből a listából, tehát a kötegelt címellenőrzés jogosultsága SOSEM teljesült
+        // volna — egy „engedélyezett" funkció, amit senki nem tud bekapcsolni.
+        'features' => ['journeys', 'custom_domain', 'inbound_routes', 'dedicated_ip', 'validation_bulk'],
+
+        // WORKSPACE-ENKÉNTI felülírás (`id => [funkciók]`). A `EntitlementChecker`
+        // parent-feloldását ezzel lehet mérni: enélkül a fake workspace-vak volt, és a
+        // „sub-account a parent csomagját használja" szabályt semmi nem bizonyította.
+        'per_workspace' => [],
+
+        /*
+         | RENDEZETLEN periódusok (`YYYY-MM` vagy `workspace:YYYY-MM`).
+         |
+         | ÜRES alapérték: amíg a ventPay nem él, MINDEN periódus rendezett. A felfüggesztés
+         | a legdurvább eszköz (a tranzakciós levelet is megállítja), és a review megmérte,
+         | hogy a fordított alapérték ~45 nappal az első zárás után a teljes platform
+         | forgalmát leállította volna — fizetési információ nélkül.
+         */
+        'unsettled' => [],
     ],
 ];

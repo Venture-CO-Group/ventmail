@@ -13,24 +13,36 @@ use Illuminate\Support\Facades\Route;
  | viselkedést változtat (továbbítás idegen címre), a levelek olvasása „csak" adathozzáférés.
  */
 
+/*
+ | A BEJÖVŐ ROUTING CSOMAG-FUNKCIÓ (C1 · 76. kritérium) — az ÍRÁSI műveleteken.
+ |
+ | A review megmérte, hogy az öt nevesített funkcióból KETTŐT semmi nem védett: a
+ | `custom_domain`-t és a `inbound_routes`-ot sehol nem kérdezte meg senki. Vagyis egy
+ | csomag, ami nem tartalmazza a bejövő routingot, ingyen megkapta.
+ |
+ | Az OLVASÁS szándékosan nyitva marad: a tenantnak látnia kell, MI van beállítva nála —
+ | akkor is, ha a csomagja már nem tartalmazza a funkciót (lefokozás után). Az olvasás
+ | elzárása azt jelentené, hogy a saját konfigurációját sem tudja megnézni ahhoz, hogy
+ | eldöntse, mit tegyen vele.
+ */
 Route::get('/routes', [InboundRouteController::class, 'index'])
     ->middleware('api.scope:logs:read')
     ->name('v1.routes.index');
 
 Route::post('/routes', [InboundRouteController::class, 'store'])
-    ->middleware('api.scope:routes:write')
+    ->middleware(['api.scope:routes:write', 'entitlement:inbound_routes'])
     ->name('v1.routes.store');
 
 Route::patch('/routes/{uuid}', [InboundRouteController::class, 'update'])
-    ->middleware('api.scope:routes:write')
+    ->middleware(['api.scope:routes:write', 'entitlement:inbound_routes'])
     ->name('v1.routes.update');
 
 Route::post('/routes/{uuid}/rotate-secret', [InboundRouteController::class, 'rotate'])
-    ->middleware('api.scope:routes:write')
+    ->middleware(['api.scope:routes:write', 'entitlement:inbound_routes'])
     ->name('v1.routes.rotate');
 
 Route::delete('/routes/{uuid}', [InboundRouteController::class, 'destroy'])
-    ->middleware('api.scope:routes:write')
+    ->middleware(['api.scope:routes:write', 'entitlement:inbound_routes'])
     ->name('v1.routes.destroy');
 
 Route::get('/inbound/messages', [InboundMessageController::class, 'index'])

@@ -60,7 +60,38 @@ it('a Tenancy modulon kívül senki nem kerüli meg a global scope-ot', function
         // felismerhetetlenné válna, vagyis a törlési kérés eredménye az lenne, hogy az
         // érintett újra kap levelet. A lekérdezések elsődleges kulcsra mennek
         // (`where('id', …)`), tehát tenant-határt nem tudnak átlépni.
+        // C1 · A KONSZOLIDÁLT SZÁMLA a parent és a childjei kivonatait EGYÜTT olvassa. A
+        // global scope `workspace_id = parent`-re szűr, tehát a child sorokat elrejtené —
+        // pedig épp azokat kell összesíteni (77. kritérium). A szűrő kézi és PONTOS: vagy a
+        // parent saját sora, vagy olyan, aminek a `parent_workspace_id`-je ÉPP EZ a parent;
+        // idegen tenant sora egyik ágon sem férhet bele. A `runFor()` a Tenancy SAJÁT
+        // kontextus-váltója (a `closeConsolidated()` ezt használja, nem scope-kikapcsolást).
+        // C1 · A DUNNING KÉT okból tenant-független, és mindkettő szándékos.
+        //
+        // (a) A `advance()` PLATFORM-SZINTŰ állapotgép: az ütemezett parancs minden nyitott
+        //     kivonatot léptet, tenant-dimenzió nélkül. Tenantonként futtatva ugyanaz a
+        //     `WHERE due_at <= …` feltétel ezerszer futna le ugyanarra a táblára, és a
+        //     léptetés nem is tenant-döntés — a HATÁRIDŐ dönt.
+        // (b) A `isSuspended()` a SZÁMLÁZOTT workspace állapotát kérdezi, ami egy
+        //     sub-accountnál a PARENT — a global scope viszont a child-ra szűrne, tehát a
+        //     felfüggesztés egy alszámla létrehozásával megkerülhető lenne. A szűrő szigorú
+        //     egyenlőség egy kiszámított id-re.
+        //
+        // Egyik ág sem olvas tenant-TARTALMAT: kizárólag állapotot és határidőt.
+        // C1 · A `Metering::write()` NYERS `INSERT … ON CONFLICT`-ot használ, mert az
+        // Eloquent `upsert()` nem tudja kifejezni a FELTÉTELES ütközési ágat
+        // (`… do update … where usage_records.closed_at is null`). Ez a `WHERE` az, ami
+        // ATOMIVÁ teszi a lezárt periódus kihagyását: két utasítással (SELECT + upsert) a
+        // zárás alatt beeső küldés mérve ELVESZETT — a levél kimegy, a fogyás nem kerül
+        // számlára —, és a kérés a zárás idejére be is akadt a sorzáron.
+        //
+        // A `workspace_id` KÖTÖTT PARAMÉTERként megy be, a kontextusból (`assertContext()`
+        // fail-closed) — nem sztring-interpolációval, és nem is elhagyhatóan. A lekérdezés
+        // egyetlen sorra hat, aminek mindhárom kulcsmezője kötött.
         $exceptions = [
+            'Billing/Services/Dunning.php',
+            'Billing/Services/Metering.php',
+            'Billing/Services/MonthlyClose.php',
             'Deliverability/Services/DmarcReportIngestor.php',
             'Deliverability/Http/Controllers/MtaStsController.php',
             'Audience/Http/Controllers/PublicFormController.php',

@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Modules\Sending\Actions;
 
 use App\Modules\Audit\Services\AuditLogger;
+use App\Modules\Billing\Enums\UsageDimension;
+use App\Modules\Billing\Services\Metering;
 use App\Modules\Events\Models\MessageEvent;
 use App\Modules\Sending\Data\SendQueue;
 use App\Modules\Sending\Data\SendResult;
@@ -21,7 +23,9 @@ use App\Modules\Sending\Services\MessageDispatcher;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use RuntimeException;
+use Throwable;
 
 /**
  * A küldés belépési pontja — a PreSendGate-en át.
@@ -127,17 +131,80 @@ final class SendMessage
         // (o:deliverytime). A sorból az A2 ütemezője veszi majd ki — és mivel a gate-döntésnek
         // szavatossági ideje van, a küldés előtt újraértékelés kell.
         if ($message->deliverytime !== null && $message->deliverytime->isFuture()) {
+            /*
+             | AZ ÜTEMEZETT levél a KIKÜLDÉSKOR fizet, nem az elfogadáskor.
+             |
+             | A review megmérte: `deliverytime = +5 min` → `sends_counter` +1; utána a
+             | domain deverifikálva → a dispatcher `DOMAIN_UNVERIFIED`-del ELUTASÍTOTTA a
+             | levelet — és az inkrementum BENT MARADT. Vagyis a packet fő garanciája („a
+             | kapu által elutasított küldés nem számlázódik") pont azon az úton volt hamis,
+             | ahol a kapu-döntés VÁLTOZNI szokott: leiratkozás, hard bounce,
+             | kvóta-kimerülés, deverifikáció — amiket a `DispatchScheduledCommand`
+             | docblockja maga sorol fel.
+             |
+             | A mérés ezért a `MessageDispatcher`-ben, a tényleges kiküldésnél történik.
+             */
             $message->forceFill(['status' => 'scheduled'])->save();
 
             return new SendResult($message->fresh(), $decision);
         }
 
-        // A testmode naplóz, de NEM küld (Mailgun-paritás: o:testmode).
+        /*
+         | A TESTMODE naplóz, de NEM küld (Mailgun-paritás: o:testmode) — és NEM IS FIZET.
+         |
+         | A mérés korábban a kapu után, a testmode-ellenőrzés ELŐTT volt: a review megmérte,
+         | hogy `testmode => true` mellett a levél nem ment ki, a `sends_counter` mégis nőtt.
+         | A Mailgun (a paritás-cél) a testmode-ot nem számlázza, és az SMTP-n ez nem
+         | egyszeri állapot: egy tartósan tesztmódban álló hitelesítő MINDEN beadott levél
+         | után fizetett volna.
+         */
         if (! $message->testmode) {
             $this->deliver($message);
+            $this->meter($message);
         }
 
         return new SendResult($message->fresh(), $decision);
+    }
+
+    /**
+     * A FOGYÁS MÉRÉSE — a levél TÉNYLEGES kiküldésénél (C1 · 75. kritérium).
+     *
+     * ## A HÁROM feltétel, ami eddig eljut
+     *
+     * A levél átment a kapun (nincs suppression, van consent, van kvóta), NEM testmode, és
+     * NEM ütemezett. Mindhárom kizárás mért hibából született:
+     *
+     * - a kapu ELŐTT mérve a tenant azért fizetne, amit a rendszer HELYESEN meg sem
+     *   próbált elküldeni — épp a listahigiéniát büntetnénk;
+     * - a testmode nem megy ki, tehát nem fogyás (Mailgun-paritás);
+     * - az ütemezett levél kapu-döntése a kiküldésig MEGVÁLTOZHAT, és mérve az elutasítás
+     *   után is számlázva maradt.
+     *
+     * CÍMZETTENKÉNT, nem hívásonként: a kvóta-kapu is így mér („különben 300 hívás × 1000
+     * címzett »limiten belül« 300 000 levelet jelentene").
+     *
+     * ## A HIBA NEM BUKTATJA EL A KÜLDÉST
+     *
+     * A levél már átment a kapun; egy mérés-hiba nem tarthatja vissza. A hiányzó fogyás
+     * bevétel-kiesés, a visszatartott tranzakciós levél viszont ügyfél-probléma — a kettő
+     * nem egy súlycsoport. A napló a VISSZAPÓTLÁSHOZ elég adatot visz (workspace, üzenet,
+     * mennyiség), nem csak a kivétel nevét.
+     */
+    public function meter(Message $message): void
+    {
+        try {
+            app(Metering::class)->increment(
+                UsageDimension::Sends,
+                max(1, count((array) $message->recipients)),
+            );
+        } catch (Throwable $e) {
+            Log::warning('A küldés fogyása nem került a meteringbe', [
+                'workspace_id' => (int) $message->workspace_id,
+                'message_uuid' => (string) $message->uuid,
+                'recipients' => count((array) $message->recipients),
+                'exception' => $e::class,
+            ]);
+        }
     }
 
     /**

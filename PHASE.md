@@ -343,6 +343,40 @@ platform-napló — mert ugyanabból az esemény-forrásból dolgozik.
     ugyanaz a kampány ugyanazt a delivered-számot adja mindkét felületen.
 74. Export CSV/API; klikk-térkép adatszerkezet.
 
+### C1 · ventPay számlázás + metering — elfogadási kritériumok
+
+> A roadmap eddig prózában írta le a C sávot; a packet indításakor kritériumokra bontva.
+> A számozás a 74. után folytatódik.
+
+75. **Metering mind a HAT dimenzióban**, és mindegyik a VALÓDI úton keletkezik:
+    `sends_counter` (küldés), `validations_counter` (címellenőrzés), `inbound_counter`
+    (beérkező levél), `contacts_peak` (a periódus MAXIMUMA, nem a záró állapot),
+    `dedicated_ips` és `log_retention_tier` (pillanatkép). Egy dimenzió sem attól nő, hogy
+    egy szolgáltatás hívható — a bekötés HTTP/parancs-szintű teszttel bizonyított.
+76. **Entitlement-gate az öt funkcióra** (`journeys`, `custom_domain`, `dedicated_ip`,
+    `inbound_routes`, `validation_bulk`), a PreSendGate 4. kapujába kötve; a hiányzó
+    jogosultság STRUKTURÁLT `reason`-nal utasít el, és a `EnsureEntitlement` middleware
+    route-szinten is véd (a B3 review megállapította, hogy a spec által nevesített
+    middleware nem létezik).
+77. **Sub-account konszolidált számla PER-CHILD bontással**: a child fogyása a parent
+    számláján jelenik meg, de tételesen visszakereshetően — és a child SAJÁT számláján nem
+    duplikálódik.
+78. **Havi zárás IDEMPOTENS**: a periódus kétszeri lezárása egy számlát ad, és a LEZÁRT
+    periódus fogyása nem írható (adatbázis-szintű zár, nem csak alkalmazás-logika).
+79. **Dunning-szimuláció**: `open → due → overdue → suspended` állapotgép; a `suspended`
+    állapot a PreSendGate-en FOG (nem csak a felületen látszik), és a rendezés visszaadja
+    a küldés jogát.
+80. **A metering nem veszít és nem duplikál**: az idempotencia a
+    (workspace, periódus, dimenzió) kulcson, adatbázis-szinten áll — párhuzamos küldés
+    mellett is.
+
+> **A 76. kritérium pontosítása a review után.** A szöveg eredetileg azt írta, hogy az
+> entitlement-gate „a PreSendGate 4. kapujába kötve" van. A KAPUBAN a KVÓTA és a
+> FELFÜGGESZTÉS van — a funkció-jogosultság (öt funkció) ROUTE-SZINTEN érvényesül
+> (`entitlement:<funkció>`), mert ott a kérdés nem az, hogy „mehet-e ez a levél", hanem
+> hogy „használhatja-e ezt a képességet". Egy `custom_domain` ellenőrzés a küldési kapuban
+> már késő: a domaint akkor hozták létre, amikor a csomag még tartalmazta.
+
 ### M2 Definition of Done
 - [x] Mind a 26 kritériumhoz (49–74) tartozik néven nevezhető zöld teszt
 - [x] `venture-security` átment a B1–B4 mindegyikén (mind a négyen BLOKKOLÓ verdikttel

@@ -6,6 +6,7 @@ use App\Modules\Analytics\Models\CampaignEngagement;
 use App\Modules\Analytics\Models\LinkClick;
 use App\Modules\Audit\Concerns\Auditable;
 use App\Modules\Audit\Models\AuditLog;
+use App\Modules\Billing\Models\UsageRecord;
 use App\Modules\Campaign\Models\CampaignRecipient;
 use App\Modules\Consent\Models\ConsentEvent;
 use App\Modules\Deliverability\Models\BlocklistCheck;
@@ -154,6 +155,12 @@ it('minden admin-felületű modell auditált', function () {
         // Soronkénti audit a törölhetetlen audit-táblát tömné meg forgalommal, és a
         // címzett amúgy is pszeudonim hash-ként szerepel.
         CampaignEngagement::class,
+        // C1 · A FOGYÁS-SOR gépi adat: minden küldésnél, minden beérkező levélnél és minden
+        // címellenőrzésnél nő, felhasználói művelet nélkül. Nem admin-művelet — az
+        // admin-műveletet (a periódus LEZÁRÁSÁT, a dunning-állapot váltását) a `Invoice`
+        // auditálja, ami `Auditable`. Soronkénti audit itt a törölhetetlen audit-táblát
+        // tömné meg forgalommal, és a fogyás-sor amúgy sem tart személyes adatot.
+        UsageRecord::class,
     ];
 
     $offenders = [];

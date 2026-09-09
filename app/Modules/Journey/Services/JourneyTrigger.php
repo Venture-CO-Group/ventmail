@@ -6,7 +6,8 @@ namespace App\Modules\Journey\Services;
 
 use App\Modules\Audience\Models\Contact;
 use App\Modules\Audit\Services\KeyedHash;
-use App\Modules\Billing\Contracts\VentPayClient;
+use App\Modules\Billing\Enums\Feature;
+use App\Modules\Billing\Services\EntitlementChecker;
 use App\Modules\Consent\Models\Consent;
 use App\Modules\Journey\Enums\TriggerType;
 use App\Modules\Journey\Models\Journey;
@@ -36,7 +37,7 @@ use Illuminate\Support\Facades\RateLimiter;
  */
 final class JourneyTrigger
 {
-    public function __construct(private readonly VentPayClient $ventPay) {}
+    public function __construct(private readonly EntitlementChecker $entitlements) {}
 
     /**
      * BELÉPTETÉS a triggerre illeszkedő journey-kbe.
@@ -124,7 +125,10 @@ final class JourneyTrigger
          | minden lépés előtt újra megkérdezi): egy lefokozott csomag nem futtathat tovább
          | automatizálást hetekig.
          */
-        if (! $this->ventPay->hasEntitlement((int) $journey->workspace_id, 'journeys')) {
+        // A `EntitlementChecker`-en, nem közvetlenül a ventPay-en: a SUB-ACCOUNT a PARENT
+        // csomagját használja (C1 · 76.). A nyers `hasEntitlement($childId, 'journeys')`
+        // egy alszámlánál olyan csomagot kérdezett, ami a childnak nincs.
+        if (! $this->entitlements->allows($journey->workspace, Feature::Journeys)) {
             return null;
         }
 

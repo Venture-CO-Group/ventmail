@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Modules\Inbound\Services;
 
+use App\Modules\Billing\Enums\UsageDimension;
+use App\Modules\Billing\Services\Metering;
 use App\Modules\Inbound\Contracts\InboundSink;
 use App\Modules\Inbound\Contracts\RawMailStore;
 use App\Modules\Inbound\Data\InboundRecipient;
@@ -111,6 +113,26 @@ final class InboundIngest implements InboundSink
             $message->forceFill(['storage_key' => $key])->save();
 
             ParseInboundMessage::dispatch($recipient->workspaceId, (string) $message->uuid);
+
+            /*
+             | A FOGYÁS MÉRÉSE (C1 · 75. kritérium): egy ELFOGADOTT beérkező levél egy fogyás.
+             |
+             | ITT, a tárolás után: ami eddig eljutott, azt a rendszer TÉNYLEG feldolgozta (a
+             | címzett feloldódott, a MIME lementődött). Egy visszautasított levél (nem a mi
+             | domainünk, méret-korlát, ismeretlen címzett) nem jut ide, tehát nem is fogyás.
+             |
+             | A hiba nem buktatja el a fogadást: a levél már a tárolóban van, és egy
+             | mérés-hiba nem indokolja az SMTP-tranzakció elutasítását — a küldő
+             | újrapróbálná, és a levél DUPLÁN érkezne meg.
+             */
+            try {
+                app(Metering::class)->increment(UsageDimension::Inbound, 1);
+            } catch (Throwable $e) {
+                Log::warning('A beérkező levél fogyása nem került a meteringbe', [
+                    'inbound_message' => (string) $message->uuid,
+                    'exception' => $e::class,
+                ]);
+            }
         } finally {
             $previous === null ? $this->context->forget() : $this->context->set($previous);
         }

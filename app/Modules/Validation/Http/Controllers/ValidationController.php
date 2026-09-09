@@ -6,6 +6,8 @@ namespace App\Modules\Validation\Http\Controllers;
 
 use App\Modules\Api\Support\ApiError;
 use App\Modules\Audit\Services\AuditLogger;
+use App\Modules\Billing\Enums\UsageDimension;
+use App\Modules\Billing\Services\Metering;
 use App\Modules\Logs\Models\ErasedRecipient;
 use App\Modules\Validation\Jobs\ProcessValidationJob;
 use App\Modules\Validation\Models\ValidationJob;
@@ -13,8 +15,10 @@ use App\Modules\Validation\Models\ValidationResult;
 use App\Modules\Validation\Services\AddressValidator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use Throwable;
 
 /**
  * `POST /v1/validate` — egyedi és bulk címellenőrzés (41. kritérium).
@@ -39,7 +43,23 @@ final class ValidationController
             return ApiError::response('VALIDATION_ERROR', 'A cím megadása kötelező.', 400, $check->errors()->toArray());
         }
 
-        return response()->json($this->validator->validate((string) $request->input('address'))->toArray());
+        $verdict = $this->validator->validate((string) $request->input('address'));
+
+        /*
+         | A FOGYÁS MÉRÉSE (C1 · 75. kritérium): egy ELLENŐRZÖTT cím egy fogyás.
+         |
+         | A mérés az ellenőrzés UTÁN van: egy formai hibán elhasalt kérés (`400`) nem
+         | fogyás, mert nem is futott ellenőrzés. A hiba nem buktatja el a választ — a hívó
+         | a verdiktet kérte, és azt meg is kapta; a mérés elmaradása bevétel-kiesés, a
+         | visszatartott válasz viszont ügyfél-probléma.
+         */
+        try {
+            app(Metering::class)->increment(UsageDimension::Validations, 1);
+        } catch (Throwable $e) {
+            Log::warning('A címellenőrzés fogyása nem került a meteringbe', ['exception' => $e::class]);
+        }
+
+        return response()->json($verdict->toArray());
     }
 
     /**

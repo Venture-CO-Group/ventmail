@@ -7,7 +7,8 @@ namespace App\Modules\Journey\Services;
 use App\Modules\Audience\Models\ContactTag;
 use App\Modules\Audience\Models\Segment;
 use App\Modules\Audience\Services\SegmentEngine;
-use App\Modules\Billing\Contracts\VentPayClient;
+use App\Modules\Billing\Enums\Feature;
+use App\Modules\Billing\Services\EntitlementChecker;
 use App\Modules\Consent\Models\Consent;
 use App\Modules\Events\Models\MessageEvent;
 use App\Modules\Journey\Enums\StepType;
@@ -19,6 +20,7 @@ use App\Modules\Sending\Actions\SendMessage;
 use App\Modules\Sending\Enums\Channel;
 use App\Modules\Suppression\Models\Suppression;
 use App\Modules\Template\Models\Template;
+use App\Modules\Tenancy\Models\Workspace;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -89,7 +91,7 @@ final class JourneyEngine
 
     public function __construct(
         private readonly SegmentEngine $segments,
-        private readonly VentPayClient $ventPay,
+        private readonly EntitlementChecker $checker,
     ) {}
 
     /**
@@ -760,8 +762,9 @@ final class JourneyEngine
 
     private function entitled(int $workspaceId): bool
     {
+        // A `EntitlementChecker`-en: a SUB-ACCOUNT a PARENT csomagját használja (C1 · 76.).
         return $this->entitlements[$workspaceId]
-            ??= $this->ventPay->hasEntitlement($workspaceId, 'journeys');
+            ??= $this->checker->allows(Workspace::query()->findOrFail($workspaceId), Feature::Journeys);
     }
 
     /**
