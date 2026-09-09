@@ -64,11 +64,33 @@ class User extends Model implements AuthenticatableContract
     protected $hidden = ['sso_issuer', 'sso_subject'];
 
     /**
+     * A `platform_admin` DEFAULTJA a modellen is ott van, nem csak a DB-ben.
+     *
+     * Miért: az oszlop DB-oldali defaultja a frissen létrehozott PHP-példányon NEM jelenik meg,
+     * és a strict mode (`preventAccessingMissingAttributes`) a hiányzó attribútum olvasásakor
+     * kivételt dob. A jogosultság-ellenőrzés így nem „nem admin"-t kapott volna, hanem HTTP 500-at
+     * — mérve: a `workspace` middleware minden factoryból származó felhasználónál elhasalt.
+     * Az `isPlatformAdmin()` emellett fail-closed olvasót ad, ha a példány mégis csonka.
+     *
+     * @var array<string, mixed>
+     */
+    protected $attributes = ['platform_admin' => false];
+
+    /**
      * @return array<string, string>
      */
     protected function casts(): array
     {
         return [
+            /*
+             | A PLATFORM-ADMIN JELÖLŐ — és SZÁNDÉKOSAN nem `fillable`.
+             |
+             | A rendszer legerősebb jogosultsága: minden tenant adatát látja. Egy tömeges
+             | hozzárendelés (`User::create($request->all())`) SOHA nem adhatja meg — a
+             | `PlatformAdminSync` a ventSSO claimjéből, `forceFill`-lel írja, minden
+             | bejelentkezésnél újraszámolva.
+             */
+            'platform_admin' => 'boolean',
             'email_verified_at' => 'datetime',
             'last_login_at' => 'datetime',
         ];
@@ -81,6 +103,24 @@ class User extends Model implements AuthenticatableContract
     public function workspaces(): BelongsToMany
     {
         return $this->belongsToMany(Workspace::class, 'workspace_members');
+    }
+
+    /**
+     * A platform-admin jelölő FAIL-CLOSED olvasója.
+     *
+     * Sosem dob: ha a példány csonka (pl. `select`-tel szűkített lekérdezés), a válasz `false`.
+     * A jogosultság hiánya biztonságos állapot, a kivétel nem az — egy 500-as hiba az
+     * `abort(403)` helyett elrejti, hogy a döntés meg sem született.
+     */
+    public function isPlatformAdmin(): bool
+    {
+        $raw = $this->attributes['platform_admin'] ?? false;
+
+        // SZIGORÚ összehasonlítás, nem `(bool)` cast: a Postgres-driver `bool`-t ad, de ha
+        // az érték bármikor sztringként érkezik (más driver, nyers lekérdezés, cache),
+        // akkor `(bool) 'f' === true` — vagyis a fail-closed olvasó fail-openné válna, épp
+        // a rendszer legerősebb jogosultságánál.
+        return $raw === true || $raw === 1 || $raw === '1' || $raw === 't';
     }
 
     /** A ventMail nem tárol jelszót — a jelszó-alapú hitelesítés nem értelmezett. */

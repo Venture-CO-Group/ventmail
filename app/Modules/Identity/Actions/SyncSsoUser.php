@@ -45,12 +45,32 @@ final class SyncSsoUser
 
         $user->name = (string) ($claims['name'] ?? $claims['preferred_username'] ?? $subject);
         $user->email = $email;
-        $user->locale = (string) ($claims['locale'] ?? config('app.locale'));
+        $user->locale = $this->supportedLocale($claims['locale'] ?? null);
         $user->email_verified_at = $verified ? ($user->email_verified_at ?? now()) : null;
         $user->last_login_at = now();
 
         $user->save();
 
         return $user;
+    }
+
+    /**
+     * A NYELV a TÁMOGATOTT listából, vagy az alap.
+     *
+     * A claim IDEGEN BEMENET: az IdP bármit adhat (`de-CH`, `zz`, vagy egy path-szerű
+     * sztringet), és eddig ellenőrzés nélkül a `users.locale`-be került. A Laravel a
+     * furcsa értékre később `InvalidArgumentException`-t dob, a felhasználó pedig egy
+     * nem létező nyelvet „választ" — ami a felületen üres feliratokat jelentene.
+     *
+     * A régió-változat elfogadható, ha az alapnyelv támogatott: `hu-HU` → `hu`.
+     */
+    private function supportedLocale(mixed $claim): string
+    {
+        $supported = (array) config('app.supported_locales', []);
+        $candidate = strtolower(trim((string) $claim));
+        $base = str_replace('_', '-', $candidate);
+        $base = explode('-', $base)[0];
+
+        return in_array($base, $supported, true) ? $base : (string) config('app.locale');
     }
 }

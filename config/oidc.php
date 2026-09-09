@@ -21,6 +21,17 @@ return [
 
     'roles_claim' => env('OIDC_ROLES_CLAIM', 'resource_access.ventmail.roles'),
 
+    /*
+     | A PLATFORM-ADMIN claim — SZÁNDÉKOSAN másik, mint a tenant-szerepek.
+     |
+     | A tenant-szerepek a `resource_access.ventmail.roles` alatt vannak. Ha a
+     | platform-admin ugyanabból a listából jönne, egy rosszul konfigurált WORKSPACE-szerep
+     | (valaki `platform_admin` nevű szerepet ad egy tenantnak) platform-hozzáférést adna
+     | MINDEN tenant adatához. Két külön claim: két külön döntés a ventSSO oldalán.
+     */
+    'platform_admin_claim' => env('OIDC_PLATFORM_ADMIN_CLAIM', 'resource_access.ventmail-platform.roles'),
+    'platform_admin_role' => env('OIDC_PLATFORM_ADMIN_ROLE', 'platform_admin'),
+
     // Elfogadott aláíró algoritmusok. Amit a JWKS hirdet, azt önmagában NEM fogadjuk el:
     // egy szimmetrikus (`oct`) kulcs HS256-konfúziót tenne lehetővé.
     'allowed_algorithms' => ['RS256', 'ES256'],

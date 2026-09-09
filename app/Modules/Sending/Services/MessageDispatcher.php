@@ -14,6 +14,7 @@ use App\Modules\IpPools\Services\IpPoolSelector;
 use App\Modules\Sending\Actions\RecordDeliveryOutcome;
 use App\Modules\Sending\Contracts\SendingDriver;
 use App\Modules\Sending\Data\DispatchResult;
+use App\Modules\Sending\Data\DriverHealth;
 use App\Modules\Sending\Enums\Channel;
 use App\Modules\Sending\Models\Message;
 use App\Modules\Sending\Models\RawMimeMessage;
@@ -59,6 +60,25 @@ final class MessageDispatcher
         private readonly TrackingRewriter $tracking = new TrackingRewriter(new TrackingTokens),
         private readonly TrackingBaseUrl $trackingBase = new TrackingBaseUrl,
     ) {}
+
+    /**
+     * A KÜLDŐ DRIVER ÁLLAPOTA — a C2 cluster-health riportnak (86. kritérium).
+     *
+     * ## Miért ITT, és nem egy külön probe-osztályban
+     *
+     * Mert a `GateBypassGuardTest` invariánsa az, hogy a `SendingDriver`-t KIZÁRÓLAG a
+     * `MessageDispatcher` kaphatja meg — és ez az invariáns szigorúbb, mint amilyennek
+     * először látszik: bárki, aki a drivert BIRTOKOLJA, küldeni is tud vele, a
+     * PreSendGate megkerülésével. Egy külön „csak health" osztály is birtokolná, tehát a
+     * szabályt egy új osztállyal nem lehet betartani, csak megkerülni.
+     *
+     * Ezért a health-kérdés IDE jön: a dispatcher az egyetlen legitim birtokos, és ez a
+     * metódus SEMMIT nem küld — egy `bool` + szöveg jön vissza.
+     */
+    public function driverHealth(): DriverHealth
+    {
+        return $this->driver->health();
+    }
 
     public function dispatch(Message $message): void
     {

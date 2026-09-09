@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Modules\Tenancy\Http\Middleware;
 
+use App\Models\User;
+use App\Modules\SuperAdmin\Services\Impersonation;
 use App\Modules\Tenancy\Models\Workspace;
 use App\Modules\Tenancy\Models\WorkspaceMember;
 use App\Modules\Tenancy\Services\WorkspaceContext;
@@ -17,6 +19,10 @@ use Symfony\Component\HttpFoundation\Response;
  * A tagság forrása kizárólag a `workspace_members` tábla — a ventSSO tokenje sosem dönt
  * hozzáférésről (golden rule 1). Idegen workspace-re 403, nem néma üres lista: a hallgatag
  * kudarc elrejtené a jogosultsági hibát.
+ *
+ * EGYETLEN KIVÉTEL: az aktív, IDŐKORLÁTOS és ÍRÁSRA TILTOTT impersonation-munkamenet
+ * (C2 · 82. kritérium). Az sem a tokenből jön, hanem egy auditált adatbázis-sorból, amit
+ * kizárólag platform-admin hozhat létre, indokkal — és a tenant a saját naplójában látja.
  */
 final class ResolveWorkspace
 {
@@ -30,9 +36,39 @@ final class ResolveWorkspace
             return redirect()->guest(route('auth.redirect'));
         }
 
+        /*
+         | AKTÍV IMPERSONATION: a platform-admin a MEGNÉZETT tenant nézetét kapja.
+         |
+         | Ez a 82. kritérium másik fele. A `Impersonation::start()` eddig CSAK egy sort írt
+         | és auditált — a platform-admin utána semmit nem látott (`hasWorkspace()` false
+         | maradt), mert ez a middleware kizárólag a `workspace_members` tagságból oldja fel
+         | a kontextust. A funkció tehát egy audit-sor volt, ami nem tesz semmit.
+         |
+         | A TAGSÁG ITT NEM KÖVETELMÉNY, és épp ez a lényeg: a támogatás olyan fiókot néz,
+         | aminek nem tagja. A hozzáférést három dolog határolja: a `platform.admin`
+         | képesség (a `start()` ellenőrizte), a 30 perces LEJÁRAT, és az
+         | ÍRÁS-TILALOM (`ImpersonationReadOnlyGuard`) — a támogatás LÁT, nem módosít.
+         |
+         | A LEJÁRT munkamenet magától megszűnik: az `active()` `null`-t ad, és a
+         | felhasználó a saját tagságaira esik vissza.
+         |
+         | AZ EXPLICIT VÁLTÁS ERŐSEBB: ha a kérés `?workspace=`-t ad, az dönt. Enélkül a
+         | platform-admin nyitott munkamenet alatt a SAJÁT workspace-ét sem érhetné el —
+         | üzemeltetői zsákutca. Az írás-tilalom ettől nem lazul: az a MUNKAMENET
+         | létezésén áll, nem a kontextuson, tehát a saját workspace-ében sem ír, amíg a
+         | nézet nyitva van.
+         */
         // Explicit váltási kérés (query/route paraméter) SOSEM eshet vissza csendben:
         // ha nincs rá tagság, az 403. A session-ben tárolt választás viszont elavulhat.
         $explicit = (string) ($request->route('workspace') ?? $request->query('workspace', ''));
+
+        $impersonated = $explicit === '' ? $this->impersonatedWorkspace($user) : null;
+
+        if ($impersonated !== null) {
+            $this->context->set($impersonated);
+
+            return $next($request);
+        }
 
         if ($explicit !== '') {
             $membership = $this->membershipFor($user->getKey(), $explicit);
@@ -64,6 +100,29 @@ final class ResolveWorkspace
         }
 
         return $this->withWorkspace($request, $next, $membership);
+    }
+
+    /**
+     * A MEGNÉZETT workspace, ha van aktív impersonation — különben `null`.
+     *
+     * Csak platform-adminra fut le: egy tenant-felhasználónak nem lehet aktív
+     * munkamenete (a `start()` `platform.admin`-t követel), de a `platform_admin` flag
+     * ellenőrzése így is itt van — a hozzáférési döntés nem támaszkodhat arra, hogy
+     * MÁSHOL már ellenőriztük.
+     */
+    private function impersonatedWorkspace(mixed $user): ?Workspace
+    {
+        if (! $user instanceof User || ! $user->isPlatformAdmin()) {
+            return null;
+        }
+
+        $session = app(Impersonation::class)->active($user);
+
+        if ($session === null) {
+            return null;
+        }
+
+        return Workspace::query()->whereKey($session->workspace_id)->first();
     }
 
     private function withWorkspace(Request $request, Closure $next, WorkspaceMember $membership): Response

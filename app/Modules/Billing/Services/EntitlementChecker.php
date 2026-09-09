@@ -6,6 +6,7 @@ namespace App\Modules\Billing\Services;
 
 use App\Modules\Billing\Contracts\VentPayClient;
 use App\Modules\Billing\Enums\Feature;
+use App\Modules\SuperAdmin\Services\PlanOverrides;
 use App\Modules\Tenancy\Models\Workspace;
 
 /**
@@ -27,11 +28,45 @@ use App\Modules\Tenancy\Models\Workspace;
  */
 final class EntitlementChecker
 {
-    public function __construct(private readonly VentPayClient $ventPay) {}
+    public function __construct(
+        private readonly VentPayClient $ventPay,
+        private readonly PlanOverrides $overrides,
+    ) {}
 
+    /**
+     * ELŐBB AZ OVERRIDE, utána a ventPay (C2 · 83. kritérium).
+     *
+     * Az override a támogatás KIVÉTELE: ha az engedi, nem kérdezzük a ventPay-t. A
+     * fordított sorrend azt jelentené, hogy a ventPay „nem" válasza felülírja a
+     * platform-admin szándékos döntését — pedig épp azért adta, mert a csomag nem
+     * tartalmazza.
+     *
+     * Az override HOZZÁAD, nem helyettesít: amiről nem mond semmit, arról a ventPay dönt.
+     */
     public function allows(Workspace $workspace, Feature $feature): bool
     {
+        if ($this->overrides->allows($workspace, $feature)) {
+            return true;
+        }
+
         return $this->ventPay->hasEntitlement($this->billableId($workspace), $feature->value);
+    }
+
+    /**
+     * A KVÓTA — az override-dal, ha van.
+     *
+     * A felülírt kvóta a ventPay válaszát VÁLTJA KI (nem összeadódik vele): a támogatás
+     * egy konkrét számot ad meg („ehhez a kampányhoz 50 000 kell"), nem egy növekményt.
+     */
+    public function remainingQuota(Workspace $workspace): int
+    {
+        $override = $this->overrides->sendQuota($workspace);
+
+        if ($override !== null) {
+            return $override;
+        }
+
+        return $this->ventPay->remainingSendQuota($this->billableId($workspace));
     }
 
     /**

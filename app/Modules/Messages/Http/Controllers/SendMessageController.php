@@ -17,6 +17,7 @@ use App\Modules\StoredTemplates\Models\StoredTemplate;
 use App\Modules\Tenancy\Services\WorkspaceContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Lang;
 use InvalidArgumentException;
 
 /**
@@ -173,20 +174,23 @@ final class SendMessageController
 
     /**
      * A gate-kódok emberi magyarázata. A KÓD a szerződés, az üzenet segítség — ezért a
-     * kód sosem változik, a szöveg finomítható.
+     * kód sosem változik, a szöveg finomítható (és fordítható).
+     *
+     * ## Miért a FORDÍTÓ-RÉTEGEN megy (C2 · 89. kritérium)
+     *
+     * Mert a hat nyelv kulcsai eddig HASZNÁLAT NÉLKÜL álltak: a
+     * `LocaleCompletenessTest` őrizte a teljességüket, miközben a felület és az API
+     * beégetett magyar szöveggel válaszolt. Egy fordítás, amit semmi nem hív, nem
+     * fordítás — és az első valódi felhasználója (a felület) csendben elcsúszna tőle.
+     *
+     * A kulcs a gate-kódból származik (`SUPPRESSED` → `ventmail.gate.suppressed`), tehát
+     * egy új kód nem néma hibát ad, hanem az általános `rejected` üzenetet — a
+     * `Lang::has()` ellenőrzés miatt a nyers kulcs SOSEM jelenik meg a válaszban.
      */
     private function explain(?string $reason): string
     {
-        return match ($reason) {
-            'DOMAIN_UNVERIFIED' => 'A feladó domain nincs hitelesítve. Vedd fel a DNS-rekordokat a wizardban.',
-            'SUPPRESSED' => 'A címzett suppression-listán van (bounce, panasz vagy leiratkozás).',
-            'NO_CONSENT' => 'Marketing küldéshez megerősített (double opt-in) consent kell.',
-            'QUOTA_EXCEEDED' => 'A havi küldési kvóta elfogyott.',
-            'RATE_LIMITED' => 'Túl sok küldés rövid idő alatt; próbáld később.',
-            'VALIDATION_RISK' => 'A címzett címe a kockázati küszöb felett van.',
-            'INVALID_REQUEST' => 'A kérés nem felel meg a küldési szabályoknak (címzett, csatorna vagy fejléc).',
-            'GATE_ERROR' => 'Egy ellenőrzés nem tudott dönteni; a küldés biztonsági okból elmaradt.',
-            default => 'A küldést a PreSendGate elutasította.',
-        };
+        $key = 'ventmail.gate.'.strtolower((string) $reason);
+
+        return (string) (Lang::has($key) ? __($key) : __('ventmail.gate.rejected'));
     }
 }

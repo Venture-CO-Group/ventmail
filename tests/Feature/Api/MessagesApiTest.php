@@ -99,6 +99,42 @@ it('verifikálatlan domainről a gate elutasít, strukturált kóddal', function
         ->assertJsonPath('error.code', 'DOMAIN_UNVERIFIED');
 });
 
+it('a gate-üzenet a FORDÍTÓ-RÉTEGEN megy — a kód marad, a szöveg követi a nyelvet', function () {
+    /*
+     | C2 · 89. kritérium. A hat nyelv kulcsai HASZNÁLAT NÉLKÜL álltak: a
+     | `LocaleCompletenessTest` őrizte a teljességüket, miközben az API beégetett magyar
+     | szöveggel válaszolt. Egy fordítás, amit semmi nem hív, nem fordítás.
+     |
+     | A KÓD a szerződés (golden rule 7), ezért az MINDEN nyelven ugyanaz — a `message`
+     | viszont a beállított nyelven jön, és pontosan a lang-fájl szövege.
+     */
+    Domain::query()->update(['status' => 'pending']);
+
+    /*
+     | A NYELVET A KÉRÉS választja, nem a teszt: az `Accept-Language` fejlécen megy, amit a
+     | `SetLocale` middleware a támogatott listára szűr. Így a teszt a VALÓDI úton mér — az
+     | első változat maga hívta a `setLocale()`-t, tehát átment volna akkor is, amikor (mint
+     | mérve is) a kódbázisban egyetlen nyelvválasztó hívás sem volt.
+     */
+    foreach (['hu', 'en', 'de'] as $locale) {
+        apiPost('/v1/messages', validPayload(), ['Accept-Language' => $locale])
+            ->assertStatus(422)
+            ->assertJsonPath('error.code', 'DOMAIN_UNVERIFIED')
+            ->assertJsonPath('error.message', trans('ventmail.gate.domain_unverified', locale: $locale));
+    }
+
+    // A RÉGIÓ-VÁLTOZAT az alapnyelvre vezet: `hu-HU` → `hu`.
+    apiPost('/v1/messages', validPayload(), ['Accept-Language' => 'hu-HU,hu;q=0.9'])
+        ->assertJsonPath('error.message', trans('ventmail.gate.domain_unverified', locale: 'hu'));
+
+    // NEM TÁMOGATOTT nyelv → az alap, nem hiba és nem nyers kulcs.
+    apiPost('/v1/messages', validPayload(), ['Accept-Language' => 'zz'])
+        ->assertJsonPath('error.message', trans('ventmail.gate.domain_unverified', locale: (string) config('app.locale')));
+
+    // ISMERETLEN kód esetén sem szivárog nyers kulcs a válaszba: az általános üzenet jön.
+    expect(trans('ventmail.gate.rejected'))->not->toContain('ventmail.gate');
+});
+
 it('a feladó neve és címe külön is megadható', function () {
     apiPost('/v1/messages', validPayload(['from' => 'no-reply@pelda.hu']))->assertAccepted();
 

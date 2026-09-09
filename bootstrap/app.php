@@ -8,6 +8,7 @@ use App\Modules\Api\Http\Middleware\AuthorizeChannel;
 use App\Modules\Api\Http\Middleware\RequireApiScope;
 use App\Modules\Api\Http\Middleware\RequireIdempotencyKey;
 use App\Modules\Billing\Http\Middleware\EnsureEntitlement;
+use App\Modules\Identity\Http\Middleware\SetLocale;
 use App\Modules\Tenancy\Http\Middleware\ResolveWorkspace;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Application;
@@ -32,7 +33,15 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->web(append: [
             HandleInertiaRequests::class,
             AddLinkHeadersForPreloadedAssets::class,
+            // A KÉRÉS NYELVE (C2 · 89. kritérium): a bejelentkezett felhasználó
+            // `locale`-ja, különben az `Accept-Language` — mindkettő a támogatott
+            // nyelvekre szűrve. Enélkül a hat nyelvet SEMMI nem választotta ki.
+            SetLocale::class,
         ]);
+
+        // A `/v1` gépi felület is nyelvet vált: a hívó az `Accept-Language`-ben mondja meg,
+        // milyen nyelven kéri a hibaüzenetet. A `code` marad a szerződés (golden rule 7).
+        $middleware->api(append: [SetLocale::class]);
 
         // A tenant-kontextus feloldása és a tagság-ellenőrzés minden workspace-hez kötött
         // útvonalon kötelező (golden rule 6).
