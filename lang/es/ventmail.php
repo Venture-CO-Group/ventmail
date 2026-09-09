@@ -14,6 +14,25 @@ return [
     'app' => [
         'name' => 'ventMail',
         'tagline' => 'Infraestructura de correo para la familia Venture',
+        'workspace_switched' => 'Workspace cambiado.',
+        'locale_switched' => 'Idioma actualizado.',
+    ],
+    'apiKeys' => [
+        'revoked' => 'Clave revocada.',
+    ],
+    'smtp' => [
+        'revoked' => 'Credencial revocada.',
+    ],
+    'suppressions' => [
+        'added' => 'Dirección añadida a la lista.',
+        'removed' => 'Supresión eliminada.',
+        'missing' => 'Esta dirección no está en la lista.',
+        'irrevocable' => 'Las supresiones por queja o baja no se pueden quitar: es la voluntad del destinatario.',
+    ],
+    'webhooks' => [
+        'deleted' => 'Endpoint eliminado.',
+        'replayed' => 'Entrega reencolada.',
+        'alreadyDelivered' => 'Esta entrega ya tuvo éxito.',
     ],
     'gate' => [
         'domain_unverified' => 'El dominio de envío no está verificado.',

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { VtCard, VtGlowLine, VtTable, type VtColumn } from '@venture/ui';
+import AppLayout from '../../Layouts/AppLayout.vue';
 
 /**
  * ÜZENET-TRACE (A3 · 23. kritérium) — a „miért nem érkezett meg?" képernyője.
@@ -89,55 +90,57 @@ const attemptRows = (): AttemptRow[] =>
 </script>
 
 <template>
-    <VtCard>
-        <h1>Üzenet-trace</h1>
-        <VtGlowLine />
+    <AppLayout>
+        <VtCard>
+            <h1>Üzenet-trace</h1>
+            <VtGlowLine />
 
-        <dl data-testid="trace-summary">
-            <dt>Azonosító</dt>
-            <dd>{{ props.trace.message.uuid }}</dd>
+            <dl data-testid="trace-summary">
+                <dt>Azonosító</dt>
+                <dd>{{ props.trace.message.uuid }}</dd>
 
-            <dt>Állapot</dt>
-            <dd data-testid="trace-status">
-                {{ props.trace.message.status }}
-                <span v-if="props.trace.message.reason"> — {{ props.trace.message.reason }}</span>
-            </dd>
+                <dt>Állapot</dt>
+                <dd data-testid="trace-status">
+                    {{ props.trace.message.status }}
+                    <span v-if="props.trace.message.reason"> — {{ props.trace.message.reason }}</span>
+                </dd>
 
-            <dt>Feladó</dt>
-            <dd>{{ props.trace.message.from }}</dd>
+                <dt>Feladó</dt>
+                <dd>{{ props.trace.message.from }}</dd>
 
-            <dt>Címzettek</dt>
-            <dd>{{ props.trace.message.recipients.join(', ') }}</dd>
+                <dt>Címzettek</dt>
+                <dd>{{ props.trace.message.recipients.join(', ') }}</dd>
 
-            <dt>Küldő IP</dt>
-            <dd data-testid="trace-ip">{{ props.trace.routing.ip_address ?? 'nincs (még nem ment ki)' }}</dd>
+                <dt>Küldő IP</dt>
+                <dd data-testid="trace-ip">{{ props.trace.routing.ip_address ?? 'nincs (még nem ment ki)' }}</dd>
 
-            <dt>Próbálkozások</dt>
-            <dd>{{ props.trace.message.attempts }}</dd>
+                <dt>Próbálkozások</dt>
+                <dd>{{ props.trace.message.attempts }}</dd>
 
-            <!-- Az aláíratlanul kiment levél DMARC-bukást okoz: a supportnak látnia kell. -->
-            <dd v-if="props.trace.message.dkim_unsigned" data-testid="trace-dkim-warning">
-                FIGYELEM: a levél DKIM-aláírás nélkül ment ki ({{ props.trace.message.dkim_unsigned }})
-            </dd>
-        </dl>
+                <!-- Az aláíratlanul kiment levél DMARC-bukást okoz: a supportnak látnia kell. -->
+                <dd v-if="props.trace.message.dkim_unsigned" data-testid="trace-dkim-warning">
+                    FIGYELEM: a levél DKIM-aláírás nélkül ment ki ({{ props.trace.message.dkim_unsigned }})
+                </dd>
+            </dl>
 
-        <h2>Kapuk</h2>
-        <VtTable :columns="gateColumns" :rows="gateRows()" data-testid="trace-gates" />
+            <h2>Kapuk</h2>
+            <VtTable :columns="gateColumns" :rows="gateRows()" data-testid="trace-gates" />
 
-        <h2>SMTP-párbeszéd</h2>
-        <div v-for="(transaction, index) in props.trace.smtp" :key="index" data-testid="trace-smtp">
-            <p>
-                {{ transaction.recipient }} — {{ transaction.remote_host ?? 'ismeretlen MX' }}:
-                <strong>{{ transaction.code ?? '—' }}</strong> {{ transaction.text ?? '' }}
-            </p>
-            <pre>{{ transaction.lines.map((line) => `${line.direction === 'out' ? '→' : '←'} ${line.line}`).join('\n') }}</pre>
-        </div>
-        <p v-if="props.trace.smtp.length === 0">Nincs rögzített SMTP-párbeszéd ehhez az üzenethez.</p>
+            <h2>SMTP-párbeszéd</h2>
+            <div v-for="(transaction, index) in props.trace.smtp" :key="index" data-testid="trace-smtp">
+                <p>
+                    {{ transaction.recipient }} — {{ transaction.remote_host ?? 'ismeretlen MX' }}:
+                    <strong>{{ transaction.code ?? '—' }}</strong> {{ transaction.text ?? '' }}
+                </p>
+                <pre>{{ transaction.lines.map((line) => `${line.direction === 'out' ? '→' : '←'} ${line.line}`).join('\n') }}</pre>
+            </div>
+            <p v-if="props.trace.smtp.length === 0">Nincs rögzített SMTP-párbeszéd ehhez az üzenethez.</p>
 
-        <h2>Kézbesítési kísérletek</h2>
-        <VtTable :columns="attemptColumns" :rows="attemptRows()" data-testid="trace-attempts" />
+            <h2>Kézbesítési kísérletek</h2>
+            <VtTable :columns="attemptColumns" :rows="attemptRows()" data-testid="trace-attempts" />
 
-        <h2>Események</h2>
-        <VtTable :columns="eventColumns" :rows="eventRows()" data-testid="trace-events" />
-    </VtCard>
+            <h2>Események</h2>
+            <VtTable :columns="eventColumns" :rows="eventRows()" data-testid="trace-events" />
+        </VtCard>
+    </AppLayout>
 </template>

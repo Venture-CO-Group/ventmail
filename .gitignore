@@ -42,3 +42,6 @@ Thumbs.db
 # működik. Aki a GitHub Packages registryt használja lokálisan, tartsa a saját `.npmrc`-jét.
 .npmrc
 
+
+# A Playwright mentett munkamenete (bejelentkezett állapot) — gépenként más, nem verziózzuk.
+e2e/.auth/

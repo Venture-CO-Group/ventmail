@@ -24,8 +24,27 @@ return [
     'app' => [
         'name' => 'ventMail',
         'tagline' => 'Email infrastructure for the Venture family',
+        'workspace_switched' => 'Workspace switched.',
+        'locale_switched' => 'Language updated.',
     ],
 
+    'apiKeys' => [
+        'revoked' => 'Key revoked.',
+    ],
+    'smtp' => [
+        'revoked' => 'Credential revoked.',
+    ],
+    'suppressions' => [
+        'added' => 'Address added to the suppression list.',
+        'removed' => 'Suppression removed.',
+        'missing' => 'This address is not on the suppression list.',
+        'irrevocable' => 'Complaint- and unsubscribe-based suppressions cannot be removed: that is the recipient\'s will.',
+    ],
+    'webhooks' => [
+        'deleted' => 'Endpoint deleted.',
+        'replayed' => 'Delivery re-queued.',
+        'alreadyDelivered' => 'This delivery already succeeded.',
+    ],
     'gate' => [
         'domain_unverified' => 'The sending domain is not verified.',
         'suppressed' => 'The recipient is on the suppression list.',

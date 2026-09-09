@@ -2,6 +2,7 @@
 import { router } from '@inertiajs/vue3';
 import { VtButton, VtCard, VtField, VtGlowLine, VtInput, VtTable, type VtColumn } from '@venture/ui';
 import { reactive } from 'vue';
+import AppLayout from '../../Layouts/AppLayout.vue';
 
 /**
  * Kereshető napló (A3 · 22. kritérium).
@@ -103,49 +104,51 @@ const openTrace = (row: Row): void => {
 </script>
 
 <template>
-    <VtCard>
-        <h1>Napló</h1>
-        <VtGlowLine />
+    <AppLayout>
+        <VtCard>
+            <h1>Napló</h1>
+            <VtGlowLine />
 
-        <form data-testid="log-filters" @submit.prevent="search">
-            <VtField label="Címzett">
-                <VtInput v-model="filters.recipient" data-testid="filter-recipient" placeholder="cimzett@example.test" />
-            </VtField>
-            <VtField label="Tag">
-                <VtInput v-model="filters.tag" data-testid="filter-tag" placeholder="szamla" />
-            </VtField>
-            <VtField label="Csatorna">
-                <VtInput v-model="filters.channel" data-testid="filter-channel" placeholder="transactional" />
-            </VtField>
-            <VtField label="Állapot">
-                <VtInput v-model="filters.status" data-testid="filter-status" placeholder="delivered" />
-            </VtField>
-            <VtField label="Domain">
-                <VtInput v-model="filters.domain" data-testid="filter-domain" placeholder="pelda.hu" />
-            </VtField>
-            <!-- Az időablak a backendben eddig is megvolt, az űrlapról hiányzott: a support
-                 leggyakoribb kérdése épp az, hogy „mi ment ki tegnap délután". -->
-            <VtField label="Ettől">
-                <VtInput v-model="filters.since" data-testid="filter-since" type="date" />
-            </VtField>
-            <VtField label="Eddig">
-                <VtInput v-model="filters.until" data-testid="filter-until" type="date" />
-            </VtField>
+            <form data-testid="log-filters" @submit.prevent="search">
+                <VtField label="Címzett">
+                    <VtInput v-model="filters.recipient" data-testid="filter-recipient" placeholder="cimzett@example.test" />
+                </VtField>
+                <VtField label="Tag">
+                    <VtInput v-model="filters.tag" data-testid="filter-tag" placeholder="szamla" />
+                </VtField>
+                <VtField label="Csatorna">
+                    <VtInput v-model="filters.channel" data-testid="filter-channel" placeholder="transactional" />
+                </VtField>
+                <VtField label="Állapot">
+                    <VtInput v-model="filters.status" data-testid="filter-status" placeholder="delivered" />
+                </VtField>
+                <VtField label="Domain">
+                    <VtInput v-model="filters.domain" data-testid="filter-domain" placeholder="pelda.hu" />
+                </VtField>
+                <!-- Az időablak a backendben eddig is megvolt, az űrlapról hiányzott: a support
+                     leggyakoribb kérdése épp az, hogy „mi ment ki tegnap délután". -->
+                <VtField label="Ettől">
+                    <VtInput v-model="filters.since" data-testid="filter-since" type="date" />
+                </VtField>
+                <VtField label="Eddig">
+                    <VtInput v-model="filters.until" data-testid="filter-until" type="date" />
+                </VtField>
 
-            <VtButton type="submit" data-testid="log-search">Keresés</VtButton>
-        </form>
+                <VtButton type="submit" data-testid="log-search">Keresés</VtButton>
+            </form>
 
-        <VtTable :columns="columns" :rows="rows()" data-testid="log-table">
-            <template #cell="{ row, column, value }">
-                <VtButton v-if="column.key === 'trace'" data-testid="log-trace" @click="openTrace(row)">
-                    Trace
-                </VtButton>
-                <template v-else>{{ value }}</template>
-            </template>
-        </VtTable>
+            <VtTable :columns="columns" :rows="rows()" data-testid="log-table">
+                <template #cell="{ row, column, value }">
+                    <VtButton v-if="column.key === 'trace'" data-testid="log-trace" @click="openTrace(row)">
+                        Trace
+                    </VtButton>
+                    <template v-else>{{ value }}</template>
+                </template>
+            </VtTable>
 
-        <VtButton v-if="props.messages.next_cursor" data-testid="log-more" @click="loadMore">
-            További találatok
-        </VtButton>
-    </VtCard>
+            <VtButton v-if="props.messages.next_cursor" data-testid="log-more" @click="loadMore">
+                További találatok
+            </VtButton>
+        </VtCard>
+    </AppLayout>
 </template>

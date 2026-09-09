@@ -47,6 +47,30 @@ final class SuppressionStore
     }
 
     /**
+     * UGYANAZ A FELVÉTEL, API-kulcs nélkül — a session-hitelesített felületnek.
+     *
+     * A `source` itt `ui`: a naplóból meg kell tudni különböztetni a kézzel felvett tiltást
+     * a bounce-kezelő automatikus soraitól — egy reputáció-vizsgálatnál ez az első kérdés.
+     */
+    public function addFromUi(
+        string $email,
+        string $reason,
+        string $appliesTo = 'all',
+        ?Carbon $expiresAt = null,
+    ): Suppression {
+        $reasonEnum = SuppressionReason::tryFrom($reason)
+            ?? throw new InvalidArgumentException("Ismeretlen suppression-ok: {$reason}");
+        $scopeEnum = SuppressionScope::tryFrom($appliesTo)
+            ?? throw new InvalidArgumentException("Ismeretlen suppression-hatókör: {$appliesTo}");
+
+        $email = DomainNormalizer::listKey(trim($email));
+
+        $this->assertNotPlatformWide($email);
+
+        return $this->upsert($email, $reasonEnum, $scopeEnum, $expiresAt, 'ui');
+    }
+
+    /**
      * A suppression-sor EGYETLEN írási pontja — monoton szigorítással.
      *
      * KIZÁRÓLAG a saját sorok között keresünk: a platform-sorokat a scope amúgy visszaadná,
@@ -126,17 +150,49 @@ final class SuppressionStore
     {
         $this->authorize($key, 'suppressions:read');
 
+        return $this->listForWorkspace($perPage);
+    }
+
+    /**
+     * UGYANAZ A LISTA, API-kulcs nélkül — a session-hitelesített FELÜLETNEK.
+     *
+     * A jogosultságot itt a hívó dönti el (`Gate::authorize('suppression.manage')`), mert a
+     * felületen nincs API-kulcs. A SZABÁLYOK viszont közösek: ha a lapozás vagy a rendezés
+     * két helyen élne, a felület és az API előbb-utóbb mást mutatna ugyanarra a kérdésre.
+     *
+     * @return CursorPaginator<Suppression>
+     */
+    public function listForWorkspace(int $perPage = 100, ?string $cursor = null, ?string $search = null): CursorPaginator
+    {
         // Lapozás KÖTELEZŐ: a tábla természeténél fogva milliós, a teljes betöltés
         // memóriára futna — és nyílt e-mail-címeket öntene egy válaszba.
         return Suppression::query()
+            ->when($search !== null && $search !== '', function ($query) use ($search): void {
+                // A `like` metakaraktereit escape-eljük: a `%` különben MINDENT adna, és a
+                // felhasználó azt hinné, a szűrője nem működik.
+                $query->where('email', 'like', '%'.addcslashes(mb_strtolower(trim($search)), '%_\\').'%');
+            })
             ->orderByDesc('id')
-            ->cursorPaginate(min($perPage, 1000));
+            ->cursorPaginate(min($perPage, 1000), ['*'], 'cursor', $cursor);
     }
 
     public function remove(ApiKey $key, string $email): bool
     {
         $this->authorize($key, 'suppressions:write');
 
+        return $this->removeForWorkspace($email);
+    }
+
+    /**
+     * UGYANAZ A TÖRLÉS, API-kulcs nélkül — a felületnek.
+     *
+     * A megszorítások itt élnek, egy helyen: platform-szintű tiltást a tenant nem old fel,
+     * és a panasz/leiratkozás alapú tiltás sem vonható vissza (az az ÉRINTETT akarata). Ha
+     * a felület a saját törlési útját írná meg, ezek a szabályok pont ott hiányoznának,
+     * ahol a legkönnyebb kattintani.
+     */
+    public function removeForWorkspace(string $email): bool
+    {
         $email = DomainNormalizer::listKey(trim($email));
 
         $this->assertNotPlatformWide($email);

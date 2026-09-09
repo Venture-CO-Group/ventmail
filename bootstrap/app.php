@@ -9,6 +9,7 @@ use App\Modules\Api\Http\Middleware\RequireApiScope;
 use App\Modules\Api\Http\Middleware\RequireIdempotencyKey;
 use App\Modules\Billing\Http\Middleware\EnsureEntitlement;
 use App\Modules\Identity\Http\Middleware\SetLocale;
+use App\Modules\SuperAdmin\Http\Middleware\EnforceImpersonation;
 use App\Modules\Tenancy\Http\Middleware\ResolveWorkspace;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Application;
@@ -37,6 +38,15 @@ return Application::configure(basePath: dirname(__DIR__))
             // `locale`-ja, különben az `Accept-Language` — mindkettő a támogatott
             // nyelvekre szűrve. Enélkül a hat nyelvet SEMMI nem választotta ki.
             SetLocale::class,
+            /*
+             | AZ ÍRÁS-TILALOM aktív támogatói nézet alatt (82. kritérium).
+             |
+             | A `web` csoport EGÉSZÉRE szól, nem egy route-listára: egy jövőbeli írási
+             | végpontot senki nem fog felvenni egy tiltólistára, a biztonságos
+             | alapértelmezés viszont magától védi. A `/v1` (API-kulcsos gépi felület) nem
+             | kap impersonation-t, ott nincs mit tiltani.
+             */
+            EnforceImpersonation::class,
         ]);
 
         // A `/v1` gépi felület is nyelvet vált: a hívó az `Accept-Language`-ben mondja meg,

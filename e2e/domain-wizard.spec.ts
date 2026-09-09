@@ -3,10 +3,6 @@ import { expect, test } from '@playwright/test';
 // A wizard hitelesítést és workspace-kontextust igényel (a modul-route-ok kötelező stackje).
 // A ventSSO OIDC-folyamatát a böngésző-teszt nem tudja végigjátszani, ezért a dev-only
 // belépési úton megyünk be — az élesben nem is létezik.
-test.beforeEach(async ({ page }) => {
-    await page.goto('/auth/dev-login');
-});
-
 /*
  * M0-4 elfogadási kritérium #28 — a wizard flow.
  * A design-tokenek meglétét is ellenőrizzük: a képernyő nem tartalmazhat beégetett értéket.

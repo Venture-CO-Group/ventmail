@@ -12,6 +12,8 @@ use App\Modules\Sending\Services\DomainNormalizer;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Inertia\Inertia;
+use Inertia\Response;
 
 /**
  * Domain-műveletek. Mind POST: állapotot módosítanak (CSRF-védelem, idempotencia).
@@ -22,6 +24,35 @@ use Illuminate\Support\Facades\Gate;
  */
 final class DomainController
 {
+    /**
+     * A DOMAIN-LISTA — a wizard EGY domainről szól, a küldő viszont többet tart.
+     *
+     * A listázás SZÁNDÉKOSAN nem `entitlement:custom_domain` mögött van (ahogy a wizard
+     * megnyitása sem): a tenantnak lefokozás után is látnia kell, mi van beállítva nála.
+     * A csomag-funkció azt korlátozza, hogy ÚJAT vegyen fel vagy hitelesítsen.
+     */
+    public function index(): Response
+    {
+        Gate::authorize('domain.manage');
+
+        $domains = Domain::query()->orderBy('name')->get();
+
+        return Inertia::render('Domains/Index', [
+            'domains' => $domains->map(fn (Domain $domain) => [
+                'uuid' => (string) $domain->uuid,
+                'name' => (string) $domain->name,
+                'status' => (string) $domain->status,
+                // A NÉGY RÉSZ-ÁLLAPOT külön is látszik: a „pending" önmagában nem mondja
+                // meg, MELYIK rekord hiányzik, és a támogatás fél óráját az viszi el.
+                'spf' => (string) $domain->spf_status,
+                'dkim' => (string) $domain->dkim_status,
+                'dmarc' => (string) $domain->dmarc_status,
+                'tracking' => (string) $domain->tracking_status,
+                'verified_at' => $domain->verified_at?->toIso8601String(),
+            ])->values()->all(),
+        ]);
+    }
+
     public function store(Request $request, CreateDomain $createDomain): RedirectResponse
     {
         Gate::authorize('domain.manage');
