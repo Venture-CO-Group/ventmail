@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { router } from '@inertiajs/vue3';
 import { VtButton, VtCard, VtGlowLine, VtTable, type VtColumn } from '@venture/ui';
+import AppLayout from '../../Layouts/AppLayout.vue';
 
 /**
  * TAG-SZINTŰ STATISZTIKA (A3 · 26. kritérium).
@@ -56,30 +57,32 @@ const setRange = (days: number): void => {
 </script>
 
 <template>
-    <VtCard>
-        <h1>Tag-statisztika</h1>
-        <VtGlowLine />
+    <AppLayout>
+        <VtCard>
+            <h1>Tag-statisztika</h1>
+            <VtGlowLine />
 
-        <p data-testid="stats-range">Az elmúlt {{ props.days }} nap.</p>
+            <p data-testid="stats-range">Az elmúlt {{ props.days }} nap.</p>
 
-        <VtButton data-testid="stats-7" @click="setRange(7)">7 nap</VtButton>
-        <VtButton data-testid="stats-30" @click="setRange(30)">30 nap</VtButton>
-        <VtButton data-testid="stats-90" @click="setRange(90)">90 nap</VtButton>
+            <VtButton data-testid="stats-7" @click="setRange(7)">7 nap</VtButton>
+            <VtButton data-testid="stats-30" @click="setRange(30)">30 nap</VtButton>
+            <VtButton data-testid="stats-90" @click="setRange(90)">90 nap</VtButton>
 
-        <VtTable :columns="columns" :rows="rows()" data-testid="stats-table" />
+            <VtTable :columns="columns" :rows="rows()" data-testid="stats-table" />
 
-        <p v-if="props.rows.length === 0" data-testid="stats-empty">
-            Ebben az időszakban nincs tag-hez rendelt esemény.
-        </p>
+            <p v-if="props.rows.length === 0" data-testid="stats-empty">
+                Ebben az időszakban nincs tag-hez rendelt esemény.
+            </p>
 
-        <!--
-            A nyitás felfelé torzít: az Apple Mail adatvédelmi funkciója (MPP) a címzett
-            helyett tölti be a képeket. Ezt kimondjuk, nem a lábjegyzetbe rejtjük — a
-            kampány-döntés különben hamis számra épülne.
-        -->
-        <p data-testid="stats-mpp">
-            A nyitási arány felfelé torzít: egyes levélkliensek (pl. Apple Mail adatvédelmi
-            funkciója) a címzett helyett töltik be a képeket. A kattintás méri az emberi szándékot.
-        </p>
-    </VtCard>
+            <!--
+                A nyitás felfelé torzít: az Apple Mail adatvédelmi funkciója (MPP) a címzett
+                helyett tölti be a képeket. Ezt kimondjuk, nem a lábjegyzetbe rejtjük — a
+                kampány-döntés különben hamis számra épülne.
+            -->
+            <p data-testid="stats-mpp">
+                A nyitási arány felfelé torzít: egyes levélkliensek (pl. Apple Mail adatvédelmi
+                funkciója) a címzett helyett töltik be a képeket. A kattintás méri az emberi szándékot.
+            </p>
+        </VtCard>
+    </AppLayout>
 </template>

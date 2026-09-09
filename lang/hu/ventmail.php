@@ -14,6 +14,8 @@ return [
     'app' => [
         'name' => 'ventMail',
         'tagline' => 'A Venture család e-mail infrastruktúrája',
+        'workspace_switched' => 'Workspace átváltva.',
+        'locale_switched' => 'A nyelv beállítva.',
     ],
     'gate' => [
         'domain_unverified' => 'A küldő domain nincs hitelesítve.',

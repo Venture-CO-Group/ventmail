@@ -38,10 +38,20 @@ it('a frontend nem tartalmaz beégetett design tokent', function () {
     foreach ($files as $file) {
         $contents = file_get_contents($file->getPathname());
 
-        // CLAUDE.md: hardcode szín / spacing / font TILOS — mindhármat nézzük.
+        /*
+         | CLAUDE.md: hardcode szín / spacing / font TILOS — mindhármat nézzük.
+         |
+         | A `font-family` viszont csak akkor tilos, ha NEM tokenre mutat. A szabály célja
+         | az, hogy ne legyen beégetett betűkészlet-lista; a `font-family: var(--vt-font-…)`
+         | épp a helyes használat — az app-héjnak muszáj kimondania, melyik token-családot
+         | kéri, különben a böngésző alapbetűjével jelenne meg a felület.
+         */
         $hardcoded = '/#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\('          // szín
             .'|\b\d+(\.\d+)?(px|rem|em)\b'                          // spacing / méret
-            .'|font-family\s*:/i';                                    // betűtípus
+            // A lookahead a KETTŐSPONT UTÁN áll, és maga nyeli a szóközt: külön `\s*`-gal
+            // a motor visszalépne nulla szóközre, és a lookahead a szóközre nézve mindig
+            // igazat adna — a szabály némán megszűnne (mérve).
+            .'|font-family\s*:(?!\s*var\(--vt-)/i';                    // betűtípus token nélkül
 
         if (preg_match($hardcoded, $contents)) {
             $offenders[] = $file->getRelativePathname();

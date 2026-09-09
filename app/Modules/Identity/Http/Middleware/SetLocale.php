@@ -57,7 +57,18 @@ final class SetLocale
             return null;
         }
 
-        $locale = strtolower(trim((string) ($user->locale ?? '')));
+        /*
+         | A NYERS attribútum, nem a `preferredLocale()`.
+         |
+         | Itt az a kérdés, hogy a felhasználó VÁLASZTOTT-e nyelvet — nem az, hogy mi
+         | legyen, ha nem. A `preferredLocale()` az alapot adná vissza, az pedig mindig
+         | „nyerne" az `Accept-Language` ellen: aki sosem választott nyelvet, annak a
+         | böngészője hiába kér németet.
+         |
+         | A `getAttributes()` a szigorú mód (`preventAccessingMissingAttributes`) mellett
+         | sem dob: csonka példánynál egyszerűen nincs kulcs.
+         */
+        $locale = strtolower(trim((string) ($user->getAttributes()['locale'] ?? '')));
 
         return in_array($locale, $supported, true) ? $locale : null;
     }

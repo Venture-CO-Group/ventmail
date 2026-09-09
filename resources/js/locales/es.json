@@ -1,0 +1,48 @@
+{
+  "nav": {
+    "dashboard": "Resumen",
+    "platform": "Plataforma",
+    "studio": "Studio",
+    "console": "Consola de plataforma",
+    "domains": "Dominios",
+    "logs": "Registro",
+    "statistics": "Estadísticas por etiqueta",
+    "inbound": "Rutas entrantes",
+    "suppressions": "Lista de supresión",
+    "apiKeys": "Claves API",
+    "smtp": "Credenciales SMTP",
+    "ipPools": "Grupos de IP",
+    "webhooks": "Webhooks",
+    "validation": "Verificación de direcciones",
+    "deliverability": "Entregabilidad",
+    "billing": "Facturación",
+    "audience": "Audiencia",
+    "campaigns": "Campañas",
+    "journeys": "Journeys",
+    "analytics": "Analítica",
+    "templates": "Plantillas",
+    "forms": "Formularios"
+  },
+  "shell": {
+    "workspace": "Workspace",
+    "language": "Idioma",
+    "logout": "Salir",
+    "skipToContent": "Saltar al contenido",
+    "impersonation": "Vista de soporte: {workspace} — LA ESCRITURA ESTÁ BLOQUEADA, la vista caduca a las {expires}."
+  },
+  "dashboard": {
+    "title": "Resumen",
+    "quota": "Cuota restante",
+    "domains": "Dominios verificados",
+    "suppressions": "Direcciones suprimidas",
+    "bounceRate": "Tasa de rebote (7 días)",
+    "delivered": "Entregados",
+    "opened": "Abiertos",
+    "clicked": "Clicados",
+    "bounced": "Rebotados",
+    "recent": "Mensajes recientes",
+    "noAccess": "No tienes permiso para ver el registro.",
+    "unverifiedWarning": "Tienes un dominio sin verificar — ventMail no envía desde él.",
+    "empty": "Aún no hay mensajes salientes."
+  }
+}

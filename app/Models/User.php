@@ -8,6 +8,7 @@ use App\Modules\Tenancy\Models\Workspace;
 use Database\Factories\UserFactory;
 use Illuminate\Auth\Authenticatable as AuthenticatableTrait;
 use Illuminate\Contracts\Auth\Authenticatable as AuthenticatableContract;
+use Illuminate\Contracts\Translation\HasLocalePreference;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -23,7 +24,7 @@ use Illuminate\Notifications\Notifiable;
  * OIDC-folyamata (M0-1). A tenant-tagság a saját `workspace_members` táblából
  * dől el, sosem a tokenből.
  */
-class User extends Model implements AuthenticatableContract
+class User extends Model implements AuthenticatableContract, HasLocalePreference
 {
     /** @use HasFactory<UserFactory> */
     use AuthenticatableTrait, HasFactory, Notifiable;
@@ -121,6 +122,27 @@ class User extends Model implements AuthenticatableContract
         // akkor `(bool) 'f' === true` — vagyis a fail-closed olvasó fail-openné válna, épp
         // a rendszer legerősebb jogosultságánál.
         return $raw === true || $raw === 1 || $raw === '1' || $raw === 't';
+    }
+
+    /**
+     * A FELHASZNÁLÓ NYELVE — fail-safe olvasó.
+     *
+     * A `HasLocalePreference` szerződést azért implementáljuk, mert a Laravel maga is ezt
+     * kérdezi (értesítések, mail), és így a felület, az e-mail és a fordító-réteg UGYANAZT
+     * a forrást használja.
+     *
+     * Sosem dob: ha a példány csonka (`select`-tel szűkített lekérdezés, frissen épített
+     * modell), az alap nyelv jön. Ugyanaz az érv, mint az `isPlatformAdmin()`-nál — egy
+     * hiányzó attribútum nem lehet HTTP 500 egy olyan mezőnél, aminek van értelmes alapja.
+     * Mérve: a szigorú mód (`preventAccessingMissingAttributes`) különben az EGÉSZ
+     * app-héjat leviszi.
+     */
+    public function preferredLocale(): string
+    {
+        $locale = trim((string) ($this->attributes['locale'] ?? ''));
+        $supported = (array) config('app.supported_locales', []);
+
+        return in_array($locale, $supported, true) ? $locale : (string) config('app.locale');
     }
 
     /** A ventMail nem tárol jelszót — a jelszó-alapú hitelesítés nem értelmezett. */

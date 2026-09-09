@@ -1,0 +1,48 @@
+{
+  "nav": {
+    "dashboard": "Overview",
+    "platform": "Platform",
+    "studio": "Studio",
+    "console": "Platform console",
+    "domains": "Domains",
+    "logs": "Log",
+    "statistics": "Tag statistics",
+    "inbound": "Inbound routes",
+    "suppressions": "Suppression list",
+    "apiKeys": "API keys",
+    "smtp": "SMTP credentials",
+    "ipPools": "IP pools",
+    "webhooks": "Webhooks",
+    "validation": "Address validation",
+    "deliverability": "Deliverability",
+    "billing": "Billing",
+    "audience": "Audience",
+    "campaigns": "Campaigns",
+    "journeys": "Journeys",
+    "analytics": "Analytics",
+    "templates": "Templates",
+    "forms": "Forms"
+  },
+  "shell": {
+    "workspace": "Workspace",
+    "language": "Language",
+    "logout": "Sign out",
+    "skipToContent": "Skip to content",
+    "impersonation": "Support view: {workspace} — WRITING IS BLOCKED, the view expires at {expires}."
+  },
+  "dashboard": {
+    "title": "Overview",
+    "quota": "Remaining quota",
+    "domains": "Verified domains",
+    "suppressions": "Suppressed addresses",
+    "bounceRate": "Bounce rate (7 days)",
+    "delivered": "Delivered",
+    "opened": "Opened",
+    "clicked": "Clicked",
+    "bounced": "Bounced",
+    "recent": "Recent messages",
+    "noAccess": "You are not allowed to view the log.",
+    "unverifiedWarning": "You have an unverified domain — ventMail will not send from it.",
+    "empty": "No outgoing messages yet."
+  }
+}

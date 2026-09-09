@@ -1,0 +1,48 @@
+{
+  "nav": {
+    "dashboard": "Übersicht",
+    "platform": "Plattform",
+    "studio": "Studio",
+    "console": "Plattform-Konsole",
+    "domains": "Domains",
+    "logs": "Protokoll",
+    "statistics": "Tag-Statistik",
+    "inbound": "Eingehende Routen",
+    "suppressions": "Sperrliste",
+    "apiKeys": "API-Schlüssel",
+    "smtp": "SMTP-Zugangsdaten",
+    "ipPools": "IP-Pools",
+    "webhooks": "Webhooks",
+    "validation": "Adressprüfung",
+    "deliverability": "Zustellbarkeit",
+    "billing": "Abrechnung",
+    "audience": "Zielgruppe",
+    "campaigns": "Kampagnen",
+    "journeys": "Journeys",
+    "analytics": "Analytik",
+    "templates": "Vorlagen",
+    "forms": "Formulare"
+  },
+  "shell": {
+    "workspace": "Workspace",
+    "language": "Sprache",
+    "logout": "Abmelden",
+    "skipToContent": "Zum Inhalt springen",
+    "impersonation": "Support-Ansicht: {workspace} — SCHREIBEN IST GESPERRT, die Ansicht läuft um {expires} ab."
+  },
+  "dashboard": {
+    "title": "Übersicht",
+    "quota": "Verbleibendes Kontingent",
+    "domains": "Verifizierte Domains",
+    "suppressions": "Gesperrte Adressen",
+    "bounceRate": "Bounce-Rate (7 Tage)",
+    "delivered": "Zugestellt",
+    "opened": "Geöffnet",
+    "clicked": "Geklickt",
+    "bounced": "Unzustellbar",
+    "recent": "Letzte Nachrichten",
+    "noAccess": "Du darfst das Protokoll nicht einsehen.",
+    "unverifiedWarning": "Du hast eine nicht verifizierte Domain — von dieser sendet ventMail nicht.",
+    "empty": "Noch keine ausgehenden Nachrichten."
+  }
+}

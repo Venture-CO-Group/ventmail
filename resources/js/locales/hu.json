@@ -1,0 +1,48 @@
+{
+  "nav": {
+    "dashboard": "Áttekintés",
+    "platform": "Platform",
+    "studio": "Studio",
+    "console": "Platform-konzol",
+    "domains": "Domainek",
+    "logs": "Napló",
+    "statistics": "Tag-statisztika",
+    "inbound": "Bejövő route-ok",
+    "suppressions": "Tiltólista",
+    "apiKeys": "API-kulcsok",
+    "smtp": "SMTP-hitelesítők",
+    "ipPools": "IP-poolok",
+    "webhooks": "Webhookok",
+    "validation": "Címellenőrzés",
+    "deliverability": "Kézbesíthetőség",
+    "billing": "Számlázás",
+    "audience": "Közönség",
+    "campaigns": "Kampányok",
+    "journeys": "Journey-k",
+    "analytics": "Analitika",
+    "templates": "Sablonok",
+    "forms": "Űrlapok"
+  },
+  "shell": {
+    "workspace": "Workspace",
+    "language": "Nyelv",
+    "logout": "Kilépés",
+    "skipToContent": "Ugrás a tartalomra",
+    "impersonation": "Támogatói nézet: {workspace} — az ÍRÁS TILOS, a nézet {expires} időpontban lejár."
+  },
+  "dashboard": {
+    "title": "Áttekintés",
+    "quota": "Hátralévő kvóta",
+    "domains": "Hitelesített domainek",
+    "suppressions": "Tiltólistás címek",
+    "bounceRate": "Bounce-arány (7 nap)",
+    "delivered": "Kézbesítve",
+    "opened": "Megnyitva",
+    "clicked": "Kattintva",
+    "bounced": "Visszapattant",
+    "recent": "Legutóbbi üzenetek",
+    "noAccess": "A napló megtekintéséhez nincs jogosultságod.",
+    "unverifiedWarning": "Van hitelesítetlen domained — arról a ventMail nem küld.",
+    "empty": "Még nincs kimenő üzenet."
+  }
+}

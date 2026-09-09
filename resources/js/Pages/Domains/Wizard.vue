@@ -2,6 +2,7 @@
 import { router } from '@inertiajs/vue3';
 import { VtButton, VtCard, VtField, VtGlowLine, VtInput, VtTable, type VtColumn } from '@venture/ui';
 import { computed, ref } from 'vue';
+import AppLayout from '../../Layouts/AppLayout.vue';
 
 /**
  * Domain-hitelesítő wizard.
@@ -78,51 +79,51 @@ function rotateDkim(): void {
 </script>
 
 <template>
-    <main>
-        <VtGlowLine />
+    <AppLayout>
+            <VtGlowLine />
 
-        <VtCard>
-            <h1>Küldő domain hitelesítése</h1>
-            <p>
-                Verifikálatlan domainről a ventMail nem küld — ez nem beállítás, hanem szabály.
-                A három rekord (SPF, DKIM, DMARC) mindegyike kell hozzá.
-            </p>
+            <VtCard>
+                <h1>Küldő domain hitelesítése</h1>
+                <p>
+                    Verifikálatlan domainről a ventMail nem küld — ez nem beállítás, hanem szabály.
+                    A három rekord (SPF, DKIM, DMARC) mindegyike kell hozzá.
+                </p>
 
-            <ol data-testid="wizard-steps">
-                <li :aria-current="step === 1 ? 'step' : undefined">Domain megadása</li>
-                <li :aria-current="step === 2 ? 'step' : undefined">DNS-rekordok felvétele</li>
-                <li :aria-current="step === 3 ? 'step' : undefined">Ellenőrzés</li>
-            </ol>
-        </VtCard>
+                <ol data-testid="wizard-steps">
+                    <li :aria-current="step === 1 ? 'step' : undefined">Domain megadása</li>
+                    <li :aria-current="step === 2 ? 'step' : undefined">DNS-rekordok felvétele</li>
+                    <li :aria-current="step === 3 ? 'step' : undefined">Ellenőrzés</li>
+                </ol>
+            </VtCard>
 
-        <VtCard v-if="!domain">
-            <VtField label="Domain" hint="Például: pelda.hu — a feladó címének domainje.">
-                <VtInput v-model="domainName" data-testid="domain-input" placeholder="pelda.hu" />
-            </VtField>
+            <VtCard v-if="!domain">
+                <VtField label="Domain" hint="Például: pelda.hu — a feladó címének domainje.">
+                    <VtInput v-model="domainName" data-testid="domain-input" placeholder="pelda.hu" />
+                </VtField>
 
-            <VtButton data-testid="domain-submit" :disabled="submitting" @click="submitDomain">
-                Domain hozzáadása
-            </VtButton>
-        </VtCard>
+                <VtButton data-testid="domain-submit" :disabled="submitting" @click="submitDomain">
+                    Domain hozzáadása
+                </VtButton>
+            </VtCard>
 
-        <VtCard v-else>
-            <h2>{{ domain.name }}</h2>
-            <p data-testid="domain-status">Állapot: {{ domain.status }}</p>
+            <VtCard v-else>
+                <h2>{{ domain.name }}</h2>
+                <p data-testid="domain-status">Állapot: {{ domain.status }}</p>
 
-            <VtTable
-                :columns="columns"
-                :rows="rows"
-                caption="A hitelesítéshez felveendő DNS-rekordok"
-                data-testid="dns-records"
-            />
+                <VtTable
+                    :columns="columns"
+                    :rows="rows"
+                    caption="A hitelesítéshez felveendő DNS-rekordok"
+                    data-testid="dns-records"
+                />
 
-            <VtButton data-testid="verify-button" :disabled="checking" @click="verify">
-                Ellenőrzés indítása
-            </VtButton>
+                <VtButton data-testid="verify-button" :disabled="checking" @click="verify">
+                    Ellenőrzés indítása
+                </VtButton>
 
-            <VtButton data-testid="rotate-button" @click="rotateDkim">DKIM-kulcs rotálása</VtButton>
-        </VtCard>
-    </main>
+                <VtButton data-testid="rotate-button" @click="rotateDkim">DKIM-kulcs rotálása</VtButton>
+            </VtCard>
+    </AppLayout>
 </template>
 
 <!--

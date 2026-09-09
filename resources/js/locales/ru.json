@@ -1,0 +1,48 @@
+{
+  "nav": {
+    "dashboard": "Обзор",
+    "platform": "Платформа",
+    "studio": "Studio",
+    "console": "Консоль платформы",
+    "domains": "Домены",
+    "logs": "Журнал",
+    "statistics": "Статистика по тегам",
+    "inbound": "Входящие маршруты",
+    "suppressions": "Список блокировки",
+    "apiKeys": "API-ключи",
+    "smtp": "Учётные данные SMTP",
+    "ipPools": "Пулы IP",
+    "webhooks": "Вебхуки",
+    "validation": "Проверка адресов",
+    "deliverability": "Доставляемость",
+    "billing": "Оплата",
+    "audience": "Аудитория",
+    "campaigns": "Кампании",
+    "journeys": "Сценарии",
+    "analytics": "Аналитика",
+    "templates": "Шаблоны",
+    "forms": "Формы"
+  },
+  "shell": {
+    "workspace": "Рабочее пространство",
+    "language": "Язык",
+    "logout": "Выйти",
+    "skipToContent": "Перейти к содержимому",
+    "impersonation": "Режим поддержки: {workspace} — ЗАПИСЬ ЗАПРЕЩЕНА, режим истекает в {expires}."
+  },
+  "dashboard": {
+    "title": "Обзор",
+    "quota": "Остаток квоты",
+    "domains": "Подтверждённые домены",
+    "suppressions": "Заблокированные адреса",
+    "bounceRate": "Доля отказов (7 дней)",
+    "delivered": "Доставлено",
+    "opened": "Открыто",
+    "clicked": "Клики",
+    "bounced": "Отказы",
+    "recent": "Последние сообщения",
+    "noAccess": "У вас нет прав на просмотр журнала.",
+    "unverifiedWarning": "Есть неподтверждённый домен — с него ventMail не отправляет.",
+    "empty": "Исходящих сообщений пока нет."
+  }
+}

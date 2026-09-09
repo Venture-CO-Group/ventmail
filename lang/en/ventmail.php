@@ -24,6 +24,8 @@ return [
     'app' => [
         'name' => 'ventMail',
         'tagline' => 'Email infrastructure for the Venture family',
+        'workspace_switched' => 'Workspace switched.',
+        'locale_switched' => 'Language updated.',
     ],
 
     'gate' => [

@@ -14,6 +14,8 @@ return [
     'app' => [
         'name' => 'ventMail',
         'tagline' => 'Infraestructura de correo para la familia Venture',
+        'workspace_switched' => 'Workspace cambiado.',
+        'locale_switched' => 'Idioma actualizado.',
     ],
     'gate' => [
         'domain_unverified' => 'El dominio de envío no está verificado.',

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { VtCard, VtGlowLine, VtTable, type VtColumn } from '@venture/ui';
+import AppLayout from '../../Layouts/AppLayout.vue';
 
 /**
  * BEJÖVŐ ROUTE-SZABÁLYOK ÉS LEVELEK (A4 · 30. kritérium).
@@ -98,27 +99,29 @@ const messageRows = (): MessageRow[] =>
 </script>
 
 <template>
-    <VtCard>
-        <h1>Bejövő szabályok</h1>
-        <VtGlowLine />
+    <AppLayout>
+        <VtCard>
+            <h1>Bejövő szabályok</h1>
+            <VtGlowLine />
 
-        <p data-testid="inbound-order">
-            A szabályok ebben a sorrendben értékelődnek ki. Az első <code>stop()</code> lezárja a láncot.
-        </p>
+            <p data-testid="inbound-order">
+                A szabályok ebben a sorrendben értékelődnek ki. Az első <code>stop()</code> lezárja a láncot.
+            </p>
 
-        <VtTable :columns="routeColumns" :rows="routeRows()" data-testid="inbound-routes" />
+            <VtTable :columns="routeColumns" :rows="routeRows()" data-testid="inbound-routes" />
 
-        <p v-if="props.routes.length === 0" data-testid="inbound-routes-empty">
-            Még nincs szabály. Szabály nélkül a beérkező levél eltárolódik, és a retenció lejártakor törlődik.
-        </p>
+            <p v-if="props.routes.length === 0" data-testid="inbound-routes-empty">
+                Még nincs szabály. Szabály nélkül a beérkező levél eltárolódik, és a retenció lejártakor törlődik.
+            </p>
 
-        <h2>Utolsó beérkezett levelek</h2>
+            <h2>Utolsó beérkezett levelek</h2>
 
-        <VtTable :columns="messageColumns" :rows="messageRows()" data-testid="inbound-messages" />
+            <VtTable :columns="messageColumns" :rows="messageRows()" data-testid="inbound-messages" />
 
-        <p data-testid="inbound-retention">
-            A beérkezett levél idegen tartalom: rövid retencióval tároljuk, majd a nyers levél és a
-            csatolmányok is törlődnek.
-        </p>
-    </VtCard>
+            <p data-testid="inbound-retention">
+                A beérkezett levél idegen tartalom: rövid retencióval tároljuk, majd a nyers levél és a
+                csatolmányok is törlődnek.
+            </p>
+        </VtCard>
+    </AppLayout>
 </template>
