@@ -29,11 +29,30 @@ test('a hitelesítendő rekordok táblázata a @venture/ui táblát használja',
     const table = page.locator('.vt-table');
     await expect(table).toBeVisible();
 
-    // Mind a négy rekord látszik: SPF, DKIM, DMARC, tracking.
-    await expect(page.locator('.vt-table__row')).toHaveCount(4);
+    /*
+     * MIND A HÉT rekord látszik. A darabszám nem formalitás: ha egy rekord csendben
+     * kiesik a generátorból, az ügyfél olyan zónát állít be, amivel a domain SOSEM lesz
+     * `verified` — és ezt a képernyőn kell észrevenni, nem egy support-ticketből.
+     *
+     * A lista az A4 (inbound MX) és az A6 (MTA-STS, TLS-RPT) óta hét elemű; ez a teszt
+     * négyet várt, és mivel a CI-ban a Playwright-kapu a hiányzó privát csomagok miatt
+     * SOHA nem futott le, a hiba fél éve csendben állt itt.
+     */
+    await expect(page.locator('.vt-table__row')).toHaveCount(7);
+
+    // KÜLDÉS: a hitelesítés három rekordja + a saját domainen futó tracking.
     await expect(page.getByText('v=spf1', { exact: false })).toBeVisible();
     await expect(page.getByText('v=DKIM1', { exact: false })).toBeVisible();
     await expect(page.getByText('v=DMARC1', { exact: false })).toBeVisible();
+    await expect(page.getByText('CNAME', { exact: false }).first()).toBeVisible();
+
+    // TLS-HÁZIREND (A6 · 48. kritérium): az egyik előír, a másik megmutatja, betartják-e.
+    await expect(page.getByText('v=STSv1', { exact: false })).toBeVisible();
+    await expect(page.getByText('v=TLSRPTv1', { exact: false })).toBeVisible();
+
+    // BEJÖVŐ (A4): opcionális, de a wizardnak MEG KELL mutatnia — enélkül a tenant nem
+    // tudja, mit kell beállítania a fogadáshoz.
+    await expect(page.getByText('MX', { exact: true }).first()).toBeVisible();
 });
 
 test('a wizard design-tokeneket használ, nem beégetett értékeket', async ({ page }) => {
