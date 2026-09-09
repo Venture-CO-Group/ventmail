@@ -34,3 +34,11 @@ Thumbs.db
 .env*
 !.env.example
 /.ci
+
+# LOKÁLIS npm-registry hitelesítés. Nem azért, mert titkot tartalmaz (nálunk csak
+# `${VENTURE_PACKAGES_TOKEN}` változó-hivatkozás áll benne), hanem mert egy AUTH-sor
+# tárolt fájlja előbb-utóbb literál tokent kap valakitől — és mert a CI a `@venture`
+# csomagokat testvér-könyvtárból (`file:` link) építi, tehát registry-hitelesítés nélkül is
+# működik. Aki a GitHub Packages registryt használja lokálisan, tartsa a saját `.npmrc`-jét.
+.npmrc
+
