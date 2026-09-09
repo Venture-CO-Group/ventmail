@@ -7,6 +7,7 @@ use App\Modules\Api\Http\Middleware\AuthenticateApiKey;
 use App\Modules\Api\Http\Middleware\AuthorizeChannel;
 use App\Modules\Api\Http\Middleware\RequireApiScope;
 use App\Modules\Api\Http\Middleware\RequireIdempotencyKey;
+use App\Modules\Billing\Http\Middleware\EnsureEntitlement;
 use App\Modules\Tenancy\Http\Middleware\ResolveWorkspace;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Application;
@@ -42,6 +43,11 @@ return Application::configure(basePath: dirname(__DIR__))
             'api.scope' => RequireApiScope::class,
             'api.idempotency' => RequireIdempotencyKey::class,
             'api.channel' => AuthorizeChannel::class,
+            // C1 · CSOMAG-FUNKCIÓ a route-on: `entitlement:journeys`. A spec ezt
+            // nevesíti, és a B3 review megállapította, hogy nem létezett — az
+            // ellenőrzés szolgáltatásokba szórva élt, tehát minden új belépési pontnak
+            // újra meg kellett volna írnia.
+            'entitlement' => EnsureEntitlement::class,
         ]);
 
         // A Laravel alapból a `login` nevű route-ra irányítaná a vendéget — az nálunk nem

@@ -66,7 +66,20 @@ it('a Tenancy modulon kívül senki nem kerüli meg a global scope-ot', function
         // parent saját sora, vagy olyan, aminek a `parent_workspace_id`-je ÉPP EZ a parent;
         // idegen tenant sora egyik ágon sem férhet bele. A `runFor()` a Tenancy SAJÁT
         // kontextus-váltója (a `closeConsolidated()` ezt használja, nem scope-kikapcsolást).
+        // C1 · A DUNNING KÉT okból tenant-független, és mindkettő szándékos.
+        //
+        // (a) A `advance()` PLATFORM-SZINTŰ állapotgép: az ütemezett parancs minden nyitott
+        //     kivonatot léptet, tenant-dimenzió nélkül. Tenantonként futtatva ugyanaz a
+        //     `WHERE due_at <= …` feltétel ezerszer futna le ugyanarra a táblára, és a
+        //     léptetés nem is tenant-döntés — a HATÁRIDŐ dönt.
+        // (b) A `isSuspended()` a SZÁMLÁZOTT workspace állapotát kérdezi, ami egy
+        //     sub-accountnál a PARENT — a global scope viszont a child-ra szűrne, tehát a
+        //     felfüggesztés egy alszámla létrehozásával megkerülhető lenne. A szűrő szigorú
+        //     egyenlőség egy kiszámított id-re.
+        //
+        // Egyik ág sem olvas tenant-TARTALMAT: kizárólag állapotot és határidőt.
         $exceptions = [
+            'Billing/Services/Dunning.php',
             'Billing/Services/MonthlyClose.php',
             'Deliverability/Services/DmarcReportIngestor.php',
             'Deliverability/Http/Controllers/MtaStsController.php',

@@ -95,3 +95,22 @@ Schedule::command('journeys:detect-segment-entries')->everyFiveMinutes()->withou
 
 // A lejárt nyers MIME-levelek törlése (golden rule 10): a levéltest a legsűrűbb PII-tárolónk.
 Schedule::command('messages:purge-raw-mime')->dailyAt('03:20');
+
+/*
+ | C1 · SZÁMLÁZÁS.
+ |
+ | A ZÁRÁS a hónap 1-jén, hajnalban: az előző periódust zárja, tehát a hónap utolsó
+ | küldései már benne vannak. A `withoutOverlapping` kötelező — két párhuzamos zárás
+ | ugyanarra a periódusra az egyedi indexen elhasalna (ami helyes), de a hibás sorok
+ | naplója fölöslegesen zajos lenne.
+ |
+ | A PILLANATKÉP naponta: a csúcs- és állapot-dimenziók (`contacts_peak`,
+ | `dedicated_ips`, `log_retention_tier`) állapotok, nem események — napi felbontásuk a
+ | tenant javára téved, és a gyakoribb mérés nem tenné pontosabbá a SZÁMLÁT.
+ |
+ | A DUNNING naponta: a türelmi idők napokban vannak (7 és 30 nap a határidő után), tehát
+ | a gyakoribb léptetés semmit nem adna.
+ */
+Schedule::command('billing:close')->monthlyOn(1, '04:30')->withoutOverlapping();
+Schedule::command('billing:snapshot')->dailyAt('04:15');
+Schedule::command('billing:dunning')->dailyAt('04:45');

@@ -79,6 +79,9 @@ return [
     // 4. kapu — amíg a ventPay nem él, innen jön a kvóta és az entitlement.
     'fake_entitlement' => [
         'remaining' => (int) env('FAKE_SEND_QUOTA', 10000),
-        'features' => ['journeys', 'custom_domain', 'inbound_routes', 'dedicated_ip'],
+        // MIND AZ ÖT funkció (C1 · 76. kritérium). A `validation_bulk` korábban KIMARADT
+        // ebből a listából, tehát a kötegelt címellenőrzés jogosultsága SOSEM teljesült
+        // volna — egy „engedélyezett" funkció, amit senki nem tud bekapcsolni.
+        'features' => ['journeys', 'custom_domain', 'inbound_routes', 'dedicated_ip', 'validation_bulk'],
     ],
 ];
