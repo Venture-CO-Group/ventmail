@@ -48,6 +48,10 @@ return [
         'pause' => 'A kampány szüneteltetve.',
         'resume' => 'A kampány folytatódik.',
     ],
+    'journeys' => [
+        'activated' => 'A journey aktív.',
+        'paused' => 'A journey szünetel.',
+    ],
     'gate' => [
         'domain_unverified' => 'A küldő domain nincs hitelesítve.',
         'suppressed' => 'A címzett a tiltólistán van.',
@@ -99,5 +103,10 @@ return [
             'down' => 'Kiesett',
             'unknown' => 'Ismeretlen',
         ],
+        'impersonationEnded' => 'A támogatói nézet lezárva.',
+        'overrideGranted' => 'Az override megadva.',
+        'overrideRevoked' => 'Az override visszavonva.',
+        'suppressionAdded' => 'A globális tiltás felvéve.',
+        'suppressionRemoved' => 'A globális tiltás feloldva.',
     ],
 ];

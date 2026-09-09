@@ -48,6 +48,10 @@ return [
         'pause' => 'Campagna in pausa.',
         'resume' => 'Campagna ripresa.',
     ],
+    'journeys' => [
+        'activated' => 'Journey attiva.',
+        'paused' => 'Journey in pausa.',
+    ],
     'gate' => [
         'domain_unverified' => 'Il dominio di invio non è verificato.',
         'suppressed' => 'Il destinatario è nella lista di soppressione.',
@@ -99,5 +103,10 @@ return [
             'down' => 'Non disponibile',
             'unknown' => 'Sconosciuto',
         ],
+        'impersonationEnded' => 'Vista di supporto chiusa.',
+        'overrideGranted' => 'Override concesso.',
+        'overrideRevoked' => 'Override revocato.',
+        'suppressionAdded' => 'Soppressione globale aggiunta.',
+        'suppressionRemoved' => 'Soppressione globale rimossa.',
     ],
 ];

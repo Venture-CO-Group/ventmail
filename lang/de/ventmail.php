@@ -48,6 +48,10 @@ return [
         'pause' => 'Kampagne pausiert.',
         'resume' => 'Kampagne fortgesetzt.',
     ],
+    'journeys' => [
+        'activated' => 'Journey ist aktiv.',
+        'paused' => 'Journey pausiert.',
+    ],
     'gate' => [
         'domain_unverified' => 'Die Absenderdomain ist nicht verifiziert.',
         'suppressed' => 'Der Empfänger steht auf der Sperrliste.',
@@ -99,5 +103,10 @@ return [
             'down' => 'Ausgefallen',
             'unknown' => 'Unbekannt',
         ],
+        'impersonationEnded' => 'Support-Ansicht geschlossen.',
+        'overrideGranted' => 'Override gewährt.',
+        'overrideRevoked' => 'Override widerrufen.',
+        'suppressionAdded' => 'Globale Sperre hinzugefügt.',
+        'suppressionRemoved' => 'Globale Sperre aufgehoben.',
     ],
 ];

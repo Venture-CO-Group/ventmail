@@ -6,7 +6,7 @@
 ## Cél
 **Mailgun + Mailchimp egyidejű kiváltása.** Két pillér (Platform / Studio) egy közös motoron.
 
-## Aktuális milestone: **M4 — FELÜLET** · aktív packet: **nincs (fázisterv kell)**
+## Aktuális milestone: **M4 — FELÜLET** · aktív packet: **M4-5 (platform-konzol) — lezárás alatt**
 *(M0 lezárva: 2026-09-02 · M1 lezárva: 2026-09-08 · M2 backend: 2026-09-09 · M3 backend: 2026-09-09)*
 
 > **A MOTOR KÉSZ, A FELÜLET NEM.** A 89 elfogadási kritérium mindegyike backend-szinten
@@ -425,7 +425,7 @@ platform-napló — mert ugyanabból az esemény-forrásból dolgozik.
     TESZT-BUKÁS, nem futásidejű fallback: egy hiányzó kulcs az angol szöveget mutatná egy
     magyar felületen, és azt senki nem jelenti be.
 
-### C2 ÁLLAPOTA — a backend LEZÁRVA, a PLATFORM-KONZOL FELÜLETE NEM
+### C2 ÁLLAPOTA — a backend ÉS (az M4-5 óta) a KONZOL FELÜLETE IS KÉSZ
 
 A 81–89. kritérium mindegyike **szolgáltatás-szinten** megfigyelhető és tesztelt (53 teszt),
 és minden invariáns, ami elrontható, DB-szinten is védett (impersonation-unicitás,
@@ -433,17 +433,21 @@ override-visszavonás véglegessége, audit-retenció alsó határa).
 
 Amit a packet **NEM** hozott, és ezt kimondjuk, nem elhallgatjuk:
 
-- **Nincs HTTP- és Vue-felület** a SuperAdmin modulban (`route:list` → 0 platform-route). A
-  81., 85., 86. és 87. kritérium szövege „felületet"/„nézetet" mond, a `docs/
-  ventmail-indito-promptok.md` pedig kifejezetten Vue I18n lazy locale bundle-t. **A
-  platform-konzol felülete ÖNÁLLÓ munkafázis** — ugyanaz a döntés, mint a Studio
-  felületénél (M2), és ugyanabba a frontend-fázisba tartozik. Amikor megjön, az egész C2-t
-  ÚJRA kell review-zni: a jogosultsági megállapítások ma mind szolgáltatás-szintűek.
-  **Nevesített előfeltétel a konzol-packetnek:** a `PlanOverride` és az
-  `ImpersonationSession` modellen ma NINCS global scope (szándékosan — platform-adatok,
-  a `TenantModelGuardTest` kivétel-listája indokolja is), tehát az első tenant-felületi
-  lekérdezés minden tenant sorát látná. A konzol route-jaival együtt kell egy
-  platform-only scope, ami kontextussal fail-closed.
+- ~~**Nincs HTTP- és Vue-felület** a SuperAdmin modulban.~~ **MEGVAN az M4-5-ben**:
+  cluster-állapot, támogatói nézet indítása/lezárása, plan-override, globális suppression,
+  IP-felügyelet és audit-kereső — mind `platform.admin`-hoz kötve, minden művelet auditálva.
+  A jogosultsági megállapítások így már HTTP-szinten is mérve vannak (`PlatformConsoleScreenTest`).
+  A két nevesített előfeltétel is lezárva:
+    - ~~platform-only scope a két platform-modellre~~ → **NEM scope**, hanem arch-teszt
+      (`PlatformModelBoundaryTest`): egy jogosultság-figyelő scope a RENDSZER-utakat is
+      elvágná (a `PlanOverrides` a küldési úton fut, ahol nincs bejelentkezett admin —
+      pont a kvóta-override kapcsolna ki csendben). A valódi kockázat egy jövőbeli
+      tenant-képernyő; a teszt azt zárja ki, hogy a MODELLEKHEZ a SuperAdmin modulon kívül
+      bárki hozzányúljon. A szolgáltatás (`PlanOverrides`) marad a kapuzott, auditált
+      belépési pont.
+    - ~~HTTP-szintű írás-tilalom aktív munkamenet alatt~~ → **`EnforceImpersonation`**
+      (M4-0), a `web` csoport egészére, metódus alapján; az egyetlen kivétel a nézet
+      LEZÁRÁSA, mert abból ki kell tudni lépni.
 - **A hat nyelv PHP-oldali** (`lang/*/ventmail.php`), és a C2 óta **load-bearing**: a
   `SetLocale` middleware a bejelentkezett felhasználó `locale`-jából, különben az
   `Accept-Language`-ből választ (mindkettő a támogatott listára szűrve), a `/v1`
@@ -525,25 +529,40 @@ riport-grafikonok), és a Vue I18n lazy locale bundle is EGY bekötés mind a ha
 Ma `resources/js/Pages` alatt **hat** képernyő van (domain-wizard, napló, trace, tag-stat,
 inbound route-ok, smoke), az `e2e/` alatt **három** spec — mind A-sávos.
 
-Amit az M4-nek hoznia kell, nagyjából packet-méretben:
-- **M4-1 · Platform tenant-felület:** domainek, API-kulcsok, SMTP-hitelesítők, IP-poolok +
-  warmup, suppression-lista, címellenőrzés (egyedi + bulk), webhook-végpontok + replay,
-  kézbesíthetőségi áttekintő, számlák/kvóta, sub-accountok.
-- **M4-2 · Studio-felület:** közönség + szegmensek, consent/preference center admin,
-  **block editor** (a block-tree kontraktusra), kampány-varázsló + A/B + ütemezés,
-  **journey-builder**, marketing-riportok.
-- **M4-3 · Platform-konzol (a C2 felülete):** impersonation, plan-override, globális
-  suppression, audit-kereső, cluster-health, IP-felügyelet. **Két nevesített előfeltétel a
-  „C2 állapota" szakaszban** (platform-only scope a két platform-modellre; HTTP-szintű
-  írás-tilalom aktív munkamenet alatt) — ezek a packet ELSŐ lépései, nem utólagos
-  finomítás.
-- **M4-4 · i18n a felületen:** Vue I18n lazy locale bundle (a PHP-oldali hat nyelv és a
-  kulcs-teljességi teszt megvan; a `SetLocale` middleware a kérés nyelvét már beállítja).
-- **Playwright** minden fő flow-ra — ma három spec van, mind A-sávos.
+### M4 packetek — állapot
 
-**Előfeltétel a CI-hoz:** a `VENTURE_PACKAGES_TOKEN` repo-secret nélkül a Frontend és az
-E2E job MINDEN PR-en elhasal (a `@venture/ui` és a `@venture/design` privát csomag). Amíg
-nincs, az M4 munkája nem tud zöld CI-t adni.
+- [x] **M4-0 · App-héj** — navigáció a feloldott képességek szerint, workspace- és
+      nyelvváltó, nyitóképernyő, Vue I18n lazy bundle-ök, `EnforceImpersonation`
+      middleware, olvasási jog a támogatói nézetben. PR #32.
+- [x] **M4-1 · Platform üzemeltetői képernyők** — domainek, API-kulcsok,
+      SMTP-hitelesítők, tiltólista, webhookok (+ kézbesítések, replay). PR #32.
+- [x] **M4-2 · Kézbesíthetőség és pénz** — IP-poolok + warmup, blocklist/DMARC/seed,
+      címellenőrzés (új `validation.run` képességgel), számlázás és fogyás. PR #33.
+- [x] **M4-3 · Studio** — közönség (consent-állapottal), sablonok + blokk-szerkesztő
+      (a szerverről jövő sémára, valódi MJML-előnézettel), kampányok (célzás, becslés,
+      ütemezés, indítás). PR #33.
+- [x] **M4-4 · Journey és analitika** — lépéslánc az `else`-ágakkal, aktiválás
+      lánc-validálással, kampány-riport A/B-bontással és klikk-térképpel.
+- [x] **M4-5 · Platform-konzol** — a C2 felülete, a két nevesített előfeltétellel együtt.
+- [ ] **Hátralévő képernyők:** űrlapok + preference-center admin, tagok és sub-accountok
+      kezelése, sablon-verziók összehasonlítása, kampány A/B-varázsló (a variánsokat ma
+      csak MUTATJA a felület, létrehozni API-ból lehet).
+- [ ] **Vizuális réteg:** a `@venture/ui` hiánylistája (lásd lent) — amíg nincs meg,
+      az elrendezés a `shell.css` token-alapú primitívjeire épül.
+
+~~**Előfeltétel a CI-hoz:** a `VENTURE_PACKAGES_TOKEN` repo-secret.~~ **MEGVAN** — és
+vele együtt kiderült, hogy a Frontend/E2E kapu ezen kívül is három ponton hasalt el
+(csomag-építés, `git+ssh` hivatkozás, hiányzó `AUDIT_PEPPER`), plusz a Playwright-suite
+maga lépte túl a login-limitet. Mind javítva; a négy kapu zöld.
+
+### Amit a `@venture/ui`-nak JELENTÜNK (a képernyők ma nélkülük épülnek)
+
+Hiányzik: (1) stack/cluster/grid layout-primitív, (2) navigációs sáv, (3) állapot-jelző
+„pill", (4) lapozó, (5) fül-váltó, (6) üres-állapot blokk, (7) elrendezés-vászon /
+drag-and-drop lista, (8) szín- és távolság-választó, (9) képfeltöltő mező, (10)
+gráf/folyamat-vászon, (11) elágazás-jelölő. A golden rule szerint ezeket JELENTENI kell,
+nem lokálisan gyártani — a `shell.css` ezért kizárólag token-alapú elrendezést ad
+(egyetlen beégetett érték nélkül), a blokk- és journey-szerkesztő pedig LISTA-alapú.
 
 ## Mi maradt a felületen KÍVÜL (nevesített gazdával)
 

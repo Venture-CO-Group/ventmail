@@ -59,6 +59,10 @@ return [
         'pause' => 'Campaign paused.',
         'resume' => 'Campaign resumed.',
     ],
+    'journeys' => [
+        'activated' => 'Journey is active.',
+        'paused' => 'Journey paused.',
+    ],
     'gate' => [
         'domain_unverified' => 'The sending domain is not verified.',
         'suppressed' => 'The recipient is on the suppression list.',
@@ -115,5 +119,10 @@ return [
             'down' => 'Down',
             'unknown' => 'Unknown',
         ],
+        'impersonationEnded' => 'Support view closed.',
+        'overrideGranted' => 'Override granted.',
+        'overrideRevoked' => 'Override revoked.',
+        'suppressionAdded' => 'Global suppression added.',
+        'suppressionRemoved' => 'Global suppression removed.',
     ],
 ];

@@ -62,6 +62,8 @@ const studio = computed(() =>
         { href: '/audience', id: 'nav-audience', label: t('nav.audience'), show: can('audience.manage') },
         { href: '/templates', id: 'nav-templates', label: t('nav.templates'), show: can('template.create') },
         { href: '/campaigns', id: 'nav-campaigns', label: t('nav.campaigns'), show: can('campaign.create') },
+        { href: '/journeys', id: 'nav-journeys', label: t('nav.journeys'), show: can('campaign.create') },
+        { href: '/analytics', id: 'nav-analytics', label: t('nav.analytics'), show: can('analytics.view') },
     ].filter((item) => item.show),
 );
 
@@ -144,8 +146,26 @@ async function switchLocale(code: string): Promise<void> {
                 </Link>
             </div>
 
+            <!-- A PLATFORM-KONZOL csak platform-adminnak látszik. Ez KÉNYELEM, nem védelem:
+                 a kaput a `platform.admin` képesség adja, minden művelet előtt. -->
             <div v-if="page.props.auth.user?.platformAdmin" class="vm-nav-group" data-testid="nav-console">
                 <span class="vm-nav-group__title vt-eyebrow">{{ t('nav.console') }}</span>
+                <Link
+                    class="vm-nav-link"
+                    href="/platform"
+                    data-testid="nav-platform-console"
+                    :aria-current="$page.url === '/platform' ? 'page' : undefined"
+                >
+                    {{ t('platform.title') }}
+                </Link>
+                <Link
+                    class="vm-nav-link"
+                    href="/platform/audit"
+                    data-testid="nav-platform-audit"
+                    :aria-current="$page.url.startsWith('/platform/audit') ? 'page' : undefined"
+                >
+                    {{ t('platform.auditSearch') }}
+                </Link>
             </div>
 
             <div class="vm-stack">
