@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace App\Modules\Billing\Services;
 
+use App\Modules\Billing\Enums\UsageDimension;
 use App\Modules\Billing\Models\Invoice;
 use App\Modules\Billing\Models\UsageRecord;
 use App\Modules\Tenancy\Models\Workspace;
 use App\Modules\Tenancy\Services\WorkspaceContext;
 use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -39,6 +41,9 @@ use Illuminate\Support\Facades\DB;
  */
 final class MonthlyClose
 {
+    /** A periódus VÉGE után ennyi nappal esedékes a kivonat. */
+    public const DUE_AFTER_DAYS = 15;
+
     public function __construct(private readonly Metering $metering) {}
 
     /**
@@ -69,6 +74,26 @@ final class MonthlyClose
              | inkrementum a kivonat és a fogyás-tábla közé esne: a kivonatban nem
              | lenne benne, a következő periódusban sem — vagyis ELVESZNE.
              */
+            /*
+             | MIND A HAT sor ELŐLÉTREHOZÁSA, majd lezárása.
+             |
+             | A review megmérte, hogy a puszta „létező sorok lezárása" ÁRVA sorokat hagy:
+             | ha egy dimenziónak a zárás pillanatában nem volt sora, egy későbbi
+             | inkrementum ÚJ sort hozott létre `closed_at = NULL`-lal a MÁR LEZÁRT
+             | periódusban (mérve `inbound_counter = 7`), a kivonat pedig `0`-t mutatott —
+             | és mivel a `close()` idempotensen visszatér, az a 7 esemény SOHA nem került
+             | számlára.
+             |
+             | A hat sor előlétrehozásával a periódus MINDEN dimenziója zárt: a
+             | `Metering::write()` `WHERE closed_at IS NULL`-ja innentől mindegyikre fog.
+             */
+            foreach (UsageDimension::values() as $dimension) {
+                UsageRecord::query()->firstOrCreate(
+                    ['period' => $period, 'dimension' => $dimension],
+                    ['value' => 0],
+                );
+            }
+
             UsageRecord::query()
                 ->where('period', $period)
                 ->whereNull('closed_at')
@@ -83,9 +108,17 @@ final class MonthlyClose
                     'period' => $period,
                     'usage' => $final,
                     'dunning_state' => 'open',
-                    // A FIZETÉSI HATÁRIDŐ a periódus utáni 15. nap: a `due` állapotba
-                    // ekkor lép a dunning-állapotgép.
-                    'due_at' => now()->addDays(15),
+                    /*
+                     | A FIZETÉSI HATÁRIDŐ a PERIÓDUSBÓL számol, nem a faliórából.
+                     |
+                     | A `now()->addDays(15)` egy pótló futásnál (`billing:close
+                     | --period=2026-01` szeptemberben) SZEPTEMBERI határidőt adott volna a
+                     | januári kivonatnak — vagyis egy nyolc hónapos tartozás frissnek
+                     | látszott volna.
+                     */
+                    'due_at' => Carbon::createFromFormat('Y-m-d', $period.'-01')
+                        ->endOfMonth()
+                        ->addDays(self::DUE_AFTER_DAYS),
                     'closed_at' => now(),
                 ]);
 
@@ -159,9 +192,22 @@ final class MonthlyClose
         $invoices = Invoice::query()
             ->withoutGlobalScopes()
             ->where('period', $period)
+            /*
+             | A `parent_workspace_id`-t NEM hisszük el — a PIVOT dönt.
+             |
+             | A review megmérte: egy `UPDATE invoices SET parent_workspace_id = <parent>`
+             | egy IDEGEN tenant kivonatán a parent számlájára tette az idegen fogyást
+             | (`total.sends_counter` 35 → 1 000 034), és kiszivárogtatta az idegen
+             | workspace NEVÉT és UUID-jét is — valós `workspace_parents` kapcsolat nélkül.
+             |
+             | A `whereIn` a pivotból jövő child-id-kre szűr: a `parent_workspace_id` így
+             | már csak MEGJELÖLÉS, nem bizonyíték.
+             */
             ->where(fn ($query) => $query
                 ->where('workspace_id', $parent->getKey())
-                ->orWhere('parent_workspace_id', $parent->getKey()))
+                ->orWhere(fn ($child) => $child
+                    ->where('parent_workspace_id', $parent->getKey())
+                    ->whereIn('workspace_id', $parent->children()->pluck('workspaces.id'))))
             ->with('workspace')
             ->get();
 

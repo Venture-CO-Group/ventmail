@@ -25,7 +25,7 @@ final class AuditLogger
     private const REDACTED = [
         'password', 'passphrase', 'secret', 'token', 'key_hash', 'private_key', 'api_key',
         'client_secret', 'credential', 'authorization', 'cookie', 'bearer', 'signature',
-        'refresh', 'code_verifier', 'authorization_code', 'nonce', 'state', 'otp', 'mfa',
+        'refresh', 'code_verifier', 'authorization_code', 'nonce', 'otp', 'mfa',
         'recovery', 'salt', 'pepper', 'session',
     ];
 
@@ -196,9 +196,26 @@ final class AuditLogger
         return $attributes;
     }
 
+    /**
+     * PONTOS EGYEZÉSSEL redaktált kulcsok — nem részsztringgel.
+     *
+     * A `state` az OAuth CSRF-tokenje, és RÖVID, KÖZÖNSÉGES szó: részsztringként bármibe
+     * beletalál, ami „state"-et tartalmaz. A review megmérte, hogy a C1
+     * `dunning_state`-jébe is beletalált, és a felfüggesztés/fizetés ténye a VÁLTOZÁS
+     * ÉRTÉKE NÉLKÜL került az auditba (`{"dunning_state": "[redacted]"}` előtte és utána
+     * is) — vagyis a legdurvább üzemeltetői művelet nyoma használhatatlan lett.
+     *
+     * @var list<string>
+     */
+    private const REDACTED_EXACT = ['state'];
+
     private function isSecretKey(string $key): bool
     {
         $name = strtolower($key);
+
+        if (in_array($name, self::REDACTED_EXACT, true)) {
+            return true;
+        }
 
         foreach (self::REDACTED as $needle) {
             if (str_contains($name, $needle)) {

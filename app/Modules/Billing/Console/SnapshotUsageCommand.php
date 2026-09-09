@@ -39,11 +39,26 @@ final class SnapshotUsageCommand extends Command
     public function handle(WorkspaceContext $context, Metering $metering): int
     {
         $measured = 0;
+        $failed = 0;
 
         $previous = $context->hasWorkspace() ? $context->workspace() : null;
 
         try {
-            Workspace::query()->orderBy('id')->chunkById(50, function ($workspaces) use ($context, $metering, &$measured): void {
+            /*
+             | A `withTrashed()` a ZÁRÓ PARANCCSAL egyezik, és ez nem apróság.
+             |
+             | A review megmérte: a pillanatkép a SoftDeletes scope-pal futott, a zárás
+             | `withTrashed()`-del — tehát egy 5-én törölt workspace-nek EGYETLEN fogyás-sora
+             | sem lett, kivonata viszont készült. Az 5-ei `dedicated_ips`/
+             | `log_retention_tier` értékkel az egész hónapra ki lett volna számlázva, a
+             | `contacts_peak`-je pedig 5-én megállt.
+             |
+             | A HELYES viselkedés a törölt workspace MÉRÉSE a periódus végéig: az
+             | offboarding hónapjában a tárolás és az IP-k még a miénket terhelték, és a
+             | tenant a hónap közepéig valóban használta a rendszert. A törlés utáni
+             | napokon a mért érték magától nullára esik (nincs kontakt, nincs pool).
+             */
+            Workspace::query()->withTrashed()->orderBy('id')->chunkById(50, function ($workspaces) use ($context, $metering, &$measured, &$failed): void {
                 foreach ($workspaces as $workspace) {
                     $context->set($workspace);
 
@@ -59,8 +74,27 @@ final class SnapshotUsageCommand extends Command
                          */
                         $metering->observePeak(UsageDimension::ContactsPeak, Contact::query()->count());
 
-                        // A DEDIKÁLT IP-k: pillanatkép, nem összeg.
-                        $metering->snapshot(UsageDimension::DedicatedIps, IpAddress::query()->count());
+                        /*
+                         | A DEDIKÁLT IP-k — a TENANT SAJÁT poolján át, nem platform-szinten.
+                         |
+                         | Az `IpAddress` SZÁNDÉKOSAN nem workspace-hez kötött (a modell
+                         | docblockja ezt kimondja: a küldő IP a MI infrastruktúránk), tehát
+                         | nincs rajta global scope — és a puszta `IpAddress::count()`
+                         | PLATFORM-SZINTŰ. A review ezt megmérte: A-tenant 1 dedikált IP,
+                         | B-tenant 2, megosztott platform-pool 4 → MINDKETTŐ
+                         | `dedicated_ips = 7` lett. Vagyis minden tenant kifizette a teljes
+                         | IP-készletet, beleértve a megosztott poolt, amiért senki nem fizet
+                         | külön — és ez a hat dimenzió közül a legdrágább tétel.
+                         |
+                         | A tenant-kötés a POOLON van (`ip_pools.workspace_id`), és csak a
+                         | `dedicated` típus fizetendő: a megosztott pool a platform
+                         | alapszolgáltatása, ami a csomag árában van.
+                         */
+                        $metering->snapshot(UsageDimension::DedicatedIps, IpAddress::query()
+                            ->whereHas('pool', fn ($pool) => $pool
+                                ->where('workspace_id', $workspace->getKey())
+                                ->where('type', 'dedicated'))
+                            ->count());
 
                         // A RETENCIÓS TIER: a jelenlegi beállítás napokban. A plan-függő
                         // értéket a ventPay adja majd; addig a config a forrás.
@@ -74,10 +108,15 @@ final class SnapshotUsageCommand extends Command
                         // EGY TENANT HIBÁJA nem állítja meg a mérést: a többi fogyása nem
                         // veszhet el egy hibás workspace miatt.
                         $this->warn(sprintf(
-                            'A(z) %s mérése elhasalt: %s',
+                            'A(z) %s mérése elhasalt: %s — %s',
                             (string) $workspace->uuid,
-                            $e::class
+                            $e::class,
+                            $e->getMessage()
                         ));
+
+                        report($e);
+
+                        $failed++;
                     }
                 }
             });
@@ -85,8 +124,10 @@ final class SnapshotUsageCommand extends Command
             $previous === null ? $context->forget() : $context->set($previous);
         }
 
-        $this->info("Mért workspace: {$measured}");
+        $this->info("Mért workspace: {$measured}, hibás: {$failed}");
 
-        return self::SUCCESS;
+        // A HIBÁS MÉRÉS NEM SIKER: egy kimaradt `contacts_peak` a hónap végén alul- vagy
+        // felülszámlázás, és az ütemezőnek tudnia kell róla.
+        return $failed > 0 ? self::FAILURE : self::SUCCESS;
     }
 }

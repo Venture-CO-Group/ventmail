@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Modules\Audience\Models\Contact;
+use App\Modules\Audit\Models\AuditLog;
 use App\Modules\Billing\Enums\Feature;
 use App\Modules\Billing\Enums\UsageDimension;
 use App\Modules\Billing\Models\Invoice;
@@ -14,12 +15,22 @@ use App\Modules\Billing\Services\MonthlyClose;
 use App\Modules\Consent\Services\ConsentRecorder;
 use App\Modules\Domains\Models\Domain;
 use App\Modules\Identity\Models\ApiKey;
+use App\Modules\Inbound\Contracts\RawMailStore;
+use App\Modules\Inbound\Models\InboundMessage;
+use App\Modules\Inbound\Services\InboundIngest;
+use App\Modules\Inbound\Services\VerifiedInboundResolver;
+use App\Modules\Inbound\Testing\FakeRawMailStore;
+use App\Modules\IpPools\Models\IpAddress;
+use App\Modules\IpPools\Models\IpPool;
 use App\Modules\Sending\Actions\SendMessage;
+use App\Modules\Sending\Drivers\FakeDriver;
+use App\Modules\Smtp\Data\SmtpEnvelope;
 use App\Modules\Tenancy\Models\Workspace;
 use App\Modules\Tenancy\Services\WorkspaceContext;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 uses(RefreshDatabase::class);
 
@@ -36,6 +47,10 @@ uses(RefreshDatabase::class);
  */
 
 beforeEach(function () {
+    // A `FakeDriver::$sent` STATIKUS: a korábbi tesztek küldései különben beszivárognak,
+    // és egy „nulla levél" állítás a szomszéd teszt forgalmát látja.
+    FakeDriver::reset();
+
     $this->workspace = Workspace::factory()->create();
     app(WorkspaceContext::class)->set($this->workspace);
 
@@ -380,6 +395,17 @@ it('a DUNNING-ÁLLAPOTGÉP végigmegy, és a `suspended` a PRESENDGATE-en FOG', 
 
     expect($invoice->dunning_state)->toBe('open');
 
+    /*
+     | A PERIÓDUS RENDEZETLEN — a ventPay szava, nem a mi óránk.
+     |
+     | Enélkül az állapotgép SEMMIT nem léptet, és ez a HELYES alapérték: a
+     | `FakeVentPayClient` mindent rendezettnek jelent, amíg a ventPay nem él. A review
+     | megmérte, hogy a fordított alapérték ~45 nappal az első zárás után MINDEN tenantot
+     | felfüggesztett — fizetési információ nélkül, `markPaid()` hívó nélkül, vagyis a
+     | platform önmagát állította volna le.
+     */
+    config(['sending.fake_entitlement.unsettled' => [$period]]);
+
     // A HATÁRIDŐ lejár → `due`.
     $this->travelTo($invoice->due_at->copy()->addDay());
     $dunning->advance();
@@ -425,7 +451,14 @@ it('a RENDEZÉS visszaadja a küldés jogát', function () {
 
     expect(app(Dunning::class)->isSuspended($this->workspace))->toBeTrue();
 
-    app(Dunning::class)->markPaid($invoice);
+    /*
+     | A RENDEZÉS a ventPay szava — és a `advance()` az, ami továbbítja.
+     |
+     | A `markPaid()`-nek eredetileg NULLA produkciós hívója volt: se webhook, se parancs,
+     | se route. Az állapotgépnek volt bemenete és nem volt kimenete. Most a `advance()`
+     | kérdezi meg a ventPay-t, tehát a rendezés a NORMÁL napi futáson érkezik meg.
+     */
+    app(Dunning::class)->advance();
 
     expect($invoice->fresh()->dunning_state)->toBe('paid')
         ->and($invoice->fresh()->paid_at)->not->toBeNull()
@@ -513,7 +546,12 @@ it('a DUNNING-PARANCS legfeljebb EGY állapotot léptet futásonként', function
      */
     app(Metering::class)->increment(UsageDimension::Sends, 1);
 
-    $invoice = app(MonthlyClose::class)->close($this->workspace, app(Metering::class)->period());
+    $period = app(Metering::class)->period();
+    $invoice = app(MonthlyClose::class)->close($this->workspace, $period);
+
+    // RENDEZETLEN periódus: enélkül a `settle()` azonnal `paid`-re zárná (lásd a fenti
+    // teszt indoklását).
+    config(['sending.fake_entitlement.unsettled' => [$period]]);
 
     // NAGYON KÉSETT: minden határidő lejárt.
     $this->travelTo($invoice->due_at->copy()->addDays(60));
@@ -566,4 +604,423 @@ it('a FELFÜGGESZTÉS a SUB-ACCOUNTOT is megállítja', function () {
         expect($result->decision->allowed)->toBeFalse()
             ->and($result->decision->reason)->toBe('QUOTA_EXCEEDED');
     });
+});
+
+/*
+ | A REVIEW-BAN MÉRT HIBÁK regressziós tesztjei (reviewer + security).
+ */
+
+it('a TESTMODE NEM számlázódik — a levél nem is megy ki', function () {
+    // A Mailgun (a paritás-cél) a testmode-ot nem számlázza, és az SMTP-n ez nem egyszeri
+    // állapot: egy tartósan tesztmódban álló hitelesítő MINDEN beadott levél után fizetett
+    // volna. Épp a CI-integrációt büntettük.
+    confirmed();
+
+    app(SendMessage::class)([
+        'channel' => 'transactional',
+        'from_email' => 'no-reply@pelda.hu',
+        'to' => ['anna@pelda.hu'],
+        'subject' => 'Szia',
+        'html' => '<p>Szia</p>',
+        'testmode' => true,
+        'idempotency_key' => 'testmode-nincs-fogyas',
+    ]);
+
+    expect(app(Metering::class)->current(UsageDimension::Sends))->toBe(0)
+        ->and(FakeDriver::$sent)->toHaveCount(0);
+});
+
+it('az ÜTEMEZETT küldés a KIKÜLDÉSKOR fizet, és az elutasított NEM', function () {
+    /*
+     | A MÉRT HIBA: `deliverytime = +5 min` → `sends_counter` +1; utána a domain
+     | deverifikálva → a dispatcher `DOMAIN_UNVERIFIED`-del ELUTASÍTOTTA a levelet, és az
+     | inkrementum BENT MARADT. A packet fő garanciája („a kapu által elutasított küldés
+     | nem számlázódik") pont azon az úton volt hamis, ahol a kapu-döntés VÁLTOZNI szokott.
+     */
+    confirmed();
+
+    $result = app(SendMessage::class)([
+        'channel' => 'transactional',
+        'from_email' => 'no-reply@pelda.hu',
+        'to' => ['anna@pelda.hu'],
+        'subject' => 'Szia',
+        'html' => '<p>Szia</p>',
+        'deliverytime' => now()->addMinutes(5)->toIso8601String(),
+        'idempotency_key' => 'utemezett-1',
+    ]);
+
+    expect($result->message->status)->toBe('scheduled')
+        // AZ ELFOGADÁS MÉG NEM FOGYÁS.
+        ->and(app(Metering::class)->current(UsageDimension::Sends))->toBe(0);
+
+    // A DOMAIN közben elveszti a verifikációt.
+    Domain::query()->where('name', 'pelda.hu')->update(['status' => 'pending', 'verified_at' => null]);
+
+    $this->travel(10)->minutes();
+
+    $this->artisan('messages:dispatch-scheduled')->assertSuccessful();
+
+    expect($result->message->fresh()->status)->toBe('rejected')
+        // ÉS NEM SZÁMLÁZÓDOTT: a rendszer maga állította meg a levelet.
+        ->and(app(Metering::class)->current(UsageDimension::Sends))->toBe(0);
+});
+
+it('az ÜTEMEZETT küldés a SIKERES kiküldéskor MÉR', function () {
+    // A másik irány: ami valóban kimegy, azt ki kell számlázni — különben az ütemezés
+    // ingyen küldés lenne.
+    confirmed();
+
+    app(SendMessage::class)([
+        'channel' => 'transactional',
+        'from_email' => 'no-reply@pelda.hu',
+        'to' => ['anna@pelda.hu'],
+        'subject' => 'Szia',
+        'html' => '<p>Szia</p>',
+        'deliverytime' => now()->addMinutes(5)->toIso8601String(),
+        'idempotency_key' => 'utemezett-2',
+    ]);
+
+    $this->travel(10)->minutes();
+
+    $this->artisan('messages:dispatch-scheduled')->assertSuccessful();
+
+    expect(app(Metering::class)->current(UsageDimension::Sends))->toBe(1);
+});
+
+it('a BEÉRKEZŐ LEVÉL a valódi fogadási úton mér', function () {
+    /*
+     | A 75. kritérium kifejezetten HTTP/parancs-szintű bizonyítást kér. Az `inbound_counter`
+     | korábban csak az enum-listázásban és elvárt nullaként szerepelt: ha valaki törli a
+     | mérés sorát az `InboundIngest`-ből, egyetlen teszt sem lett volna piros.
+     |
+     | A teszt az `InboundIngest::accept()`-en megy át — azon a szolgáltatáson, ami a levél
+     | ÁTVÉTELÉÉRT felel, és ami a `250 OK`-t adja a küldőnek. Az MX-protokoll részleteit a
+     | `tests/Feature/Inbound` fedi; itt a MÉRÉS bekötése a kérdés.
+     */
+    Domain::query()->where('name', 'pelda.hu')->update(['inbound_mx_status' => 'verified']);
+
+    // A NYERS MIME tárolója fake: az éles a Wasabin ír, és a fogadás a tárolás UTÁN mér —
+    // egy elhasalt `put()` mellett a mérés sem futna le, és a teszt a rossz dolgot mérné.
+    $this->app->instance(RawMailStore::class, new FakeRawMailStore);
+
+    $recipient = app(VerifiedInboundResolver::class)->resolve('info@pelda.hu');
+
+    expect($recipient)->not->toBeNull('a bejövő címzett nem oldódott fel');
+
+    $reply = app(InboundIngest::class)->accept(
+        [$recipient],
+        new SmtpEnvelope('kuldo@kulso.example', ['info@pelda.hu']),
+        "From: kuldo@kulso.example\r\nTo: info@pelda.hu\r\nSubject: Szia\r\n\r\nSzia.\r\n",
+    );
+
+    // A LEVÉL ÁTVÉVE — enélkül a fogyás-állítás a rossz dolgot mérné.
+    expect($reply->code)->toBe(250)
+        ->and(InboundMessage::query()->count())->toBe(1)
+        ->and(app(Metering::class)->current(UsageDimension::Inbound))->toBe(1);
+});
+
+it('a CÍMELLENŐRZÉS a valódi API-úton mér', function () {
+    ['plain' => $kulcs] = ApiKey::issue('Validate', ['validate:run']);
+
+    $this->withHeader('Authorization', 'Bearer '.$kulcs)
+        ->postJson('/v1/validate', ['address' => 'anna@pelda.hu'])
+        ->assertOk();
+
+    expect(app(Metering::class)->current(UsageDimension::Validations))->toBe(1);
+});
+
+it('a DEDIKÁLT IP-k a TENANT SAJÁT poolján számolódnak, nem platform-szinten', function () {
+    /*
+     | A MÉRT HIBA: az `IpAddress` SZÁNDÉKOSAN nem workspace-hez kötött (a küldő IP a MI
+     | infrastruktúránk), tehát a puszta `IpAddress::count()` PLATFORM-SZINTŰ volt.
+     | A review megmérte: A-tenant 1 dedikált IP, B-tenant 2, megosztott pool 4 →
+     | MINDKETTŐ `dedicated_ips = 7`. Minden tenant kifizette a teljes IP-készletet,
+     | beleértve a megosztott poolt, amiért senki nem fizet külön — és ez a hat dimenzió
+     | közül a legdrágább tétel. Ráadásul a `usage_records` soron át minden tenant megtudta
+     | a platform IP-darabszámát.
+     */
+    $sajat = IpPool::create(['name' => 'Saját', 'type' => 'dedicated']);
+    IpAddress::create(['ip_pool_id' => $sajat->getKey(), 'address' => '203.0.113.10', 'hostname' => 'a.pelda.hu']);
+    IpAddress::create(['ip_pool_id' => $sajat->getKey(), 'address' => '203.0.113.11', 'hostname' => 'b.pelda.hu']);
+
+    /*
+     | MEGOSZTOTT platform-pool (`workspace_id = null`): a csomag árában van, tehát nem
+     | fizetendő tételként. A `workspace_id` szándékosan NEM `fillable` (a
+     | `BelongsToWorkspace` a kontextusból tölti), ezért a platform-poolt nyers írással
+     | hozzuk létre — pontosan ahogy egy platform-provisioning parancs tenné.
+     */
+    $megosztottId = DB::table('ip_pools')->insertGetId([
+        'uuid' => (string) Str::uuid7(),
+        'workspace_id' => null,
+        'name' => 'Megosztott',
+        'type' => 'shared',
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    IpAddress::create(['ip_pool_id' => $megosztottId, 'address' => '203.0.113.99', 'hostname' => 'shared.ventmail.app']);
+
+    // EGY MÁS tenant dedikált IP-je.
+    $masik = Workspace::factory()->create();
+    app(WorkspaceContext::class)->runFor($masik, function () {
+        $pool = IpPool::create(['name' => 'Idegen', 'type' => 'dedicated']);
+        IpAddress::create(['ip_pool_id' => $pool->getKey(), 'address' => '203.0.113.50', 'hostname' => 'idegen.hu']);
+    });
+
+    $this->artisan('billing:snapshot')->assertSuccessful();
+
+    // CSAK a SAJÁT dedikált IP-k: kettő.
+    expect(app(Metering::class)->current(UsageDimension::DedicatedIps))->toBe(2);
+});
+
+it('a FOLYÓ és a JÖVŐBELI periódus NEM zárható', function () {
+    /*
+     | A MÉRT HIBA: a folyó periódus lezárása CSENDES ingyen küldést adott — a zárás után
+     | öt kiküldött levél, `sends_counter` VÁLTOZATLAN, nulla kivétel, nulla naplósor. A
+     | `Metering` „csendben kihagyom" ága a késve érkező webhookra helyes, de nem szabad
+     | ugyanígy elnyelnie egy ÉLŐ küldést.
+     */
+    $this->artisan('billing:close', ['--period' => now()->utc()->format('Y-m')])->assertFailed();
+    $this->artisan('billing:close', ['--period' => '2030-01'])->assertFailed();
+
+    expect(Invoice::query()->withoutGlobalScopes()->count())->toBe(0);
+});
+
+it('a LEZÁRT periódus MINDEN dimenziója zárt — nincs árva fogyás-sor', function () {
+    /*
+     | A MÉRT HIBA: a zárás csak a LÉTEZŐ sorokat zárta, az `isClosed()` pedig dimenzióra
+     | szűrt. Egy dimenzió, aminek a zárás pillanatában nem volt sora, ÚJ sort kapott
+     | `closed_at = NULL`-lal a MÁR LEZÁRT periódusban (mérve `inbound_counter = 7`), a
+     | kivonat pedig `0`-t mutatott — és mivel a `close()` idempotensen visszatér, az a 7
+     | esemény SOHA nem került számlára.
+     */
+    $metering = app(Metering::class);
+    $period = $metering->period();
+
+    // CSAK a küldés-számláló létezik a zárás pillanatában.
+    $metering->increment(UsageDimension::Sends, 6);
+
+    app(MonthlyClose::class)->close($this->workspace, $period);
+
+    // EGY MÁSIK dimenzió késve érkező fogyása.
+    $metering->increment(UsageDimension::Inbound, 7);
+
+    expect($metering->current(UsageDimension::Inbound))->toBe(0)
+        ->and(UsageRecord::query()->whereNull('closed_at')->count())->toBe(0)
+        // MIND A HAT sor létezik és zárt.
+        ->and(UsageRecord::query()->where('period', $period)->count())->toBe(6);
+});
+
+it('a LEZÁRT fogyás nem NYITHATÓ ÚJRA és nem TÖRÖLHETŐ', function () {
+    /*
+     | A MÉRT HIBA: a régi trigger feltétele `new.closed_at is not null` volt, tehát a
+     | `closed_at` egyidejű nullázása teljesen kikerülte — EGY `UPDATE` elég volt. A
+     | `DELETE` pedig egyáltalán nem volt őrizve (`before update` only).
+     */
+    app(Metering::class)->increment(UsageDimension::Sends, 5);
+    app(MonthlyClose::class)->close($this->workspace, app(Metering::class)->period());
+
+    $savepoint = static fn (callable $write): callable => static fn () => DB::transaction($write);
+
+    // EGY utasításban nullázni és átírni: nem megy.
+    expect($savepoint(fn () => DB::table('usage_records')
+        ->update(['value' => 0, 'closed_at' => null])))
+        ->toThrow(QueryException::class, 'auditált művelet');
+
+    // Csak a lezárást visszavonni: szintén nem.
+    expect($savepoint(fn () => DB::table('usage_records')->update(['closed_at' => null])))
+        ->toThrow(QueryException::class, 'auditált művelet');
+
+    // Törölni sem.
+    expect($savepoint(fn () => DB::table('usage_records')->delete()))
+        ->toThrow(QueryException::class, 'nem törölhető');
+
+    expect((int) DB::table('usage_records')->where('dimension', 'sends_counter')->value('value'))->toBe(5);
+});
+
+it('a KIVONAT fogyás-adata megváltoztathatatlan, és a kivonat nem törölhető', function () {
+    /*
+     | A MÉRT HIBA: az `invoices` táblán NULLA trigger volt. A `usage` átírható volt, a
+     | `dunning_state` `paid`-re állítható (felfüggesztés feloldása FIZETÉS NÉLKÜL), a
+     | kivonat törölhető, és egy nem létező állapot (`ingyen_kuldes`) VÉGLEG kivette a
+     | kivonatot az állapotgépből — egy 90 napos tartozás három `advance()` után is ott
+     | állt, mert egyetlen `where` sem illeszkedett rá.
+     */
+    app(Metering::class)->increment(UsageDimension::Sends, 3);
+
+    $invoice = app(MonthlyClose::class)->close($this->workspace, app(Metering::class)->period());
+
+    $savepoint = static fn (callable $write): callable => static fn () => DB::transaction($write);
+
+    expect($savepoint(fn () => DB::table('invoices')->where('id', $invoice->getKey())
+        ->update(['usage' => json_encode(['sends_counter' => 0])])))
+        ->toThrow(QueryException::class, 'LEZÁRT dokumentum');
+
+    expect($savepoint(fn () => DB::table('invoices')->where('id', $invoice->getKey())->delete()))
+        ->toThrow(QueryException::class, 'nem törölhető');
+
+    // A NEM LÉTEZŐ állapot sem: a CHECK constraint zár.
+    expect($savepoint(fn () => DB::table('invoices')->where('id', $invoice->getKey())
+        ->update(['dunning_state' => 'ingyen_kuldes'])))
+        ->toThrow(QueryException::class, 'invoices_dunning_state_check');
+
+    // …az ÁLLAPOTVÁLTÁS viszont megy: az az állapotgép munkája.
+    DB::table('invoices')->where('id', $invoice->getKey())->update(['dunning_state' => 'due']);
+
+    expect($invoice->fresh()->dunning_state)->toBe('due');
+});
+
+it('a FELFÜGGESZTÉS nem kapcsolható ki a PARENT-KAPCSOLAT átírásával', function () {
+    /*
+     | A MÉRT HIBA: az `isSuspended()` a parentet kérdezte, és ha volt parent, a workspace
+     | SAJÁT kivonatát SOHA nem nézte meg. A review megmérte:
+     |
+     |     isSuspended(felfüggesztett) = true
+     |     → parent-kapcsolat felvéve egy TISZTA parent alá
+     |     → isSuspended = false, és a küldés `delivered` lett
+     |
+     | A packet kommentje csak az egyik irányt védte („alszámla létrehozásával
+     | megkerülhető"); a felfüggesztett fiók BEKÖLTÖZÉSE egy tiszta parent alá nyitva volt.
+     */
+    app(Metering::class)->increment(UsageDimension::Sends, 1);
+
+    $invoice = app(MonthlyClose::class)->close($this->workspace, app(Metering::class)->period());
+    $invoice->forceFill(['dunning_state' => 'suspended', 'suspended_at' => now()])->save();
+
+    expect(app(Dunning::class)->isSuspended($this->workspace))->toBeTrue();
+
+    // BEKÖLTÖZÉS egy TISZTA parent alá.
+    $tisztaParent = Workspace::factory()->create(['name' => 'Tiszta']);
+    $tisztaParent->children()->attach($this->workspace, ['permissions' => '{}']);
+
+    // A FELFÜGGESZTÉS MEGMARAD: a saját kivonata is számít.
+    expect(app(Dunning::class)->isSuspended($this->workspace->fresh()))->toBeTrue();
+});
+
+it('a KONSZOLIDÁLÁS a PIVOTOT ellenőrzi, nem a `parent_workspace_id`-t hiszi el', function () {
+    /*
+     | A MÉRT HIBA: egy `UPDATE invoices SET parent_workspace_id = <parent>` egy IDEGEN
+     | tenant kivonatán a parent számlájára tette az idegen fogyást
+     | (`total.sends_counter` 35 → 1 000 034), és kiszivárogtatta az idegen workspace NEVÉT
+     | és UUID-jét is — valós `workspace_parents` kapcsolat NÉLKÜL.
+     */
+    $parent = $this->workspace;
+    $period = app(Metering::class)->period();
+
+    app(Metering::class)->increment(UsageDimension::Sends, 10);
+
+    $idegen = Workspace::factory()->create(['name' => 'Idegen-Titkos-Ceg']);
+
+    app(WorkspaceContext::class)->runFor($idegen, function () use ($idegen, $period) {
+        app(Metering::class)->increment(UsageDimension::Sends, 999999);
+        app(MonthlyClose::class)->close($idegen, $period);
+    });
+
+    app(MonthlyClose::class)->closeConsolidated($parent, $period);
+
+    // A TÁMADÁS: az idegen kivonat parent-jelölésének átírása.
+    DB::table('invoices')->where('workspace_id', $idegen->getKey())
+        ->update(['parent_workspace_id' => $parent->getKey()]);
+
+    $consolidated = app(MonthlyClose::class)->consolidated($parent, $period);
+
+    // A PIVOT dönt: az idegen fogyás NEM kerül a parent számlájára, és a neve sem szivárog.
+    expect($consolidated['total']['sends_counter'])->toBe(10)
+        ->and($consolidated['children'])->toBeEmpty()
+        ->and(json_encode($consolidated))->not->toContain('Idegen-Titkos-Ceg');
+});
+
+it('a SOFT-DELETED workspace felfüggesztése FAIL-CLOSED', function () {
+    /*
+     | A MÉRT HIBA: a `Workspace` soft-deletes-es, a `belongsTo` reláció a trashed sort nem
+     | hozza, és a null-ág CSENDBEN átengedte a küldést: felfüggesztett + soft-deleted
+     | workspace → `status = delivered`. Pénzügyi kapunál a „nem tudom" nem lehet „engedem".
+     */
+    confirmed();
+
+    app(Metering::class)->increment(UsageDimension::Sends, 1);
+
+    $invoice = app(MonthlyClose::class)->close($this->workspace, app(Metering::class)->period());
+    $invoice->forceFill(['dunning_state' => 'suspended', 'suspended_at' => now()])->save();
+
+    $this->workspace->delete();
+
+    $result = app(SendMessage::class)([
+        'channel' => 'transactional',
+        'from_email' => 'no-reply@pelda.hu',
+        'to' => ['anna@pelda.hu'],
+        'subject' => 'Szia',
+        'html' => '<p>Szia</p>',
+        'idempotency_key' => 'torolt-workspace',
+    ]);
+
+    expect($result->decision->allowed)->toBeFalse();
+});
+
+it('a SUB-ACCOUNT a PARENT csomagját használja — workspace-re kulcsolt fake-kel mérve', function () {
+    /*
+     | A korábbi fake ELDOBTA a `$workspaceId`-t, tehát a `EntitlementChecker` egyetlen
+     | létjogosultsága — „a sub-account a parent csomagját használja" — semmivel nem volt
+     | bizonyítva: a teszt akkor is zöld lett volna, ha a `billableId()` bármilyen számot
+     | ad vissza.
+     */
+    $parent = $this->workspace;
+    $child = Workspace::factory()->create(['name' => 'Alszámla']);
+    $parent->children()->attach($child, ['permissions' => '{}']);
+
+    // A PARENT csomagjában van a journeys, a CHILD sajátjában NINCS.
+    config(['sending.fake_entitlement.per_workspace' => [
+        $parent->getKey() => ['journeys'],
+        $child->getKey() => [],
+    ]]);
+
+    $checker = app(EntitlementChecker::class);
+
+    expect($checker->allows($parent, Feature::Journeys))->toBeTrue()
+        // A CHILD a PARENT csomagját kapja, nem a sajátját.
+        ->and($checker->allows($child, Feature::Journeys))->toBeTrue();
+
+    // …és ha a PARENT csomagjából kivesszük, a child is elveszíti.
+    config(['sending.fake_entitlement.per_workspace' => [
+        $parent->getKey() => [],
+        $child->getKey() => ['journeys'],
+    ]]);
+
+    expect($checker->allows($child, Feature::Journeys))->toBeFalse();
+});
+
+it('a DUNNING-LÉPTETÉS AUDITÁLT, és az állapot LÁTSZIK a nyomban', function () {
+    /*
+     | KÉT mért hiba egy tesztben:
+     |
+     | 1. a `transition()` tömeges `update()`-et használ, ami NEM tüzel modell-eventet,
+     |    tehát az `Auditable` nem futott: egy `open → due` léptetés után az audit-sorok
+     |    száma VÁLTOZATLAN maradt;
+     | 2. az `AuditLogger` REDACTED listájában szereplő `state` needle (az OAuth `state`-re
+     |    szánva) BELETALÁLT a `dunning_state`-be, tehát a felfüggesztés ténye a VÁLTOZÁS
+     |    ÉRTÉKE NÉLKÜL került be (`{"dunning_state": "[redacted]"}` előtte és utána is).
+     |
+     | A felfüggesztés a legdurvább eszköz — pont ennek kell nyomot hagynia (golden rule 11).
+     */
+    $period = app(Metering::class)->period();
+
+    app(Metering::class)->increment(UsageDimension::Sends, 1);
+    $invoice = app(MonthlyClose::class)->close($this->workspace, $period);
+
+    config(['sending.fake_entitlement.unsettled' => [$period]]);
+
+    $this->travelTo($invoice->due_at->copy()->addDay());
+
+    $elotte = AuditLog::query()->count();
+
+    app(Dunning::class)->advance();
+
+    $auditok = AuditLog::query()->where('action', 'billing.dunning_transition')->get();
+
+    expect(AuditLog::query()->count())->toBeGreaterThan($elotte)
+        ->and($auditok)->not->toBeEmpty();
+
+    // AZ ÁLLAPOT LÁTSZIK, nem `[redacted]`.
+    expect(json_encode($auditok->first()->context))->toContain('due')
+        ->and(json_encode($auditok->first()->context))->not->toContain('redacted');
 });

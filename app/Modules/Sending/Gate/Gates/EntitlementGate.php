@@ -45,9 +45,24 @@ final class EntitlementGate implements Gate
          | A sub-account a PARENT állapotát viszi — különben a felfüggesztés egy alszámla
          | létrehozásával megkerülhető lenne.
          */
-        $workspace = $message->workspace;
+        /*
+         | A `withTrashed()` NEM opcionális, és a `null` FAIL-CLOSED.
+         |
+         | A `Workspace` soft-deletes-es, tehát a sima `belongsTo` reláció egy törölt
+         | tenantnál `null`-t ad — a review megmérte, hogy ilyenkor a felfüggesztés-ág
+         | CSENDBEN átengedte a küldést: felfüggesztett + soft-deleted workspace →
+         | `status = delivered`. Pénzügyi kapunál a „nem tudom" nem lehet „engedem".
+         */
+        $workspace = $message->workspace()->withTrashed()->first();
 
-        if ($workspace !== null && $this->dunning->isSuspended($workspace)) {
+        if ($workspace === null) {
+            return GateResult::reject(
+                GateReason::GateError,
+                'A workspace nem feloldható — a számlázási állapot nem ellenőrizhető.'
+            );
+        }
+
+        if ($this->dunning->isSuspended($workspace)) {
             return GateResult::reject(
                 GateReason::QuotaExceeded,
                 'A fiók fizetés miatt felfüggesztve — a rendezés azonnal visszaadja a küldés jogát.'

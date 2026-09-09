@@ -78,8 +78,19 @@ it('a Tenancy modulon kívül senki nem kerüli meg a global scope-ot', function
         //     egyenlőség egy kiszámított id-re.
         //
         // Egyik ág sem olvas tenant-TARTALMAT: kizárólag állapotot és határidőt.
+        // C1 · A `Metering::write()` NYERS `INSERT … ON CONFLICT`-ot használ, mert az
+        // Eloquent `upsert()` nem tudja kifejezni a FELTÉTELES ütközési ágat
+        // (`… do update … where usage_records.closed_at is null`). Ez a `WHERE` az, ami
+        // ATOMIVÁ teszi a lezárt periódus kihagyását: két utasítással (SELECT + upsert) a
+        // zárás alatt beeső küldés mérve ELVESZETT — a levél kimegy, a fogyás nem kerül
+        // számlára —, és a kérés a zárás idejére be is akadt a sorzáron.
+        //
+        // A `workspace_id` KÖTÖTT PARAMÉTERként megy be, a kontextusból (`assertContext()`
+        // fail-closed) — nem sztring-interpolációval, és nem is elhagyhatóan. A lekérdezés
+        // egyetlen sorra hat, aminek mindhárom kulcsmezője kötött.
         $exceptions = [
             'Billing/Services/Dunning.php',
+            'Billing/Services/Metering.php',
             'Billing/Services/MonthlyClose.php',
             'Deliverability/Services/DmarcReportIngestor.php',
             'Deliverability/Http/Controllers/MtaStsController.php',

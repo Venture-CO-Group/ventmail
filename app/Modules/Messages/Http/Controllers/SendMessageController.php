@@ -6,6 +6,8 @@ namespace App\Modules\Messages\Http\Controllers;
 
 use App\Modules\Api\Support\ApiError;
 use App\Modules\Billing\Contracts\VentPayClient;
+use App\Modules\Billing\Enums\Feature;
+use App\Modules\Billing\Services\EntitlementChecker;
 use App\Modules\Identity\Models\ApiKey;
 use App\Modules\IpPools\Models\IpPool;
 use App\Modules\Messages\Data\MailgunPayload;
@@ -98,7 +100,8 @@ final class SendMessageController
             // forgalmát egy fizetett, jó reputációjú IP-re.
             // Az ALANY a HÍVÓ, nem a pool tulajdonosa: platform-szintű poolnál a
             // `workspace_id` NULL, tehát a jogosultságot egy nem létező tenantra néztük meg.
-            if ($pool->type === 'dedicated' && ! $ventPay->hasEntitlement($workspace->workspaceId(), 'dedicated_ip')) {
+            // A `EntitlementChecker`-en: a SUB-ACCOUNT a PARENT csomagját használja (C1 · 76.).
+            if ($pool->type === 'dedicated' && ! app(EntitlementChecker::class)->allows($workspace->workspace(), Feature::DedicatedIp)) {
                 return ApiError::rejected(
                     'ENTITLEMENT_REQUIRED',
                     'A dedikált IP-pool használata a csomagod része kell legyen (dedicated_ip).'

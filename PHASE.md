@@ -370,6 +370,13 @@ platform-napló — mert ugyanabból az esemény-forrásból dolgozik.
     (workspace, periódus, dimenzió) kulcson, adatbázis-szinten áll — párhuzamos küldés
     mellett is.
 
+> **A 76. kritérium pontosítása a review után.** A szöveg eredetileg azt írta, hogy az
+> entitlement-gate „a PreSendGate 4. kapujába kötve" van. A KAPUBAN a KVÓTA és a
+> FELFÜGGESZTÉS van — a funkció-jogosultság (öt funkció) ROUTE-SZINTEN érvényesül
+> (`entitlement:<funkció>`), mert ott a kérdés nem az, hogy „mehet-e ez a levél", hanem
+> hogy „használhatja-e ezt a képességet". Egy `custom_domain` ellenőrzés a küldési kapuban
+> már késő: a domaint akkor hozták létre, amikor a csomag még tartalmazta.
+
 ### M2 Definition of Done
 - [x] Mind a 26 kritériumhoz (49–74) tartozik néven nevezhető zöld teszt
 - [x] `venture-security` átment a B1–B4 mindegyikén (mind a négyen BLOKKOLÓ verdikttel

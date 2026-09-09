@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Modules\Billing\Services;
 
+use App\Modules\Audit\Services\AuditLogger;
+use App\Modules\Billing\Contracts\VentPayClient;
 use App\Modules\Billing\Models\Invoice;
 use App\Modules\Tenancy\Models\Workspace;
 
@@ -33,6 +35,8 @@ use App\Modules\Tenancy\Models\Workspace;
  */
 final class Dunning
 {
+    public function __construct(private readonly VentPayClient $ventPay) {}
+
     /** A határidő után ennyi nappal lesz `overdue`. */
     public const OVERDUE_AFTER_DAYS = 7;
 
@@ -40,13 +44,43 @@ final class Dunning
     public const SUSPEND_AFTER_DAYS = 30;
 
     /**
-     * AZ ÁLLAPOTGÉP LÉPTETÉSE — időalapon, minden nyitott kivonatra.
+     * AZ ÁLLAPOTGÉP LÉPTETÉSE — a ventPay SZAVÁVAL, nem csak a mi óránkkal.
+     *
+     * ## A MÉRT KIESÉS, amit ez a metódus okozott
+     *
+     * Az állapotgép eredetileg kizárólag a `due_at`-ből léptetett. A security-review
+     * végigmérte egy NULLA fogyású, teljesen rendes tenanton:
+     *
+     *     +16 nap → due · +24 nap → overdue · +46 nap → suspended
+     *     és a tranzakciós jelszó-visszaállító levél: `rejected / QUOTA_EXCEEDED`
+     *
+     * A `markPaid()`-nek NULLA produkciós hívója volt, tehát az állapotgépnek volt bemenete
+     * és nem volt kimenete: ~45 nappal az első zárás után a platform ÖNMAGÁT állította le,
+     * és a helyreállítás csak kézi `UPDATE`-tel lett volna lehetséges. Ez nem
+     * tenant-támadás, hanem ütemezett, platform-szintű kiesés.
+     *
+     * ## A JAVÍTÁS: a fizetés ténye KÉRDÉS, nem feltevés
+     *
+     * Minden léptetés előtt megkérdezzük a ventPay-t, hogy a periódus rendezett-e
+     * (`isPeriodSettled`). Ha igen, a kivonat `paid`-re zárul, és SOHA nem lép a
+     * felfüggesztés felé. A `FakeVentPayClient` mindent rendezettnek jelent, tehát amíg a
+     * ventPay nem él, senkit nem függesztünk fel egy olyan tartozás miatt, amiről nem
+     * tudunk.
      *
      * @return array<string, int> melyik állapotba hány kivonat lépett
      */
     public function advance(): array
     {
-        $moved = ['due' => 0, 'overdue' => 0, 'suspended' => 0];
+        $moved = ['paid' => 0, 'due' => 0, 'overdue' => 0, 'suspended' => 0];
+
+        /*
+         | ELŐBB A RENDEZÉS: aki fizetett, kilép az állapotgépből.
+         |
+         | Ha ez a léptetés UTÁN lenne, egy rendezett kivonat egy futásban még
+         | továbbléphetne (`due → overdue`), és a felület egy pillanatra „késettként"
+         | mutatna valakit, aki már fizetett.
+         */
+        $moved['paid'] = $this->settle();
 
         /*
          | A LÉPTETÉS SORRENDJE HÁTULRÓL ELŐRE.
@@ -64,6 +98,35 @@ final class Dunning
     }
 
     /**
+     * A RENDEZETT periódusok lezárása — a ventPay szava alapján.
+     *
+     * Csak a NYITOTT állapotokat kérdezi: a `paid` már kilépett, és egy `paid → paid`
+     * léptetés fölösleges ventPay-hívás lenne minden futásban, minden lezárt periódusra.
+     */
+    private function settle(): int
+    {
+        $settled = 0;
+
+        Invoice::query()
+            ->withoutGlobalScopes()
+            ->whereIn('dunning_state', ['open', 'due', 'overdue', 'suspended'])
+            ->orderBy('id')
+            // CHUNKOLVA: a `advance()` naponta fut, és minden nyitott kivonatra egy
+            // ventPay-hívás jut — egy korlátlan `get()` egy nagy platformon a memóriát
+            // vinné el, és a hívások sem lennének megszakíthatók.
+            ->chunkById(200, function ($invoices) use (&$settled): void {
+                foreach ($invoices as $invoice) {
+                    if ($this->ventPay->isPeriodSettled((int) $invoice->workspace_id, (string) $invoice->period)) {
+                        $this->markPaid($invoice);
+                        $settled++;
+                    }
+                }
+            });
+
+        return $settled;
+    }
+
+    /**
      * FEL VAN-E FÜGGESZTVE ez a workspace?
      *
      * A SUB-ACCOUNT a parent állapotát viszi: a parent fizet, tehát ha a parent fel van
@@ -72,11 +135,34 @@ final class Dunning
      */
     public function isSuspended(Workspace $workspace): bool
     {
-        $billable = (int) ($workspace->parents()->first()?->getKey() ?? $workspace->getKey());
+        /*
+         | A PARENT ÉS A SAJÁT kivonata is számít — mindkettő, `or`-ral.
+         |
+         | A review megmérte, hogy a puszta parent-kérdés a `workspace_parents` EGYETLEN
+         | sorával ki-be kapcsolható:
+         |
+         |     isSuspended(felfüggesztett tenant) = true
+         |     → parent-kapcsolat felvéve egy TISZTA parent alá
+         |     → isSuspended = false, és a küldés `delivered` lett
+         |
+         | A packet kommentje csak az egyik irányt védte („alszámla létrehozásával
+         | megkerülhető") — a fordított irány, a felfüggesztett fiók BEKÖLTÖZÉSE egy tiszta
+         | parent alá, nyitva volt. És a kapcsolat TÖRLÉSE is feloldotta a felfüggesztést.
+         |
+         | Az `or` mindkettőt lezárja: a felfüggesztés nem szűnik meg attól, hogy a
+         | hierarchia változik.
+         */
+        $ids = [(int) $workspace->getKey()];
+
+        $parent = $workspace->parents()->first();
+
+        if ($parent !== null) {
+            $ids[] = (int) $parent->getKey();
+        }
 
         return Invoice::query()
             ->withoutGlobalScopes()
-            ->where('workspace_id', $billable)
+            ->whereIn('workspace_id', $ids)
             ->where('dunning_state', 'suspended')
             ->exists();
     }
@@ -99,17 +185,56 @@ final class Dunning
         return $invoice->fresh();
     }
 
+    /**
+     * EGY ÁLLAPOT-LÉPTETÉS — auditálva.
+     *
+     * ## Miért kell KÜLÖN audit, ha a `Invoice` `Auditable`
+     *
+     * Mert ez tömeges `update()`, ami NEM tüzel modell-eventet — tehát az `Auditable`
+     * trait nem fut le. A review megmérte: egy `open → due` léptetés után az audit-sorok
+     * száma VÁLTOZATLAN maradt. A felfüggesztés a legdurvább eszköz (a tranzakciós levelet
+     * is megállítja), és a golden rule 11 szerint minden admin-művelet auditált — pont
+     * ennek kell nyomot hagynia.
+     *
+     * SORONKÉNTI audit helyett ÖSSZESÍTETT: egy platform-szintű léptetés több ezer
+     * kivonatot érint, és tízezer audit-sor egy ütemezett futásról nem nyom, hanem zaj. A
+     * darabszám és a két állapot az, amiből egy vizsgálat visszakeresi az érintetteket.
+     */
     private function transition(string $from, string $to, int $afterDays): int
+    {
+        $moved = $this->applyTransition($from, $to, $afterDays);
+
+        if ($moved > 0) {
+            app(AuditLogger::class)->log(
+                'billing.dunning_transition',
+                context: [
+                    'from' => $from,
+                    'to' => $to,
+                    'after_days' => $afterDays,
+                    'invoices' => $moved,
+                ],
+            );
+        }
+
+        return $moved;
+    }
+
+    private function applyTransition(string $from, string $to, int $afterDays): int
     {
         return Invoice::query()
             ->withoutGlobalScopes()
             ->where('dunning_state', $from)
             ->whereNotNull('due_at')
             ->where('due_at', '<=', now()->subDays($afterDays))
-            ->update([
-                'dunning_state' => $to,
-                'suspended_at' => $to === 'suspended' ? now() : null,
-                'updated_at' => now(),
-            ]);
+            ->update(array_merge(
+                ['dunning_state' => $to, 'updated_at' => now()],
+                // A `suspended_at` CSAK a felfüggesztési lábon íródik.
+                //
+                // Korábban a többi láb `null`-ra állította, és ezzel kitörölte azt az
+                // előzményt, amit a `markPaid()` docblockja szándékosan megőriz („a
+                // felfüggesztés TÉNYE előzmény, amit egy későbbi vizsgálatnál — miért nem
+                // ment ki egy levél márciusban? — tudni kell").
+                $to === 'suspended' ? ['suspended_at' => now()] : [],
+            ));
     }
 }

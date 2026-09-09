@@ -123,45 +123,46 @@ final class Metering
         $period = $this->period();
 
         /*
-         | A LEZÁRT PERIÓDUS KIHAGYÁSA — csendben, és jó okkal.
+         | EGYETLEN UTASÍTÁS — és ez a lényeg, nem a takarékosság.
          |
-         | Egy késve beérkező webhook-esemény (bounce, panasz) napokkal a zárás után is
-         | megérkezhet. Az esemény LEGITIM, csak a periódus már el van számolva: kivételt
-         | dobni azt jelentené, hogy egy normális üzemi helyzet hibaként jelenik meg a
-         | naplóban, és az igazi hibák elveszne a zajban.
+         | Korábban két utasítás volt: egy `isClosed()` SELECT, majd az `upsert`. A review
+         | ezt két kapcsolaton megmérte, és a következmény FOGYÁS-VESZTÉS volt:
+         |
+         |  1. amíg a zárás tranzakciója nyitva van, a `SELECT` `false`-t ad (nincs commit),
+         |     tehát a mérés „szabadnak" látja a periódust;
+         |  2. az `upsert` BEBLOKKOL a sorzáron a zárás teljes idejére (mérve
+         |     `statement_timeout`-ba futott — vagyis a KÉRÉS is beakad);
+         |  3. a zárás commitja után ugyanaz az `upsert` a triggeren hasal el;
+         |  4. a `SendMessage` a kivételt `Log::warning`-ként elnyeli → A LEVÉL KIMEGY, A
+         |     FOGYÁS ELVESZIK.
+         |
+         | A `WHERE usage_records.closed_at IS NULL` az `ON CONFLICT DO UPDATE`-ben ATOMIVÁ
+         | teszi a kihagyást: ha a sor közben lezárult, az UPDATE egyszerűen nem talál sort
+         | (nincs kivétel, nincs veszteség-jelentés — a fogyás a lezárt periódusból KIMARAD,
+         | ami a szándék), és a SELECT is megszűnik. Ez felezi a lekérdezés-számot minden
+         | küldési úton.
+         |
+         | A `DO NOTHING`-ot NEM használjuk a beszúrási ágon: ha a sor még nem létezik, az
+         | INSERT-nek meg KELL történnie — egy lezárt periódusba beeső ÚJ dimenzió sorát a
+         | zárás előlétrehozza (`MonthlyClose`), tehát ide nem jut el.
          */
-        if ($this->isClosed($workspaceId, $period, $dimension)) {
-            return;
-        }
-
-        // A HÁROM VISELKEDÉS ütközési ága — SQL-ben, mert a versenyt az adatbázis dönti el.
-        $onConflict = match ($dimension->behaviour()) {
-            UsageBehaviour::Counter => ['value' => DB::raw('usage_records.value + excluded.value')],
-            UsageBehaviour::Peak => ['value' => DB::raw('greatest(usage_records.value, excluded.value)')],
-            UsageBehaviour::Snapshot => ['value' => DB::raw('excluded.value')],
+        $behaviour = match ($dimension->behaviour()) {
+            UsageBehaviour::Counter => 'usage_records.value + excluded.value',
+            UsageBehaviour::Peak => 'greatest(usage_records.value, excluded.value)',
+            UsageBehaviour::Snapshot => 'excluded.value',
         };
 
-        UsageRecord::query()->upsert(
-            [[
-                'workspace_id' => $workspaceId,
-                'period' => $period,
-                'dimension' => $dimension->value,
-                'value' => $value,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]],
-            ['workspace_id', 'period', 'dimension'],
-            array_merge($onConflict, ['updated_at' => now()])
+        DB::statement(
+            <<<SQL
+                insert into usage_records
+                    (workspace_id, period, dimension, value, created_at, updated_at)
+                values (?, ?, ?, ?, now(), now())
+                on conflict (workspace_id, period, dimension) do update
+                    set value = {$behaviour}, updated_at = now()
+                    where usage_records.closed_at is null
+            SQL,
+            [$workspaceId, $period, $dimension->value, $value]
         );
-    }
-
-    private function isClosed(int $workspaceId, string $period, UsageDimension $dimension): bool
-    {
-        return UsageRecord::query()
-            ->where('period', $period)
-            ->where('dimension', $dimension->value)
-            ->whereNotNull('closed_at')
-            ->exists();
     }
 
     /**

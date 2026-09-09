@@ -43,6 +43,27 @@ final class CloseBillingPeriodCommand extends Command
             return self::FAILURE;
         }
 
+        /*
+         | CSAK MÚLTBELI periódus zárható — és ez nem formalitás.
+         |
+         | A review megmérte, hogy a FOLYÓ periódus lezárása CSENDES ingyen küldést ad: a
+         | zárás után öt kiküldött levél, `sends_counter` VÁLTOZATLAN, nulla kivétel, nulla
+         | naplósor. A `Metering::write()` „csendben kihagyom" ága a késve érkező webhookra
+         | helyes döntés — de nem szabad ugyanígy elnyelnie egy ÉLŐ küldést.
+         |
+         | A jövőbeli periódus ugyanígy átment, és egy 2030-as kivonat semmit nem jelent.
+         */
+        if ($period >= now()->utc()->format('Y-m')) {
+            $this->error(sprintf(
+                'A(z) %s periódus még nem zárható: csak MÚLTBELI periódus zárható le. A folyó '
+                .'periódus lezárása a hátralévő küldéseket CSENDBEN elnyelné (a mérés a lezárt '
+                .'periódust kihagyja), a jövőbeli pedig értelmezhetetlen kivonatot adna.',
+                $period
+            ));
+
+            return self::FAILURE;
+        }
+
         $closed = 0;
         $failed = 0;
 
@@ -65,11 +86,16 @@ final class CloseBillingPeriodCommand extends Command
                         } catch (Throwable $e) {
                             // EGY TENANT HIBÁJA nem állítja meg a zárást: a többi számlája
                             // nem várhat egy hibás sub-account miatt.
+                            // A KIVÉTEL RÉSZLETE is kell: a puszta osztálynév után nincs
+                            // miből kideríteni, MIÉRT maradt el egy tenant számlája.
                             $this->warn(sprintf(
-                                'A(z) %s zárása elhasalt: %s',
+                                'A(z) %s zárása elhasalt: %s — %s',
                                 (string) $workspace->uuid,
-                                $e::class
+                                $e::class,
+                                $e->getMessage()
                             ));
+
+                            report($e);
 
                             $failed++;
                         }
@@ -81,6 +107,14 @@ final class CloseBillingPeriodCommand extends Command
 
         $this->info("Periódus: {$period}, lezárt kivonat: {$closed}, hibás: {$failed}");
 
-        return self::SUCCESS;
+        /*
+         | A HIBÁS ZÁRÁS NEM SIKER.
+         |
+         | A parancs korábban feltétel nélkül `SUCCESS`-t adott: egy kimaradt havi kivonat
+         | `hibás: 1`-ként lefutott a naplóban, az ütemező pedig sikernek látta — vagyis
+         | senki nem tudta meg, hogy egy tenant számlája elmaradt. Pénzügyi útnál a
+         | kilépési kód a riasztás alapja.
+         */
+        return $failed > 0 ? self::FAILURE : self::SUCCESS;
     }
 }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Messages\Console;
 
 use App\Modules\Events\Models\MessageEvent;
+use App\Modules\Sending\Actions\SendMessage;
 use App\Modules\Sending\Gate\PreSendGate;
 use App\Modules\Sending\Models\Message;
 use App\Modules\Sending\Services\MessageDispatcher;
@@ -37,6 +38,8 @@ final class DispatchScheduledCommand extends Command
 
     public function handle(PreSendGate $gate, MessageDispatcher $dispatcher, WorkspaceContext $context, RetryPolicy $retry): int
     {
+        $previous = $context->hasWorkspace() ? $context->workspace() : null;
+
         $sent = 0;
         $rejected = 0;
         $failed = 0;
@@ -95,7 +98,17 @@ final class DispatchScheduledCommand extends Command
             });
         } finally {
             // A háttérfolyamat NEM hagyhat maga után tenant-kontextust — kivétel esetén sem.
-            $context->forget();
+            /*
+             | A HÍVÓ KONTEXTUSÁT VISSZAADJUK, nem eldobjuk.
+             |
+             | Ugyanaz a csapda, amit a `ContactGdpr`, a `journeys:tick` és a
+             | `campaigns:dispatch-scheduled` már megtalált: egy szolgáltatásból (vagy
+             | tesztből) hívva a `forget()` a hívó tenant-kontextusát vinné el, és az utána
+             | következő lekérdezések a `WorkspaceScope` fail-closed ágára futnának — ÜRES
+             | eredményt adva valódi adat helyett. A C1 metering-tesztje épp ebbe futott
+             | bele: a fogyás-lekérdezés kontextus nélkül kivételt dobott.
+             */
+            $previous === null ? $context->forget() : $context->set($previous);
         }
 
         $this->info("Kiküldve: {$sent}, elutasítva: {$rejected}, hibára futott: {$failed}");
@@ -149,10 +162,27 @@ final class DispatchScheduledCommand extends Command
         ])->save();
 
         if ($message->testmode) {
+            // A TESTMODE nem megy ki, tehát nem fogyás (Mailgun-paritás) — a mérés is
+            // kimarad, ahogy a küldési úton.
             return;
         }
 
         $dispatcher->dispatch($message->fresh());
+
+        /*
+         | A FOGYÁS MÉRÉSE ITT, a TÉNYLEGES kiküldésnél (C1 · 75. kritérium).
+         |
+         | Az ütemezett levél elfogadáskor SZÁNDÉKOSAN nem mér. A review megmérte, hogy
+         | miért: `deliverytime = +5 min` → `sends_counter` +1, majd a domain deverifikálva
+         | → ez a parancs `DOMAIN_UNVERIFIED`-del ELUTASÍTOTTA a levelet, és az inkrementum
+         | BENT MARADT. A kapu-döntés az ütemezés és a kiküldés között éppen azokon a
+         | pontokon változik, amiket ennek a parancsnak a docblockja felsorol — leiratkozás,
+         | hard bounce, kvóta-kimerülés, deverifikáció.
+         |
+         | Így a „kapu által elutasított küldés nem számlázódik" garancia ezen az úton is áll.
+         */
+        app(SendMessage::class)->meter($message);
+
         $sent++;
     }
 }
