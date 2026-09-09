@@ -6,6 +6,7 @@ namespace App\Modules\Journey\Models;
 
 use App\Modules\Audit\Concerns\Auditable;
 use App\Modules\Journey\Enums\StepType;
+use App\Modules\Journey\Services\JourneyValidator;
 use App\Modules\Tenancy\Concerns\BelongsToWorkspace;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
@@ -35,6 +36,32 @@ final class JourneyStep extends Model
     protected function casts(): array
     {
         return ['config' => 'array', 'position' => 'integer'];
+    }
+
+    protected static function booted(): void
+    {
+        /*
+         | A KONFIGURÁCIÓ MENTÉSKOR ellenőrződik.
+         |
+         | Futáskor már késő: a típusos `uuid` oszlopra egy `'vip'` értékkel lekérdezni
+         | `SQLSTATE[22P02]`-t ad, a kivétel a tranzakción belül visszagördíti a claimet és
+         | a lépés-számlálót, és a futás ÖRÖKKÉ esedékes marad — futásonként napi 1440 hiba,
+         | csendben. A motor ezt ma parkoltatja, de az a második védelmi vonal: egy hibás
+         | konfigurációt nem menteni kell, hanem el nem fogadni.
+         */
+        self::saving(function (self $step): void {
+            app(JourneyValidator::class)->validateStep($step);
+        });
+
+        // A LÁNC a mentés UTÁN vizsgálódik: a `next_step_id` a mentés pillanatában
+        // hivatkozhat egy most létrejövő lépésre, tehát előbb létezni kell.
+        self::saved(function (self $step): void {
+            $journey = $step->journey;
+
+            if ($journey !== null) {
+                app(JourneyValidator::class)->validateChain($journey);
+            }
+        });
     }
 
     public function stepType(): StepType

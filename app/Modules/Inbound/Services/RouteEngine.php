@@ -137,6 +137,25 @@ final class RouteEngine
          | consent, újrabelépés) a `JourneyTrigger` hozza meg, egy helyen.
          */
         if ($type === 'journey') {
+            /*
+             | A DMARC-VERDIKT NEM DOBHATÓ EL.
+             |
+             | A `ParseInboundMessage` kitölti az `spf_result`/`dkim_result`/`dmarc_result`
+             | oszlopokat, és ez az akció korábban egyszerűen nem nézett rájuk. A 71.
+             | kritérium megerősített-consent kapuja áll — de egy BIZONYÍTOTTAN hamisított
+             | (`dmarc_result = 'fail'`) levél így is elindított marketing ágat egy valódi
+             | feliratkozó nevében, akinek a levéllel semmi köze nem volt. Ha a fogadó
+             | oldal már megmondta, hogy a feladó hamis, nincs okunk megbízni benne.
+             */
+            if (strtolower((string) $message->dmarc_result) === 'fail') {
+                Log::info('Journey-trigger elutasítva: a levél DMARC-ellenőrzése elhasalt.', [
+                    'route' => (string) $route->uuid,
+                    'inbound_message' => (string) $message->uuid,
+                ]);
+
+                return true;
+            }
+
             app(JourneyTrigger::class)->fire(
                 TriggerType::InboundEmail,
                 (string) $message->sender,
@@ -144,7 +163,16 @@ final class RouteEngine
                     'route' => (string) $route->uuid,
                     'journey' => $target === '' ? null : $target,
                     'inbound_message' => (string) $message->uuid,
-                    'subject' => (string) $message->subject,
+                    /*
+                     | A TÁRGY SZÁNDÉKOSAN NEM KERÜL A KONTEXTUSBA.
+                     |
+                     | A `journey_runs.context` retenció nélkül él, a bejövő levél maga
+                     | viszont 3 napos (`inbound:purge`). Mérve egy
+                     | „A HITELKARTYAM SZAMA 4111 1111 1111 1111" tárgy szó szerint
+                     | landolt a `context`-ben, és ott maradt volna örökre — egy törlési
+                     | kérés után is. Aki a tárgyra akar szűrni, az `inbound_message`
+                     | uuid-ján éri el, amíg a retenció engedi.
+                     */
                 ],
             );
 

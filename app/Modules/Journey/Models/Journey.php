@@ -6,6 +6,7 @@ namespace App\Modules\Journey\Models;
 
 use App\Modules\Audit\Concerns\Auditable;
 use App\Modules\Journey\Enums\TriggerType;
+use App\Modules\Journey\Services\JourneyValidator;
 use App\Modules\Tenancy\Concerns\BelongsToWorkspace;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
@@ -44,6 +45,21 @@ final class Journey extends Model
             'allow_reentry' => 'boolean',
             'reentry_cooldown_hours' => 'integer',
         ];
+    }
+
+    protected static function booted(): void
+    {
+        /*
+         | A CÉL-KONFIGURÁCIÓ MENTÉSKOR ellenőrződik.
+         |
+         | A leggyakoribb éles hiba nem elgépelés volt, hanem a séma ÜRES `goal_config`-ja:
+         | `goal_type = 'has_tag'` mellett a cél `''`-t adott a típusos `uuid` oszlopra, és
+         | ezt a `shouldExit()` MINDEN lépés előtt, a journey MINDEN futására megkérdezte.
+         | Egy elmentett journey így egyetlen lépést sem tett meg, csak hibát írt.
+         */
+        self::saving(function (self $journey): void {
+            app(JourneyValidator::class)->validateGoal($journey);
+        });
     }
 
     public function triggerType(): TriggerType

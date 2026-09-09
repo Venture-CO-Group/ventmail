@@ -136,8 +136,10 @@ return new class extends Migration
             // `active` | `waiting` | `completed` | `exited` | `failed`
             $table->string('status')->default('active');
 
-            // MIÉRT lépett ki (70. kritérium): `goal_reached` | `unsubscribed` | `manual` |
-            // `journey_archived` | `entitlement_lost`. A riportnak meg kell tudnia mondani.
+            // MIÉRT lépett ki (70. kritérium): `goal_reached` | `unsubscribed` |
+            // `consent_revoked` | `manual` | `journey_archived` | `entitlement_lost` |
+            // `config_invalid` | `engine_error` | `step_deleted` | `step_journey_mismatch`.
+            // A riportnak meg kell tudnia mondani — a `null` exit_reason SIKERNEK látszik.
             $table->string('exit_reason')->nullable();
 
             /*
@@ -149,6 +151,21 @@ return new class extends Migration
             // A LÉPÉS-SZÁMLÁLÓ a végtelen ciklus ellen: egy condition, ami magára mutat,
             // különben örökké futna, és a worker sort tömné meg.
             $table->unsignedInteger('steps_taken')->default(0);
+
+            /*
+             | A HIBA-SZÁMLÁLÓ, és miért KELL külön oszlop.
+             |
+             | Egy hibás lépés (pl. `uuid` oszlopra nem-uuid hivatkozás) korábban kivétellel
+             | kiszökött a motorból, és a futás `active` + `resume_at = NULL` állapotban
+             | maradt: TOVÁBBRA IS esedékes. A percenkénti ütemező örökké újradobta, a
+             | `steps_taken` nem nőtt, tehát a lépés-korlát sem ütött be — napi 1440 hiba
+             | futásonként, hangos jelzés nélkül.
+             |
+             | Ez a számláló az, ami a „próbáld újra" és a „add fel" közé határt húz. Az
+             | első hiba egy perc várakozás, a második kettő, a negyedik után a futás
+             | `failed` — átmeneti zavart túlél, konfigurációs hibát nem pörget.
+             */
+            $table->unsignedInteger('failure_count')->default(0);
 
             // A journey futás közbeni adatai (pl. a trigger payloadja) — a `condition`
             // lépés ezekre is szűrhet.

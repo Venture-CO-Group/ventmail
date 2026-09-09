@@ -42,6 +42,8 @@ final class DeliverMessage implements ShouldQueue
             return;
         }
 
+        $previous = $context->hasWorkspace() ? $context->workspace() : null;
+
         $context->set($workspace);
 
         try {
@@ -59,9 +61,18 @@ final class DeliverMessage implements ShouldQueue
 
             report($e);
         } finally {
-            // Hosszan élő worker: a bent felejtett kontextus a KÖVETKEZŐ job levelét
-            // idegen tenantnak könyvelné el.
-            $context->forget();
+            /*
+             | A HÍVÓ KONTEXTUSÁT VISSZAADJUK — nem eldobjuk.
+             |
+             | Hosszan élő workerben a bent felejtett kontextus a KÖVETKEZŐ job levelét
+             | idegen tenantnak könyvelné el, ezért törölni KELL, ha nem volt korábbi. De ha
+             | volt, akkor ez a job egy hívási lánc KÖZEPÉN fut — és mérve pontosan ez
+             | történt: `SENDING_DISPATCH_VIA_QUEUE=true` + `sync` queue mellett a
+             | `JourneyEngine` inline hívta ezt a jobot, a `forget()` elvitte a motor
+             | kontextusát, és a journey-futás az első levél után `exited`-ként lezárult —
+             | a 2. és 3. levél SOHA nem ment ki. A `phpunit.xml` épp ilyen konfiguráció.
+             */
+            $previous === null ? $context->forget() : $context->set($previous);
         }
     }
 

@@ -10,6 +10,7 @@ use App\Modules\Events\Models\MessageEvent;
 use App\Modules\Inbound\Contracts\RawMailStore;
 use App\Modules\Inbound\Models\InboundAttachment;
 use App\Modules\Inbound\Models\InboundMessage;
+use App\Modules\Journey\Models\JourneyRun;
 use App\Modules\Logs\Models\ErasedRecipient;
 use App\Modules\Logs\Models\SmtpTransaction;
 use App\Modules\Sending\Models\DeliveryAttempt;
@@ -75,7 +76,7 @@ final class RedactSubjectCommand extends Command
             return self::FAILURE;
         }
 
-        $redacted = ['messages' => 0, 'mime' => 0, 'events' => 0, 'smtp' => 0, 'attempts' => 0, 'webhooks' => 0, 'suppressions' => 0, 'inbound' => 0, 'validation' => 0, 'campaign_recipients' => 0];
+        $redacted = ['messages' => 0, 'mime' => 0, 'events' => 0, 'smtp' => 0, 'attempts' => 0, 'webhooks' => 0, 'suppressions' => 0, 'inbound' => 0, 'validation' => 0, 'campaign_recipients' => 0, 'journey_runs' => 0];
 
         // SZÁRAZ FUTÁS: egy visszavonhatatlan, tenanteken átnyúló művelet előtt látni kell,
         // mit érintene. A tranzakció a végén visszagördül — a számok viszont valódiak.
@@ -105,6 +106,7 @@ final class RedactSubjectCommand extends Command
                     $redacted['suppressions'] += $this->redactSuppressions($key);
                     $redacted['inbound'] += $this->redactInbound($key);
                     $redacted['campaign_recipients'] += $this->redactCampaignRecipients($key);
+                    $redacted['journey_runs'] += $this->redactJourneyRuns($key);
 
                     // A CÍMELLENŐRZÉS eredményei. Ez az ügyfél TELJES címlistája — a
                     // `PurgeValidationCommand` saját docblockja mondja ki, hogy ennél
@@ -383,6 +385,24 @@ final class RedactSubjectCommand extends Command
         return CampaignRecipient::query()
             ->whereRaw('lower(email) = ?', [$key])
             ->update(['email' => '(redaktált)', 'updated_at' => now()]);
+    }
+
+    /**
+     * A JOURNEY-FUTÁS — a sor marad, a cím és a kontextus nem.
+     *
+     * A `journey_runs` a B3-mal jött, és semmi nem redaktálta: mérve az `erase()` után a
+     * `contacts.email` már anonimizált volt, itt viszont ott állt a nyers cím, a
+     * `context`-ben pedig a trigger nyers payloadja (űrlap-válaszok: telefonszám, cím).
+     *
+     * A FUTÓ futást is redaktáljuk: egy Art. 17 kérés nem várhat a journey végére. A cím
+     * elvesztésével a futás nem tud tovább küldeni — ez helyes, hiszen az érintett épp a
+     * törlést kérte.
+     */
+    private function redactJourneyRuns(string $key): int
+    {
+        return JourneyRun::query()
+            ->whereRaw('lower(email) = ?', [$key])
+            ->update(['email' => '(redaktált)', 'context' => '{}', 'updated_at' => now()]);
     }
 
     private function redactEvents(string $key): int

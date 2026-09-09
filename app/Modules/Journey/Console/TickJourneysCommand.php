@@ -25,7 +25,9 @@ use Throwable;
  */
 final class TickJourneysCommand extends Command
 {
-    protected $signature = 'journeys:tick {--limit=500 : legfeljebb ennyi futás egy tickben}';
+    protected $signature = 'journeys:tick'
+        .' {--limit=500 : legfeljebb ennyi futás egy tickben, workspace-enként}'
+        .' {--max-seconds=50 : az egész futás időbüdzséje másodpercben}';
 
     protected $description = 'Az esedékes journey-futások léptetése.';
 
@@ -35,6 +37,8 @@ final class TickJourneysCommand extends Command
         $steps = 0;
         $failed = 0;
         $limit = max(1, (int) $this->option('limit'));
+        $budget = max(5, (int) $this->option('max-seconds'));
+        $deadline = microtime(true) + $budget;
 
         /*
          | A HÍVÓ KONTEXTUSÁT VISSZAÁLLÍTJUK, nem eldobjuk.
@@ -51,12 +55,16 @@ final class TickJourneysCommand extends Command
         $previous = $context->hasWorkspace() ? $context->workspace() : null;
 
         try {
-            Workspace::query()->orderBy('id')->chunkById(50, function ($workspaces) use ($context, $engine, $limit, &$ticked, &$steps, &$failed): void {
+            Workspace::query()->orderBy('id')->chunkById(50, function ($workspaces) use ($context, $engine, $limit, $deadline, &$ticked, &$steps, &$failed): bool {
                 foreach ($workspaces as $workspace) {
                     $context->set($workspace);
 
                     $due = JourneyRun::query()
                         ->due()
+                        // EAGER LOAD: a `shouldExit()` a `journey`-t, a `tick()` a
+                        // `currentStep`-et olvassa. Enélkül mérve 9,1 lekérdezés/futás/tick
+                        // — klasszikus N+1 egy percenként futó parancsban.
+                        ->with(['journey', 'currentStep'])
                         // A RÉGEBBI futás előbb: egy frissen belépett kontakt ne előzze meg
                         // azt, aki már napok óta vár egy lépésre.
                         ->orderBy('resume_at')
@@ -65,6 +73,26 @@ final class TickJourneysCommand extends Command
                         ->get();
 
                     foreach ($due as $run) {
+                        /*
+                         | IDŐBÜDZSÉ — a `withoutOverlapping` nem elég.
+                         |
+                         | Mérve ~3,6 ms/lépés: 1000 workspace × 500 futás egy „percenkénti"
+                         | tickben ~30 perc, és a `withoutOverlapping` közben 29 futást
+                         | kihagy. Egy `wait 5 perc` pontossága így összeomlik, és a
+                         | workspace-sorrend (`orderBy('id')`) miatt MINDIG ugyanazok az
+                         | utolsó tenantok éheznek — a nagy id-jű workspace soha nem jut sorra.
+                         |
+                         | A büdzsé lejárta nem hiba: a következő tick ott folytatja, ahol ez
+                         | abbahagyta, mert az esedékesség az adatbázisban áll.
+                         */
+                        if (microtime(true) >= $deadline) {
+                            $this->warn('Az időbüdzsé lejárt — a maradék futás a következő tickben jön.');
+
+                            // A `false` a `chunkById`-t is MEGÁLLÍTJA: enélkül csak ezt a
+                            // workspace-et hagynánk ki, a következőt viszont elkezdenénk.
+                            return false;
+                        }
+
                         try {
                             $steps += $engine->tick($run);
                             $ticked++;
@@ -74,6 +102,8 @@ final class TickJourneysCommand extends Command
                         }
                     }
                 }
+
+                return true;
             });
         } finally {
             $previous === null ? $context->forget() : $context->set($previous);

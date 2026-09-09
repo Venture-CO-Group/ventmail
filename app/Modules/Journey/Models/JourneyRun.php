@@ -31,7 +31,7 @@ final class JourneyRun extends Model
         'exit_reason', 'resume_at', 'context', 'entered_at',
     ];
 
-    protected $attributes = ['status' => 'active', 'context' => '{}', 'steps_taken' => 0];
+    protected $attributes = ['status' => 'active', 'context' => '{}', 'steps_taken' => 0, 'failure_count' => 0];
 
     public function uniqueIds(): array
     {
