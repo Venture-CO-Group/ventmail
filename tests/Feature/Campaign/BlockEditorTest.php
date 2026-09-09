@@ -9,6 +9,7 @@ use App\Modules\Template\Data\BlockSchema;
 use App\Modules\Template\Models\Template;
 use App\Modules\Template\Services\BlockTreeValidator;
 use App\Modules\Template\Services\HtmlSanitizer;
+use App\Modules\Template\Services\MergeTag;
 use App\Modules\Template\Services\MjmlWriter;
 use App\Modules\Tenancy\Models\Workspace;
 use App\Modules\Tenancy\Services\WorkspaceContext;
@@ -558,4 +559,37 @@ it('a KÉT SZABÁLY az ADATBÁZISBAN is áll — a builder-út sem kerüli meg',
     $rendben = Template::create(['name' => 'Marketing', 'marketing' => true, 'blocks' => validTree()]);
 
     expect($rendben->marketing)->toBeTrue();
+});
+
+it('a MERGE-TAG HATÁROLÓJA MINDKÉT libxml-kódolásból helyreáll', function () {
+    /*
+     | Ez a teszt a golden fixture ELSŐ CI-futásából született.
+     |
+     | A libxml az URI-attribútumokban percent-kódol, és hogy MIT, az a VERZIÓJÁTÓL függ:
+     |   lokális: href="{{%20unsubscribe_url%20}}"
+     |   CI:      href="%7B%7B%20unsubscribe_url%20%7D%7D"
+     | A visszaállítás korábban két helyen, két külön mintával élt, és mindkettő csak az
+     | egyik alakot ismerte. A CI-ban ezért a leiratkozó link
+     | `href="%7B%7B%20unsubscribe_url%20%7D%7D"` lett — amit a behelyettesítő minta már nem
+     | illeszt, tehát a címzett HALOTT linket kapott volna. Minden „sikeresnek" látszott.
+     |
+     | Egy környezet SOSEM tudja mindkét alakot előállítani, ezért itt közvetlenül a
+     | helyreállítót hívjuk — a golden fixture a másik oldalról fogja meg ugyanezt.
+     */
+    expect(MergeTag::restore('<a href="%7B%7B%20unsubscribe_url%20%7D%7D">L</a>'))
+        ->toBe('<a href="{{ unsubscribe_url }}">L</a>')
+        ->and(MergeTag::restore('<a href="{{%20unsubscribe_url%20}}">L</a>'))
+        ->toBe('<a href="{{ unsubscribe_url }}">L</a>')
+        // Az ÉRINTETLEN alak sem sérül.
+        ->and(MergeTag::restore('<a href="{{ unsubscribe_url }}">L</a>'))
+        ->toBe('<a href="{{ unsubscribe_url }}">L</a>');
+
+    // A FALLBACK is helyreáll — a `||` kódolt alakjából is.
+    expect(MergeTag::restore('href="%7B%7B%20cta%20%7C%7C%20https://pelda.hu/x%20%7D%7D"'))
+        ->toBe('href="{{ cta || https://pelda.hu/x }}"');
+
+    // …de a fallback BELSEJÉBEN a `%20` MEGMARAD: az egy jogosan URL-kódolt link, és a
+    // dekódolás mérve `https://a.hu/x y`-ra rontotta el.
+    expect(MergeTag::restore('href="{{ url || https://a.hu/x%20y }}"'))
+        ->toBe('href="{{ url || https://a.hu/x%20y }}"');
 });

@@ -130,7 +130,9 @@ final class HtmlSanitizer
             $out .= (string) $document->saveHTML($child);
         }
 
-        return $this->restoreMergeTags($out);
+        // A HATÁROLÓK helyreállítása: a libxml az URI-attribútumokban percent-kódol, és
+        // hogy mit, az a verziójától függ. A `MergeTag` mindkét alakot ismeri.
+        return MergeTag::restore($out);
     }
 
     private function root(DOMDocument $document): ?DOMElement
@@ -271,21 +273,5 @@ final class HtmlSanitizer
         }
 
         return implode('; ', $kept);
-    }
-
-    /**
-     * A MERGE-TAG HATÁROLÓI a `saveHTML` után.
-     *
-     * A libxml az URI-attribútumokban százalék-kódolja a szóközt és a kapcsos zárójelet,
-     * ezért a `href="{{ unsubscribe_url }}"` `%7B%7B%20unsubscribe_url%20%7D%7D` alakban
-     * jönne ki — a behelyettesítés soha nem találná meg, és a címzett halott linket kapna.
-     */
-    private function restoreMergeTags(string $html): string
-    {
-        return (string) preg_replace_callback(
-            '/%7B%7B(.*?)%7D%7D/i',
-            static fn (array $m): string => '{{'.str_replace(['%20', '%7C'], [' ', '|'], $m[1]).'}}',
-            $html
-        );
     }
 }

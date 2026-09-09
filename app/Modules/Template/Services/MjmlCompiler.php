@@ -134,43 +134,7 @@ final class MjmlCompiler
             }
         }
 
-        return $this->restoreMergeTags($this->document($bands, $preview));
-    }
-
-    /**
-     * A MERGE-TAGEK visszaállítása attribútum-értékekben.
-     *
-     * A libxml az attribútumok whitespace-ét az XML-szabály szerint NORMALIZÁLJA, és a
-     * `saveHTML` a szóközt `%20`-ra kódolja egy `href`-ben. Mérve: a
-     * `href="{{ unsubscribe_url }}"` a kimenetben `href="{{%20unsubscribe_url%20}}"` lett —
-     * amit a behelyettesítő minta (`\{\{\s*név\s*\}\}`) MÁR NEM ILLESZT.
-     *
-     * A következmény pontosan az a csendes hiba, amit ez a projekt már többször megtalált: a
-     * leiratkozó link soha nem helyettesítődik be, és a címzett egy működésképtelen URL-t kap
-     * — miközben minden „sikeresnek" látszik. Ezért a kimeneten visszaállítjuk a szóközöket
-     * a merge-tagek BELSEJÉBEN, és csak ott.
-     */
-    private function restoreMergeTags(string $html): string
-    {
-        return (string) preg_replace_callback(
-            '/\{\{(?:%20|\s)*([A-Za-z0-9_.-]+)(?:(?:%20|\s)*\|\|(?:%20|\s)*([^}]*?))?(?:%20|\s)*\}\}/',
-            static function (array $matches): string {
-                $name = $matches[1];
-                // A FALLBACK BELSEJÉT NEM DEKÓDOLJUK.
-                //
-                // A `%20 → szóköz` visszaírás itt kárt tett: mérve
-                // `{{ url || https://a.hu/x%20y }}` → `https://a.hu/x y`, azaz egy JOGOSAN
-                // URL-kódolt fallback-link elromlott. A `%20`-t a merge-tag HATÁROLÓI
-                // körül kell visszaállítani (azt kódolta a `saveHTML`), a fallback
-                // ÉRTÉKÉBEN viszont az ügyfél szándéka.
-                $fallback = isset($matches[2]) && $matches[2] !== ''
-                    ? ' || '.trim($matches[2])
-                    : '';
-
-                return '{{ '.$name.$fallback.' }}';
-            },
-            $html
-        );
+        return MergeTag::restore($this->document($bands, $preview));
     }
 
     /** @param list<array{full: bool, rows: string}> $bands */
