@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Modules\Deliverability\Http\Controllers\DeliverabilityController;
 use App\Modules\Deliverability\Http\Controllers\MtaStsController;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
@@ -33,3 +34,15 @@ Route::get('/.well-known/mta-sts.txt', MtaStsController::class)
     ->withoutMiddleware($stateful)
     ->middleware('throttle:mta-sts')
     ->name('mta-sts.policy');
+
+/*
+ | A KÉZBESÍTHETŐSÉGI KÉPERNYŐ — a fentiek ellentéte.
+ |
+ | Az MTA-STS policy-t idegen MTA kéri le, session nélkül; ez a képernyő a bejelentkezett
+ | üzemeltetőé. A modul route-jai hitelesítés ELŐTTIEK, ezért a stack itt EXPLICIT — a
+ | `ModuleRouteRegistrationTest` invariánsa (`auth` + `workspace`) enélkül sérülne, és a
+ | blocklist- meg DMARC-adatok bejelentkezés nélkül lennének olvashatók.
+ */
+Route::middleware(['auth', 'workspace'])->group(function (): void {
+    Route::get('/deliverability', DeliverabilityController::class)->name('deliverability.index');
+});

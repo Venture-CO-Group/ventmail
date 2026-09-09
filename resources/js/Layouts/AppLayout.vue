@@ -43,9 +43,13 @@ const platform = computed(() =>
         { href: '/smtp-credentials', id: 'nav-smtp', label: t('nav.smtp'), show: can('smtpCredential.manage') },
         { href: '/suppressions', id: 'nav-suppressions', label: t('nav.suppressions'), show: can('suppression.manage') },
         { href: '/webhooks', id: 'nav-webhooks', label: t('nav.webhooks'), show: can('webhook.manage') },
+        { href: '/ip-pools', id: 'nav-ip-pools', label: t('nav.ipPools'), show: can('ipPool.manage') },
+        { href: '/validation', id: 'nav-validation', label: t('nav.validation'), show: can('validation.run') },
+        { href: '/deliverability', id: 'nav-deliverability', label: t('nav.deliverability'), show: can('analytics.view') },
         { href: '/logs', id: 'nav-logs', label: t('nav.logs'), show: can('logs.view') },
         { href: '/logs/statistics', id: 'nav-statistics', label: t('nav.statistics'), show: can('logs.view') },
         { href: '/inbound', id: 'nav-inbound', label: t('nav.inbound'), show: can('domain.manage') },
+        { href: '/billing', id: 'nav-billing', label: t('nav.billing'), show: can('billing.manage') },
     ].filter((item) => item.show),
 );
 

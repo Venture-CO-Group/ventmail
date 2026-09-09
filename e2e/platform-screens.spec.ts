@@ -22,6 +22,10 @@ test('a menüből minden platform-képernyő elérhető', async ({ page }) => {
         ['nav-smtp', '/smtp-credentials'],
         ['nav-suppressions', '/suppressions'],
         ['nav-webhooks', '/webhooks'],
+        ['nav-ip-pools', '/ip-pools'],
+        ['nav-validation', '/validation'],
+        ['nav-deliverability', '/deliverability'],
+        ['nav-billing', '/billing'],
     ] as const) {
         await page.getByTestId(testid).click();
         await expect(page).toHaveURL(new RegExp(`${url}$`));
@@ -76,3 +80,18 @@ test('a webhook-végpont SSRF-es címre nem jön létre', async ({ page }) => {
     await expect(page.getByTestId('flash-error')).toBeVisible();
     await expect(page.getByTestId('endpoints-empty')).toBeVisible();
 });
+
+test('a címellenőrzés javaslatot ad az elgépelt címre, és a javaslat egy kattintás', async ({ page }) => {
+    await page.goto('/validation');
+
+    await page.getByTestId('validation-email').fill('valaki@gmial.com');
+    await page.getByTestId('validation-submit').click();
+
+    await expect(page.getByTestId('validation-verdict')).toBeVisible();
+    await expect(page.getByTestId('verdict-suggestion')).toContainText('valaki@gmail.com');
+
+    // A JAVASLAT ÚJRAELLENŐRZÉSE: ez menti meg a címet, ami különben örökre bounce-olna.
+    await page.getByTestId('verdict-use-suggestion').click();
+    await expect(page.getByTestId('verdict-result')).not.toContainText('undeliverable');
+});
+
