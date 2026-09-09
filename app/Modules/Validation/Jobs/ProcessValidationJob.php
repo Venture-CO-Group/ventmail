@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Modules\Validation\Jobs;
 
+use App\Modules\Billing\Enums\UsageDimension;
+use App\Modules\Billing\Services\Metering;
 use App\Modules\Tenancy\Models\Workspace;
 use App\Modules\Tenancy\Services\WorkspaceContext;
 use App\Modules\Validation\Models\ValidationJob;
@@ -88,6 +90,26 @@ final class ProcessValidationJob implements ShouldQueue
                     'reasons' => $verdict->reasons,
                     'suggestion' => $verdict->suggestion,
                 ])->save();
+            }
+
+            /*
+             | A FOGYÁS MÉRÉSE KÖTEGENKÉNT (C1 · 75. kritérium).
+             |
+             | A `$pending->count()` a VALÓBAN ellenőrzött címek száma — nem a feladott lista
+             | mérete. A kettő különbözik: egy job kétszer is futhat (a `pending` szűrő miatt
+             | a második futás kevesebbet lát), és a feladott listából az `insertOrIgnore`
+             | már kiszűrte a duplikátumokat. A tenant azt fizeti, amit a rendszer valóban
+             | elvégzett.
+             */
+            if ($pending->isNotEmpty()) {
+                try {
+                    app(Metering::class)->increment(UsageDimension::Validations, $pending->count());
+                } catch (Throwable $e) {
+                    Log::warning('A bulk-címellenőrzés fogyása nem került a meteringbe', [
+                        'job' => $this->jobUuid,
+                        'exception' => $e::class,
+                    ]);
+                }
             }
 
             $this->refreshCounters($job);

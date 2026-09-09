@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Modules\Sending\Actions;
 
 use App\Modules\Audit\Services\AuditLogger;
+use App\Modules\Billing\Enums\UsageDimension;
+use App\Modules\Billing\Services\Metering;
 use App\Modules\Events\Models\MessageEvent;
 use App\Modules\Sending\Data\SendQueue;
 use App\Modules\Sending\Data\SendResult;
@@ -21,7 +23,9 @@ use App\Modules\Sending\Services\MessageDispatcher;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use RuntimeException;
+use Throwable;
 
 /**
  * A küldés belépési pontja — a PreSendGate-en át.
@@ -122,6 +126,34 @@ final class SendMessage
             'options' => [...$message->options, 'gate_trace' => $decision->trace()],
         ])->save();
         $this->event($message, 'accepted');
+
+        /*
+         | A FOGYÁS MÉRÉSE A KAPU UTÁN — és ez a sorrend a lényeg (C1 · 75. kritérium).
+         |
+         | A kapu ELŐTT mérve a tenant azért fizetne, amit a rendszer (helyesen) meg sem
+         | próbált elküldeni: a suppression-listán lévő címre nem megy ki levél, tehát nem
+         | is fogyás. Épp a listahigiéniát büntetnénk — azt, amit a kézbesíthetőség
+         | érdekében el akarunk érni.
+         |
+         | CÍMZETTENKÉNT, nem hívásonként: a kvóta-kapu is így mér („különben 300 hívás ×
+         | 1000 címzett »limiten belül« 300 000 levelet jelentene"), és a számlázás nem
+         | lehet másképp.
+         |
+         | A HIBA NEM BUKTATJA EL A KÜLDÉST: a levél már átment a kapun, és egy
+         | mérés-hiba nem tarthatja vissza. A hiányzó fogyás bevétel-kiesés, a visszatartott
+         | tranzakciós levél viszont ügyfél-probléma — a kettő nem egy súlycsoport.
+         */
+        try {
+            app(Metering::class)->increment(
+                UsageDimension::Sends,
+                max(1, count((array) $message->recipients)),
+            );
+        } catch (Throwable $e) {
+            Log::warning('A küldés fogyása nem került a meteringbe', [
+                'message_uuid' => (string) $message->uuid,
+                'exception' => $e::class,
+            ]);
+        }
 
         // Az ÜTEMEZETT üzenet nem megy ki azonnal: a `deliverytime` a Mailgun-paritás része
         // (o:deliverytime). A sorból az A2 ütemezője veszi majd ki — és mivel a gate-döntésnek

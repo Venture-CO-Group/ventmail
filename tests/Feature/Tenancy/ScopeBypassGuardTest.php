@@ -60,7 +60,14 @@ it('a Tenancy modulon kívül senki nem kerüli meg a global scope-ot', function
         // felismerhetetlenné válna, vagyis a törlési kérés eredménye az lenne, hogy az
         // érintett újra kap levelet. A lekérdezések elsődleges kulcsra mennek
         // (`where('id', …)`), tehát tenant-határt nem tudnak átlépni.
+        // C1 · A KONSZOLIDÁLT SZÁMLA a parent és a childjei kivonatait EGYÜTT olvassa. A
+        // global scope `workspace_id = parent`-re szűr, tehát a child sorokat elrejtené —
+        // pedig épp azokat kell összesíteni (77. kritérium). A szűrő kézi és PONTOS: vagy a
+        // parent saját sora, vagy olyan, aminek a `parent_workspace_id`-je ÉPP EZ a parent;
+        // idegen tenant sora egyik ágon sem férhet bele. A `runFor()` a Tenancy SAJÁT
+        // kontextus-váltója (a `closeConsolidated()` ezt használja, nem scope-kikapcsolást).
         $exceptions = [
+            'Billing/Services/MonthlyClose.php',
             'Deliverability/Services/DmarcReportIngestor.php',
             'Deliverability/Http/Controllers/MtaStsController.php',
             'Audience/Http/Controllers/PublicFormController.php',
