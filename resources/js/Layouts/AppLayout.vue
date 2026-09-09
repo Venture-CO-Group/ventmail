@@ -53,6 +53,18 @@ const platform = computed(() =>
     ].filter((item) => item.show),
 );
 
+/*
+ | A STUDIO külön menü-csoport: a Mailchimp-oldal más munkakör (marketinges), mint a
+ | platform-oldal (fejlesztő, üzemeltető). Egy közös listában a kettő elfedné egymást.
+ */
+const studio = computed(() =>
+    [
+        { href: '/audience', id: 'nav-audience', label: t('nav.audience'), show: can('audience.manage') },
+        { href: '/templates', id: 'nav-templates', label: t('nav.templates'), show: can('template.create') },
+        { href: '/campaigns', id: 'nav-campaigns', label: t('nav.campaigns'), show: can('campaign.create') },
+    ].filter((item) => item.show),
+);
+
 const workspaceOptions = computed(() =>
     (page.props.workspaces ?? []).map((workspace) => ({ value: workspace.uuid, label: workspace.name })),
 );
@@ -108,6 +120,20 @@ async function switchLocale(code: string): Promise<void> {
                 <span class="vm-nav-group__title vt-eyebrow">{{ t('nav.platform') }}</span>
                 <Link
                     v-for="item in platform"
+                    :key="item.href"
+                    class="vm-nav-link"
+                    :href="item.href"
+                    :data-testid="item.id"
+                    :aria-current="$page.url.startsWith(item.href) ? 'page' : undefined"
+                >
+                    {{ item.label }}
+                </Link>
+            </div>
+
+            <div v-if="studio.length" class="vm-nav-group" data-testid="nav-studio">
+                <span class="vm-nav-group__title vt-eyebrow">{{ t('nav.studio') }}</span>
+                <Link
+                    v-for="item in studio"
                     :key="item.href"
                     class="vm-nav-link"
                     :href="item.href"

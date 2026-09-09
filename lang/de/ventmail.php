@@ -34,6 +34,20 @@ return [
         'replayed' => 'Zustellung erneut eingereiht.',
         'alreadyDelivered' => 'Diese Zustellung war bereits erfolgreich.',
     ],
+    'audience' => [
+        'listCreated' => 'Liste angelegt.',
+    ],
+    'templates' => [
+        'saved' => 'Vorlage gespeichert.',
+    ],
+    'campaigns' => [
+        'saved' => 'Kampagne gespeichert.',
+        'schedule' => 'Kampagne geplant.',
+        'unschedule' => 'Planung aufgehoben.',
+        'start' => 'Kampagne gestartet.',
+        'pause' => 'Kampagne pausiert.',
+        'resume' => 'Kampagne fortgesetzt.',
+    ],
     'gate' => [
         'domain_unverified' => 'Die Absenderdomain ist nicht verifiziert.',
         'suppressed' => 'Der Empfänger steht auf der Sperrliste.',
