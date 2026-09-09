@@ -813,6 +813,86 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
 
+  /analytics/campaigns/{uuid}:
+    get:
+      tags: [analytics]
+      summary: Kampány-riport (összesítő, variánsok, napi idősor, klikk-térkép)
+      description: |
+        A marketing analitika és a platform-napló UGYANARRA az esemény-forrásra épül
+        (`message_events`, a kampány tagjén keresztül) — ugyanaz a kampány ugyanazt a
+        `delivered` számot adja mindkét felületen. A kampány saját számlálói
+        (`sent_count`, `failed_count`) SZÁNDÉKOSAN nem forrás: azok a küldési folyamat
+        állapotát írják le, nem a fogadó visszajelzését.
+
+        **A ráták nevezői kimondva:** a nyitás, a klikk, a panasz és a leiratkozás a
+        KÉZBESÍTETT-re vetül (aki nem kapta meg, nem is nyithatta meg); a bounce az
+        ELFOGADOTT-ra (a bounce épp a kézbesítés kudarca, a kézbesítettre osztva mindig
+        szebb számot adna); a CTOR az EGYEDI NYITÓK-ra. A nyitás és a klikk EGYEDI
+        címzettben számol — egy Apple MPP-s postafiók ugyanazt a levelet tízszer
+        „megnyitja".
+
+        **A nyitás mérése 2021 óta megbízhatatlan** (Apple Mail Privacy Protection: a proxy
+        minden levelet letölt). A számot kiszámoljuk, mert a trendje használható, de nem
+        hazudjuk pontosnak — döntéshez a klikk a mérőszám.
+
+        **A válasz aggregált: egyetlen címzett-címet sem tartalmaz.** Címzett-szintű adat
+        csak az érintetti exporton (auditált, egy emberre szóló út) érhető el.
+
+        `?format=csv` ugyanezeket a számokat adja fájlként — nem külön lekérdezés.
+      operationId: getCampaignReport
+      security: [{ bearerAuth: [] }, { basicAuth: [] }]
+      parameters:
+        - name: uuid
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: format
+          in: query
+          required: false
+          schema: { type: string, enum: [json, csv], default: json }
+          description: A `csv` letölthető fájlt ad; a `section` dönti el, melyiket.
+        - name: section
+          in: query
+          required: false
+          schema: { type: string, enum: [summary, variants, clicks], default: summary }
+          description: |
+            CSAK `format=csv` mellett. `summary` az összesítő egy sorban, `variants` az A/B
+            variánsok soronként, `clicks` a klikk-térkép rangsorban. Ismeretlen érték 404 —
+            nem csendes visszaesés az összesítőre.
+      responses:
+        '200':
+          description: A kampány riportja
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  summary: { $ref: '#/components/schemas/CampaignReportSummary' }
+                  variants:
+                    type: array
+                    items: { $ref: '#/components/schemas/CampaignReportVariant' }
+                  daily:
+                    type: array
+                    items:
+                      type: object
+                      description: |
+                        ESEMÉNY-számok, nem egyediek: a Timescale folytonos aggregátum nem
+                        támogat `DISTINCT`-et, és a napi „hányan" amúgy sem összegezhető
+                        (aki két napon nyit, két napba tartozik, de egy ember).
+                      properties:
+                        day: { type: string, format: date }
+                        delivered: { type: integer }
+                        opened: { type: integer }
+                        clicked: { type: integer }
+                  click_map:
+                    type: array
+                    items: { $ref: '#/components/schemas/ClickMapEntry' }
+            text/csv:
+              schema: { type: string }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -862,6 +942,90 @@ components:
           schema: { $ref: '#/components/schemas/Error' }
 
   schemas:
+    CampaignReportCounts:
+      type: object
+      description: |
+        A SZÁMOK és a RÁTÁK — közös alak az összesítőben és a variáns-bontásban. A `total`
+        és az `unique` KÜLÖN mező, mert mást mondanak: az `opened` az események száma, az
+        `unique_opened` az egyedi címzettek száma.
+
+        A számok CÍMZETTET számolnak, nem eseményt (az `opened`/`clicked` kivételével): az
+        éles driver-úton egy címzettre kétszer is keletkezhet `accepted`, és a
+        `bounced / accepted` ráta így felére kozmetikázódott volna — az pedig a
+        kézbesíthetőségi megfelelés száma.
+      properties:
+        rejected:
+          type: integer
+          description: |
+            A PreSendGate által elutasított CÍMZETTEK száma (suppression, hiányzó consent,
+            kvóta, címellenőrzési kockázat). Enélkül a `recipients` és az `accepted`
+            különbsége magyarázat nélkül állna, és a tenant nem látná, hogy a listája egy
+            része ki sem ment — a listahigiénia romlása a kézbesíthetőségi probléma első jele.
+        accepted: { type: integer }
+        delivered: { type: integer }
+        deferred: { type: integer }
+        bounced: { type: integer }
+        complained: { type: integer }
+        unsubscribed: { type: integer }
+        opened: { type: integer, description: 'Esemény-szám (MPP-vel felfelé torzít).' }
+        unique_opened: { type: integer, description: 'Egyedi címzett.' }
+        clicked: { type: integer }
+        unique_clicked: { type: integer }
+        engaged:
+          type: integer
+          description: |
+            Az ELÉRT közönség: aki nyitott VAGY kattintott. Ez a CTOR nevezője —
+            kép-blokkoló kliensben a pixel nem tölt be, a link viszont kattintható, tehát
+            több kattintó lehet, mint nyitó, és a kattintás bizonyítja a megnyitást.
+        open_rate: { type: number, format: float, description: 'unique_opened / delivered' }
+        click_rate: { type: number, format: float, description: 'unique_clicked / delivered' }
+        click_to_open_rate: { type: number, format: float, description: 'unique_clicked / engaged' }
+        bounce_rate: { type: number, format: float, description: 'bounced / accepted' }
+        complaint_rate: { type: number, format: float, description: 'complained / delivered' }
+        unsubscribe_rate: { type: number, format: float, description: 'unsubscribed / delivered' }
+        rejection_rate: { type: number, format: float, description: 'rejected / (rejected + accepted)' }
+
+    CampaignReportSummary:
+      type: object
+      description: A kampány azonosítói és a számai — minden szám a marketing-ténytáblából.
+      allOf:
+        - type: object
+          properties:
+            campaign: { type: string }
+            campaign_uuid: { type: string, format: uuid }
+            status: { type: string }
+            recipients:
+              type: integer
+              description: A materializált címzett-halmaz mérete (a célzásból, nem eseményből).
+        - $ref: '#/components/schemas/CampaignReportCounts'
+
+    CampaignReportVariant:
+      type: object
+      description: |
+        Egy A/B variáns riportja. A számok és a ráták UGYANAZOK a mezők, mint az
+        összesítőben, de a variáns AZONOSÍTÓI mások — a variáns nem kampány, tehát nincs
+        `campaign_uuid`-ja és `recipients` száma.
+      allOf:
+        - type: object
+          properties:
+            label: { type: string, example: A }
+            subject: { type: string, nullable: true }
+            weight: { type: integer, description: 'Egész százalék; az összegnek 100-nak kell lennie.' }
+            is_winner: { type: boolean }
+        - $ref: '#/components/schemas/CampaignReportCounts'
+
+    ClickMapEntry:
+      type: object
+      description: |
+        RANGSOR: a legtöbbet kattintott link az első. A `(egyéb link)` sor a linkenkénti
+        felső korlát fölötti kattintásokat gyűjti — a csonkítás ténye látszik, nem csendes.
+      properties:
+        url: { type: string }
+        clicks: { type: integer, description: 'Összes kattintás.' }
+        unique_clicks: { type: integer, description: 'Egyedi kattintó (pszeudonim hash alapján).' }
+        first_clicked_at: { type: string, format: date-time, nullable: true }
+        last_clicked_at: { type: string, format: date-time, nullable: true }
+
     JourneyEventInput:
       type: object
       required: [email, event]

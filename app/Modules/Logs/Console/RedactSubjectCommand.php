@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Modules\Logs\Console;
 
+use App\Modules\Analytics\Services\ClickMap;
 use App\Modules\Audit\Services\AuditLogger;
+use App\Modules\Audit\Services\KeyedHash;
 use App\Modules\Campaign\Models\CampaignRecipient;
 use App\Modules\Events\Models\MessageEvent;
 use App\Modules\Inbound\Contracts\RawMailStore;
@@ -76,7 +78,7 @@ final class RedactSubjectCommand extends Command
             return self::FAILURE;
         }
 
-        $redacted = ['messages' => 0, 'mime' => 0, 'events' => 0, 'smtp' => 0, 'attempts' => 0, 'webhooks' => 0, 'suppressions' => 0, 'inbound' => 0, 'validation' => 0, 'campaign_recipients' => 0, 'journey_runs' => 0];
+        $redacted = ['messages' => 0, 'mime' => 0, 'events' => 0, 'smtp' => 0, 'attempts' => 0, 'webhooks' => 0, 'suppressions' => 0, 'inbound' => 0, 'validation' => 0, 'campaign_recipients' => 0, 'journey_runs' => 0, 'link_clicks' => 0];
 
         // SZÁRAZ FUTÁS: egy visszavonhatatlan, tenanteken átnyúló művelet előtt látni kell,
         // mit érintene. A tranzakció a végén visszagördül — a számok viszont valódiak.
@@ -90,6 +92,27 @@ final class RedactSubjectCommand extends Command
             $this->workspaces()->chunkById(100, function ($workspaces) use ($context, $key, &$redacted): void {
                 foreach ($workspaces as $workspace) {
                     $context->set($workspace);
+
+                    /*
+                     | A TARTÓS TILTÁS ELŐBB, minden redakció ELŐTT.
+                     |
+                     | Enélkül a kiküldött levélben lévő pixel egyetlen betöltéssel
+                     | visszaírná a címet — és a `MessageEvent::created` hookja a webhookon
+                     | harmadik félhez is kiküldené. Az Apple MPP és a Gmail képproxyja ezt
+                     | felhasználói szándék nélkül, magától megteszi.
+                     |
+                     | MIÉRT ELSŐKÉNT: a valódi (nem `--dry-run`) futás NINCS egyetlen
+                     | tranzakcióban — táblánként, illetve csoportonként dolgozik. Ha a
+                     | sorrend végén állna, és közben bármi elhasal (deadlock, timeout a
+                     | klikk-térkép ezres összevonásain), akkor a redakciók egy része már
+                     | megtörtént, a visszaírás-védelem viszont NEM születik meg: a törlés
+                     | részlegesen teljesül, és a pixel a maradékot visszahozza. Egyetlen
+                     | sor beszúrása a legkisebb kockázatú lépés — az megy előre.
+                     */
+                    ErasedRecipient::query()->firstOrCreate(
+                        ['recipient_hash' => ErasedRecipient::hash($key)],
+                        ['erased_at' => now()],
+                    );
 
                     $redacted['messages'] += $this->redactMessages($key, $redacted);
                     $redacted['events'] += $this->redactEvents($key);
@@ -107,6 +130,7 @@ final class RedactSubjectCommand extends Command
                     $redacted['inbound'] += $this->redactInbound($key);
                     $redacted['campaign_recipients'] += $this->redactCampaignRecipients($key);
                     $redacted['journey_runs'] += $this->redactJourneyRuns($key);
+                    $redacted['link_clicks'] += $this->redactLinkClicks($key);
 
                     // A CÍMELLENŐRZÉS eredményei. Ez az ügyfél TELJES címlistája — a
                     // `PurgeValidationCommand` saját docblockja mondja ki, hogy ennél
@@ -116,12 +140,6 @@ final class RedactSubjectCommand extends Command
                         ->whereRaw('lower(address) = ?', [$key])
                         ->update(['address' => '(redaktált)', 'suggestion' => null, 'redacted_at' => now()]);
 
-                    // A TARTÓS TILTÁS. Enélkül a kiküldött levélben lévő pixel egyetlen
-                    // betöltéssel visszaírná a címet — és a webhookon harmadik félhez is.
-                    ErasedRecipient::query()->firstOrCreate(
-                        ['recipient_hash' => ErasedRecipient::hash($key)],
-                        ['erased_at' => now()],
-                    );
                 }
             });
         } finally {
@@ -147,7 +165,8 @@ final class RedactSubjectCommand extends Command
         $this->info(sprintf(
             ($dryRun ? '[SZÁRAZ FUTÁS] ' : '')
                 .'Redaktálva — üzenet: %d, nyers MIME: %d, esemény: %d, SMTP-párbeszéd: %d, '
-                .'kísérlet: %d, webhook-sor: %d, suppression: %d, bejövő levél: %d, címellenőrzés: %d',
+                .'kísérlet: %d, webhook-sor: %d, suppression: %d, bejövő levél: %d, '
+                .'címellenőrzés: %d, kampány-címzett: %d, journey-futás: %d, klikk-sor: %d',
             $redacted['messages'],
             $redacted['mime'],
             $redacted['events'],
@@ -157,6 +176,13 @@ final class RedactSubjectCommand extends Command
             $redacted['suppressions'],
             $redacted['inbound'],
             $redacted['validation'],
+            // A HÁROM ÚJ TÁBLA is a kimeneten van, nem csak az audit-payloadban: egy Art. 17
+            // kérést futtató operátornak LÁTNIA kell, mi történt velük. A klikk-sor száma
+            // épp az, ami korábban csendben nulla lett volna (a `ClickMap` nem normalizált
+            // címet hashelt, tehát a redakció nem találta meg a sort).
+            $redacted['campaign_recipients'],
+            $redacted['journey_runs'],
+            $redacted['link_clicks'],
         ));
 
         // RÉSZLEGES TÖRLÉS: az operátornak tudnia kell, hogy más workspace-eken a cím
@@ -403,6 +429,24 @@ final class RedactSubjectCommand extends Command
         return JourneyRun::query()
             ->whereRaw('lower(email) = ?', [$key])
             ->update(['email' => '(redaktált)', 'context' => '{}', 'updated_at' => now()]);
+    }
+
+    /**
+     * A KLIKK-TÉRKÉP — a kattintások MEGMARADNAK, a KI eltűnik.
+     *
+     * A címzett itt már PSZEUDONIM (kulcsolt HMAC), nem nyers cím — de a pepper a miénk,
+     * tehát a hash összekapcsolható, és egy Art. 17 kérés után nem tarthatjuk meg. Az
+     * összevonás a `clicks` és az egyedi kattintók számát megőrzi: a kampány
+     * klikk-térképe nem változik visszamenőleg attól, hogy valaki törlést kért.
+     *
+     * A sor TÖRLÉSE rossz válasz lenne: a fél évvel korábbi kampány riportja csökkenne, és
+     * a tenant azt látná, hogy a számai maguktól romlanak.
+     */
+    private function redactLinkClicks(string $key): int
+    {
+        $hash = KeyedHash::of('email', $key);
+
+        return app(ClickMap::class)->collapse(fn ($query) => $query->where('recipient_hash', $hash));
     }
 
     private function redactEvents(string $key): int

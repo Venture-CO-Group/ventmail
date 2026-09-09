@@ -24,6 +24,9 @@ dataset('vektorok', [
     ['api_key', 'vm_live_teszt'],
     ['email', 'cimzett@example.test'],
     ['ip', '203.0.113.7'],
+    // A B4 klikk-térkép link-kulcsa. A domain-elválasztás itt is számít: a link-hash és az
+    // e-mail-hash összevethető lenne, ha ugyanabból a kulcsból származna.
+    ['click-url', 'https://pelda.hu/akcio'],
 ]);
 
 it('a kulcsolt hash determinisztikus és domain-elválasztott', function (string $purpose, string $input) {

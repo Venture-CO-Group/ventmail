@@ -6,7 +6,7 @@
 ## Cél
 **Mailgun + Mailchimp egyidejű kiváltása.** Két pillér (Platform / Studio) egy közös motoron.
 
-## Aktuális milestone: **M2 — B sáv (STUDIO)** · aktív packet: **B3** *(M0 lezárva: 2026-09-02 · M1 lezárva: 2026-09-08)*
+## Aktuális milestone: **M2 — B sáv (STUDIO)** · aktív packet: **B4** *(M0 lezárva: 2026-09-02 · M1 lezárva: 2026-09-08)*
 
 > **Fázis-névhasználat.** A roadmap sávokban gondolkodik, a napi munka fázisokban. A kettő
 > leképezése: **M1 = A sáv** (Platform, a Mailgun kiváltása) · **M2 = B sáv** (Studio, a
@@ -251,9 +251,8 @@ platform-napló — mert ugyanabból az esemény-forrásból dolgozik.
 
 ### M2 packetek — sorrend kötelező
 - [x] **B1 · Közönség + consent + űrlapok + preference center** — PR #21 MERGE-ELVE (reviewer + security, minden blokkoló javítva)
-- [ ] **B2 · Block editor + kampányok** — backend kész, reviewer + security ÁTMENT, minden
-      blokkoló javítva mérő teszttel · **PR #22, backend CI zöld — MERGE-re vár**
-      *(a `gh pr merge` engedélyt a session közben visszavonta a classifier)*
+- [x] **B2 · Block editor + kampányok** — PR #22 MERGE-ELVE (reviewer + security, minden
+      blokkoló javítva mérő teszttel)
 
   **B2 backlogba tett tételek** (a review SHOULD-jai, amikhez külön packet kell):
   - **Policy/authorizáció a Studio-modulokra** (M0-1 9. kritérium: `developer` nem indíthat
@@ -268,8 +267,8 @@ platform-napló — mert ugyanabból az esemény-forrásból dolgozik.
     teszt, a maradék a győztest kapja) az életciklust és a köteg-indítást is érinti,
     tehát önálló packet.
 
-- [ ] **B3 · Journey-motor** — backend kész, reviewer + security ÁTMENT (mindkettő BLOKKOLÓ
-      verdikttel jött, minden találat javítva mérő teszttel) *(PR-re vár)*
+- [x] **B3 · Journey-motor** — PR #23 MERGE-ELVE (reviewer + security, mindkettő BLOKKOLÓ
+      verdikttel jött, minden találat javítva mérő teszttel)
 
   **B3 backlogba tett tételek:**
   - **`tag_added` trigger bekötése.** A trigger nem tüzel élesben, és ez MÉRT állapot, nem
@@ -287,7 +286,21 @@ platform-napló — mert ugyanabból az esemény-forrásból dolgozik.
     ARC-lánc igazolja. A security-review ezt kifejezetten „ne vaktában"-ként jelölte meg,
     mert a naiv szigorítás legitim forgalmat zárna ki.
 - [ ] **B3 · Journey motor + builder** — architect → test → backend → frontend → mockup
-- [ ] **B4 · Marketing analitika** — test → backend → frontend
+- [ ] **B4 · Marketing analitika** — backend kész, reviewer + security ÁTMENT (mindkettő
+      BLOKKOLÓ verdikttel jött, minden találat javítva mérő teszttel) *(PR-re vár)*
+
+  **B4 backlogba tett tételek:**
+  - **Lépés-szintű journey-levélbontás.** A ténytábla grainje `(hatókör, variáns, címzett)`,
+    és a journey-levélnél a „variáns" helyét a lépés foglalná el — de az `EngagementRecorder`
+    ma a `journey_step:<uuid>` taget nem ismeri variánsként. A lépés-soron ezért a
+    `executed` szám a valódi lépés-szintű mérőszám, a levél-számok a journey egészére
+    vonatkoznak. A bontás a grain bővítését igényli, tehát önálló packet.
+  - **Journey- és lista-riport FELÜLETE.** A szolgáltatások (`JourneyAnalytics`,
+    `ListAnalytics`, `ClickMap::forJourney`, `JourneyAnalytics::exitReasons`) készen állnak
+    és teszteltek, de csak a KAMPÁNY-riportnak van `/v1` végpontja. A 72. kritérium
+    „kampány/journey/lista/tag" felsorolása így backend-szinten teljes, API-szinten nem.
+  - **`@venture/sdk` metódus** a `GET /v1/analytics/campaigns/{uuid}`-hoz és a B3
+    `POST /v1/journeys/events`-hez (golden rule 7). A sibling repó saját review-t igényel.
 
 ### B1 · Közönség + consent — elfogadási kritériumok
 49. Lista / tag / group CRUD; **SegmentEngine DSL** determinisztikus (attribútum + esemény +

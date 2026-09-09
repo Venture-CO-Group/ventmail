@@ -27,6 +27,52 @@ final class TagStatistics
     public function __construct(private readonly WorkspaceContext $context) {}
 
     /**
+     * EGY TAG NAPI IDŐSORA — a folytonos aggregátumból.
+     *
+     * ## Miért ITT van, és nem a B4 Analytics-ában
+     *
+     * Mert a `message_event_daily` NÉZET gazdája ez a szolgáltatás („egy képesség, egy
+     * gazda"): a nézeten nincs Eloquent-modell, tehát global scope sem, és a workspace-
+     * szűrő EGYETLEN helyre van bezárva. A B4 marketing-riportja először maga kérdezte a
+     * nézetet — az arch-őr (`ScopeBypassGuardTest`) helyesen tüzelt rá, mert az egy
+     * MÁSODIK hely lett volna, ahol egy elfelejtett `where` cross-tenant számot adna.
+     *
+     * ## Amit NEM ad: EGYEDI számokat
+     *
+     * A Timescale folytonos aggregátum nem támogat `DISTINCT`-et, tehát ez a metódus
+     * ESEMÉNY-számokat ad. Ez nem hiányosság: a napi „hányan" amúgy sem összegezhető (aki
+     * két napon nyit, két napba tartozik, de egy ember). Az egyedi számokat a B4
+     * ténytáblája adja.
+     *
+     * @return list<array{day: string, delivered: int, opened: int, clicked: int}>
+     */
+    public function dailyForTag(string $tag): array
+    {
+        if (! $this->context->hasWorkspace()) {
+            // Fail-closed, ugyanaz az indok, mint a `forRange()`-ben.
+            throw new RuntimeException('A napi tag-idősor workspace-kontextus nélkül nem kérdezhető le.');
+        }
+
+        return DB::table('message_event_daily')
+            ->where('workspace_id', $this->context->workspaceId())
+            ->where('tag', $tag)
+            ->selectRaw("to_char(day, 'YYYY-MM-DD') as day")
+            ->selectRaw("coalesce(sum(total) filter (where type = 'delivered'), 0) as delivered")
+            ->selectRaw("coalesce(sum(total) filter (where type = 'opened'), 0) as opened")
+            ->selectRaw("coalesce(sum(total) filter (where type = 'clicked'), 0) as clicked")
+            ->groupBy('day')
+            ->orderBy('day')
+            ->get()
+            ->map(static fn (object $row): array => [
+                'day' => (string) $row->day,
+                'delivered' => (int) $row->delivered,
+                'opened' => (int) $row->opened,
+                'clicked' => (int) $row->clicked,
+            ])
+            ->all();
+    }
+
+    /**
      * @return list<array{tag: string, delivered: int, opened: int, clicked: int, bounced: int, open_rate: float, click_rate: float, bounce_rate: float}>
      */
     public function forRange(CarbonInterface $from, CarbonInterface $to, ?string $channel = null): array
