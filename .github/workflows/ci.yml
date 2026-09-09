@@ -162,6 +162,21 @@ jobs:
         with:
           node-version: '22'
 
+      # A @venture/* csomagok FORRÁSKÓDBAN jönnek (`file:` link a testvér-könyvtárra), nem
+      # publikált tarballként — a `dist/` tehát NINCS bennük. A csomag `prepare` scriptje
+      # építene, de a saját devDependencyjei (tsup, vite) csak akkor vannak meg, ha a
+      # csomagban MAGÁBAN is lefutott az install. Enélkül a ventMail `npm ci`-je
+      # `tsup: not found` (127) hibával áll meg — mérve, az első futáson, amikor a
+      # `VENTURE_PACKAGES_TOKEN` végre megvolt.
+      - name: '@venture csomagok telepítése és építése'
+        run: |
+          for pkg in venture-design venture-ui venture-sdk; do
+            dir="${GITHUB_WORKSPACE}/_packages/${pkg}"
+            [ -f "${dir}/package.json" ] || continue
+            npm --prefix "${dir}" ci --no-audit --no-fund
+            npm --prefix "${dir}" run build --if-present
+          done
+
       # npm ci: a committolt package-lock.json kényszerül, a CI nem csúszhat el a lokálistól.
       - name: npm ci
         run: npm ci --no-audit --no-fund
@@ -260,6 +275,21 @@ jobs:
 
       - name: composer install
         run: composer install --no-interaction --prefer-dist --no-progress
+
+      # A @venture/* csomagok FORRÁSKÓDBAN jönnek (`file:` link a testvér-könyvtárra), nem
+      # publikált tarballként — a `dist/` tehát NINCS bennük. A csomag `prepare` scriptje
+      # építene, de a saját devDependencyjei (tsup, vite) csak akkor vannak meg, ha a
+      # csomagban MAGÁBAN is lefutott az install. Enélkül a ventMail `npm ci`-je
+      # `tsup: not found` (127) hibával áll meg — mérve, az első futáson, amikor a
+      # `VENTURE_PACKAGES_TOKEN` végre megvolt.
+      - name: '@venture csomagok telepítése és építése'
+        run: |
+          for pkg in venture-design venture-ui venture-sdk; do
+            dir="${GITHUB_WORKSPACE}/_packages/${pkg}"
+            [ -f "${dir}/package.json" ] || continue
+            npm --prefix "${dir}" ci --no-audit --no-fund
+            npm --prefix "${dir}" run build --if-present
+          done
 
       - name: npm ci
         run: npm ci --no-audit --no-fund
