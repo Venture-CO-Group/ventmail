@@ -339,6 +339,18 @@ jobs:
         run: |
           cp .env.example .env
           php artisan key:generate
+
+          # AUDIT_PEPPER: futásonként generált, eldobható érték — UGYANAZ az idióma, mint a
+          # backend jobban.
+          #
+          # A `.env.example`-ben szándékosan ÜRES (a repó nem szállít titkot), a `KeyedHash`
+          # viszont fail-closed: üres pepperrel HANGOSAN dob, nem ad csendben gyenge hasht.
+          # Ez helyes — de a demó-adat seedelése emiatt 500-zal állt meg, és a napló-flow
+          # mindhárom tesztje ÜRES naplón futott (mérve: „0 sor", három bukó teszt). A hiba
+          # eddig láthatatlan volt, mert a Playwright-kapu a hiányzó privát csomagok miatt
+          # el sem jutott a futtatásig.
+          php artisan ventmail:pepper | sed 's/^/AUDIT_PEPPER=/' >> .env
+
           php artisan migrate --force
 
       - name: playwright telepítése
