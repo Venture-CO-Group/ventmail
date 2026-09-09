@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Logs\Console;
 
 use App\Modules\Audit\Services\AuditLogger;
+use App\Modules\Campaign\Models\CampaignRecipient;
 use App\Modules\Events\Models\MessageEvent;
 use App\Modules\Inbound\Contracts\RawMailStore;
 use App\Modules\Inbound\Models\InboundAttachment;
@@ -74,7 +75,7 @@ final class RedactSubjectCommand extends Command
             return self::FAILURE;
         }
 
-        $redacted = ['messages' => 0, 'mime' => 0, 'events' => 0, 'smtp' => 0, 'attempts' => 0, 'webhooks' => 0, 'suppressions' => 0, 'inbound' => 0, 'validation' => 0];
+        $redacted = ['messages' => 0, 'mime' => 0, 'events' => 0, 'smtp' => 0, 'attempts' => 0, 'webhooks' => 0, 'suppressions' => 0, 'inbound' => 0, 'validation' => 0, 'campaign_recipients' => 0];
 
         // SZÁRAZ FUTÁS: egy visszavonhatatlan, tenanteken átnyúló művelet előtt látni kell,
         // mit érintene. A tranzakció a végén visszagördül — a számok viszont valódiak.
@@ -103,6 +104,7 @@ final class RedactSubjectCommand extends Command
                     $redacted['webhooks'] += $this->redactWebhookDeliveries($key);
                     $redacted['suppressions'] += $this->redactSuppressions($key);
                     $redacted['inbound'] += $this->redactInbound($key);
+                    $redacted['campaign_recipients'] += $this->redactCampaignRecipients($key);
 
                     // A CÍMELLENŐRZÉS eredményei. Ez az ügyfél TELJES címlistája — a
                     // `PurgeValidationCommand` saját docblockja mondja ki, hogy ennél
@@ -361,6 +363,26 @@ final class RedactSubjectCommand extends Command
         return Suppression::query()
             ->whereRaw('lower(email) = ?', [$key])
             ->update(['email' => '(redaktált)', 'detail' => null]);
+    }
+
+    /**
+     * A MATERIALIZÁLT KAMPÁNY-CÍMZETT — a sor marad, a cím nem.
+     *
+     * Ez a tábla a B2-vel jött, és SEMMI nem redaktálta: mérve az `erase()` után a
+     * `contacts.email` már `torolt-…@erased.invalid` volt, a `campaign_recipients.email`-ben
+     * viszont ott állt a NYERS cím. A tábla migrációjának kommentje azt állította, hogy a
+     * cím „itt REDAKTÁLHATÓ (a `logs:redact-subject` útján)" — ez a metódus az, ami ezt
+     * igazzá teszi.
+     *
+     * A SOR NEM TÖRÖLHETŐ: a kampány-riport („1000 címzett, 987 elküldve") visszamenőleg
+     * megváltozna, ha egy törlési kérés kivenne belőle sorokat. Az `email_hash` marad — a
+     * riporthoz elég (ugyanaz a cím-e), az azonosításhoz nem.
+     */
+    private function redactCampaignRecipients(string $key): int
+    {
+        return CampaignRecipient::query()
+            ->whereRaw('lower(email) = ?', [$key])
+            ->update(['email' => '(redaktált)', 'updated_at' => now()]);
     }
 
     private function redactEvents(string $key): int

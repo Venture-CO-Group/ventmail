@@ -263,6 +263,38 @@ final class Message extends Model
         return $claims;
     }
 
+    /**
+     * A TÖRZSBE BEHELYETTESÍTHETŐ linkek erre a címzettre.
+     *
+     * Miért kell: a block editor `unsubscribe` blokkja `{{ unsubscribe_url }}`-t és
+     * `{{ preferences_url }}`-t ír a HTML-be, és ezeket SENKI nem töltötte ki. Mérve a
+     * kimenet `<a href="">Leiratkozás</a>` volt — HALOTT leiratkozó link a levélben,
+     * miközben a golden rule 8 szerint a leiratkozás nem alku. A fejléc (`List-Unsubscribe`)
+     * megvolt, de az csak a levélkliens gombját szolgálja: aki a levél ALJÁN kattint,
+     * annak a törzsben lévő link kell.
+     *
+     * MINDEN csatornára kiadjuk, nem csak a marketingre: egy marketingnek szánt, majd
+     * tranzakciósan kiküldött sablon (`PublishToStoredTemplate`) törzsében különben szintén
+     * halott link állna. A tokenek maguk cél-elválasztottak, tehát a kiadásuk nem gyengít.
+     *
+     * @return array<string, string>
+     */
+    public function bodyLinkVariables(string $recipient): array
+    {
+        if ($recipient === '' || ! str_starts_with($this->unsubscribeUrlPrefix(), 'http')) {
+            return [];
+        }
+
+        return [
+            'unsubscribe_url' => $this->unsubscribeUrlPrefix().app(UnsubscribeTokens::class)->issue(
+                (int) $this->workspace_id,
+                (string) $this->uuid,
+                $recipient,
+            ),
+            'preferences_url' => $this->preferenceCenterUrl($recipient),
+        ];
+    }
+
     /** @return array<string, string> */
     private function unsubscribePair(string $recipient): array
     {

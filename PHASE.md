@@ -6,7 +6,7 @@
 ## Cél
 **Mailgun + Mailchimp egyidejű kiváltása.** Két pillér (Platform / Studio) egy közös motoron.
 
-## Aktuális milestone: **M1 — A sáv (PLATFORM)** · aktív packet: **A6** *(az M0 lezárva: 2026-09-02)*
+## Aktuális milestone: **M2 — B sáv (STUDIO)** · aktív packet: **B3** *(M0 lezárva: 2026-09-02 · M1 lezárva: 2026-09-08)*
 
 > **Fázis-névhasználat.** A roadmap sávokban gondolkodik, a napi munka fázisokban. A kettő
 > leképezése: **M1 = A sáv** (Platform, a Mailgun kiváltása) · **M2 = B sáv** (Studio, a
@@ -250,8 +250,22 @@ journey-t kap, a marketing analitika pedig **ugyanazt a delivered-számot** muta
 platform-napló — mert ugyanabból az esemény-forrásból dolgozik.
 
 ### M2 packetek — sorrend kötelező
-- [ ] **B1 · Közönség + consent + űrlapok + preference center** — test → backend → **security (PII)** → frontend
-- [ ] **B2 · Block editor + kampányok** — architect → test → backend → frontend → mockup
+- [x] **B1 · Közönség + consent + űrlapok + preference center** — PR #21 MERGE-ELVE (reviewer + security, minden blokkoló javítva)
+- [ ] **B2 · Block editor + kampányok** — backend kész, reviewer + security ÁTMENT, minden
+      blokkoló javítva mérő teszttel *(merge-re vár)*
+
+  **B2 backlogba tett tételek** (a review SHOULD-jai, amikhez külön packet kell):
+  - **Policy/authorizáció a Studio-modulokra** (M0-1 9. kritérium: `developer` nem indíthat
+    kampányt, `author` csak vázlatot szerkeszt). Route ma nincs, tehát nem kihasználható — de
+    a `CampaignServiceProvider` már deklarál `$apiMiddleware`/`$apiPrefix`-et route nélkül.
+    A **B4 vagy C1** hozza a route-tal együtt: policy route nélkül halott konfiguráció, és
+    fordítva is igaz.
+  - **A/B győztes VISSZATÁPLÁLÁSA a küldésbe** (holdback). A `campaigns:announce-winners`
+    ma KIHIRDET (ez a 64. kritérium hiányzó fele volt), de a győztesnek nincs hatása a még
+    ki nem küldött levelekre — a jelenlegi modellben az összes címzett egyszerre
+    materializálódik, tehát nincs mit visszatáplálni. A holdback (a közönség X%-a a
+    teszt, a maradék a győztest kapja) az életciklust és a köteg-indítást is érinti,
+    tehát önálló packet.
 - [ ] **B3 · Journey motor + builder** — architect → test → backend → frontend → mockup
 - [ ] **B4 · Marketing analitika** — test → backend → frontend
 

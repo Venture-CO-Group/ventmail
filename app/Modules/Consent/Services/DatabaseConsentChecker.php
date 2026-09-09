@@ -6,6 +6,7 @@ namespace App\Modules\Consent\Services;
 
 use App\Modules\Consent\Models\Consent;
 use App\Modules\Sending\Contracts\ConsentChecker;
+use App\Modules\Sending\Enums\Channel;
 use App\Modules\Sending\Services\DomainNormalizer;
 
 /**
@@ -42,6 +43,20 @@ final class DatabaseConsentChecker implements ConsentChecker
 
     public function withoutConsent(array $emails, string $channel): array
     {
+        /*
+         | A CSATORNÁT A CONSENT HATÓKÖRÉRE fordítjuk.
+         |
+         | A hozzájárulást a címzett a MARKETINGRE adja, nem csatornánként: aki feliratkozott
+         | a hírlevélre, annak a `campaign` és a `journey` levél is mehet — ugyanaz a jogalap.
+         |
+         | Enélkül a `campaign` csatorna a `channel = 'campaign'` sorokat kereste a
+         | consent-táblában, ahol SOHA nincs ilyen: mérve, mind a három megerősített
+         | consenttel bíró címzett `NO_CONSENT`-tel esett ki, vagyis a B2 egyetlen kampányt
+         | sem tudott volna kiküldeni. Az ISMERETLEN csatorna a `marketing` hatókört kapja —
+         | fail-closed, mert a szigorúbb jogalapot kérni biztonságos, a lazábbat nem.
+         */
+        $scope = (Channel::tryFrom($channel) ?? Channel::Marketing)->consentScope();
+
         // A TRANZAKCIÓS csatorna nem consent-köteles — de ezt a kapu dönti el (`ConsentGate`
         // a `requiresConsent()`-tel), nem mi. Ha mégis ideér, a kérdés érdemi.
         $normalized = [];
@@ -73,7 +88,7 @@ final class DatabaseConsentChecker implements ConsentChecker
 
         $confirmed = Consent::query()
             ->usable()
-            ->where('channel', $channel)
+            ->where('channel', $scope)
             ->whereIn('email', array_keys($normalized))
             ->pluck('email')
             ->all();
