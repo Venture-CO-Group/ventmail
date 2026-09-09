@@ -239,6 +239,15 @@ jobs:
       # a környezet `local` — élesben a route nem is regisztrálódik.
       IDENTITY_DEV_LOGIN: "true"
       SENDING_DRIVER: fake
+      # A BÖNGÉSZŐ-TESZT SEM KÉRDEZHET VALÓDI DNS-T — ugyanaz a szabály, mint a Pest-nél
+      # (`phpunit.xml`: „a teszt SOHA nem kérdezhet valódi DNS-t").
+      #
+      # Enélkül a demó-levél a PreSendGate 6. kapuján akadt fenn: a `demo@example.test`
+      # domainjének nincs MX-rekordja, tehát az ÉLES resolver mellett a kockázati pontszám
+      # jogosan magas — `rejected / VALIDATION_RISK` (mérve, a CI első Playwright-futásán).
+      # A kapu tehát HELYESEN működött; a teszt-környezet volt rossz: egy böngésző-teszt
+      # eredménye nem függhet attól, mit válaszol épp a világ DNS-e.
+      DOMAINS_RESOLVER: fake
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
