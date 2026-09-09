@@ -286,8 +286,8 @@ platform-napló — mert ugyanabból az esemény-forrásból dolgozik.
     ARC-lánc igazolja. A security-review ezt kifejezetten „ne vaktában"-ként jelölte meg,
     mert a naiv szigorítás legitim forgalmat zárna ki.
 - [ ] **B3 · Journey motor + builder** — architect → test → backend → frontend → mockup
-- [ ] **B4 · Marketing analitika** — backend kész, reviewer + security ÁTMENT (mindkettő
-      BLOKKOLÓ verdikttel jött, minden találat javítva mérő teszttel) *(PR-re vár)*
+- [x] **B4 · Marketing analitika** — PR #24 MERGE-ELVE (reviewer + security, mindkettő
+      BLOKKOLÓ verdikttel jött, minden találat javítva mérő teszttel)
 
   **B4 backlogba tett tételek:**
   - **Lépés-szintű journey-levélbontás.** A ténytábla grainje `(hatókör, variáns, címzett)`,
@@ -344,12 +344,25 @@ platform-napló — mert ugyanabból az esemény-forrásból dolgozik.
 74. Export CSV/API; klikk-térkép adatszerkezet.
 
 ### M2 Definition of Done
-- [ ] Mind a 26 kritériumhoz (49–74) tartozik néven nevezhető zöld teszt
-- [ ] `venture-security` átment a B1-en (PII + consent-bizonyíték)
-- [ ] a block-tree JSON Schema **kontraktus** a ventStudio felé (contract-guard őrzi)
-- [ ] a konzisztencia-teszt zöld: egyetlen esemény-forrás
-- [ ] Playwright + mockup screenshot-verify az editor és a journey-builder flow-ra
-- [ ] `main` zöld; minden packet PR-only
+- [x] Mind a 26 kritériumhoz (49–74) tartozik néven nevezhető zöld teszt
+- [x] `venture-security` átment a B1–B4 mindegyikén (mind a négyen BLOKKOLÓ verdikttel
+      indult; minden találat javítva mérő teszttel)
+- [x] a block-tree JSON Schema **kontraktus** a ventStudio felé (`BlockSchema::toJsonSchema`)
+- [x] a konzisztencia-teszt zöld: egyetlen esemény-forrás — és a B4 review után ez már a
+      RETENCIÓ után is áll (a `campaign_engagement` ténytábla túléli a `drop_chunks`-ot)
+- [ ] **Playwright + mockup screenshot-verify az editor és a journey-builder flow-ra —
+      NINCS MEG.** A B sáv teljes egészében BACKEND: a `resources/js/Pages` alatt csak a
+      `Domains`, `Inbound` és `Logs` (A sáv) van, az `e2e/` alatt három spec, mind A-sávos.
+      A Studio FELÜLETE (block editor, kampány-varázsló, journey-builder, riport-oldalak)
+      önálló munkafázis — lásd a „B sáv frontend" bejegyzést a backlogban.
+- [x] `main` zöld; minden packet PR-only (PR #21–#24)
+
+> **M2 ÁLLAPOTA: a backend LEZÁRVA, a felület NEM.** A 49–74. kritérium mindegyike
+> backend-szinten megfigyelhető és tesztelt, tehát a MOTOR kész — de a Mailchimp
+> kiváltásához a marketinges KEZÉBE is kell adni valamit. A `PHASE.md` roadmapja a
+> packetekhez „test → backend → frontend" sorrendet írt; a frontend mind a négy packetnél
+> hátramaradt, és egyben, önálló fázisként érdemes megcsinálni (közös komponensek: block
+> editor, célzás-választó, riport-grafikonok).
 
 ### M2 kockázatok
 - **A block-tree séma a ventStudio közös kontraktusa** — ha itt eltérünk tőle, a landing-page
