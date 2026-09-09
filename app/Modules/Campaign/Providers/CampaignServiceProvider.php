@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Modules\Campaign\Providers;
 
+use App\Modules\Campaign\Console\AnnounceVariantWinnersCommand;
 use App\Modules\Campaign\Console\DispatchScheduledCampaignsCommand;
+use App\Modules\Campaign\Console\PurgeCampaignRecipientsCommand;
 use App\Modules\Support\ModuleServiceProvider;
 
 /**
@@ -19,7 +21,11 @@ final class CampaignServiceProvider extends ModuleServiceProvider
     protected function bootModule(): void
     {
         if ($this->app->runningInConsole()) {
-            $this->commands([DispatchScheduledCampaignsCommand::class]);
+            $this->commands([
+                DispatchScheduledCampaignsCommand::class,
+                PurgeCampaignRecipientsCommand::class,
+                AnnounceVariantWinnersCommand::class,
+            ]);
         }
     }
 }

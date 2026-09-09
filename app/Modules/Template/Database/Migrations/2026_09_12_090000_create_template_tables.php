@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /*
@@ -65,8 +66,17 @@ return new class extends Migration
             $table->timestamps();
             $table->softDeletes();
 
-            $table->unique(['workspace_id', 'name']);
+            /*
+             | A NÉV EGYEDISÉGE CSAK AZ ÉLŐ SOROKRA.
+             |
+             | Egy sima `unique` mellett a törölt sor neve VÉGLEGESEN foglalt marad: a
+             | „Tavaszi hírlevél" nevet a tenant a törlés után sem tudná újra használni, és a
+             | hibaüzenet egy olyan sorra hivatkozna, amit a felületen nem is lát. A parciális
+             | index (`where deleted_at is null`) pontosan azt mondja ki, amit akarunk.
+             */
         });
+
+        DB::statement('create unique index templates_workspace_name_unique on templates (workspace_id, name) where deleted_at is null');
     }
 
     public function down(): void

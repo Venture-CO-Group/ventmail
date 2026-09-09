@@ -62,5 +62,14 @@ Schedule::command('deliverability:purge')->dailyAt('04:10');
 // és a következő futás különben újra elindítaná ugyanazt.
 Schedule::command('campaigns:dispatch-scheduled')->everyMinute()->withoutOverlapping();
 
+// A/B GYŐZTES KIHIRDETÉSE. A 64. kritérium „automata kihirdetés"-e enélkül nem létezett: a
+// `VariantWinner`-t CSAK a teszt hívta, a győztesnek semmilyen hatása nem volt a küldésre.
+Schedule::command('campaigns:announce-winners')->everyFifteenMinutes()->withoutOverlapping();
+
+// A LEZÁRT kampányok címzett-listájának redakciója (golden rule 10). A `campaign_recipients`
+// a B2-vel jött, és semmilyen lejárat nem érte: mérve az `erase()` után is NYERS cím maradt
+// benne, miközben a `contacts.email` már anonimizált volt.
+Schedule::command('campaigns:purge-recipients')->dailyAt('03:50');
+
 // A lejárt nyers MIME-levelek törlése (golden rule 10): a levéltest a legsűrűbb PII-tárolónk.
 Schedule::command('messages:purge-raw-mime')->dailyAt('03:20');

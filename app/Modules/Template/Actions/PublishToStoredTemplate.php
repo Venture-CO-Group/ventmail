@@ -27,12 +27,22 @@ use Illuminate\Support\Facades\DB;
  * SOHA nem írhat át egy meglévő verziót — az egy már működő integráció alól húzná ki a
  * szőnyeget.
  *
- * ## A MARKETING SABLON is publikálható
+ * ## A MARKETING SABLON is publikálható — és a LINKJEI MŰKÖDNEK
  *
- * …de az `unsubscribe` blokk helyőrzői (`{{ unsubscribe_url }}`) a tranzakciós úton nem
- * helyettesítődnek be, mert a `Message` csak consent-köteles csatornán ad leiratkozó
- * fejlécet és linket. Ezért a publikálás JELZI, ha a sablon marketing: a hívónak tudnia
- * kell, hogy ezt a verziót tranzakciós levélben nem érdemes használni.
+ * Ez a docblock korábban azt állította, hogy „a publikálás JELZI, ha a sablon marketing" —
+ * a kód viszont nem jelzett semmit (nincs kivétel, flag, audit-megjegyzés). A mért
+ * következmény: a publikált marketing sablon tranzakciós rendereléskor `href=""`-t adott,
+ * azaz `<a href="">Leiratkozás</a>` állt a levélben. HALOTT leiratkozó link, miközben a
+ * golden rule 8 szerint a leiratkozás nem alku.
+ *
+ * A javítás nem itt van, hanem a KÜLDÉSI ÚTON: a `Message::bodyLinkVariables()` MINDEN
+ * csatornára kiadja a címzettenkénti `unsubscribe_url`-t és `preferences_url`-t, és a
+ * `MessageDispatcher` fenntartott (a hívó által nem felülírható) változóként helyettesíti
+ * be. Egy tranzakciós levélben így sincs KÖTELEZŐ leiratkozó fejléc — de ha a törzsben ott
+ * a link, az MŰKÖDIK.
+ *
+ * Ezért itt nincs mit jelezni, és a `marketing` flag megmarad annak, ami: a sablon
+ * SZERKESZTŐI szabálya (leiratkozó blokk nélkül nem mentődik), nem a küldési út feltétele.
  */
 final class PublishToStoredTemplate
 {

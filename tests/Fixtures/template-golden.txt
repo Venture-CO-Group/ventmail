@@ -1,0 +1,8 @@
+Előnézeti szöveg
+
+Üdv, {{ nev }}!
+===============
+Ez a hírlevél.
+Megnyitom: https://pelda.hu/x
+Leiratkozás: {{ unsubscribe_url }}
+Levélbeállítások: {{ preferences_url }}

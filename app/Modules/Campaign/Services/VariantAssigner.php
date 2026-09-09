@@ -42,23 +42,56 @@ final class VariantAssigner
             return [];
         }
 
-        $plan = [];
-        $position = 0;
+        /*
+         | A MARADÉK a LEGNAGYOBB TÖRTRÉSZ elve szerint oszlik el, nem „mindig az utolsóé".
+         |
+         | Az utolsó variánsnak adott maradék mérve elrontotta a felosztást: 50/50/0-nál,
+         | 101 címzettel a 0%-OS variáns kapott 1 címzettet, egyetlen címzettnél pedig
+         | Ő KAPTA MEG AZ EGYETLENT — vagyis a „ne menjen ki" beállítás küldött levelet.
+         |
+         | A helyes szabály: a törtrészek szerint csökkenő sorrendben osztjuk szét a
+         | maradékot, és CSAK a pozitív súlyú variánsok között. Egyenlő törtrésznél a
+         | kisebb index nyer — enélkül a felosztás nem lenne determinisztikus, és egy
+         | újrapróbálás más embernek adna más variánst.
+         */
+        $shares = [];
+        $fractions = [];
         $assigned = 0;
-        $last = $variants->count() - 1;
 
         foreach ($variants as $index => $variant) {
-            // AZ UTOLSÓ variáns kapja a MARADÉKOT. Kerekítésnél máskülönben néhány címzett
-            // kimaradna a felosztásból — és azok nem kapnának levelet.
-            $share = $index === $last
-                ? $total - $assigned
-                : (int) floor($total * ((int) $variant->weight) / 100);
+            $weight = (int) $variant->weight;
+            $exact = $total * $weight / 100;
+            $shares[$index] = (int) floor($exact);
+            $assigned += $shares[$index];
 
-            for ($i = 0; $i < $share; $i++) {
-                $plan[$position++] = (int) $variant->getKey();
+            if ($weight > 0) {
+                $fractions[$index] = $exact - $shares[$index];
+            }
+        }
+
+        // Csökkenő törtrész, egyenlőségnél növekvő index.
+        $order = array_keys($fractions);
+
+        usort($order, static fn (int $a, int $b): int => $fractions[$b] <=> $fractions[$a] ?: $a <=> $b);
+
+        for ($i = 0, $left = $total - $assigned; $i < $left; $i++) {
+            if ($order === []) {
+                // MINDEN SÚLY NULLA: nincs kinek adni. Ez az `assertReady` súlyellenőrzésén
+                // amúgy sem menne át (az összegnek 100-nak kell lennie), de a hozzárendelés
+                // nem támaszkodhat egy másik osztály ellenőrzésére.
+                break;
             }
 
-            $assigned += $share;
+            $shares[$order[$i % count($order)]]++;
+        }
+
+        $plan = [];
+        $position = 0;
+
+        foreach ($variants as $index => $variant) {
+            for ($i = 0; $i < $shares[$index]; $i++) {
+                $plan[$position++] = (int) $variant->getKey();
+            }
         }
 
         return $plan;

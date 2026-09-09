@@ -48,9 +48,18 @@ final class ContentScanner
             return 'tiltott elem: <'.strtolower($match[1]).'>';
         }
 
-        // Eseménykezelő: a webmailek kiszedik, tehát legitim küldőnek sem hiányzik — a
-        // jelenléte viszont azt jelzi, hogy a törzs egy nem e-mailre szánt oldalról jön.
-        if (preg_match('/\son[a-z]{3,20}\s*=/i', $normalized) === 1) {
+        /*
+         | Eseménykezelő: a webmailek kiszedik, tehát legitim küldőnek sem hiányzik — a
+         | jelenléte viszont azt jelzi, hogy a törzs egy nem e-mailre szánt oldalról jön.
+         |
+         | A SEPARATOR nem csak whitespace. A minta korábban `\son…`-t kért, és mérve
+         | `<img/onerror=alert(1) src=x>` ÁTMENT rajta: a HTML a `/`-t is attribútum-
+         | határolónak veszi, az idézőjelet zárót szintúgy (`<a href="x"onmouseover=…>`).
+         | Ezért a karakterosztály whitespace + `/` + a két idézőjel (`\x27` az aposztróf:
+         | egy szimpla idézőjeles PHP-sztringben a `\'` maga a lezáró jel lenne), és a `=`
+         | előtt is állhat `/`.
+         */
+        if (preg_match('/[\s\/"\x27]on[a-z]{3,20}[\s\/]*=/i', $normalized) === 1) {
             return 'eseménykezelő attribútum (on*)';
         }
 

@@ -55,6 +55,7 @@ final class TemplateRenderer
      *
      * @param  array<string, array<string, mixed>>  $recipientVariables
      * @param  array<string, mixed>  $shared
+     * @param  array<string, string>  $reserved  a hívó által NEM felülírható változók
      */
     public function renderForRecipient(
         string $template,
@@ -62,6 +63,7 @@ final class TemplateRenderer
         array $recipientVariables,
         array $shared = [],
         bool $escape = true,
+        array $reserved = [],
     ): string {
         // A hívó írja a `recipient-variables` kulcsait, a címzett viszont kisbetűsítve
         // tárolódik: illesztés előtt normalizálunk, különben a nem egyező kulcs ÜRES
@@ -77,6 +79,13 @@ final class TemplateRenderer
 
         $variables = array_merge($shared, (array) ($normalized[DomainNormalizer::listKey(trim($recipient))] ?? []));
         $variables['recipient_email'] = $recipient;
+
+        // A FENNTARTOTT VÁLTOZÓK LEGUTOLSÓK, tehát a hívó nem tudja felülírni őket.
+        //
+        // Ezek a mi generált linkjeink (`unsubscribe_url`, `preferences_url`). Ha a hívó
+        // `v:unsubscribe_url`-t adhatna, a levél alján lévő „Leiratkozás" az Ő címére
+        // vinne — a mi DKIM-ünkkel aláírt levélben. A sorrend itt a védelem.
+        $variables = array_merge($variables, $reserved);
 
         // EGYETLEN PASS mindkét szintaxisra. Korábban a `%recipient.x%` EREDMÉNYE újra
         // átment a `{{ }}` renderelésen — a `htmlspecialchars` a `{` és a `%` karaktert

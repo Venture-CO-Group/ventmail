@@ -8,9 +8,13 @@ use App\Modules\Template\Actions\PublishToStoredTemplate;
 use App\Modules\Template\Data\BlockSchema;
 use App\Modules\Template\Models\Template;
 use App\Modules\Template\Services\BlockTreeValidator;
+use App\Modules\Template\Services\HtmlSanitizer;
+use App\Modules\Template\Services\MjmlWriter;
 use App\Modules\Tenancy\Models\Workspace;
 use App\Modules\Tenancy\Services\WorkspaceContext;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 
 uses(RefreshDatabase::class);
 
@@ -208,6 +212,62 @@ it('a SNAPSHOT STABIL: ugyanaz a fa ugyanazt a kimenetet adja', function () {
     expect($first->render_hash)->toBe($hash);
 });
 
+it('a GOLDEN KIMENET egyezik a commitolt fixture-rel', function () {
+    /*
+     | Miért kell EZ a teszt a fenti mellé.
+     |
+     | A fenti két renderelést hasonlít össze UGYANABBAN A PROCESSZBEN — definíció szerint
+     | nem tud kimutatni fordító-, libxml- vagy PHP-verzió-változást. Az 59. kritérium
+     | „stabil snapshot"-ot kér, és ahhoz a várt kimenetnek a REPÓBAN kell lennie.
+     |
+     | Ha ez a teszt elhasal, két dolog lehet: (a) szándékosan változott a fordító — akkor a
+     | fixture-t a diffben LÁTHATÓAN frissítjük, és a review megnézi, mi lett más a levélben;
+     | (b) nem szándékosan változott valami a környezetben — és pont ezt akarjuk megtudni a
+     | CI-ban, nem az ügyfél postafiókjából.
+     |
+     | A fixture frissítése: `VM_UPDATE_GOLDEN=1 php artisan test --filter=GOLDEN`.
+     */
+    $template = Template::create([
+        'name' => 'Golden',
+        'subject' => 'Szia',
+        'preheader' => 'Előnézeti szöveg',
+        'blocks' => validTree(),
+    ]);
+
+    $path = base_path('tests/Fixtures/template-golden.html');
+
+    if (getenv('VM_UPDATE_GOLDEN') === '1') {
+        file_put_contents($path, $template->html);
+    }
+
+    expect(file_exists($path))->toBeTrue('Hiányzik a golden fixture: '.$path)
+        ->and($template->html)->toBe(file_get_contents($path));
+
+    $textPath = base_path('tests/Fixtures/template-golden.txt');
+
+    if (getenv('VM_UPDATE_GOLDEN') === '1') {
+        file_put_contents($textPath, $template->text);
+    }
+
+    expect($template->text)->toBe(file_get_contents($textPath));
+});
+
+it('a FULL-WIDTH szekció KILÉP a 600 pixeles táblából — a beállítás HAT', function () {
+    // Mérve a `full_width: true` és a nélküli fa fordított HTML-je BITRE AZONOS volt: a
+    // felhasználó beállított valamit, ami nem hatott. Pontosan az a hibaosztály, amiért a
+    // validátorban az ismeretlen-mező szabály létezik.
+    $normal = Template::create(['name' => 'Normál', 'blocks' => validTree()]);
+
+    $full = validTree();
+    $full[0]['attrs']['full_width'] = true;
+    $full = Template::create(['name' => 'Teljes', 'blocks' => $full]);
+
+    expect($full->html)->not->toBe($normal->html)
+        ->and($full->mjml)->toContain('full-width="full-width"')
+        // A teljes szélességű sáv 100%-os táblát kap, nem a 600 pixeles belsőt.
+        ->and($full->html)->toContain('style="width:100%;"');
+});
+
 /*
  | 60. MERGE-TAG — auto-escape és fallback
  */
@@ -234,7 +294,11 @@ it('a MERGE-TAG határolói átmennek a fordításon — az ÉRTÉK escape-előd
     expect($renderer->render('Kedves {{ nev || Vásárló }}!', []))->toBe('Kedves Vásárló!');
 });
 
-it('a SZÖVEGES tartalom escape-elődik — a merge-tag kivételével', function () {
+it('a SZÖVEGES tartalom TILTOTT eleme ELTŰNIK — a merge-tag átmegy', function () {
+    // A KONTRAKTUS: a `content` szűk inline HTML (`HtmlSanitizer::inline`). A tiltott elem
+    // ezért nem escape-elődik LÁTHATÓ SZEMÉTTÉ (`&lt;script&gt;alert(1)…`, amit a címzett
+    // elolvas), hanem tartalmával együtt eltűnik. A `<script>` szövegtartalma KÓD: kibontva
+    // a forráskód jelenne meg a levélben.
     $template = Template::create([
         'name' => 'XSS',
         'blocks' => validTree([
@@ -242,9 +306,117 @@ it('a SZÖVEGES tartalom escape-elődik — a merge-tag kivételével', function
         ]),
     ]);
 
-    expect($template->html)->not->toContain('<script>alert(1)</script>');
-    expect($template->html)->toContain('&lt;script&gt;');
-    expect($template->html)->toContain('{{ nev }}');
+    expect($template->html)->not->toContain('<script')
+        ->and($template->html)->not->toContain('alert(1)')
+        ->and($template->html)->not->toContain('&lt;script&gt;')
+        ->and($template->html)->toContain('{{ nev }}');
+});
+
+it('a FORMÁZOTT SZÖVEG ugyanazt mondja a HTML-ben és a plaintextben', function () {
+    /*
+     | Ez a KONTRAKTUS-teszt. A két író korábban MÁST értett ugyanazon a mezőn: az MJML-író
+     | `htmlspecialchars`-olt, a plaintext-író HTML-ként értelmezte. A packet saját
+     | fixture-ével mérve a HTML törzsben a címzett a NYERS `<strong>` taget LÁTTA
+     | (`&lt;strong&gt;`), a plaintextben pedig a formázás helyesen eltűnt.
+     |
+     | A `<` mint MATEMATIKAI JEL a másik irány: `Az ár < 1000 Ft` a HTML-ben escape-elve
+     | jelenik meg, a plaintextben nyersen — mindkettő helyes, de csak akkor, ha a két író
+     | UGYANAZT a bemenetet ugyanúgy értelmezi.
+     */
+    $template = Template::create([
+        'name' => 'Formázás',
+        'blocks' => validTree([
+            ['type' => 'text', 'attrs' => ['content' => 'Ez a <strong>hírlevél</strong> és az ár &lt; 1000 Ft.']],
+        ]),
+    ]);
+
+    // HTML: az engedett inline tag MEGMARAD tagként, nem látható szövegként.
+    expect($template->html)->toContain('<strong>hírlevél</strong>')
+        ->and($template->html)->not->toContain('&lt;strong&gt;')
+        // Az `&lt;` mint karakter-entitás megmarad entitásnak (a `<` jel jelenik meg).
+        ->and($template->html)->toContain('&lt; 1000 Ft');
+
+    // Plaintext: a formázás eltűnik, a szöveg megmarad, a `<` valódi karakterként.
+    expect($template->text)->toContain('Ez a hírlevél és az ár < 1000 Ft.')
+        ->and($template->text)->not->toContain('<strong>');
+});
+
+it('a NYERS HTML blokk allowlistje kizárja a kitörést és az adathalász elemeket', function () {
+    /*
+     | Mind a hét alak MÉRVE átment a korábbi két regexen (`<script` és `\son[a-z]+=`), és
+     | nyersen benne volt a fordított HTML-ben. A `<base>`/`<form>`/refresh a MI DKIM-ünkkel
+     | aláírt levélben adathalászat a saját domainünkön; a `</td></tr></table>` kitör a
+     | levél elrendezés-táblájából; az `<img/onerror>` a webes előnézetben (a mi originünk)
+     | végrehajtódik.
+     |
+     | A validátor HANGOSAN elutasítja őket (`ContentScanner`), de a garanciát a KIMENET
+     | allowlistje adja — ezért itt a blokkot közvetlenül a fordítón engedjük át.
+     */
+    $sanitizer = app(HtmlSanitizer::class);
+
+    $cases = [
+        '<img/onerror=alert(1) src=x>' => ['onerror', 'alert(1)'],
+        '<a href="javascript:alert(1)">Kattints</a>' => ['javascript:'],
+        '<iframe srcdoc="&lt;script&gt;alert(1)&lt;/script&gt;"></iframe>' => ['iframe', 'srcdoc'],
+        '<style>a{background:url(javascript:alert(1))}</style>' => ['style>', 'javascript'],
+        '<base href="https://evil.example/">' => ['base'],
+        '<meta http-equiv="refresh" content="0;url=https://evil.example">' => ['http-equiv'],
+        '<form action="http://evil.example"><input name="jelszo"></form>' => ['form', 'input'],
+        '<div style="background:url(javascript:alert(1))">x</div>' => ['javascript', 'url('],
+    ];
+
+    foreach ($cases as $input => $forbidden) {
+        $out = $sanitizer->block($input);
+
+        foreach ($forbidden as $needle) {
+            expect($out)->not->toContain($needle, sprintf('„%s" → „%s" benne maradt', $input, $needle));
+        }
+    }
+
+    // A KITÖRÉS: a korai záró tagek nem tudják elhagyni a befoglaló táblát, mert a
+    // kimenetet a DOM szerializálja újra.
+    expect($sanitizer->block('</td></tr></table><h1>Átvettem</h1>'))
+        ->not->toContain('</table>')
+        ->and($sanitizer->block('</td></tr></table><h1>Átvettem</h1>'))->toContain('Átvettem');
+
+    // Amit MEGTART: a levél-elrendezéshez való HTML és a jó link.
+    $kept = $sanitizer->block('<table role="presentation"><tr><td align="center">'
+        .'<a href="https://pelda.hu/x" target="_blank">Link</a></td></tr></table>');
+
+    expect($kept)->toContain('<table')->and($kept)->toContain('href="https://pelda.hu/x"')
+        // A `target="_blank"` `rel` nélkül `window.opener`-t ad a megnyíló lapnak.
+        ->and($kept)->toContain('noopener');
+});
+
+it('a MERGE-TAG FALLBACK nem csempészhet be végrehajtható vagy titkosítatlan sémát', function () {
+    /*
+     | A MÉRT RÉS: a `href` séma-allowlistje a merge-tagot egészben engedte, a fallbacket
+     | pedig `[^}]*`-gal — tehát a `{{ cta || javascript:alert(1) }}` ÁTMENT a validátoron,
+     | beépült a sablonba, és a kimenet `href="javascript:alert(1)"` lett. A nyers
+     | `http://`-t a validátor explicit tiltja; a fallbackben mégis átjutott.
+     */
+    $validator = app(BlockTreeValidator::class);
+
+    foreach (['javascript:alert(1)', 'http://evil.example/phish', 'data:text/html,<script>alert(1)</script>', 'vbscript:x'] as $payload) {
+        $errors = $validator->errorsIn(validTree([
+            ['type' => 'button', 'attrs' => ['content' => 'Kattints', 'href' => '{{ cta || '.$payload.' }}']],
+        ]));
+
+        expect($errors)->not->toBeEmpty(sprintf('a „%s" fallback átment a validátoron', $payload));
+    }
+
+    // A JÓ fallback átmegy — a szabály nem tiltja le a személyre szabott linket.
+    expect($validator->errorsIn(validTree([
+        ['type' => 'button', 'attrs' => ['content' => 'Kattints', 'href' => '{{ cta || https://pelda.hu/akcio }}']],
+    ])))->toBe([]);
+
+    // ÉS a kimeneten is: ha a fa mégis megkerülte a validátort (`DB::table()->update()`),
+    // a fordító ÜRES `href`-et ír, nem `javascript:`-et.
+    $html = app(MjmlWriter::class)->write(validTree([
+        ['type' => 'button', 'attrs' => ['content' => 'Kattints', 'href' => '{{ cta || javascript:alert(1) }}']],
+    ]));
+
+    expect($html)->not->toContain('javascript:');
 });
 
 /*
@@ -334,4 +506,56 @@ it('a sablon TÁROLT SABLONNÁ publikálható, és a régi verziók megmaradnak'
     expect(StoredTemplateVersion::query()->count())->toBe(2);
     expect(StoredTemplateVersion::query()->where('version', 1)->firstOrFail()->body)
         ->not->toContain('Új bekezdés');
+});
+
+it('a KÉT SZABÁLY az ADATBÁZISBAN is áll — a builder-út sem kerüli meg', function () {
+    /*
+     | Mérve MIND ÁTMENT, mielőtt a trigger megszületett:
+     |   Template::query()->update(['marketing' => true])
+     |   $template->forceFill(['marketing' => true])->saveQuietly()
+     |   DB::table('templates')->update([...])
+     |   a `sending` kampányon builder-`update()` átírta a `subject`-et és a `target_lists`-et
+     |
+     | Ma nincs más író, tehát nem volt kihasználható — de semmi nem tartotta zárva. Ebben a
+     | projektben ez a hibaosztály többször visszatért: ami a fejlesztő emlékezetén múlik
+     | minden hívási helyen, azt valahol elfelejtjük.
+     */
+    // A `marketing` alapértéke TRUE (a sablon alapból hírlevél), ezért itt kimondjuk.
+    $template = Template::create(['name' => 'Nem marketing', 'marketing' => false, 'blocks' => [[
+        'type' => 'section',
+        'children' => [['type' => 'column', 'children' => [
+            ['type' => 'text', 'attrs' => ['content' => 'Semmi leiratkozás.']],
+        ]]],
+    ]]]);
+
+    /*
+     | MINDEN DB-SZINTŰ elutasítás SAVEPOINTBAN.
+     |
+     | A trigger kivétele a Postgresben ABORTÁLJA a tranzakciót, a `RefreshDatabase` pedig
+     | egy tranzakcióban futtatja a tesztet: a következő utasítás különben
+     | `SQLSTATE[25P02] … current transaction is aborted`-dal hasal el, és a teszt a második
+     | esetet meg sem tudná nézni. A beágyazott `DB::transaction` savepointot nyit, amire
+     | vissza lehet gördülni.
+     */
+    $savepoint = static fn (callable $write): callable => static fn () => DB::transaction($write);
+
+    // 1. A BUILDER-ÚT: `update()` a modell hookjait megkerüli — a trigger nem.
+    expect($savepoint(fn () => Template::query()->whereKey($template->getKey())->update(['marketing' => true])))
+        ->toThrow(QueryException::class, 'leiratkozó blokk');
+
+    // 2. A `saveQuietly()` sem: az az ESEMÉNYEKET hallgattatja el (tehát a modell `saving`
+    //    hookját is), nem az adatbázist. Pontosan ez az az út, amit a review mérve
+    //    átjutónak talált.
+    expect($savepoint(fn () => $template->forceFill(['marketing' => true])->saveQuietly()))
+        ->toThrow(QueryException::class, 'leiratkozó blokk');
+
+    // 3. A NYERS `DB::table()` sem.
+    expect($savepoint(fn () => DB::table('templates')->where('id', $template->getKey())->update(['marketing' => true])))
+        ->toThrow(QueryException::class, 'leiratkozó blokk');
+
+    // …és a LEIRATKOZÓ BLOKKAL rendelkező sablon marketingként MENTHETŐ: a szabály nem
+    // tiltja a legitim esetet.
+    $rendben = Template::create(['name' => 'Marketing', 'marketing' => true, 'blocks' => validTree()]);
+
+    expect($rendben->marketing)->toBeTrue();
 });

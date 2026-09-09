@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /*
@@ -69,6 +70,22 @@ return new class extends Migration
             $table->unsignedBigInteger('sent_count')->default(0);
             $table->unsignedBigInteger('failed_count')->default(0);
 
+            /*
+             | AZ A/B GYŐZTES AUTOMATA KIHIRDETÉSE (64. kritérium).
+             |
+             | A kritérium a HÍVÓ döntése (`open_rate` a nyitásra, `click_rate` a klikkre), és
+             | rögzül: egy fél évvel későbbi „miért ez lett a győztes?" kérdésre a riportnak
+             | válaszolnia kell. A `null` azt jelenti, hogy nincs automata kihirdetés — a
+             | tenant kézzel dönt.
+             |
+             | A VÁRAKOZÁS azért kell, mert a nyitás és a klikk KÉSVE érkezik: közvetlenül a
+             | küldés után kihirdetve mindig az nyerne, akinek a címzettjei épp a gépnél
+             | ültek.
+             */
+            $table->string('winner_criterion')->nullable();
+            $table->unsignedInteger('winner_after_minutes')->default(240);
+            $table->timestampTz('winner_declared_at')->nullable();
+
             // A Horizon batch azonosítója (65. kritérium): ebből jön a progress.
             $table->string('batch_id')->nullable();
 
@@ -77,10 +94,19 @@ return new class extends Migration
             $table->timestamps();
             $table->softDeletes();
 
-            $table->unique(['workspace_id', 'name']);
+            /*
+             | A NÉV EGYEDISÉGE CSAK AZ ÉLŐ SOROKRA.
+             |
+             | Egy sima `unique` mellett a törölt sor neve VÉGLEGESEN foglalt marad: a
+             | „Tavaszi hírlevél" nevet a tenant a törlés után sem tudná újra használni, és a
+             | hibaüzenet egy olyan sorra hivatkozna, amit a felületen nem is lát. A parciális
+             | index (`where deleted_at is null`) pontosan azt mondja ki, amit akarunk.
+             */
             $table->index(['workspace_id', 'status']);
             $table->index(['status', 'scheduled_at']);
         });
+
+        DB::statement('create unique index campaigns_workspace_name_unique on campaigns (workspace_id, name) where deleted_at is null');
 
         Schema::create('campaign_variants', function (Blueprint $table): void {
             $table->id();

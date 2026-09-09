@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use App\Modules\Identity\Models\User;
+use App\Models\User;
 use App\Modules\Tenancy\Models\WorkspaceMember;
 use Illuminate\Support\Facades\Broadcast;
 
@@ -22,6 +22,18 @@ use Illuminate\Support\Facades\Broadcast;
  | Laravel számára elutasítás — nem „nincs szabály, tehát engedjük".
  */
 
+/*
+ | A TÍPUS `App\Models\User`, és ez nem stílus kérdése.
+ |
+ | Itt korábban egy nem létező `App\Modules\Identity\Models\User` állt. A closure
+ | típushibával hasalt el (`must be of type …\Identity\Models\User, App\Models\User
+ | given`), tehát a `/broadcasting/auth` MINDEN kérésre 500-at adott: senki nem tudott
+ | feliratkozni a kampány-haladásra. A `channels.php`-ra nem volt teszt, ezért csúszott át —
+ | az alábbi három ág (tag · más workspace · nem-numerikus) most tesztelt.
+ |
+ | A gazdát a `config('auth.providers.users.model')` mondja meg; a `WorkspaceMember` maga is
+ | ezt az osztályt importálja.
+ */
 Broadcast::channel('workspace.{workspaceId}.campaigns', function (User $user, string $workspaceId): bool {
     // A CSATORNANÉV a kérésből jön: számként kezeljük, hogy egy `1 or 1=1` alak ne
     // kerülhessen a lekérdezésbe.

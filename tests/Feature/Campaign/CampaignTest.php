@@ -2,9 +2,11 @@
 
 declare(strict_types=1);
 
+use App\Models\User;
 use App\Modules\Audience\Models\Contact;
 use App\Modules\Audience\Models\ContactList;
 use App\Modules\Audience\Models\Segment;
+use App\Modules\Audit\Services\KeyedHash;
 use App\Modules\Campaign\Actions\StartCampaign;
 use App\Modules\Campaign\Enums\CampaignStatus;
 use App\Modules\Campaign\Events\CampaignProgressed;
@@ -26,10 +28,16 @@ use App\Modules\Sending\Models\Message;
 use App\Modules\Suppression\Models\Suppression;
 use App\Modules\Template\Models\Template;
 use App\Modules\Tenancy\Models\Workspace;
+use App\Modules\Tenancy\Models\WorkspaceMember;
 use App\Modules\Tenancy\Services\WorkspaceContext;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\Bus;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Str;
 
 uses(RefreshDatabase::class);
 
@@ -276,10 +284,40 @@ it('a CÍMZETT-HALMAZ materializálódik, és a DEDUPLIKÁCIÓ az egyedi kulcson
     expect($campaign->recipient_count)->toBe(1);
     expect($campaign->estimated_recipients)->toBe(1);
 
-    // ÚJRAINDÍTÁS: az `insertOrIgnore` elnyeli, duplikálás nélkül.
-    app(StartCampaign::class)($campaign->fresh());
+    /*
+     | ÚJRAINDÍTÁS: HANGOS elutasítás, nem csendes második köteg.
+     |
+     | Ez korábban átment: a `transition()` csendben visszatért, ha az állapot már a cél
+     | volt, tehát a második indítás végigfutott és MÁSODIK batchet dobott ugyanazokra a
+     | `pending` sorokra. Dupla levél nem lett belőle (az idempotencia-kulcs fogja), de a
+     | számlálók duplán nőttek — mérve `sent_count = 2` `recipient_count = 1` mellett,
+     | vagyis a riport hazudott. Két ütemező-futás vagy egy API + ütemező verseny pontosan
+     | ide vezet, ezért a `sending` állapotot FELTÉTELES UPDATE igényli.
+     */
+    expect(fn () => app(StartCampaign::class)($campaign->fresh()))
+        // A `sending → sending` átmenet MAGA tiltott, tehát már itt elhasal. A versenyt (két
+        // egyidejű indítás ugyanabból az állapotból) a feltételes UPDATE fogja: az veszít,
+        // aki nem kapta meg a sort, és „már elindította valaki más" hibát kap.
+        ->toThrow(RuntimeException::class, 'sending → sending');
 
-    expect($campaign->fresh()->recipients()->count())->toBe(1);
+    expect($campaign->fresh()->recipients()->count())->toBe(1)
+        ->and($campaign->fresh()->batch_id)->toBe($campaign->batch_id);
+
+    // …ÉS a deduplikáció KÉT FORRÁSRA is áll: aki listán ÉS szegmensben is benne van, egy
+    // levelet kap. Deduplikáció nélkül a címzett kétszer kapná meg ugyanazt a kampányt — ez
+    // a legláthatóbb hiba, amit egy hírlevélküldő elkövethet, és azonnal spam-panasz.
+    $szegmens = Segment::create([
+        'name' => 'Mind',
+        'definition' => ['match' => 'all', 'rules' => []],
+    ]);
+
+    $ketForras = app(StartCampaign::class)(campaignFor($list, [
+        'name' => 'Két forrás',
+        'target_segments' => [(string) $szegmens->uuid],
+    ]));
+
+    expect($ketForras->recipients()->count())->toBe(1)
+        ->and($ketForras->recipient_count)->toBe(1);
 });
 
 /*
@@ -568,4 +606,272 @@ it('az UTOLSÓ köteg BEFEJEZETTRE állítja a kampányt', function () {
 
     expect($campaign->fresh()->status)->toBe('sent');
     expect($campaign->fresh()->finished_at)->not->toBeNull();
+});
+
+/*
+ | A REVIEW-BAN MÉRT HIBÁK regressziós tesztjei.
+ */
+
+it('a KAMPÁNY-CSATORNA jogosultsága működik — és NEM ad 500-at', function () {
+    /*
+     | Ez a csatorna korábban egy NEM LÉTEZŐ osztályra volt típusozva
+     | (`App\Modules\Identity\Models\User`). Mérve: `TypeError: {closure}(): Argument #1
+     | ($user) must be of type …\Identity\Models\User, App\Models\User given` — vagyis a
+     | `/broadcasting/auth` MINDEN kérésre 500-at adott, és a 65. kritérium
+     | Reverb-progresszére SENKI nem tudott feliratkozni. A `channels.php`-ra nulla teszt
+     | volt, ezért csúszott át.
+     */
+    // A felhasználó a ventSSO-ból jön (nincs helyi jelszó — golden rule: az identitás
+    // gazdája a ventSSO).
+    $user = User::create([
+        'sso_issuer' => 'https://sso.teszt.invalid',
+        'sso_subject' => 'anna-'.uniqid(),
+        'name' => 'Anna',
+        'email' => 'anna@ventmail.test',
+    ]);
+
+    $workspace = app(WorkspaceContext::class)->workspace();
+
+    WorkspaceMember::create([
+        'workspace_id' => $workspace->getKey(),
+        'user_id' => $user->getKey(),
+        'roles' => ['owner'],
+    ]);
+
+    require base_path('routes/channels.php');
+
+    $authorize = Broadcast::getChannels()['workspace.{workspaceId}.campaigns'] ?? null;
+
+    expect($authorize)->not->toBeNull('A kampány-csatorna nincs regisztrálva.');
+
+    // TAG → engedély.
+    expect($authorize($user, (string) $workspace->getKey()))->toBeTrue();
+
+    // MÁS workspace → elutasítás (fail-closed).
+    $masik = Workspace::create(['name' => 'Másik', 'slug' => 'masik-'.uniqid()]);
+
+    expect($authorize($user, (string) $masik->getKey()))->toBeFalse();
+
+    // NEM-NUMERIKUS csatornanév → elutasítás, nem lekérdezés.
+    expect($authorize($user, '1 or 1=1'))->toBeFalse();
+});
+
+it('az ÁTMENETI elutasítás NEM veszíti el a címzettet', function () {
+    /*
+     | A MÉRT HIBA: minden kapu-elutasítás `skipped` lett, tehát a `pending` sor eltűnt, és
+     | a kampány `sent`-re zárt. Egy rate-limit-csúcs alatt futó köteg címzettjei így
+     | VÉGLEGESEN kimaradtak, miközben a felület „elküldve" állapotot mutatott — adatvesztés
+     | hangos hiba nélkül.
+     |
+     | A `RATE_LIMITED` és a `GATE_ERROR` ÁTMENETI: a sor `pending` marad, és a job
+     | visszamegy a sorba. A VALÓDI kaput használjuk (a limitert kimerítjük), nem mockot: a
+     | `SendMessage` `final`, és amit itt bizonyítani kell, az épp a kapu és a job
+     | EGYÜTTMŰKÖDÉSE.
+     */
+    $list = ContactList::create(['name' => 'Lista']);
+    subscriber('anna@pelda.hu', $list);
+
+    Bus::fake();
+
+    $campaign = app(StartCampaign::class)(campaignFor($list));
+
+    // A PERCENKÉNTI LIMIT KIMERÍTVE — a következő küldés `RATE_LIMITED`-et kap.
+    RateLimiter::increment(
+        'sending:'.$campaign->workspace_id,
+        60,
+        (int) config('sending.rate_limit.per_minute'),
+    );
+
+    $job = new SendCampaignChunk(
+        (string) $campaign->uuid,
+        (int) $campaign->workspace_id,
+        $campaign->recipients()->pluck('id')->all(),
+    );
+
+    app()->call([$job, 'handle']);
+
+    // A CÍMZETT MEGMARADT `pending`-ben, a kampány NEM zárt le, és a számláló nem hazudik.
+    expect($campaign->fresh()->recipients()->where('status', 'pending')->count())->toBe(1)
+        ->and($campaign->fresh()->status)->toBe('sending')
+        ->and((int) $campaign->fresh()->sent_count)->toBe(0)
+        ->and((int) $campaign->fresh()->failed_count)->toBe(0);
+});
+
+it('a VÉGLEGES elutasítás okkal rögzül, és a kampány LEZÁR', function () {
+    // A „nincs consent" VÉGLEGES: ez a címzett ebből a kampányból nem kap levelet, és a
+    // riportnak ezt kell mondania — „nincs consent" és „suppression-listán van" két
+    // különböző beszélgetés az ügyféllel.
+    $list = ContactList::create(['name' => 'Lista']);
+
+    // SZÁNDÉKOSAN consent NÉLKÜL: a kontakt listatag, de nincs megerősített hozzájárulása.
+    $contact = Contact::create(['email' => 'nincs-consent@pelda.hu', 'status' => 'subscribed']);
+    $contact->lists()->attach($list, ['status' => 'subscribed', 'subscribed_at' => now()]);
+
+    Bus::fake();
+
+    $campaign = app(StartCampaign::class)(campaignFor($list));
+
+    $job = new SendCampaignChunk(
+        (string) $campaign->uuid,
+        (int) $campaign->workspace_id,
+        $campaign->recipients()->pluck('id')->all(),
+    );
+
+    app()->call([$job, 'handle']);
+
+    $recipient = $campaign->fresh()->recipients()->first();
+
+    expect($recipient->status)->toBe('skipped')
+        ->and($recipient->skip_reason)->toBe('NO_CONSENT')
+        ->and($campaign->fresh()->status)->toBe('sent');
+});
+
+it('a FOLYTATÁS ÚJ KÖTEGEKET indít, nem csak a flaget írja át', function () {
+    /*
+     | A MÉRT HIBA: a `resume()` átírta az állapotot `sending`-re, a `batch_id` VÁLTOZATLAN
+     | maradt, és egyetlen job sem került a sorba. A szüneteltetés alatt lefutott kötegek
+     | addig a `SendCampaignChunk` korai `return`-jével elfogytak — azok a címzettek soha
+     | nem kaptak volna levelet, a kampány pedig örökre „küldés folyamatban" maradt.
+     |
+     | A korábbi teszt csak azt állította, hogy `resume()->status === 'sending'`: egy flag,
+     | nem viselkedés.
+     */
+    $list = ContactList::create(['name' => 'Lista']);
+    subscriber('anna@pelda.hu', $list);
+    subscriber('bela@pelda.hu', $list);
+
+    Bus::fake();
+
+    $campaign = app(StartCampaign::class)(campaignFor($list));
+    $elsoBatch = (string) $campaign->batch_id;
+
+    $campaign = app(CampaignLifecycle::class)->pause($campaign);
+    $campaign = app(CampaignLifecycle::class)->resume($campaign);
+
+    expect($campaign->status)->toBe('sending')
+        // ÚJ batch, ÚJ jobok: a folytatás valóban folytat.
+        ->and((string) $campaign->batch_id)->not->toBe($elsoBatch);
+
+    Bus::assertBatchCount(2);
+});
+
+it('a KÜLDÉS ALATT lévő kampány célzása és tárgya az ADATBÁZISBAN sem írható át', function () {
+    /*
+     | A 62. szerkesztés-zár korábban CSAK az Eloquent `save()` úton élt. Mérve a `sending`
+     | kampányon builder-`update()` és `saveQuietly()` egyaránt átírta a `subject`-et és a
+     | `target_lists`-et. A levél egy része addig már kiment: a felület egy tárgyat mutatna,
+     | a címzettek postafiókjában egy másik állna — és a riport egy harmadik célzásra
+     | hivatkozna.
+     */
+    $list = ContactList::create(['name' => 'Lista']);
+    subscriber('anna@pelda.hu', $list);
+
+    Bus::fake();
+
+    $campaign = app(StartCampaign::class)(campaignFor($list));
+
+    expect($campaign->status)->toBe('sending');
+
+    // SAVEPOINT: a trigger kivétele abortálja a tranzakciót, és a `RefreshDatabase` egy
+    // tranzakcióban futtat — a következő állítás különben `25P02`-vel hasalna el.
+    $savepoint = static fn (callable $write): callable => static fn () => DB::transaction($write);
+
+    expect($savepoint(fn () => Campaign::query()->whereKey($campaign->getKey())->update(['subject' => 'Átírt tárgy'])))
+        ->toThrow(QueryException::class, 'nem szerkeszthető');
+
+    expect($savepoint(fn () => DB::table('campaigns')->where('id', $campaign->getKey())->update(['target_lists' => '[]'])))
+        ->toThrow(QueryException::class, 'nem szerkeszthető');
+
+    // …de az ÁLLAPOT és a SZÁMLÁLÓK írhatók: épp azokat írja a küldés.
+    Campaign::query()->whereKey($campaign->getKey())->update(['sent_count' => 1]);
+
+    expect((int) $campaign->fresh()->sent_count)->toBe(1)
+        ->and($campaign->fresh()->subject)->toBe('Tavaszi ajánlat');
+});
+
+it('a CÉLZÁS nem gyűjti memóriába a közönséget', function () {
+    /*
+     | A MÉRT HIBA: a `resolve()` a TELJES közönséget Eloquent `Contact` modellként gyűjtötte,
+     | a `estimate()` pedig ugyanezt még egyszer lefuttatta. 100 000 kontaktra +193 MB csúcs
+     | (1,98 KB/címzett), a konténer valódi `memory_limit=128M`-jével pedig
+     | `Allowed memory size … exhausted`.
+     |
+     | És a memória-fatal NEM `Throwable`: a `DispatchScheduledCampaignsCommand` `catch`-e
+     | nem fogta meg, tehát EGYETLEN nagy kampány megölte a teljes ütemező-futást, és a
+     | workspace-ciklusban utána következő MINDEN kampány kimaradt — percenként újra.
+     |
+     | Itt 2000 kontakttal mérünk (a 100 000 egy unit-tesztben túl lassú a magvetéshez), de
+     | a HATÁR abszolút: a `estimate()` `COUNT`-ot futtat, tehát a fogyása nem a közönség
+     | méretével nő. A régi implementáció ezen a méreten ~4 MB-ot vitt; a küszöb ennél
+     | jóval szűkebb.
+     */
+    $list = ContactList::create(['name' => 'Nagy lista']);
+
+    $rows = [];
+    $now = now();
+
+    for ($i = 0; $i < 2000; $i++) {
+        $rows[] = [
+            'uuid' => (string) Str::uuid7(),
+            'workspace_id' => app(WorkspaceContext::class)->workspaceId(),
+            'email' => 'tag'.$i.'@pelda.hu',
+            'email_hash' => KeyedHash::of('email', 'tag'.$i.'@pelda.hu'),
+            'status' => 'subscribed',
+            'created_at' => $now,
+            'updated_at' => $now,
+        ];
+    }
+
+    Contact::query()->insert($rows);
+
+    $ids = Contact::query()->where('email', 'like', 'tag%')->pluck('id');
+
+    DB::table('contact_list_memberships')->insert($ids->map(fn (int $id) => [
+        'workspace_id' => app(WorkspaceContext::class)->workspaceId(),
+        'contact_id' => $id,
+        'contact_list_id' => $list->getKey(),
+        'status' => 'subscribed',
+        'subscribed_at' => $now,
+        'created_at' => $now,
+        'updated_at' => $now,
+    ])->all());
+
+    $resolver = app(AudienceResolver::class);
+    $campaign = campaignFor($list, ['name' => 'Nagy kampány']);
+
+    // BEMELEGÍTŐ HÍVÁS. Az első lekérdezés a builder-t, a grammar-t és a PDO-statementet is
+    // felhúzza (~0,5 MB), ami FIX költség — nem a közönség méretével nő. A mérés a MÁSODIK
+    // híváson megy: azt akarjuk látni, mennyit visz maga a 2000 címzett.
+    expect($resolver->estimate($campaign))->toBe(2000);
+
+    gc_collect_cycles();
+    $before = memory_get_usage();
+
+    expect($resolver->estimate($campaign))->toBe(2000);
+
+    $used = memory_get_usage() - $before;
+
+    /*
+     | 64 KB — vagyis 33 bájt/címzett helyett NULLA a nagyságrend.
+     |
+     | A `COUNT` egyetlen sort ad vissza, tehát a fogyás a közönség méretétől FÜGGETLEN. A
+     | régi, `count(resolve())`-os út ezen a méreten mérve ~4 MB-ot vitt (2 KB/címzett), és
+     | 100 000-nél a folyamatot ütötte ki.
+     */
+    expect($used)->toBeLessThan(64 * 1024, sprintf('a becslés %d bájtot fogyasztott', $used));
+
+    // …ÉS a kötegelt olvasás sem gyűjt: az `each()` egyszerre `$size` sort lát.
+    gc_collect_cycles();
+    $before = memory_get_usage();
+    $count = 0;
+
+    $resolver->each($campaign, 500, function (array $chunk) use (&$count): void {
+        $count += count($chunk);
+    });
+
+    $streamed = memory_get_usage() - $before;
+
+    expect($count)->toBe(2000)
+        // 500 sor egyszerre, nem 2000: a küszöb a KÖTEG méretére van szabva.
+        ->and($streamed)->toBeLessThan(512 * 1024, sprintf('a kötegelt olvasás %d bájtot fogyasztott', $streamed));
 });

@@ -30,6 +30,8 @@ namespace App\Modules\Template\Services;
  */
 final class MjmlWriter
 {
+    public function __construct(private readonly HtmlSanitizer $sanitizer) {}
+
     /** @param array<int, mixed> $blocks */
     public function write(array $blocks, ?string $preheader = null): string
     {
@@ -44,7 +46,9 @@ final class MjmlWriter
         // sor. Az `mj-preview` pontosan ezt a helyet szabályozza.
         $preview = $preheader === null || trim($preheader) === ''
             ? ''
-            : '<mj-preview>'.$this->text($preheader).'</mj-preview>';
+            // A PREHEADER SIMA SZÖVEG: a postafiók-lista nem rendel HTML-t, a beszúrt
+            // tagek ott NYERSEN látszanának. Ezért itt `plain()`, nem `text()`.
+            : '<mj-preview>'.$this->plain($preheader).'</mj-preview>';
 
         return '<mjml><mj-head>'.$preview.$this->head().'</mj-head><mj-body>'.$body.'</mj-body></mjml>';
     }
@@ -146,12 +150,22 @@ final class MjmlWriter
                 .' &#183; <a href="{{ preferences_url }}">Levélbeállítások</a>'
                 .'</mj-text>',
             'social' => $this->social($attrs),
-            // A NYERS HTML szűk kivétel: a validátor kizárta a `<script>`-et és az
-            // eseménykezelőket, de a tartalom itt SZÁNDÉKOSAN nem escape-elődik.
-            // A NYERS HTML CDATA-ban megy: a tartalom az ügyfélé, tehát tartalmazhat
-            // HTML-nevű entitást (`&nbsp;`) vagy le nem zárt tagot — mindkettő elbuktatná az
-            // XML-parse-t, és a levél üresen jönne ki.
-            'html' => '<mj-raw><![CDATA['.str_replace(']]>', ']]]]><![CDATA[>', (string) ($attrs['content'] ?? '')).']]></mj-raw>',
+            /*
+             | A NYERS HTML az ALLOWLIST-SANITIZEREN megy át, nem „szűk kivételként".
+             |
+             | Korábban itt a tartalom érintetlenül került a CDATA-ba, mert „a validátor
+             | kizárta a `<script>`-et és az eseménykezelőket". Mérve NEM zárta ki:
+             | `<img/onerror=…>`, `<base href=…>`, `<form action="http://…">`,
+             | `<iframe srcdoc=…>` és a `</td></tr></table>` elrendezés-kitörés mind
+             | nyersen benne volt a fordított HTML-ben. Egy validátor amúgy sem lehet a
+             | garancia: ő a MENTÉST nézi, a kimenetért ez a sor felel.
+             |
+             | CDATA marad: a megtisztított tartalom is tartalmazhat HTML-nevű entitást
+             | (`&nbsp;`), ami az XML-parse-t elbuktatná — és a levél ÜRESEN jönne ki.
+             */
+            'html' => '<mj-raw><![CDATA['
+                .str_replace(']]>', ']]]]><![CDATA[>', $this->sanitizer->block((string) ($attrs['content'] ?? '')))
+                .']]></mj-raw>',
             default => '',
         };
     }
@@ -175,7 +189,9 @@ final class MjmlWriter
         // AZ ALT-SZÖVEG nem opcionális jó szokás: a levélkliensek TÖBBSÉGE alapból
         // blokkolja a képeket, tehát az alt az, amit a címzett először látni fog. Ha nincs,
         // üresen hagyjuk (nem a fájlnevet írjuk be) — de a szerkesztő jelzi.
-        $parts[] = 'alt="'.$this->text($attrs['alt'] ?? '').'"';
+        // AZ `alt` ATTRIBÚTUM: itt a HTML nem rendelődik, tehát `plain()`. `text()`-tel egy
+        // `<strong>` a `alt="…"` belsejébe írna tageket, és kitörhetne az attribútumból.
+        $parts[] = 'alt="'.$this->plain($attrs['alt'] ?? '').'"';
 
         if (isset($attrs['href'])) {
             $parts[] = 'href="'.$this->url($attrs['href']).'"';
@@ -263,26 +279,59 @@ final class MjmlWriter
     }
 
     /**
-     * A SZÖVEG escape-elése — a MERGE-TAG megőrzésével.
+     * A `content` KONTRAKTUSA: szűk inline HTML.
      *
-     * A `{{ nev }}` NEM escape-elődik, mert a behelyettesítés a küldés pillanatában
-     * történik, és AKKOR escape-elődik az ÉRTÉK (a `TemplateRenderer`, A1). Ha itt
-     * escape-elnénk a kapcsos zárójeleket, a merge-tag soha nem helyettesítődne be — a
-     * címzett `{{ nev }}`-et látna a levélben.
+     * Ez korábban ELLENTMONDÁSOS volt, és a levélben látszott. Az MJML-író
+     * `htmlspecialchars`-olt, a `PlainTextWriter` viszont HTML-ként értelmezte ugyanazt a
+     * mezőt (link-kiemelés, `strip_tags`, `html_entity_decode`). A packet saját
+     * fixture-ével (`'Ez a <strong>hírlevél</strong>.'`) mérve:
+     *   HTML törzs → `Ez a &lt;strong&gt;hírlevél&lt;/strong&gt;.` — a címzett a NYERS TAGET látta
+     *   plaintext  → `Ez a hírlevél.`
+     * Az 59. kritérium EGY fából kér HTML-t ÉS plaintextet; a kettő mást mondott, és a
+     * HTML törzs formázott szövegre használhatatlan volt.
+     *
+     * A DÖNTÉS: a `content` inline HTML-t tartalmazhat (`<strong>`, `<em>`, `<a>`, `<br>`,
+     * …), és mindkét író így kezeli. Az allowlisten kívüli tag KIBONTÓDIK (a szöveg
+     * megmarad), a tiltott elem eltűnik — nem escape-elődik látható szemétté.
+     *
+     * A `{{ nev }}` átmegy: a behelyettesítés a küldés pillanatában történik, és AKKOR
+     * escape-elődik az ÉRTÉK (`TemplateRenderer`, A1).
      */
     private function text(mixed $value): string
     {
+        return $this->sanitizer->inline((string) $value);
+    }
+
+    /**
+     * SIMA SZÖVEG — ott, ahol a HTML nem rendelődik (preheader, `alt`).
+     *
+     * A merge-tag határolóit itt is visszaállítjuk: escape-elve a behelyettesítés soha nem
+     * találná meg, és a címzett `{{ nev }}`-et látna.
+     */
+    private function plain(mixed $value): string
+    {
         $escaped = htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 
-        // A merge-tag határolóit VISSZAÁLLÍTJUK (a `&quot;`-ot nem: az érték része).
         return str_replace(['&#123;&#123;', '&#125;&#125;'], ['{{', '}}'], $escaped);
     }
 
+    /**
+     * URL egy attribútumban — a SZABÁLYT ITT IS megkérdezzük.
+     *
+     * „A validátor már kizárta" nem elég: a validátor a mentést nézi, ez a sor a kimenetet
+     * írja, és a kettő közé bekerülhet egy nyers query-builder-es vagy `forceFill` úton
+     * írt fa is. Ami nem megy át a `UrlPolicy`-n, az ÜRES `href`-et kap — a link nem
+     * navigál, de nem is visz `javascript:`-re.
+     */
     private function url(mixed $value): string
     {
-        // A validátor már kizárta a nem-https/mailto/merge-tag alakot; itt csak az
-        // attribútum-kontextus escape-elése marad.
-        return htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $value = (string) $value;
+
+        if (! UrlPolicy::isAllowed($value)) {
+            $value = '';
+        }
+
+        return htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     }
 
     private function colour(mixed $value): string

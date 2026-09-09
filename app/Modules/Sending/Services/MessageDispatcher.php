@@ -401,9 +401,14 @@ final class MessageDispatcher
         foreach ($message->recipients as $recipient) {
             $recipient = (string) $recipient;
 
+            // A LEIRATKOZÓ ÉS BEÁLLÍTÁS-LINK CÍMZETTENKÉNT áll elő, és a hívó nem írhatja
+            // felül. A block editor `unsubscribe` blokkja `{{ unsubscribe_url }}`-t ír a
+            // törzsbe; enélkül a kimenet `<a href="">Leiratkozás</a>` volt — halott link.
+            $reserved = $message->bodyLinkVariables($recipient);
+
             $recipientHtml = $html === ''
                 ? null
-                : $this->renderer->renderForRecipient($html, $recipient, $recipientVariables, $shared);
+                : $this->renderer->renderForRecipient($html, $recipient, $recipientVariables, $shared, reserved: $reserved);
 
             // A NYOMKÖVETÉS a személyre szabás UTÁN és az ALÁÍRÁS ELŐTT kerül be: a pixel és
             // a becsomagolt link címzettenként más (különben nem lehetne megmondani, KI
@@ -423,7 +428,7 @@ final class MessageDispatcher
 
             $rendered[$recipient] = [
                 'html' => $recipientHtml,
-                'text' => $text === '' ? null : $this->renderer->renderForRecipient($text, $recipient, $recipientVariables, $shared, escape: false),
+                'text' => $text === '' ? null : $this->renderer->renderForRecipient($text, $recipient, $recipientVariables, $shared, escape: false, reserved: $reserved),
                 'mime' => null,
             ];
         }

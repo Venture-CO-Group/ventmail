@@ -84,7 +84,19 @@ final class MjmlCompiler
         }
 
         $preview = '';
-        $body = '';
+
+        /*
+         | A SÁVOK. Egy `full-width` szekció KILÉP a 600 pixeles középső táblából — ha nem
+         | lép ki, a beállítás nem hat.
+         |
+         | Mérve pontosan ez volt a helyzet: a `full_width: true` és a nélküli fa fordított
+         | HTML-je BITRE AZONOS volt, miközben a validátor engedte a mezőt és az író ki is
+         | írta a `full-width="full-width"`-et. Ez az a „beállított valamit, ami nem hat"
+         | hibaosztály, ami miatt a validátorban az ismeretlen-mező szabály egyáltalán van.
+         |
+         | @var list<array{full: bool, rows: string}>
+         */
+        $bands = [];
 
         foreach ($this->children($document->documentElement) as $node) {
             if ($node->nodeName === 'mj-head') {
@@ -97,12 +109,32 @@ final class MjmlCompiler
 
             if ($node->nodeName === 'mj-body') {
                 foreach ($this->children($node) as $section) {
-                    $body .= $this->section($section);
+                    $rows = $this->section($section);
+
+                    if ($rows === '') {
+                        continue;
+                    }
+
+                    $full = $section instanceof DOMElement
+                        && $section->getAttribute('full-width') !== '';
+
+                    // A SZOMSZÉDOS, EGYFORMA szekciók egy sávba kerülnek: minden szekciónak
+                    // saját táblát adni feleslegesen sokat hizlalna a levélen, és az
+                    // Outlook a sok egymás utáni táblát rosszul is tördeli.
+                    $lastIndex = count($bands) - 1;
+
+                    if ($lastIndex >= 0 && $bands[$lastIndex]['full'] === $full) {
+                        $bands[$lastIndex]['rows'] .= $rows;
+
+                        continue;
+                    }
+
+                    $bands[] = ['full' => $full, 'rows' => $rows];
                 }
             }
         }
 
-        return $this->restoreMergeTags($this->document($body, $preview));
+        return $this->restoreMergeTags($this->document($bands, $preview));
     }
 
     /**
@@ -124,8 +156,15 @@ final class MjmlCompiler
             '/\{\{(?:%20|\s)*([A-Za-z0-9_.-]+)(?:(?:%20|\s)*\|\|(?:%20|\s)*([^}]*?))?(?:%20|\s)*\}\}/',
             static function (array $matches): string {
                 $name = $matches[1];
+                // A FALLBACK BELSEJÉT NEM DEKÓDOLJUK.
+                //
+                // A `%20 → szóköz` visszaírás itt kárt tett: mérve
+                // `{{ url || https://a.hu/x%20y }}` → `https://a.hu/x y`, azaz egy JOGOSAN
+                // URL-kódolt fallback-link elromlott. A `%20`-t a merge-tag HATÁROLÓI
+                // körül kell visszaállítani (azt kódolta a `saveHTML`), a fallback
+                // ÉRTÉKÉBEN viszont az ügyfél szándéka.
                 $fallback = isset($matches[2]) && $matches[2] !== ''
-                    ? ' || '.trim(str_replace('%20', ' ', $matches[2]))
+                    ? ' || '.trim($matches[2])
                     : '';
 
                 return '{{ '.$name.$fallback.' }}';
@@ -134,7 +173,8 @@ final class MjmlCompiler
         );
     }
 
-    private function document(string $body, string $preview): string
+    /** @param list<array{full: bool, rows: string}> $bands */
+    private function document(array $bands, string $preview): string
     {
         // A PREHEADER rejtett szövegként: a postafiók-lista olvassa, a levél törzsében nem
         // látszik. A `mso-hide` az Outlookot is lefedi.
@@ -162,13 +202,45 @@ final class MjmlCompiler
             .$hidden
             .'<table role="presentation" class="vm-wrap" width="100%" cellpadding="0" cellspacing="0" border="0" '
             .'style="background-color:#f5f7fa;">'
-            .'<tr><td align="center" style="padding:0;">'
-            .'<table role="presentation" class="vm-wrap" width="'.self::WIDTH.'" cellpadding="0" cellspacing="0" '
-            .'border="0" style="width:'.self::WIDTH.'px;max-width:'.self::WIDTH.'px;">'
-            .$body
+            .$this->bands($bands)
             .'</table>'
-            .'</td></tr></table>'
             .'</body></html>';
+    }
+
+    /**
+     * A SÁVOK kirajzolása a külső, 100%-os táblába.
+     *
+     * A NORMÁL sáv egy középre igazított, `WIDTH` pixeles belső táblát kap — ez a levél
+     * olvasható szélessége. A `full-width` sáv sorai KÖZVETLENÜL a külső táblába kerülnek,
+     * tehát a háttere a teljes szélességet kitölti.
+     *
+     * @param  list<array{full: bool, rows: string}>  $bands
+     */
+    private function bands(array $bands): string
+    {
+        $html = '';
+
+        foreach ($bands as $band) {
+            if ($band['full']) {
+                $html .= '<tr><td align="center" style="padding:0;">'
+                    .'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" '
+                    .'style="width:100%;">'
+                    .$band['rows']
+                    .'</table>'
+                    .'</td></tr>';
+
+                continue;
+            }
+
+            $html .= '<tr><td align="center" style="padding:0;">'
+                .'<table role="presentation" class="vm-wrap" width="'.self::WIDTH.'" cellpadding="0" cellspacing="0" '
+                .'border="0" style="width:'.self::WIDTH.'px;max-width:'.self::WIDTH.'px;">'
+                .$band['rows']
+                .'</table>'
+                .'</td></tr>';
+        }
+
+        return $html;
     }
 
     private function section(DOMNode $section): string

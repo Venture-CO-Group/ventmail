@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Template\Services;
 
+use App\Modules\Sending\Services\ContentScanner;
 use App\Modules\Template\Data\BlockSchema;
 use InvalidArgumentException;
 
@@ -26,6 +27,18 @@ use InvalidArgumentException;
  */
 final class BlockTreeValidator
 {
+    /**
+     * A TARTALMI KORLÁT egy attribútum-értékre.
+     *
+     * Mérve egy 2 MB-os `text.content` átment a validátoron. 500 blokk × korlátlan tartalom
+     * úgy, hogy a mentés SZINKRONBAN fordít belőle még három oszlopot (`mjml`/`html`/`text`),
+     * a publikálás pedig minden üzenetbe átmásolja: a sablon mérete a küldés
+     * memória-igényét sokszorozza. 64 KB egy levélblokkra bőven elég.
+     */
+    public const MAX_ATTR_LENGTH = 65536;
+
+    public function __construct(private readonly ContentScanner $scanner) {}
+
     /** @var list<string> */
     private array $errors = [];
 
@@ -162,7 +175,12 @@ final class BlockTreeValidator
             $children = $block['children'] ?? [];
 
             if ($spec['children'] === null) {
-                if (is_array($children) && $children !== []) {
+                // A NEM-LISTA ALAK IS HIBA. Korábban csak a nem-üres LISTÁT néztük, tehát
+                // `divider` + `children: "x"` CSENDBEN átment — miközben a lista-alakot a
+                // szülő-blokkokon kikényszerítjük. Ugyanaz a „beállított valamit, ami nem
+                // hat" hibaosztály: a felhasználó odaírt egy gyermeket, és nem tudja meg,
+                // hogy elveszett.
+                if ($children !== [] && $children !== null) {
                     $this->errors[] = $here.': ez a blokk nem tartalmazhat gyermeket.';
                 }
 
@@ -197,46 +215,79 @@ final class BlockTreeValidator
                 continue;
             }
 
-            $value = trim($attrs[$field]);
+            // A SZABÁLY a `UrlPolicy`-ban van, EGY helyen. Itt korábban egy külön
+            // `str_starts_with`-lánc állt, és a merge-tag mintája a fallbacket `[^}]*`-gal
+            // engedte: a `{{ cta || javascript:alert(1) }}` átment, és `href="javascript:…"`
+            // lett a fordított HTML-ben.
+            $violation = UrlPolicy::violation($attrs[$field]);
 
-            $allowed = str_starts_with($value, 'https://')
-                || str_starts_with($value, 'mailto:')
-                // A merge-tag ITT legitim: a link célja lehet személyre szabott.
-                || preg_match('/^\{\{\s*[A-Za-z0-9_.-]+\s*(\|\|[^}]*)?\}\}$/', $value) === 1;
-
-            if (! $allowed) {
+            if ($violation !== null) {
                 $this->errors[] = sprintf(
-                    '%s: a `%s` csak `https://`, `mailto:` vagy merge-tag lehet (kapott: %s).',
+                    '%s: a `%s` %s (kapott: %s).',
                     $path,
                     $field,
-                    mb_substr($value, 0, 40)
+                    $violation,
+                    mb_substr(trim($attrs[$field]), 0, 40)
                 );
             }
         }
 
-        // A NYERS HTML blokk: `<script>` és eseménykezelő nem megy.
+        /*
+         | A NYERS HTML blokk: a KIMENŐ LEVÉL SZABÁLYA érvényes rá, nem egy külön regexpár.
+         |
+         | Itt korábban két minta állt (`<script` és `\son[a-z]+=`). Mérve mind átment
+         | rajtuk: `<img/onerror=…>` (a `/` separator), `<iframe srcdoc=…>`, `<base href=…>`,
+         | `<meta http-equiv=refresh>`, `<form action="http://…">`, `<style>…url(javascript:)…`.
+         | A `ContentScanner` UGYANEZT a kérdést teszi fel a kimenő levélre, és ott már meg
+         | van válaszolva — tehát a validátor is AZT kérdezi, nem egy második, gyengébb
+         | változatot. Így nincs két igazság, ami elcsúszhat egymástól.
+         |
+         | Ez a HANGOS visszajelzés a szerkesztőnek. A biztonsági garanciát a kimeneten a
+         | `HtmlSanitizer` allowlistje adja (a `MjmlWriter`-ben) — a validátor kikapcsolása
+         | vagy megkerülése önmagában nem nyit rést.
+         */
         if ($type === 'html' && isset($attrs['content']) && is_string($attrs['content'])) {
-            if (preg_match('#<\s*script#i', $attrs['content']) === 1) {
-                $this->errors[] = $path.': a nyers HTML blokk nem tartalmazhat `<script>`-et.';
-            }
+            $violation = $this->scanner->firstViolation($attrs['content']);
 
-            if (preg_match('/\son[a-z]+\s*=/i', $attrs['content']) === 1) {
-                $this->errors[] = $path.': a nyers HTML blokk nem tartalmazhat eseménykezelőt (`on*=`).';
+            if ($violation !== null) {
+                $this->errors[] = $path.': a nyers HTML blokk nem tartalmazhat '.$violation.'.';
+            }
+        }
+
+        // A TARTALOM MÉRETE — lásd a `MAX_ATTR_LENGTH` indoklását.
+        foreach ($attrs as $field => $value) {
+            if (is_string($value) && strlen($value) > self::MAX_ATTR_LENGTH) {
+                $this->errors[] = sprintf(
+                    '%s: a `%s` hossza %d bájt, a felső korlát %d.',
+                    $path,
+                    (string) $field,
+                    strlen($value),
+                    self::MAX_ATTR_LENGTH
+                );
             }
         }
 
         // A SZÁMOK számok legyenek: a `width: "nagyon"` a fordításban csendben eltűnne.
-        foreach (['level', 'font_size', 'height', 'icon_size'] as $field) {
-            if (isset($attrs[$field]) && ! is_numeric($attrs[$field])) {
-                $this->errors[] = sprintf('%s: a `%s` szám kell legyen.', $path, $field);
+        //
+        // A TARTOMÁNY is szabály, nem csak a típus: a `font_size: 0` szám, átmegy, és
+        // `font-size:0px`-et ad — LÁTHATATLAN címsort a levélben, hangos hiba nélkül.
+        $ranges = ['level' => [1, 4], 'font_size' => [8, 72], 'height' => [1, 2000], 'icon_size' => [8, 128]];
+
+        foreach ($ranges as $field => [$min, $max]) {
+            if (! isset($attrs[$field])) {
+                continue;
             }
-        }
 
-        if ($type === 'heading' && isset($attrs['level'])) {
-            $level = (int) $attrs['level'];
+            if (! is_numeric($attrs[$field])) {
+                $this->errors[] = sprintf('%s: a `%s` szám kell legyen.', $path, $field);
 
-            if ($level < 1 || $level > 4) {
-                $this->errors[] = $path.': a `level` 1 és 4 között lehet.';
+                continue;
+            }
+
+            $number = (float) $attrs[$field];
+
+            if ($number < $min || $number > $max) {
+                $this->errors[] = sprintf('%s: a `%s` %d és %d között lehet.', $path, $field, $min, $max);
             }
         }
 

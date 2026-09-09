@@ -9,8 +9,10 @@ use App\Modules\Audience\Models\ContactList;
 use App\Modules\Audience\Models\Segment;
 use App\Modules\Audience\Services\SegmentEngine;
 use App\Modules\Campaign\Models\Campaign;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Collection;
+use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
+use Illuminate\Database\Query\Builder as QueryBuilder;
+use Illuminate\Support\Facades\DB;
+use RuntimeException;
 
 /**
  * A CÉLZÁS FELOLDÁSA: lista ∪ szegmens MÍNUSZ kizárás (63. kritérium).
@@ -30,130 +32,258 @@ use Illuminate\Support\Collection;
  * cím, nem a kontakt id-je: két kontakt-sor ugyanarra a címre (import + űrlap) egyetlen
  * embert jelent.
  *
- * ## A BECSLÉS ÉS A VALÓSÁG
+ * ## A HALMAZ AZ ADATBÁZISBAN ÁLL ÖSSZE, NEM A MEMÓRIÁBAN
  *
- * A `estimate()` ugyanazt a lekérdezést futtatja, mint a `resolve()` — csak számol. Ha a
- * kettő külön logika lenne, a felületen mutatott szám és a kiküldött levelek száma
- * eltérne, és a kampány-riport hazudna. A számot NEM cache-eljük hosszan: a közönség
- * folyamatosan változik, és egy órás becslés rosszabb, mint a friss.
+ * Ez korábban másképp volt, és a mérés kiadta: a `resolve()` a TELJES közönséget Eloquent
+ * `Contact` modellként gyűjtötte, a `estimate()` pedig ugyanezt még egyszer lefuttatta.
+ * 100 000 kontaktra +193 MB csúcs (1,98 KB/címzett), a konténer valódi
+ * `memory_limit=128M`-jével pedig `Allowed memory size … exhausted`.
+ *
+ * És a memória-fatal NEM `Throwable`: a `DispatchScheduledCampaignsCommand` `catch`-e nem
+ * fogja meg, tehát EGYETLEN nagy kampány megölte a teljes ütemező-futást, és a
+ * workspace-ciklusban utána következő MINDEN kampány kimaradt — percenként újra. Pont az,
+ * amit az a parancs a docblockjában megígér, hogy nem történhet meg.
+ *
+ * Ezért a célzás egyetlen SQL-lekérdezés (`UNION ALL` + `GROUP BY` + `NOT IN` a kizártakra),
+ * és a hívó vagy SZÁMOL rajta (`estimate()`), vagy KÖTEGENKÉNT olvassa (`each()`). Modell
+ * nem materializálódik, és a becslés meg a küldés UGYANARRA a lekérdezésre épül — így a
+ * felületen mutatott szám és a kiküldött levelek száma nem tud eltérni.
+ *
+ * ## A DEDUPLIKÁCIÓ ÉS A KONTAKT-ID
+ *
+ * A `GROUP BY email` + `MIN(id)` azt jelenti, hogy két kontakt-sor ugyanarra a címre
+ * (import + űrlap) EGY címzett, és mindig UGYANAZ az id kerül a riportba. Ez a
+ * determinizmus feltétele: az A/B variáns-hozzárendelés a rendezett halmaz pozíciójából jön.
  */
 final class AudienceResolver
 {
     public function __construct(private readonly SegmentEngine $segments) {}
 
     /**
-     * A CÉLZOTT címek — normalizálva, deduplikálva, rendezve.
+     * A CÉLZOTT címek KÖTEGENKÉNT — a küldés ezt használja.
+     *
+     * A rendezés a CÍMRE megy, mert a determinizmust az adja: ugyanaz a célzás ugyanabban a
+     * sorrendben adja a címzetteket, tehát a variáns-hozzárendelés megismételhető. A
+     * lapozás kulcsa is a cím (nem `OFFSET`), különben egy közben beeső feliratkozó
+     * elcsúsztatná a lapozást, és valaki kimaradna a kampányból.
+     *
+     * @param  callable(list<array{email: string, contact_id: ?int}>, int): void  $callback
+     *                                                                                       a köteg és az első elemének pozíciója
+     */
+    public function each(Campaign $campaign, int $size, callable $callback): void
+    {
+        $after = null;
+        $position = 0;
+
+        while (true) {
+            $query = $this->query($campaign)->orderBy('email')->limit($size);
+
+            if ($after !== null) {
+                // `HAVING`, nem `WHERE`: a cím a `GROUP BY` kulcsa, és a Postgres a
+                // csoportosítás UTÁNI szűrést itt fogadja el.
+                $query->having('email', '>', $after);
+            }
+
+            $rows = array_map(
+                static fn (object $row): array => [
+                    'email' => (string) $row->email,
+                    'contact_id' => $row->contact_id === null ? null : (int) $row->contact_id,
+                ],
+                $query->get()->all()
+            );
+
+            if ($rows === []) {
+                return;
+            }
+
+            $callback($rows, $position);
+
+            $position += count($rows);
+            $after = $rows[count($rows) - 1]['email'];
+        }
+    }
+
+    /**
+     * A CÉLZOTT címek EGY TÖMBBEN.
+     *
+     * SZÁNDÉKOSAN KORLÁTOS: a `$limit` fölött kivételt dob, nem hallgat. A korlátlan
+     * változat volt az, ami 100 000 kontaktnál kiütötte a folyamatot (lásd az osztály
+     * docblockját). A küldési út az `each()`-et használja; ez a felület előnézetéhez és a
+     * teszthez van.
      *
      * @return list<array{email: string, contact_id: ?int}>
      */
-    public function resolve(Campaign $campaign): array
+    public function resolve(Campaign $campaign, int $limit = 10000): array
     {
-        $included = $this->collect(
+        $all = [];
+
+        $this->each($campaign, 1000, function (array $rows) use (&$all, $limit): void {
+            $all = array_merge($all, $rows);
+
+            if (count($all) > $limit) {
+                throw new RuntimeException(sprintf(
+                    'A célzás %d címnél többet ad; ekkora halmazt kötegelve kell olvasni (`each()`).',
+                    $limit
+                ));
+            }
+        });
+
+        return $all;
+    }
+
+    /**
+     * A CÍMZETTSZÁM — `COUNT`, nem `count(resolve())`.
+     *
+     * A `COUNT(*)` származtatott táblán fut: a `GROUP BY` miatt a CSOPORTOK számát kell
+     * megkapni, nem az egyik csoport elemszámát.
+     */
+    public function estimate(Campaign $campaign): int
+    {
+        return (int) DB::query()->fromSub($this->query($campaign), 'celzott')->count();
+    }
+
+    /**
+     * A CÉLZÁS EGYETLEN LEKÉRDEZÉSE: (lista ∪ szegmens) ∖ kizárás, címre csoportosítva.
+     *
+     * `UNION ALL`, nem `UNION`: a duplikátumot a `GROUP BY` szedi ki, és így a
+     * `MIN(contact_id)` dönti el, melyik kontakt-sor képviseli a címet. A `UNION`
+     * `(email, id)` PÁROKAT dedupolna — ugyanaz a cím két id-vel bent maradna, és a
+     * címzett kétszer kapná meg a kampányt.
+     */
+    public function query(Campaign $campaign): QueryBuilder
+    {
+        $included = $this->union(
             (array) $campaign->target_lists,
             (array) $campaign->target_segments,
         );
 
-        $excluded = $this->collect(
+        if ($included === null) {
+            // NINCS CÉLZÁS = nincs címzett. Egy „minden kontakt" alapértelmezés itt azt
+            // jelentené, hogy egy félig beállított kampány a TELJES közönségre menne ki.
+            return DB::query()
+                ->fromSub(
+                    DB::query()->selectRaw('null::text as email, null::bigint as contact_id')->whereRaw('false'),
+                    'forras'
+                )
+                ->selectRaw('email, MIN(contact_id) as contact_id')
+                ->groupBy('email');
+        }
+
+        $query = DB::query()
+            ->fromSub($included, 'forras')
+            ->selectRaw('email, MIN(contact_id) as contact_id')
+            ->groupBy('email');
+
+        $excluded = $this->union(
             (array) $campaign->exclude_lists,
             (array) $campaign->exclude_segments,
         );
 
-        // KIVONÁS AZ UNIÓ UTÁN (lásd az osztály docblockját).
-        foreach (array_keys($excluded) as $email) {
-            unset($included[$email]);
+        if ($excluded !== null) {
+            // KIVONÁS AZ UNIÓ UTÁN (lásd az osztály docblockját): a kizárt cím nem kerülhet
+            // vissza azért, mert egy másik célzott listán is szerepel.
+            $query->whereNotIn('email', DB::query()->fromSub($excluded, 'kizart')->select('email'));
         }
 
-        // A RENDEZÉS a determinizmus miatt kell: ugyanaz a célzás ugyanabban a sorrendben
-        // adja a címzetteket, tehát az A/B variáns-hozzárendelés is megismételhető.
-        ksort($included);
-
-        return array_map(
-            static fn (string $email, ?int $contactId) => ['email' => $email, 'contact_id' => $contactId],
-            array_keys($included),
-            array_values($included),
-        );
-    }
-
-    public function estimate(Campaign $campaign): int
-    {
-        return count($this->resolve($campaign));
+        return $query;
     }
 
     /**
+     * A FORRÁSOK `UNION ALL`-ja, vagy `null`, ha nincs egy sem.
+     *
      * @param  list<mixed>  $listUuids
      * @param  list<mixed>  $segmentUuids
-     * @return array<string, ?int> cím → kontakt-id
      */
-    private function collect(array $listUuids, array $segmentUuids): array
+    private function union(array $listUuids, array $segmentUuids): ?QueryBuilder
     {
-        $emails = [];
+        $sources = [];
 
-        foreach ($this->lists($listUuids) as $contact) {
-            $emails[(string) $contact->email] = (int) $contact->id;
+        $lists = $this->listQuery($listUuids);
+
+        if ($lists !== null) {
+            $sources[] = $lists;
         }
 
-        foreach ($this->segments($segmentUuids) as $contact) {
-            // A LISTA-forrás nyer, ha ugyanaz a cím: mindegy, melyik id-t tartjuk meg (a
-            // cím az azonosító), de a determinizmushoz kell, hogy ne váltakozzon.
-            $emails[(string) $contact->email] ??= (int) $contact->id;
+        foreach ($this->segmentQueries($segmentUuids) as $segment) {
+            $sources[] = $segment;
         }
 
-        return $emails;
+        if ($sources === []) {
+            return null;
+        }
+
+        $union = array_shift($sources);
+
+        foreach ($sources as $source) {
+            $union->unionAll($source);
+        }
+
+        return $union;
     }
 
-    /**
-     * @param  list<mixed>  $uuids
-     * @return Collection<int, Contact>
-     */
-    private function lists(array $uuids): Collection
+    /** @param list<mixed> $uuids */
+    private function listQuery(array $uuids): ?QueryBuilder
     {
         $uuids = $this->uuids($uuids);
 
         if ($uuids === []) {
-            return collect();
+            return null;
         }
 
         $listIds = ContactList::query()->whereIn('uuid', $uuids)->pluck('id');
 
         if ($listIds->isEmpty()) {
-            return collect();
+            return null;
         }
 
-        return Contact::query()
-            ->reachable()
-            // A LEIRATKOZOTT TAGSÁG NEM TAGSÁG: a sor megmarad (a tény bizonyíték), de a
-            // kampányba nem tartozik bele. Ugyanaz a szabály, mint a szegmens-motorban.
-            ->whereHas('lists', fn (Builder $query) => $query
-                ->whereIn('contact_lists.id', $listIds)
-                ->where('contact_list_memberships.status', 'subscribed'))
-            ->orderBy('id')
-            ->get(['id', 'email']);
+        return $this->selectEmails(
+            Contact::query()
+                ->reachable()
+                // A LEIRATKOZOTT TAGSÁG NEM TAGSÁG: a sor megmarad (a tény bizonyíték), de
+                // a kampányba nem tartozik bele. Ugyanaz a szabály, mint a szegmens-motorban.
+                ->whereHas('lists', fn (EloquentBuilder $query) => $query
+                    ->whereIn('contact_lists.id', $listIds)
+                    ->where('contact_list_memberships.status', 'subscribed'))
+        );
     }
 
     /**
      * @param  list<mixed>  $uuids
-     * @return Collection<int, Contact>
+     * @return list<QueryBuilder>
      */
-    private function segments(array $uuids): Collection
+    private function segmentQueries(array $uuids): array
     {
         $uuids = $this->uuids($uuids);
 
         if ($uuids === []) {
-            return collect();
+            return [];
         }
 
-        $contacts = collect();
+        $queries = [];
 
         foreach (Segment::query()->whereIn('uuid', $uuids)->get() as $segment) {
             // A SZEGMENS-MOTOR ugyanaz, amit a felület használ (B1): egy külön
             // kampány-oldali értelmezés azt jelentené, hogy a felületen mutatott
             // szegmens-tagság és a kampány címzettjei eltérnek.
-            $contacts = $contacts->merge(
-                $this->segments->query((array) $segment->definition)->get(['id', 'email'])
-            );
+            $queries[] = $this->selectEmails($this->segments->query((array) $segment->definition));
         }
 
-        return $contacts;
+        return $queries;
+    }
+
+    /**
+     * A KÖZÖS OSZLOPLISTA — az `UNION ALL` ágainak azonos alakúnak KELL lenniük.
+     *
+     * A `reorder()` kötelező: a lista-lekérdezés és a `SegmentEngine` is `ORDER BY id`-vel
+     * jön, az `UNION` ágain viszont a rendezés nem megengedett. Rendezni a KÜLSŐ lekérdezés
+     * rendez (az `each()`-ben, címre).
+     */
+    private function selectEmails(EloquentBuilder $query): QueryBuilder
+    {
+        return $query
+            ->reorder()
+            ->select(['contacts.email as email', 'contacts.id as contact_id'])
+            ->toBase();
     }
 
     /**

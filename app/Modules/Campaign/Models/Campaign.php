@@ -34,6 +34,9 @@ final class Campaign extends Model
         'template_id', 'name', 'subject', 'preheader', 'from_email', 'from_name',
         'scheduled_at', 'timezone',
         'target_lists', 'target_segments', 'exclude_lists', 'exclude_segments',
+        // AZ A/B AUTOMATA KIHIRDETÉS beállításai (64. kritérium). A `winner_declared_at`
+        // szándékosan NEM `fillable`: azt a kihirdető parancs írja, nem a hívó.
+        'winner_criterion', 'winner_after_minutes',
     ];
 
     protected $attributes = [
@@ -53,6 +56,7 @@ final class Campaign extends Model
     protected function casts(): array
     {
         return [
+            'winner_declared_at' => 'datetime',
             'target_lists' => 'array',
             'target_segments' => 'array',
             'exclude_lists' => 'array',

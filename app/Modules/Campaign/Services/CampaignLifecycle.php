@@ -7,6 +7,7 @@ namespace App\Modules\Campaign\Services;
 use App\Modules\Campaign\Enums\CampaignStatus;
 use App\Modules\Campaign\Models\Campaign;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Bus;
 use InvalidArgumentException;
 use RuntimeException;
 
@@ -24,7 +25,10 @@ use RuntimeException;
  */
 final class CampaignLifecycle
 {
-    public function __construct(private readonly AudienceResolver $audience) {}
+    public function __construct(
+        private readonly AudienceResolver $audience,
+        private readonly CampaignBatchDispatcher $batches,
+    ) {}
 
     /** ÜTEMEZÉS — jövőbeli időpontra, a tenant időzónájában értelmezve. */
     public function schedule(Campaign $campaign, string $localTime, string $timezone): Campaign
@@ -70,21 +74,64 @@ final class CampaignLifecycle
         return $campaign->fresh();
     }
 
-    /** INDÍTÁS. A címzett-halmaz materializálása a `StartCampaign` action dolga. */
+    /**
+     * INDÍTÁS. A címzett-halmaz materializálása a `StartCampaign` action dolga.
+     *
+     * A `sending` ÁLLAPOTOT FELTÉTELES UPDATE IGÉNYLI, nem egy beolvasás-utáni mentés.
+     *
+     * Az `transition()` korábban csendben visszatért, ha az állapot MÁR a cél volt — így a
+     * `StartCampaign` egy már `sending` kampányon újra végigfutott, és MÁSODIK batchet
+     * indított ugyanazokra a `pending` sorokra. Mérve két különböző `batch_id`. Dupla levél
+     * nem lett belőle (az idempotencia-kulcs fogja), de a számlálók duplán nőttek: mérve
+     * `sent_count = 2` `recipient_count = 1` mellett — vagyis a kampány-riport HAZUDOTT.
+     *
+     * Két ütemező-futás vagy egy API + ütemező verseny pontosan ide vezet, ezért nem elég
+     * az állapotot ellenőrizni: IGÉNYELNI kell. Az `UPDATE … WHERE status IN (…)` az
+     * adatbázisban atomikus, tehát a két versenyző közül pontosan egy kapja meg.
+     */
     public function start(Campaign $campaign): Campaign
     {
         $this->assertReady($campaign);
-        $this->transition($campaign, CampaignStatus::Sending);
 
-        $campaign->forceFill(['started_at' => $campaign->started_at ?? now()])->save();
+        $from = $campaign->statusEnum();
+
+        if (! $from->canTransitionTo(CampaignStatus::Sending)) {
+            $this->refuse($from, CampaignStatus::Sending);
+        }
+
+        $claimed = Campaign::query()
+            ->whereKey($campaign->getKey())
+            ->where('status', $from->value)
+            ->update([
+                'status' => CampaignStatus::Sending->value,
+                'started_at' => $campaign->started_at ?? now(),
+                'updated_at' => now(),
+            ]);
+
+        if ($claimed === 0) {
+            throw new RuntimeException(
+                'A kampányt közben már elindította valaki más (vagy megváltozott az állapota). '
+                .'Egy második indítás dupla számlálókat és második köteget adna.'
+            );
+        }
 
         return $campaign->fresh();
     }
 
+    /**
+     * SZÜNETELTETÉS — a batchet is TÖRLI.
+     *
+     * A törlés nélkül a sorban álló kötegek lefutottak, és a `SendCampaignChunk` korai
+     * `return`-jével ELFOGYTAK (a job törlődik a sorból). A folytatás után azok a címzettek
+     * SOHA nem kaptak volna levelet: a kampány örökre „küldés folyamatban" maradt, nulla
+     * küldéssel. Mérve pontosan ez történt.
+     */
     public function pause(Campaign $campaign): Campaign
     {
         $this->transition($campaign, CampaignStatus::Paused);
         $campaign->save();
+
+        $this->cancelBatch($campaign);
 
         return $campaign->fresh();
     }
@@ -104,7 +151,36 @@ final class CampaignLifecycle
         $this->transition($campaign, CampaignStatus::Sending);
         $campaign->save();
 
+        // A FOLYTATÁS ÚJ KÖTEGEKET INDÍT. Ez korábban kimaradt: a `resume()` átírta az
+        // állapotot `sending`-re, a `batch_id` VÁLTOZATLAN maradt, és egyetlen job sem
+        // került a sorba. Mérve: pause → 3 `pending`; resume → `sending`, 3 `pending`,
+        // nulla job. A teszt csak a flaget nézte (`status === 'sending'`), ezért nem
+        // látszott — egy flag nem viselkedés.
+        //
+        // ÚJ KÖTEGEK a `pending` sorokra. A `null` azt jelenti, hogy közben elfogytak —
+        // akkor a kampány BEFEJEZETT, nem „küldés folyamatban".
+        if ($this->batches->dispatch($campaign->fresh()) === null) {
+            return $this->complete($campaign->fresh());
+        }
+
         return $campaign->fresh();
+    }
+
+    /**
+     * A FUTÓ KÖTEG TÖRLÉSE.
+     *
+     * A `Bus::findBatch` `null`-t ad, ha a batch már lejárt vagy törölve lett — ez nem hiba,
+     * hanem a normális eset egy régen befejezett kampánynál.
+     */
+    private function cancelBatch(Campaign $campaign): void
+    {
+        $batchId = (string) ($campaign->batch_id ?? '');
+
+        if ($batchId === '') {
+            return;
+        }
+
+        Bus::findBatch($batchId)?->cancel();
     }
 
     public function complete(Campaign $campaign): Campaign
@@ -121,6 +197,8 @@ final class CampaignLifecycle
         $this->transition($campaign, CampaignStatus::Canceled);
 
         $campaign->forceFill(['finished_at' => now()])->save();
+
+        $this->cancelBatch($campaign);
 
         // A MÉG NEM KIKÜLDÖTT címzettek `skipped` állapotba kerülnek, nem törlődnek: a
         // riportnak meg kell tudnia mondani, hogy hányan NEM kapták meg, és miért.
@@ -148,15 +226,20 @@ final class CampaignLifecycle
         }
 
         if (! $current->canTransitionTo($target)) {
-            throw new RuntimeException(sprintf(
-                'Érvénytelen kampány-átmenet: %s → %s. Engedélyezett innen: %s.',
-                $current->value,
-                $target->value,
-                implode(', ', CampaignStatus::transitions()[$current->value] ?: ['(nincs — végállapot)']),
-            ));
+            $this->refuse($current, $target);
         }
 
         $campaign->status = $target->value;
+    }
+
+    private function refuse(CampaignStatus $current, CampaignStatus $target): never
+    {
+        throw new RuntimeException(sprintf(
+            'Érvénytelen kampány-átmenet: %s → %s. Engedélyezett innen: %s.',
+            $current->value,
+            $target->value,
+            implode(', ', CampaignStatus::transitions()[$current->value] ?: ['(nincs — végállapot)']),
+        ));
     }
 
     /**
@@ -196,6 +279,21 @@ final class CampaignLifecycle
         // Egy 60/30-as beállításnál a hiányzó 10% vagy elveszne (tíz százalék a közönség
         // nem kap levelet), vagy valahova kerülne — és a felhasználó egyik esetben sem
         // tudná, melyik történt.
+        // EGY VARIÁNS: HANGOS elutasítás, nem csendes figyelmen kívül hagyás.
+        //
+        // A `hasVariants()` csak >1 variánsnál igaz, és a `VariantAssigner::plan()` is üres
+        // tömböt ad <2-nél. Pontosan EGY variáns esetén tehát a variáns sablonja, tárgya és
+        // súlya CSENDBEN elveszett, és a súlyellenőrzés sem futott: a felhasználó beállított
+        // egy A/B tesztet, ami nem történt meg.
+        $variantCount = $campaign->variants()->count();
+
+        if ($variantCount === 1) {
+            throw new InvalidArgumentException(
+                'Egyetlen A/B variáns nem értelmezhető: vagy legalább kettő kell, vagy '
+                .'egy se (a kampány sablonja és tárgya megy ki).'
+            );
+        }
+
         if ($campaign->hasVariants()) {
             $total = (int) $campaign->variants()->sum('weight');
 
