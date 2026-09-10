@@ -6,7 +6,11 @@
 ## Cél
 **Mailgun + Mailchimp egyidejű kiváltása.** Két pillér (Platform / Studio) egy közös motoron.
 
-## Aktuális milestone: **M4 — FELÜLET** · aktív packet: **M4-6 (tagok, űrlapok, tárolt sablonok, A/B) — lezárás alatt**
+## Aktuális milestone: **M4 — FELÜLET · LEZÁRVA (2026-09-10, PR #35)**
+
+> **A FELÜLET KÉSZ.** A `resources/js/Pages` alatt 30 képernyő van, `e2e/` alatt 7 spec,
+> 1615 Pest-teszt. Ami a terméken BELÜL hiányzott, elkészült; ami maradt, az mind KÜLSŐ
+> függőség vagy emberi döntés — lásd „Mi maradt a felületen KÍVÜL".
 *(M0 lezárva: 2026-09-02 · M1 lezárva: 2026-09-08 · M2 backend: 2026-09-09 · M3 backend: 2026-09-09)*
 
 > **A MOTOR KÉSZ, A FELÜLET NEM.** A 89 elfogadási kritérium mindegyike backend-szinten
@@ -560,7 +564,28 @@ inbound route-ok, smoke), az `e2e/` alatt **három** spec — mind A-sávos.
       - a `shell.css` két helyen NEM LÉTEZŐ token-nevet használt (`--vt-text-sm`), tehát
         a betűméret csendben az örököltre esett vissza.
 - [ ] **Vizuális réteg:** a `@venture/ui` hiánylistája (lásd lent) — amíg nincs meg,
-      az elrendezés a `shell.css` token-alapú primitívjeire épül.
+      az elrendezés a `shell.css` token-alapú primitívjeire épül. **Ez a csomag-gazda
+      dolga, nem a ventMailé** (golden rule: hiányzó komponenst JELENTÜNK, nem gyártunk).
+
+### Amit a NÉGY REVIEW-KÖR mért ki az M4-6-on (mind javítva, mind teszttel)
+
+A packet nyolc blokkolót termelt, és ezek FELE a JAVÍTÁSOKBAN keletkezett. Érdemes
+emlékezni rá, mert mind ugyanabból a hibatípusból jött: *a védelem ott mért, ahol nem a
+hatás keletkezett.*
+
+1. **Féloldalas invariáns:** „nálad erősebbet nem ADHATSZ" állt, „nem VEHETSZ EL" nem.
+2. **Rossz kulcs a jó helyen:** a suppression-kulcs (`listKey`) belépési jogcímnek — ott
+   a túl-illesztés fail-SAFE, itt fail-OPEN volt.
+3. **Teszt-környezet ≠ éles:** a diff korlátja a teszt 512 MB-ján átment, az éles 128-on
+   nem. A `phpunit.xml` `memory_limit`-je maga rejtette el.
+4. **A guard nem ott mért, ahol a memória fogyott:** a második diff-javítás a KÖZÉPSŐ
+   szakaszt korlátozta, a levágott eleje-vége viszont visszaépült.
+5. **A parent jogán a child kárára:** a tükrözés a parentben ellenőrzött, a childban írt.
+6. **Nyom nélküli jogosztás:** a child-tükrözés auditálatlan volt.
+7. **Write-once jelölés:** a `source` a SOR eredetét tárolta, nem a SZEREPÉT — mindkét
+   irányban tévedett.
+8. **Nem atomikus hibaút:** megszakadt kiosztás = auditálatlan jogváltozás + részleges
+   tükrözés, amit a backfill (csak-hozzáad) nem javít.
 
 ~~**Előfeltétel a CI-hoz:** a `VENTURE_PACKAGES_TOKEN` repo-secret.~~ **MEGVAN** — és
 vele együtt kiderült, hogy a Frontend/E2E kapu ezen kívül is három ponton hasalt el
@@ -593,6 +618,11 @@ nem lokálisan gyártani — a `shell.css` ezért kizárólag token-alapú elren
   platform-admin (fail-closed) — a C2 konzolja emberi lépés nélkül üres.
 - **Ügyeleti végpont:** a `SUPERADMIN_ONCALL_URL/_SECRET` beállítása; enélkül a
   blocklist-riasztás `error` naplósort ír, és senki nem kapja meg.
+- **EGYSZERI MŰVELET a merge után:** `tenancy:sync-sub-account-owners --force --actor=…`
+  a MÁR LÉTEZŐ al-fiókokra. A tulajdonosi tükrözés csak a JÖVŐBELI szerep-változásokra
+  fut, tehát a korábban létrehozott childokban csak a létrehozó a tulajdonos — ha ő
+  időközben kikerült a parentből, a child a jelenlegi tulajdonos számára elérhetetlen. A
+  parancs alapból száraz futású, és KIZÁRÓLAG hozzáad.
 
 ## Párhuzamosítás
 M0 után az **A és B sáv külön worktree-ben, külön runnerrel** futtatható:
