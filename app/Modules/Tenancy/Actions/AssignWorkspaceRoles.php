@@ -7,6 +7,7 @@ namespace App\Modules\Tenancy\Actions;
 use App\Models\User;
 use App\Modules\Audit\Services\AuditLogger;
 use App\Modules\Identity\Enums\Role;
+use App\Modules\Tenancy\Models\Workspace;
 use App\Modules\Tenancy\Models\WorkspaceInvitation;
 use App\Modules\Tenancy\Models\WorkspaceMember;
 use App\Modules\Tenancy\Policies\AbilityMap;
@@ -268,20 +269,39 @@ final class AssignWorkspaceRoles
     }
 
     /**
-     * A CHILD WORKSPACE-EK TULAJDONOSI KÖRE követi a parentét.
+     * A CHILD WORKSPACE-EK TULAJDONOSI KÖRE követi a parentét — SZIGORÚ HATÁROKKAL.
      *
-     * A `CreateSubAccount` a létrehozáskori állapotot MÁSOLJA — az pillanatkép. Mérve, mit
-     * jelentett önmagában: parent owner O létrehoz egy childot, később O-t leváltja P; a
-     * child tagsága változatlanul `O=owner` marad, P-nek pedig NULLA tagsága van benne. A
-     * child ott van a parent al-fiók-listáján, a parent számlájára fogy, beleszámít a
-     * plafonba — de a JELENLEGI tulajdonos nem tud belépni, tagot kezelni vagy törölni.
-     * Élesebben: a távozó kolléga megtartja az owner-jogot minden általa létrehozott
-     * al-fiókon.
+     * ## Miért kell egyáltalán
      *
-     * A tükrözés SZŰK: csak az `owner` szerepet adja és veszi. A childban külön kiosztott
-     * szerepek érintetlenek maradnak — a sub-account tagsága a childé, nem a parenté.
+     * A `CreateSubAccount` a létrehozáskori állapotot másolja, az pedig pillanatkép. Mérve:
+     * a childot létrehozó owner távozása után a child tagsága változatlan maradt, az ÚJ
+     * tulajdonosnak NULLA tagsága lett benne — a child ott maradt az al-fiók-listán, a
+     * parent számlájára fogyott, de a jelenlegi tulajdonos be sem tudott lépni.
+     *
+     * ## Miért csak a TÜKRÖZÖTT tagságot veszi vissza
+     *
+     * Mert a mellékhatás a CHILDBAN csapódik le, ahol a célpont ERŐSEBB lehet az aktornál —
+     * az `assertTargetNotStronger()` viszont a PARENTBEN mér. A security-review ezt mérte
+     * meg: `admin` A a parentben eltávolítja `U`-t (aki ott csak `editor`, tehát a törlés
+     * jogos), `U` viszont a CHILDBAN `owner` — és a korábbi, válogatás nélküli
+     * `array_diff(roles, ['owner'])` a child tulajdonosát is elvitte. Ugyanaz a jogosultsági
+     * inverzió, csak áthelyezve.
+     *
+     * Ezért: a visszavonás KIZÁRÓLAG a `source = parent_owner_sync` sorokra fut — azokra,
+     * amiket maga a tükrözés hozott létre. A childban KÜLÖN kiosztott `owner` emberi
+     * döntés, ahhoz a parent felől nem nyúlunk.
+     *
+     * ## És a child sem maradhat tulajdonos nélkül
+     *
+     * Ugyanaz az invariáns, mint a parentben — csak a childra kiértékelve.
+     *
+     * ## Minden child-oldali változás AUDITÁLT, a CHILD naplójába
+     *
+     * Golden rule 11. A tükrözés jogot oszt és von vissza; ha nyom nélkül tenné, a child
+     * naplójában egy tulajdonos „csak úgy" megjelenne vagy eltűnne — a saját mércénk szerint
+     * ez blokkoló.
      */
-    /** A tag tulajdonosi jogának elvétele MINDEN al-fiókról (a `RemoveMember` hívja). */
+    /** A tag TÜKRÖZÖTT tulajdonosi jogának elvétele az al-fiókokról (a `RemoveMember` hívja). */
     public function dropChildOwnership(User $target): void
     {
         $this->syncChildOwnership($target, isOwner: false);
@@ -297,33 +317,98 @@ final class AssignWorkspaceRoles
                 ->where('user_id', $target->getKey())
                 ->first();
 
-            if ($isOwner) {
-                if ($member === null) {
-                    WorkspaceMember::create([
-                        'workspace_id' => $child->getKey(),
-                        'user_id' => $target->getKey(),
-                        'roles' => [Role::Owner->value],
-                    ]);
-
-                    continue;
-                }
-
-                if (! in_array(Role::Owner->value, $member->roles(), true)) {
-                    $member->update(['roles' => [...$member->roles(), Role::Owner->value]]);
-                }
-
-                continue;
-            }
-
-            if ($member === null || ! in_array(Role::Owner->value, $member->roles(), true)) {
-                continue;
-            }
-
-            $remaining = array_values(array_diff($member->roles(), [Role::Owner->value]));
-
-            // A CSAK-TÜKRÖZÖTT tagság megszűnik; a childban külön kapott szerepek maradnak.
-            $remaining === [] ? $member->delete() : $member->update(['roles' => $remaining]);
+            $isOwner
+                ? $this->mirrorOwnership($child, $target, $member)
+                : $this->withdrawMirroredOwnership($child, $target, $member);
         }
+    }
+
+    private function mirrorOwnership(Workspace $child, User $target, ?WorkspaceMember $member): void
+    {
+        if ($member === null) {
+            $created = WorkspaceMember::create([
+                'workspace_id' => $child->getKey(),
+                'user_id' => $target->getKey(),
+                'roles' => [Role::Owner->value],
+                'source' => WorkspaceMember::SOURCE_PARENT_OWNER,
+            ]);
+
+            $this->auditChild($child, 'member.roles.assigned', $created, [], [Role::Owner->value], $target);
+
+            return;
+        }
+
+        if (in_array(Role::Owner->value, $member->roles(), true)) {
+            return;
+        }
+
+        $before = $member->roles();
+
+        $member->update(['roles' => [...$before, Role::Owner->value]]);
+
+        $this->auditChild($child, 'member.roles.assigned', $member, $before, $member->roles(), $target);
+    }
+
+    private function withdrawMirroredOwnership(Workspace $child, User $target, ?WorkspaceMember $member): void
+    {
+        // A childban KÜLÖN kiosztott tagsághoz a parent felől nem nyúlunk.
+        if ($member === null || ! $member->isMirroredFromParent()) {
+            return;
+        }
+
+        if (! in_array(Role::Owner->value, $member->roles(), true)) {
+            return;
+        }
+
+        // A CHILD sem maradhat tulajdonos nélkül — ugyanaz az invariáns, a childra mérve.
+        $otherOwners = WorkspaceMember::query()
+            ->where('workspace_id', $child->getKey())
+            ->whereKeyNot($member->getKey())
+            ->get()
+            ->contains(fn (WorkspaceMember $other) => in_array(Role::Owner->value, $other->roles(), true));
+
+        if (! $otherOwners) {
+            return;
+        }
+
+        $before = $member->roles();
+        $remaining = array_values(array_diff($before, [Role::Owner->value]));
+
+        if ($remaining === []) {
+            $this->auditChild($child, 'member.removed', $member, $before, [], $target);
+
+            $member->delete();
+
+            return;
+        }
+
+        $member->update(['roles' => $remaining]);
+
+        $this->auditChild($child, 'member.roles.assigned', $member, $before, $remaining, $target);
+    }
+
+    /**
+     * @param  list<string>  $before
+     * @param  list<string>  $after
+     */
+    private function auditChild(Workspace $child, string $action, WorkspaceMember $member, array $before, array $after, User $target): void
+    {
+        $this->audit->log(
+            $action,
+            $member,
+            before: ['roles' => $before],
+            after: ['roles' => $after],
+            context: [
+                'target_user_id' => $target->getKey(),
+                // A CHILD naplójából ki kell derülnie, hogy a döntés NEM ott született:
+                // enélkül az al-fiók üzemeltetője egy megmagyarázhatatlan sort látna.
+                'reason' => 'parent_owner_sync',
+                'parent_workspace_id' => $this->context->workspaceId(),
+            ],
+            // A CHILD naplójába, EXPLICIT workspace-szel: a kontextus a parenté, és a
+            // tenant a saját naplójában keresi, hogyan változott a tulajdonosi köre.
+            workspaceId: (int) $child->getKey(),
+        );
     }
 
     /** @return list<string> */

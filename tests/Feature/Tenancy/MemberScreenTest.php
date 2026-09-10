@@ -695,3 +695,159 @@ it('a PARENT tulajdonosi köre lekövetődik az al-fiókokra', function () {
     // A CHILD NEM MARAD GAZDÁTLAN.
     expect(WorkspaceMember::query()->where('workspace_id', $child->getKey())->count())->toBeGreaterThan(0);
 });
+
+it('a parent-oldali admin NEM viheti el a child SAJÁT tulajdonosát', function () {
+    /*
+     | EZ AZ A RÉS, AMIT A SECURITY-REVIEW AZ ELSŐ TÜKRÖZÉS-VÁLTOZATBAN MÉRT KI.
+     |
+     | Az `assertTargetNotStronger()` a PARENTBEN mér, a tükrözés mellékhatása viszont a
+     | CHILDBAN csapódik le — ahol a célpont erősebb lehet az aktornál. Mérve: `admin` A a
+     | parentben eltávolítja `U`-t (aki ott csak `editor`, tehát a törlés jogos), `U`
+     | viszont a CHILDBAN `owner` — és a válogatás nélküli visszavonás a child tulajdonosát
+     | is elvitte: 0 tag, 0 tulajdonos. Ugyanaz a jogosultsági inverzió, áthelyezve.
+     |
+     | A childban KÜLÖN kiosztott tagság emberi döntés (nincs `source` jelölése), ahhoz a
+     | parent felől nem nyúlunk.
+     */
+    $parent = Workspace::factory()->create();
+    $owner = memberUser($parent, 'owner');
+    $admin = memberUser($parent, 'admin');
+    $editor = memberUser($parent, 'editor');
+
+    Auth::login($owner);
+
+    $child = app(WorkspaceContext::class)->runFor($parent, fn () => app(CreateSubAccount::class)('Ügyfél Kft.'));
+
+    // A CHILDBAN az editor KÜLÖN kap tulajdonosi jogot — ez a child döntése.
+    $childOwn = WorkspaceMember::create([
+        'workspace_id' => $child->getKey(),
+        'user_id' => $editor->getKey(),
+        'roles' => ['owner'],
+    ]);
+
+    $parentMember = WorkspaceMember::query()
+        ->where('workspace_id', $parent->getKey())
+        ->where('user_id', $editor->getKey())
+        ->firstOrFail();
+
+    $this->actingAs($admin)->withSession(['workspace_uuid' => $parent->uuid])
+        ->from('/members')
+        ->delete('/members/'.$parentMember->getKey())
+        ->assertRedirect('/members');
+
+    // A PARENTBŐL kikerült…
+    expect(WorkspaceMember::query()->whereKey($parentMember->getKey())->exists())->toBeFalse()
+        // …a CHILDBAN viszont érintetlen maradt.
+        ->and($childOwn->fresh()->roles())->toBe(['owner']);
+});
+
+it('a TÜKRÖZÖTT child-tulajdonosság visszavonása AUDITÁLT, a CHILD naplójába', function () {
+    /*
+     | Golden rule 11. A tükrözés jogot oszt és von vissza; ha nyom nélkül tenné, az
+     | al-fiók naplójában egy tulajdonos „csak úgy" megjelenne vagy eltűnne — a saját
+     | mércénk szerint ez blokkoló.
+     */
+    $parent = Workspace::factory()->create();
+    $founder = memberUser($parent, 'owner');
+    $successor = memberUser($parent, 'owner');
+
+    Auth::login($founder);
+
+    $child = app(WorkspaceContext::class)->runFor($parent, fn () => app(CreateSubAccount::class)('Ügyfél Kft.'));
+
+    $founderMember = WorkspaceMember::query()
+        ->where('workspace_id', $parent->getKey())
+        ->where('user_id', $founder->getKey())
+        ->firstOrFail();
+
+    $this->actingAs($successor)->withSession(['workspace_uuid' => $parent->uuid])
+        ->from('/members')
+        ->delete('/members/'.$founderMember->getKey())
+        ->assertRedirect('/members');
+
+    // A CHILD naplójában ott a sor, a PARENT-re hivatkozó indoklással.
+    $audit = AuditLog::query()
+        ->where('workspace_id', $child->getKey())
+        ->where('action', 'member.removed')
+        ->get();
+
+    expect($audit)->toHaveCount(1)
+        ->and($audit->first()->context['reason'] ?? null)->toBe('parent_owner_sync');
+
+    // A CHILD nem maradt tulajdonos nélkül: az utód tükrözött tagsága ott van.
+    expect(WorkspaceMember::query()
+        ->where('workspace_id', $child->getKey())
+        ->where('user_id', $successor->getKey())
+        ->exists())->toBeTrue();
+});
+
+it('a CHILD utolsó tulajdonosát a tükrözés sem viszi el', function () {
+    /*
+     | Ugyanaz az invariáns, mint a parentben — csak a childra kiértékelve. Enélkül a
+     | parent-oldali tulajdonos-csere gazdátlan al-fiókot hagyott volna: a child ott van a
+     | listán, a parent számlájára fogy, de senki nem tud belépni.
+     */
+    $parent = Workspace::factory()->create();
+    $founder = memberUser($parent, 'owner');
+    $second = memberUser($parent, 'owner');
+
+    Auth::login($founder);
+
+    $child = app(WorkspaceContext::class)->runFor($parent, fn () => app(CreateSubAccount::class)('Ügyfél Kft.'));
+
+    // A MÁSODIK tulajdonos tükrözött tagságát a childból kézzel kivesszük: innentől a
+    // childnak EGYETLEN (tükrözött) tulajdonosa van.
+    WorkspaceMember::query()
+        ->where('workspace_id', $child->getKey())
+        ->where('user_id', $second->getKey())
+        ->delete();
+
+    $founderMember = WorkspaceMember::query()
+        ->where('workspace_id', $parent->getKey())
+        ->where('user_id', $founder->getKey())
+        ->firstOrFail();
+
+    $this->actingAs($second)->withSession(['workspace_uuid' => $parent->uuid])
+        ->from('/members')
+        ->delete('/members/'.$founderMember->getKey())
+        ->assertRedirect('/members');
+
+    // A childban MARAD a tulajdonos — a parent-oldali döntés nem tehet gazdátlanná egy
+    // al-fiókot.
+    expect(WorkspaceMember::query()
+        ->where('workspace_id', $child->getKey())
+        ->get()
+        ->contains(fn (WorkspaceMember $member) => in_array('owner', $member->roles(), true)))->toBeTrue();
+});
+
+it('a BACKFILL pótolja a régi al-fiókok hiányzó tulajdonosait — és csak hozzáad', function () {
+    /*
+     | A tükrözés csak a JÖVŐBELI szerep-változásokra fut, tehát a korábban létrehozott
+     | al-fiókokban csak a létrehozó a tulajdonos. Ha ő kikerült a parentből, a child
+     | gazdátlan — platform-admin nélkül javíthatatlan.
+     */
+    $parent = Workspace::factory()->create();
+    $owner = memberUser($parent, 'owner');
+    $child = Workspace::factory()->create();
+
+    $parent->children()->attach($child->getKey());
+
+    // A CHILDNAK van egy SAJÁT tagja, akihez a parancs nem nyúl.
+    $localAdmin = memberUser($child, 'admin');
+
+    $this->artisan('tenancy:sync-sub-account-owners')->assertSuccessful();
+
+    $mirrored = WorkspaceMember::query()
+        ->where('workspace_id', $child->getKey())
+        ->where('user_id', $owner->getKey())
+        ->firstOrFail();
+
+    expect($mirrored->roles())->toBe(['owner'])
+        ->and($mirrored->isMirroredFromParent())->toBeTrue()
+        // A SAJÁT tagság érintetlen.
+        ->and(WorkspaceMember::query()
+            ->where('workspace_id', $child->getKey())
+            ->where('user_id', $localAdmin->getKey())
+            ->firstOrFail()
+            ->roles())->toBe(['admin']);
+});

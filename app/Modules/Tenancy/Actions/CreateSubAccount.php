@@ -120,6 +120,10 @@ final class CreateSubAccount
                 'workspace_id' => $child->getKey(),
                 'user_id' => $owner->user_id,
                 'roles' => [Role::Owner->value],
+                // A TÜKRÖZÉS JELÖLVE: ha a parentben megszűnik a tulajdonosi joga, ez a sor
+                // visszavonható — a childban KÜLÖN kiosztott szerepekhez viszont a parent
+                // felől nem nyúlunk (a jelölés hiánya emberi döntést jelent).
+                'source' => WorkspaceMember::SOURCE_PARENT_OWNER,
             ]);
         }
 

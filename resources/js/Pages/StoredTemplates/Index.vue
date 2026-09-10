@@ -25,8 +25,11 @@ interface DiffLine {
     left: number | null;
     right: number | null;
     text: string;
-    // A KIHAGYOTT szakasz nem tűnik el csendben: a sorok száma látszik.
+    // A KIHAGYOTT szakasz nem tűnik el csendben: a sorok száma ÉS a tartománya is látszik.
+    // Saját kulcsokon, mert a `left`/`right` a többi soron a két oldal sorszáma.
     skipped?: number;
+    from?: number | null;
+    to?: number | null;
 }
 
 const props = defineProps<{
@@ -167,7 +170,7 @@ function activate(version: number): void {
                 >
                     <template v-if="line.type === 'skipped'">
                         <span class="vm-diff__text">
-                            {{ t('storedTemplates.skipped', { count: line.skipped, from: line.left, to: line.right }) }}
+                            {{ t('storedTemplates.skipped', { count: line.skipped, from: line.from, to: line.to }) }}
                         </span>
                     </template>
                     <template v-else>

@@ -234,8 +234,10 @@ it('a HATALMAS sablon sem viszi el a processzt — a levágott rész SOSEM épü
         // magyarázat nélkül ugrana.
         $skipped = collect($result['lines'])->firstWhere('type', 'skipped');
 
+        // A KIHAGYÁS SAJÁT `from`/`to` kulcsot használ: a `left`/`right` a többi soron a
+        // két oldal sorszáma, és két jelentés nem lakhat egy néven.
         expect($skipped)->not->toBeNull()
-            ->and($skipped['left'])->toBe(1)
+            ->and($skipped['from'])->toBe(1)
             ->and($skipped['skipped'])->toBeGreaterThan(1000);
     } finally {
         ini_set('memory_limit', (string) $original);

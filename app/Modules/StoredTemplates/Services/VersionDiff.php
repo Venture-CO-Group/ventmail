@@ -84,7 +84,7 @@ final class VersionDiff
     public const MAX_INPUT_LINES = 60000;
 
     /**
-     * @return array{truncated: bool, identical: bool, limit: int, lines: list<array{type: string, left: ?int, right: ?int, text: string, skipped?: int}>}
+     * @return array{truncated: bool, identical: bool, limit: int, lines: list<array{type: string, left: ?int, right: ?int, text: string, skipped?: int, from?: ?int, to?: ?int}>}
      */
     public function compare(string $before, string $after): array
     {
@@ -155,13 +155,7 @@ final class VersionDiff
         $contextBefore = min($prefix, self::CONTEXT);
 
         if ($prefix > $contextBefore) {
-            $lines[] = [
-                'type' => 'skipped',
-                'left' => 1,
-                'right' => $prefix - $contextBefore,
-                'text' => '',
-                'skipped' => $prefix - $contextBefore,
-            ];
+            $lines[] = $this->skippedLine(1, $prefix - $contextBefore);
         }
 
         for ($i = $prefix - $contextBefore; $i < $prefix; $i++) {
@@ -185,13 +179,7 @@ final class VersionDiff
         }
 
         if ($suffix > $contextAfter) {
-            $lines[] = [
-                'type' => 'skipped',
-                'left' => $leftCount - $suffix + $contextAfter + 1,
-                'right' => $leftCount,
-                'text' => '',
-                'skipped' => $suffix - $contextAfter,
-            ];
+            $lines[] = $this->skippedLine($leftCount - $suffix + $contextAfter + 1, $leftCount);
         }
 
         return ['truncated' => false, 'identical' => false, 'limit' => $limit, 'lines' => $lines];
@@ -217,10 +205,19 @@ final class VersionDiff
         return max(0, min(self::MAX_INPUT_LINES, $lines));
     }
 
-    /** Sorszám FELBONTÁS NÉLKÜL — a felbontás maga a drága lépés. */
+    /**
+     * Sorszám FELBONTÁS NÉLKÜL — a felbontás maga a drága lépés.
+     *
+     * A CRLF EGY sortörés, nem kettő. A naiv `\n` + `\r` összeg egy Windows-szerkesztőből
+     * érkező sablon plafonját MEGFELEZTE: mérve a 30 001 soros CRLF-változat `truncated`-et
+     * kapott, miközben a bitre azonos LF-változat lefutott. A becslés így is konzervatív
+     * marad (soha nem becsül alá), csak nem bünteti a sortörés-stílust.
+     */
     private function lineCount(string $body): int
     {
-        return substr_count($body, "\n") + substr_count($body, "\r") + 1;
+        return substr_count($body, "\n")
+            + substr_count(str_replace("\r\n", '', $body), "\r")
+            + 1;
     }
 
     /**
@@ -327,6 +324,28 @@ final class VersionDiff
     }
 
     /**
+     * ÖSSZEVONT SZAKASZ — SAJÁT `from`/`to` kulccsal.
+     *
+     * A `left`/`right` a többi soron a KÉT OLDAL sorszáma; ha a kihagyás ugyanezt a két
+     * mezőt tartományként használná, két különböző jelentés lakna egy néven — a felület
+     * pedig előbb-utóbb az egyiket a másiknak nézné.
+     *
+     * @return array{type: string, left: ?int, right: ?int, text: string, skipped: int, from: ?int, to: ?int}
+     */
+    private function skippedLine(?int $from, ?int $to): array
+    {
+        return [
+            'type' => 'skipped',
+            'left' => null,
+            'right' => null,
+            'text' => '',
+            'skipped' => $from !== null && $to !== null ? $to - $from + 1 : 0,
+            'from' => $from,
+            'to' => $to,
+        ];
+    }
+
+    /**
      * VÁLTOZÁS + KÖRNYEZET, a hosszú változatlan szakaszok összevonva.
      *
      * A kihagyás nem rejtőzik el: `skipped` típusú sorként jelenik meg a kihagyott sorok
@@ -354,6 +373,7 @@ final class VersionDiff
         $out = [];
         $skipped = 0;
         $from = null;
+        $to = null;
 
         foreach ($lines as $index => $line) {
             if (isset($keep[$index])) {
@@ -362,15 +382,10 @@ final class VersionDiff
                     // `@@ -119,3 +119,3 @@` fejléce pont ezért van. Nélküle a sorszám-oszlop
                     // 9996-ról 9997-re ugrik magyarázat nélkül, és az olvasó azt hiszi,
                     // hogy a két oldal elcsúszott.
-                    $out[] = [
-                        'type' => 'skipped',
-                        'left' => $from,
-                        'right' => $lines[$index - 1]['left'] ?? null,
-                        'text' => '',
-                        'skipped' => $skipped,
-                    ];
+                    $out[] = $this->skippedLine($from, $to);
                     $skipped = 0;
                     $from = null;
+                    $to = null;
                 }
 
                 $out[] = $line;
@@ -378,18 +393,16 @@ final class VersionDiff
                 continue;
             }
 
+            // A KIHAGYOTT szakasz csak `same` sorokból állhat (a `keep` minden változást
+            // megtart), tehát a bal oldali sorszám mindig kitöltött — de a `??=`/`??` őr
+            // marad, hogy egy jövőbeli típus se csússzon `null`-ra észrevétlenül.
             $from ??= $line['left'];
+            $to = $line['left'] ?? $to;
             $skipped++;
         }
 
         if ($skipped > 0) {
-            $out[] = [
-                'type' => 'skipped',
-                'left' => $from,
-                'right' => $lines[count($lines) - 1]['left'] ?? null,
-                'text' => '',
-                'skipped' => $skipped,
-            ];
+            $out[] = $this->skippedLine($from, $to);
         }
 
         return $out;
