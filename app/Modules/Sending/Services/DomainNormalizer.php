@@ -113,6 +113,56 @@ final class DomainNormalizer
     }
 
     /**
+     * HOZZÁFÉRÉSI kulcs (meghívó-beváltás, belépési jogcím) — fail-CLOSED.
+     *
+     * ## Miért nem a `listKey()`
+     *
+     * Mert a két kulcs HIBAIRÁNYA ellentétes. A `listKey()` suppression- és consent-kulcs:
+     * ott a túl-illesztés BIZTONSÁGOS (több cím tiltódik, mint kellene). Egy belépési
+     * jogcímnél viszont a túl-illesztés azt jelenti, hogy TÖBB EMBERNEK jár hozzáférés —
+     * és a `listKey()` a helyi részen `mb_strtolower`-t futtat, ami NEM injektív.
+     *
+     * Mérve (a security-review vektora): a `bo\u{212A}@corp.com` (KELVIN SIGN) a
+     * `mb_strtolower` után `bok@corp.com` — vagyis egy `bok@corp.com`-nak szóló admin-meghívót
+     * egy MÁSIK postafiók tulajdonosa váltott volna be. Pontosan az a
+     * pre-registration account takeover, amit a meghívó verifikáltság-feltétele kizárni
+     * hivatott.
+     *
+     * ## A szabály: ami nem TISZTA leképezés, az érvénytelen
+     *
+     * Ugyanaz az elv, ami a domain oldalon már áll (`canonical()` round-trip ellenőrzése):
+     * a helyi rész CSAK ASCII lehet, és csak ASCII-kisbetűsítést kap. Egy nem-ASCII helyi
+     * részű cím nem kap hozzáférési kulcsot — nem „valahogy" illeszkedik, hanem sehogy.
+     * Az `SMTPUTF8`-as postafiókra ma nem lehet meghívót írni; ez tudatos szűkítés, és a
+     * hívó HANGOS hibát kap, nem csendes félreillesztést.
+     */
+    public static function authKey(string $email): string
+    {
+        $email = trim($email);
+        $position = strrpos($email, '@');
+
+        if ($position === false) {
+            return '';
+        }
+
+        $local = substr($email, 0, $position);
+        $canonical = self::canonical(substr($email, $position + 1));
+
+        if ($canonical === '' || $local === '') {
+            return '';
+        }
+
+        // NEM-ASCII helyi rész: nincs tiszta leképezés, tehát nincs kulcs.
+        if (preg_match('/^[\x21-\x7E]+$/', $local) !== 1) {
+            return '';
+        }
+
+        // ASCII-kisbetűsítés (nem `mb_strtolower`): a lokálé-függő leképezések — a török
+        // dotless i a legismertebb — két KÜLÖNBÖZŐ ASCII címet mosnának össze.
+        return strtolower($local).'@'.$canonical;
+    }
+
+    /**
      * A teljes cím kanonikus alakja: a helyi rész VÁLTOZATLAN marad.
      *
      * A helyi részt SOHA nem alakítjuk át (RFC 5321 §2.4: kizárólag a fogadó értelmezheti),

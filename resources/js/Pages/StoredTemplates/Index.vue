@@ -25,12 +25,14 @@ interface DiffLine {
     left: number | null;
     right: number | null;
     text: string;
+    // A KIHAGYOTT szakasz nem tűnik el csendben: a sorok száma látszik.
+    skipped?: number;
 }
 
 const props = defineProps<{
     templates: Array<{ uuid: string; name: string; description: string | null; versions: number }>;
     selected: { name: string; description: string | null; versions: VersionRow[] } | null;
-    comparison: { left: number; right: number; truncated: boolean; lines: DiffLine[] } | null;
+    comparison: { left: number; right: number; truncated: boolean; limit: number; lines: DiffLine[] } | null;
     maxLines: number;
 }>();
 
@@ -148,9 +150,14 @@ function activate(version: number): void {
                     :class="`vm-diff__line--${line.type}`"
                     :data-diff="line.type"
                 >
-                    <span class="vm-diff__gutter">{{ line.left ?? '' }}</span>
-                    <span class="vm-diff__gutter">{{ line.right ?? '' }}</span>
-                    <span class="vm-diff__text">{{ line.text }}</span>
+                    <template v-if="line.type === 'skipped'">
+                        <span class="vm-diff__text">{{ t('storedTemplates.skipped', { count: line.skipped }) }}</span>
+                    </template>
+                    <template v-else>
+                        <span class="vm-diff__gutter">{{ line.left ?? '' }}</span>
+                        <span class="vm-diff__gutter">{{ line.right ?? '' }}</span>
+                        <span class="vm-diff__text">{{ line.text }}</span>
+                    </template>
                 </div>
             </div>
         </VtCard>

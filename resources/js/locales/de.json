@@ -449,7 +449,10 @@
         "createSubAccount": "Unterkonto anlegen",
         "subAccountLocked": "Dieser Workspace ist selbst ein Unterkonto — die Hierarchie ist einstufig, darunter entsteht kein weiteres.",
         "parentIs": "Dieser Workspace ist ein Unterkonto von {name}.",
-        "memberCount": "{count} Mitglieder"
+        "memberCount": "{count} Mitglieder",
+        "lockedRoles": "Nicht bearbeitbare Rollen (stärker als deine): {roles}",
+        "removeConfirm": "Ja, entfernen",
+        "cancel": "Abbrechen"
     },
     "forms": {
         "title": "Anmeldeformulare",
@@ -494,6 +497,17 @@
         "activeShort": "aktiv",
         "activate": "Aktivieren",
         "tooLarge": "Der Vergleich läuft über {lines} Zeilen nicht — lade die Versionen über die API herunter.",
-        "activated": "Die Version ist jetzt aktiv."
+        "activated": "Die Version ist jetzt aktiv.",
+        "skipped": "{count} unveränderte Zeilen übersprungen"
+    },
+    "invitations": {
+        "title": "Deine Einladungen",
+        "note": "Die Einladung gehört zu deiner Adresse. Bis zur Annahme sieht die einladende Organisation nichts über dich; beim Ablehnen wird die Einladung gelöscht.",
+        "unverified": "ventSSO hat diese E-Mail-Adresse noch nicht bestätigt, daher kann die Einladung nicht angenommen werden.",
+        "roles": "Rollen: {roles}",
+        "expires": "Gültig bis: {date}",
+        "accept": "Annehmen",
+        "decline": "Ablehnen",
+        "empty": "Du hast keine offenen Einladungen."
     }
 }

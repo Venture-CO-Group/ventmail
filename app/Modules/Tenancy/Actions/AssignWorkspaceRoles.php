@@ -44,6 +44,16 @@ final class AssignWorkspaceRoles
             ->where('user_id', $target->getKey())
             ->first();
 
+        // A CÉLPONT MOSTANI szerepe is számít, nem csak a kiosztandó.
+        //
+        // Az invariáns eddig FÉLOLDALAS volt: „nálad erősebbet nem ADHATSZ" — de nálad
+        // erősebbet ELVENNI szabad volt. Mérve: az `admin` (akitől a szerep-térkép
+        // szándékosan megvonja a `billing.manage`-t és a `workspace.delete`-et) egyetlen
+        // kéréssel `analyst`-tá fokozta le az egyik `owner`-t. Két tulajdonosból az
+        // egyiket így kiirtotta, a másikat csak az utolsó-tulajdonos védelem mentette meg
+        // — vagyis a teljes átvételt egy VÉLETLEN fogta meg, nem szabály.
+        $this->assertTargetNotStronger($existing);
+
         // AZ UTOLSÓ TULAJDONOS nem fokozható le.
         //
         // Nem elméleti: az `owner` egyetlen kattintással `analyst`-tá tehette magát, és a
@@ -88,16 +98,16 @@ final class AssignWorkspaceRoles
         $actor = Auth::user();
 
         if ($actor === null || ! Gate::forUser($actor)->allows('member.manage')) {
-            throw new AuthorizationException('Nincs jogosultságod tagságot kezelni.');
+            throw new AuthorizationException(__('ventmail.members.notAllowed'));
         }
 
         if ($roles === []) {
-            throw new InvalidArgumentException('Legalább egy szerepet meg kell adni.');
+            throw new InvalidArgumentException(__('ventmail.members.noRoles'));
         }
 
         $validated = array_map(
             fn (string $role) => Role::tryFromClaim($role)
-                ?? throw new InvalidArgumentException("Ismeretlen szerep: {$role}"),
+                ?? throw new InvalidArgumentException(__('ventmail.members.unknownRole', ['role' => $role])),
             array_values($roles)
         );
 
@@ -114,15 +124,72 @@ final class AssignWorkspaceRoles
             ));
 
             if ($missing !== []) {
-                throw new AuthorizationException(sprintf(
-                    'Nem oszthatsz ki nálad erősebb szerepet (%s): hiányzó jogaid: %s',
-                    $role->value,
-                    implode(', ', $missing)
-                ));
+                throw new AuthorizationException(__('ventmail.members.strongerRole', [
+                    'role' => $role->value,
+                    'missing' => implode(', ', $missing),
+                ]));
             }
         }
 
         return $validated;
+    }
+
+    /**
+     * A CÉLPONT nem lehet erősebb a hívónál.
+     *
+     * Ugyanaz a KÉPESSÉG-alapú összehasonlítás, mint a kiosztásnál — csak a másik
+     * irányban: aki nem tudna `owner`-t ADNI, az `owner`-t ELVENNI sem tud. A szerep-nevek
+     * összevetése kevés lenne: két szerep akkor is összemérhetetlen, ha a nevük más.
+     */
+    public function assertTargetNotStronger(?WorkspaceMember $existing): void
+    {
+        if ($existing === null) {
+            return;
+        }
+
+        $actor = Auth::user();
+
+        if ($actor === null) {
+            throw new AuthorizationException(__('ventmail.members.notAllowed'));
+        }
+
+        // A SAJÁT tagság mindig módosítható: a lefokozásnál az utolsó-tulajdonos
+        // invariáns véd, a kizárásnál pedig külön szabály (senki nem zárhatja ki magát).
+        if ((int) $existing->user_id === (int) $actor->getKey()) {
+            return;
+        }
+
+        $actorRoles = $this->rolesOf($actor);
+
+        $missing = array_values(array_filter(
+            $this->abilitiesOf($existing->roles()),
+            fn (string $ability) => ! AbilityMap::allows($actorRoles, $ability)
+        ));
+
+        if ($missing !== []) {
+            throw new AuthorizationException(__('ventmail.members.strongerTarget', [
+                'missing' => implode(', ', $missing),
+            ]));
+        }
+    }
+
+    /**
+     * @param  list<string>  $roles
+     * @return list<string>
+     */
+    private function abilitiesOf(array $roles): array
+    {
+        $abilities = [];
+
+        foreach ($roles as $role) {
+            $case = Role::tryFromClaim($role);
+
+            if ($case !== null) {
+                $abilities = [...$abilities, ...AbilityMap::abilitiesOf($case)];
+            }
+        }
+
+        return array_values(array_unique($abilities));
     }
 
     /**
@@ -144,7 +211,7 @@ final class AssignWorkspaceRoles
             ->contains(fn (WorkspaceMember $member) => in_array(Role::Owner->value, $member->roles(), true));
 
         if (! $otherOwners) {
-            throw new AuthorizationException('A workspace utolsó tulajdonosa nem távolítható el és nem fokozható le.');
+            throw new AuthorizationException(__('ventmail.members.lastOwner'));
         }
     }
 

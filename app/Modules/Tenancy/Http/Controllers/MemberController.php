@@ -17,12 +17,14 @@ use App\Modules\Tenancy\Models\WorkspaceMember;
 use App\Modules\Tenancy\Policies\AbilityMap;
 use App\Modules\Tenancy\Services\WorkspaceContext;
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Inertia\Response;
+use InvalidArgumentException;
 use RuntimeException;
 
 /**
@@ -99,7 +101,9 @@ final class MemberController
                 'parent' => $workspace->parent() === null ? null : [
                     'name' => (string) $workspace->parent()?->name,
                 ],
-                'children' => $workspace->children()->orderBy('name')->get()
+                // A TAGLÉTSZÁM EGY lekérdezésből (`withCount`), nem child-enként egyből:
+                // egy húsz al-fiókos ügynökségnél az N+1 húsz külön kört jelentett.
+                'children' => $workspace->children()->withCount('members')->orderBy('name')->get()
                     ->map(fn (Workspace $child) => [
                         'uuid' => (string) $child->uuid,
                         'name' => (string) $child->name,
@@ -107,7 +111,7 @@ final class MemberController
                         // A TAGLÉTSZÁM az egyetlen child-adat, ami ide kerül: a child
                         // TARTALMA (kontaktok, naplók) a child izolációjába tartozik, és
                         // a parent felületén nem jelenhet meg.
-                        'members' => WorkspaceMember::query()->where('workspace_id', $child->getKey())->count(),
+                        'members' => (int) $child->members_count,
                     ])->values()->all(),
             ],
         ]);
@@ -139,7 +143,10 @@ final class MemberController
 
         try {
             $assign($target, array_values($validated['roles']));
-        } catch (AuthorizationException|RuntimeException $e) {
+        } catch (AuthorizationException|InvalidArgumentException|RuntimeException $e) {
+            // Az `InvalidArgumentException` NEM leszármazottja a `RuntimeException`-nek:
+            // enélkül egy ismeretlen szerep-név (a kérés szabad bemenete) NYERS 500-at
+            // adott, nem hibaüzenetet.
             return back()->with('error', $e->getMessage());
         }
 
@@ -158,14 +165,19 @@ final class MemberController
 
         try {
             $invite($validated['email'], array_values($validated['roles']));
-        } catch (AuthorizationException|RuntimeException $e) {
+        } catch (AuthorizationException|InvalidArgumentException|RuntimeException $e) {
             return back()->with('error', $e->getMessage());
+        } catch (QueryException) {
+            // VERSENYHELYZET: két párhuzamos meghívó ugyanarra a címre a részleges unique
+            // indexbe ütközik. Ez nem a felhasználó hibája, és nem 500 — a MÁSIK kérés
+            // épp elvégezte, amit ő kért.
+            return back()->with('error', __('ventmail.members.inviteConflict'));
         }
 
         return back()->with('success', __('ventmail.members.invited'));
     }
 
-    public function revokeInvitation(string $uuid): RedirectResponse
+    public function revokeInvitation(string $uuid, AuditLogger $audit): RedirectResponse
     {
         Gate::authorize('member.manage');
 
@@ -177,7 +189,7 @@ final class MemberController
 
         // Golden rule 11: a visszavonás is jogosultsági döntés — a naplóból ki kell
         // derülnie, hogy a meghívó nem lejárt, hanem valaki elvette.
-        app(AuditLogger::class)->log('member.invitation.revoked', $invitation, before: [
+        $audit->log('member.invitation.revoked', $invitation, before: [
             'email' => (string) $invitation->email,
             'roles' => $invitation->roles(),
         ]);
@@ -202,7 +214,7 @@ final class MemberController
 
         try {
             $remove($row);
-        } catch (AuthorizationException $e) {
+        } catch (AuthorizationException|RuntimeException $e) {
             return back()->with('error', $e->getMessage());
         }
 
@@ -219,17 +231,36 @@ final class MemberController
 
         try {
             $create($validated['name']);
-        } catch (AuthorizationException $e) {
+        } catch (AuthorizationException|RuntimeException $e) {
             return back()->with('error', $e->getMessage());
         }
 
         return back()->with('success', __('ventmail.members.subAccountCreated'));
     }
 
-    /** @param list<string> $actorRoles */
+    /**
+     * FAIL-CLOSED: üres képesség-listájú (vagy ismeretlen) szerep NEM osztható ki.
+     *
+     * A ciklus önmagában `true`-t adott volna üres listára — „amit nem tudunk, azt szabad".
+     * Ma egyik szerep sem üres, de a szemantikának a szigorúbb irányba kell dőlnie: egy
+     * jövőbeli, képesség nélküli szerep ne váljon automatikusan mindenki által
+     * kioszthatóvá.
+     *
+     * @param  list<string>  $actorRoles
+     */
     private function canGrant(array $actorRoles, string $role): bool
     {
-        $granted = AbilityMap::abilitiesOf(Role::from($role));
+        $case = Role::tryFromClaim($role);
+
+        if ($case === null) {
+            return false;
+        }
+
+        $granted = AbilityMap::abilitiesOf($case);
+
+        if ($granted === []) {
+            return false;
+        }
 
         foreach ($granted as $ability) {
             if (! AbilityMap::allows($actorRoles, $ability)) {

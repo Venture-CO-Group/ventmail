@@ -121,6 +121,20 @@ it('egyetlen modul-route sem hitelesítetlen', function () {
          | hatás a címzett SAJÁT beállításaira korlátozódik.
          */
         'f/{slug}', 'c/{token}', 'p/{token}',
+        /*
+         | M4-6 · A MEGHÍVOTT SAJÁT képernyője (`/invitations`).
+         |
+         | HITELESÍTETT — az `auth` rajta van —, de a `workspace` NEM: aki ide jön,
+         | jellemzően még nem tagja egyetlen workspace-nek sem, épp az itteni döntés teszi
+         | azzá. A `ResolveWorkspace` tagság híján (helyesen) 403-at adna, és a meghívott
+         | a saját meghívóját sem látná.
+         |
+         | A hozzáférést nem a hiányzó middleware adja: a `RedeemInvitations` minden
+         | műveletnél újra ellenőrzi, hogy a meghívó a belépett felhasználó VERIFIKÁLT
+         | címére szól-e, pontos (`authKey`) egyezéssel — a képernyő pedig CSAK a saját
+         | meghívóit sorolja fel, a meghívó tenantról egyedül a workspace nevét mutatja.
+         */
+        'invitations', 'invitations/{uuid}/accept', 'invitations/{uuid}',
     ];
 
     $offenders = [];

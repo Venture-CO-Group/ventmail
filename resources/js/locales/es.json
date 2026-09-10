@@ -449,7 +449,10 @@
         "createSubAccount": "Crear subcuenta",
         "subAccountLocked": "Este workspace ya es una subcuenta — la jerarquía tiene un solo nivel.",
         "parentIs": "Este workspace es una subcuenta de {name}.",
-        "memberCount": "{count} miembros"
+        "memberCount": "{count} miembros",
+        "lockedRoles": "Roles que no puedes editar (más fuertes que el tuyo): {roles}",
+        "removeConfirm": "Sí, quitar",
+        "cancel": "Cancelar"
     },
     "forms": {
         "title": "Formularios de suscripción",
@@ -494,6 +497,17 @@
         "activeShort": "activa",
         "activate": "Activar",
         "tooLarge": "La comparación no se ejecuta por encima de {lines} líneas — descarga las versiones por la API.",
-        "activated": "La versión ya está activa."
+        "activated": "La versión ya está activa.",
+        "skipped": "{count} líneas sin cambios omitidas"
+    },
+    "invitations": {
+        "title": "Tus invitaciones",
+        "note": "La invitación pertenece a tu dirección. Hasta que aceptes, la organización que invita no ve nada sobre ti; al rechazar, la invitación se elimina.",
+        "unverified": "ventSSO todavía no ha verificado esta dirección de correo, así que la invitación no puede aceptarse.",
+        "roles": "Roles: {roles}",
+        "expires": "Válida hasta: {date}",
+        "accept": "Aceptar",
+        "decline": "Rechazar",
+        "empty": "No tienes invitaciones pendientes."
     }
 }

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Modules\Tenancy\Actions;
 
-use App\Models\User;
 use App\Modules\Audit\Services\AuditLogger;
 use App\Modules\Identity\Enums\Role;
 use App\Modules\Sending\Actions\SendMessage;
@@ -35,8 +34,11 @@ use Throwable;
  */
 final class InviteMember
 {
-    /** A nyitott meghívó élettartama. Egy lejárt meghívó nem vált be. */
-    private const TTL_DAYS = 14;
+    /** A nyitott meghívó élettartama (napokban) — konfigurálható, alap 14. */
+    private function ttlDays(): int
+    {
+        return max(1, (int) config('tenancy.invitations.ttl_days', 14));
+    }
 
     public function __construct(
         private readonly WorkspaceContext $context,
@@ -49,25 +51,42 @@ final class InviteMember
     {
         $validated = array_map(fn (Role $role) => $role->value, $this->roles->assertGrantable($roles));
 
-        // A CÍM NORMALIZÁLT alakban tárolódik, mert a beváltás pontos egyezést néz — és a
-        // bejelentkező `nagy.bela@pelda.hu`-ja különben sosem találná a
-        // `Nagy.Bela@Pelda.HU` meghívót.
-        $email = DomainNormalizer::listKey(trim($email));
+        /*
+         | A CÍM HOZZÁFÉRÉSI KULCSKÉNT normalizálódik (`authKey`), nem lista-kulcsként.
+         |
+         | A `listKey()` a helyi részen `mb_strtolower`-t futtat, ami NEM injektív: a
+         | `bo\u{212A}@corp.com` (KELVIN SIGN) is `bok@corp.com`-má válik — vagyis egy
+         | `bok@corp.com`-nak szóló admin-meghívót egy MÁSIK postafiók tulajdonosa
+         | válthatta volna be. Suppression-kulcsnál a túl-illesztés biztonságos irányba
+         | téved, belépési jogcímnél nyitja a kaput.
+         |
+         | Az `authKey()` ezért HANGOSAN elutasít mindent, aminek nincs tiszta ASCII
+         | leképezése — a hívó hibát kap, nem félreillesztést.
+         */
+        $email = DomainNormalizer::authKey($email);
 
-        if ($email === '' || ! filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            throw new RuntimeException('Érvénytelen e-mail-cím.');
+        if ($email === '' || ! filter_var($email, FILTER_VALIDATE_EMAIL, FILTER_FLAG_EMAIL_UNICODE) || str_contains($email, '[')) {
+            throw new RuntimeException(__('ventmail.members.invalidEmail'));
         }
 
         // AKI MÁR TAG, azt nem hívjuk meg újra: a meghívó beváltása felülírná a jelenlegi
         // szerepeit (akár lefelé is), és a felület azt mutatná, hogy „függőben" van valaki,
         // aki már bent van.
+        // A `users.email` a ventSSO claimjéből származik, ÉRINTETLENÜL (a `SyncSsoUser`
+        // nem normalizál) — a nyers egyenlőség ezért `Bob@Corp.com` meglévő tag mellett
+        // átengedte a `bob@corp.com` meghívót. Az összehasonlítás a MI kulcsunk szerint
+        // megy, adatbázis-oldali kisbetűsítéssel.
         $alreadyMember = WorkspaceMember::query()
             ->where('workspace_id', $this->context->workspaceId())
-            ->whereIn('user_id', User::query()->where('email', $email)->pluck('id'))
+            ->whereExists(fn ($query) => $query
+                ->selectRaw('1')
+                ->from('users')
+                ->whereColumn('users.id', 'workspace_members.user_id')
+                ->whereRaw('lower(users.email) = ?', [$email]))
             ->exists();
 
         if ($alreadyMember) {
-            throw new RuntimeException('Ez a cím már tagja a workspace-nek.');
+            throw new RuntimeException(__('ventmail.members.alreadyMember'));
         }
 
         $invitation = DB::transaction(function () use ($email, $validated): WorkspaceInvitation {
@@ -85,7 +104,7 @@ final class InviteMember
             $invitation->fill([
                 'roles' => $validated,
                 'invited_by_user_id' => Auth::id(),
-                'expires_at' => now()->addDays(self::TTL_DAYS),
+                'expires_at' => now()->addDays($this->ttlDays()),
             ])->save();
 
             return $invitation->fresh();
@@ -129,20 +148,25 @@ final class InviteMember
                 'channel' => 'transactional',
                 'from_email' => $from,
                 'to' => [(string) $invitation->email],
-                'subject' => "Meghívást kaptál a(z) {$workspace} munkaterületre",
-                'text' => "Meghívást kaptál a(z) {$workspace} ventMail-munkaterületre.\n\n"
-                    ."Lépj be a szokásos módon, és a hozzáférés automatikusan életbe lép:\n{$url}",
-                'html' => '<p>Meghívást kaptál a(z) <strong>'.e($workspace).'</strong> ventMail-munkaterületre.</p>'
-                    .'<p>Lépj be a szokásos módon, és a hozzáférés automatikusan életbe lép: '
-                    .'<a href="'.e($url).'">'.e($url).'</a></p>',
+                // A LEVÉL SZÖVEGE fordításból jön: a címzett idegen szervezet tagja, és
+                // nem feltétlenül beszél magyarul. A workspace nyelve a legjobb tippünk —
+                // a meghívott saját nyelvét még nem ismerjük (nincs `users` sora).
+                'subject' => __('ventmail.members.mailSubject', ['workspace' => $workspace]),
+                'text' => __('ventmail.members.mailText', ['workspace' => $workspace, 'url' => $url]),
+                'html' => '<p>'.e(__('ventmail.members.mailIntro', ['workspace' => $workspace])).'</p>'
+                    .'<p><a href="'.e($url).'">'.e($url).'</a></p>',
                 // Egy meghívóhoz EGY levél: az újrahívás ugyanazt a sort frissíti, tehát a
                 // kulcsba a lejárat is belemegy — új meghívás, új levél.
                 'idempotency_key' => 'invite:'.hash('sha256', (string) $invitation->uuid.'|'.$invitation->expires_at?->timestamp),
             ]);
         } catch (Throwable $e) {
+            // A KIVÉTEL ÜZENETE NEM kerül a naplóba: egy `QueryException` szövege a kötött
+            // paramétereket is tartalmazza — mérve a meghívott e-mail-címét is —, és az
+            // alkalmazás-napló nem a PII helye. A típus és a kód elég a diagnózishoz.
             Log::warning('A meghívó levele nem ment ki.', [
                 'invitation' => (string) $invitation->uuid,
-                'reason' => $e->getMessage(),
+                'exception' => $e::class,
+                'code' => (string) $e->getCode(),
             ]);
         }
     }

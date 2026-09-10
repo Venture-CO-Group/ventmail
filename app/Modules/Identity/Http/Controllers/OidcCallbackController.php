@@ -54,13 +54,19 @@ final class OidcCallbackController
         $request->session()->regenerate();
 
         /*
-         | A NYITOTT MEGHÍVÓK BEVÁLTÁSA — a bejelentkezés UTÁN, a workspace-választás ELŐTT.
+         | NYITOTT MEGHÍVÓ ESETÉN a MEGHÍVOTT DÖNT — nem váltjuk be magától.
          |
-         | Itt, és nem a meghíváskor: a tagsághoz `users` sor kell, azt pedig a ventSSO
-         | első belépése hozza létre (golden rule 1 — identitást nem gyártunk). A beváltás
-         | KIZÁRÓLAG verifikált címre fut, ezt a `RedeemInvitations` őrzi.
+         | Az automatikus beváltás azt jelentette volna, hogy egy idegen szervezet PII-t
+         | szerez valakiről (név, cím, utolsó belépés a tagok-képernyőjükön) pusztán attól,
+         | hogy beírta a címét egy űrlapba. A `/invitations` képernyőn az érintett elfogad
+         | vagy elutasít; az elutasítás törli a sort.
+         |
+         | A `users` sor addigra létezik (a ventSSO belépése hozta létre) — identitást
+         | továbbra sem gyártunk (golden rule 1).
          */
-        $redeemInvitations($user);
+        if ($redeemInvitations->openFor($user)->isNotEmpty()) {
+            return redirect('/invitations');
+        }
 
         // DIAGNOSZTIKA. Jogosultsági döntéshez TILOS használni: a hozzáférés egyetlen
         // forrása a `workspace_members` tábla (golden rule 1).

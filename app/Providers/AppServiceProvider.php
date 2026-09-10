@@ -250,6 +250,27 @@ class AppServiceProvider extends ServiceProvider
             Limit::perMinute(300)->by('form:'.$request->route('slug')),
         ]);
 
+        /*
+         | MEGHÍVÓ ÉS AL-FIÓK — a két művelet, ami a TENANTON KÍVÜLRE hat.
+         |
+         | A meghívó LEVELET küld egy tetszőleges idegen címre, a MI hitelesített
+         | domainünkről; az al-fiók pedig új workspace-t hoz létre a parent számlájára.
+         | Egyik sem nagy forgalmú művelet — a plafon a hibás ciklust és a
+         | felület-visszaélést fogja meg, a valódi használatot nem érinti.
+         |
+         | A kulcs a WORKSPACE, nem a felhasználó: két admin együtt sem küldhet többet,
+         | mert a reputációt és a számlát a workspace viseli.
+         */
+        RateLimiter::for('member-invites', fn (Request $request) => [
+            Limit::perMinute(10)->by('ws:'.self::workspaceKey($request)),
+            Limit::perDay(100)->by('ws:'.self::workspaceKey($request)),
+        ]);
+
+        RateLimiter::for('sub-accounts', fn (Request $request) => [
+            Limit::perMinute(5)->by('ws:'.self::workspaceKey($request)),
+            Limit::perDay(50)->by('ws:'.self::workspaceKey($request)),
+        ]);
+
         RateLimiter::for('consent-confirm', function (Request $request) {
             $fingerprint = app(ConfirmationTokens::class)->fingerprint((string) $request->route('token'));
 
@@ -287,6 +308,20 @@ class AppServiceProvider extends ServiceProvider
      * DURVA kulcs — épp ezért csak PLATFORM-szintű plafonként használjuk, a finom fék pedig
      * mindig az igényre kulcsol (`claim:`).
      */
+    /**
+     * A LIMIT KULCSA: a munkamenet workspace-e, ha van; különben a felhasználó.
+     *
+     * A `WorkspaceContext` a limiter futásakor még nem feltétlenül feloldott (a
+     * route-middleware sorrendje kéréstől függ), ezért a session-ben tárolt uuid a
+     * megbízható jel — ez az, amit a `ResolveWorkspace` is használ.
+     */
+    private static function workspaceKey(Request $request): string
+    {
+        $uuid = $request->hasSession() ? (string) $request->session()->get('workspace_uuid', '') : '';
+
+        return $uuid !== '' ? $uuid : 'user:'.(string) ($request->user()?->getKey() ?? self::peer($request));
+    }
+
     private static function peer(Request $request): string
     {
         return (string) ($request->server('REMOTE_ADDR') ?? 'unknown');

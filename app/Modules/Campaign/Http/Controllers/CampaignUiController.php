@@ -249,7 +249,15 @@ final class CampaignUiController
             return back()->with('error', __('ventmail.campaigns.variantLocked'));
         }
 
-        $campaign->variants()->where('uuid', $variant)->get()->each->delete();
+        $target = $campaign->variants()->where('uuid', $variant)->first();
+
+        // NEM LÉTEZŐ VÁLTOZAT: siker-üzenet helyett hiba — különben a felhasználó azt
+        // hinné, hogy törölt valamit, ami ott sem volt (vagy ami máshoz tartozik).
+        if ($target === null) {
+            return back()->with('error', __('ventmail.campaigns.variantMissing'));
+        }
+
+        $target->delete();
 
         return back()->with('success', __('ventmail.campaigns.variantRemoved'));
     }

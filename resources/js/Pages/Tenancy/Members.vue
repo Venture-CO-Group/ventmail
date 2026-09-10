@@ -54,6 +54,7 @@ const subAccountName = ref('');
 // A SZERKESZTÉS soronként nyílik: egy globális „mentés" gomb mellett nem lenne látható,
 // melyik sor változott — és egy félrekattintás csendben átírná valaki más szerepeit.
 const editing = ref<number | null>(null);
+const confirming = ref<number | null>(null);
 const editRoles = ref<string[]>([]);
 
 type Row = { name: string; email: string; roles: string; lastLogin: string };
@@ -80,7 +81,19 @@ function toggle(list: string[], role: string): string[] {
 
 function startEdit(member: MemberRow): void {
     editing.value = member.id;
-    editRoles.value = [...member.roles];
+
+    /*
+     | CSAK a kiosztható szerepeket vesszük át.
+     |
+     | Ha a célpontnak van olyan szerepe, amit a hívó nem oszthat ki (pl. az `admin` egy
+     | `owner`-t szerkeszt), az a jelölőnégyzetek között meg sem jelenne — a mentés viszont
+     | elküldené, és a szerver (helyesen) elutasítaná. A felhasználó egy hibaüzenetet
+     | kapna, amiről nem is tudná, honnan jön.
+     |
+     | A szerver ettől nem lesz engedékenyebb: a nálunk erősebb tag módosítását az
+     | `AssignWorkspaceRoles` akkor is tiltja, ha a kérés „helyes" szerepeket küld.
+     */
+    editRoles.value = member.roles.filter((role) => props.assignableRoles.includes(role));
 }
 
 function saveRoles(member: MemberRow): void {
@@ -92,7 +105,10 @@ function saveRoles(member: MemberRow): void {
 }
 
 function remove(member: MemberRow): void {
-    router.delete(`/members/${member.id}`, { preserveScroll: true });
+    router.delete(`/members/${member.id}`, {
+        preserveScroll: true,
+        onFinish: () => (confirming.value = null),
+    });
 }
 
 function invite(): void {
@@ -143,17 +159,35 @@ function createSubAccount(): void {
 
                     <!-- A SAJÁT SOR törlő gombja szándékosan hiányzik: aki kizárja magát,
                          annak nincs visszaútja a saját felületén. -->
+                    <!-- A TÖRLÉS KÉT LÉPÉS: a hozzáférés visszavonása nem vonható vissza
+                         egy kattintással, és a sorok egymás alatt vannak. -->
                     <VtButton
                         v-if="!member.self"
                         variant="ghost"
                         :data-testid="`remove-${member.id}`"
+                        @click="confirming = confirming === member.id ? null : member.id"
+                    >
+                        {{ confirming === member.id ? t('members.cancel') : t('members.remove') }}
+                    </VtButton>
+
+                    <VtButton
+                        v-if="confirming === member.id"
+                        :data-testid="`remove-confirm-${member.id}`"
                         @click="remove(member)"
                     >
-                        {{ t('members.remove') }}
+                        {{ t('members.removeConfirm') }}
                     </VtButton>
                 </div>
 
-                <div v-if="editing === member.id" class="vm-cluster" :data-testid="`roles-${member.id}`">
+                <div v-if="editing === member.id" class="vm-stack" :data-testid="`roles-${member.id}`">
+                    <!-- Amit a hívó NEM oszthat ki, azt nem rejtjük el — csak nem
+                         szerkeszthető. Enélkül úgy tűnne, hogy a tagnak nincs is olyan
+                         szerepe. -->
+                    <p v-if="member.roles.some((role) => !assignableRoles.includes(role))">
+                        {{ t('members.lockedRoles', { roles: member.roles.filter((role) => !assignableRoles.includes(role)).join(', ') }) }}
+                    </p>
+
+                    <div class="vm-cluster">
                     <VtCheckbox
                         v-for="role in assignableRoles"
                         :key="role"
@@ -171,6 +205,7 @@ function createSubAccount(): void {
                     >
                         {{ t('members.save') }}
                     </VtButton>
+                    </div>
                 </div>
             </div>
         </VtCard>

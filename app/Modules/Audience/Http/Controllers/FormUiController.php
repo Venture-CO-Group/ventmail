@@ -38,7 +38,11 @@ final class FormUiController
     {
         Gate::authorize('audience.manage');
 
-        $forms = Form::query()->with('list')->orderByDesc('id')->get();
+        // A CÉLLISTA MÉRETE `withCount`-tal a reláción: űrlaponkénti `count()` külön kört
+        // jelentett minden soron.
+        $forms = Form::query()->with(['list' => fn ($query) => $query->withCount('contacts')])
+            ->orderByDesc('id')
+            ->get();
 
         return Inertia::render('Audience/Forms', [
             'endpointBase' => rtrim((string) config('app.url'), '/').'/f/',
@@ -63,7 +67,7 @@ final class FormUiController
                 // űrlapon". Olyan szám ma nincs: a consent forrása `form`, de nem hordozza,
                 // MELYIK űrlapé. Egy összes-űrlapos szám minden sor mellé ugyanazt írná ki,
                 // és a felhasználó azt hinné, hogy űrlaponkénti adatot lát.
-                'listContacts' => $form->list === null ? null : $form->list->contacts()->count(),
+                'listContacts' => $form->list === null ? null : (int) $form->list->contacts_count,
                 'snippet' => $this->snippet($form),
             ])->values()->all(),
         ]);

@@ -37,7 +37,9 @@ final class StoredTemplateUiController
     {
         Gate::authorize('storedTemplate.manage');
 
-        $templates = StoredTemplate::query()->orderBy('name')->get();
+        // A VERZIÓSZÁM `withCount`-tal: sablononkénti `count()` egy húsz sablonos
+        // workspace-en húsz külön kört jelentett.
+        $templates = StoredTemplate::query()->withCount('versions')->orderBy('name')->get();
 
         $selected = $request->string('template')->toString();
 
@@ -60,7 +62,7 @@ final class StoredTemplateUiController
                 'uuid' => (string) $item->uuid,
                 'name' => (string) $item->name,
                 'description' => $item->description,
-                'versions' => $item->versions()->count(),
+                'versions' => (int) $item->versions_count,
             ])->values()->all(),
 
             'selected' => $template === null ? null : [
@@ -80,7 +82,10 @@ final class StoredTemplateUiController
                 ...$diff->compare((string) $left->body, (string) $right->body),
             ],
 
-            'maxLines' => VersionDiff::MAX_LINES,
+            // A KORLÁT FUTÁSIDŐBEN dől el (a szabad memóriából), ezért a felület a
+            // ténylegesen érvényes számot kapja — nem egy konstanst, ami éles környezetben
+            // már nem igaz.
+            'maxLines' => $diff->regionLimit(),
         ]);
     }
 
@@ -98,13 +103,16 @@ final class StoredTemplateUiController
 
         $template = StoredTemplate::query()->where('uuid', $uuid)->firstOrFail();
 
-        DB::transaction(function () use ($template, $version): void {
+        $activated = DB::transaction(function () use ($template, $version): bool {
             $locked = StoredTemplate::query()->whereKey($template->getKey())->lockForUpdate()->firstOrFail();
 
             $target = $locked->versions()->where('version', $version)->first();
 
+            // NEM LÉTEZŐ VERZIÓ: a csendes visszatérés mellett a felület „A verzió aktív
+            // lett" üzenetet írt — éles incidens közben az üzemeltető azt hitte volna,
+            // hogy visszaállt, miközben semmi nem történt.
             if ($target === null) {
-                return;
+                return false;
             }
 
             // Modell-példányonként, nem tömeges update-tel: a mass-update kikerülné az
@@ -114,7 +122,13 @@ final class StoredTemplateUiController
                 ->each(fn (StoredTemplateVersion $current) => $current->update(['is_active' => false]));
 
             $target->update(['is_active' => true]);
+
+            return true;
         });
+
+        if (! $activated) {
+            return back()->with('error', __('ventmail.storedTemplates.unknownVersion'));
+        }
 
         return back()->with('success', __('ventmail.storedTemplates.activated'));
     }

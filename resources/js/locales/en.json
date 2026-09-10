@@ -449,7 +449,10 @@
         "createSubAccount": "Create sub-account",
         "subAccountLocked": "This workspace is itself a sub-account — the hierarchy is single-level, so no further one can be created below it.",
         "parentIs": "This workspace is a sub-account of {name}.",
-        "memberCount": "{count} members"
+        "memberCount": "{count} members",
+        "lockedRoles": "Roles you cannot edit (stronger than yours): {roles}",
+        "removeConfirm": "Yes, remove",
+        "cancel": "Cancel"
     },
     "forms": {
         "title": "Signup forms",
@@ -494,6 +497,17 @@
         "activeShort": "live",
         "activate": "Activate",
         "tooLarge": "Comparison does not run above {lines} lines — download the versions through the API.",
-        "activated": "The version is now live."
+        "activated": "The version is now live.",
+        "skipped": "{count} unchanged lines skipped"
+    },
+    "invitations": {
+        "title": "Your invitations",
+        "note": "The invitation belongs to your address. Until you accept, the inviting organisation sees nothing about you; declining deletes the invitation.",
+        "unverified": "ventSSO has not verified this e-mail address yet, so the invitation cannot be accepted.",
+        "roles": "Roles: {roles}",
+        "expires": "Valid until: {date}",
+        "accept": "Accept",
+        "decline": "Decline",
+        "empty": "You have no pending invitations."
     }
 }

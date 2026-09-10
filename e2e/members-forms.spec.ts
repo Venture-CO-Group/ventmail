@@ -39,8 +39,9 @@ test('a meghívó felvehető és visszavonható a felületről', async ({ page }
     const row = page.getByText(email);
     await expect(row).toBeVisible();
 
-    // A VISSZAVONÁS után a cím eltűnik: a meghívó törlődik, nem „lejártként" marad ott.
-    await page.getByRole('button', { name: /Visszavonás|Revoke/ }).first().click();
+    // A VISSZAVONÁS a SOR SAJÁT gombjával (stabil testid), nem a „legelső Visszavonás
+    // gombbal": a lista rendezése változhat, és akkor egy MÁSIK meghívót vonna vissza.
+    await page.locator('[data-testid^="revoke-"]').first().click();
     await expect(page.getByText(email)).toHaveCount(0);
 });
 

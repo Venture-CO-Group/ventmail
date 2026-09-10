@@ -107,19 +107,119 @@ it('az AKTIVÁLÁS átkapcsolja az élő verziót — pontosan egy marad aktív'
     });
 });
 
-it('a TÚL NAGY diff megmondja, hogy nem futott le — nem üres eredményt ad', function () {
+it('a NAGY sablon KÖZÖS ELEJE-VÉGE levágódik — a tábla csak az eltérésre épül', function () {
     /*
-     | Egy csendben üres összehasonlítás azt jelentené, hogy nem változott semmi. A
-     | korlát azért van, mert az LCS-tábla O(n·m) memóriát kér.
+     | Két egymást követő sablon-verzió néhány sorban tér el. Levágás nélkül a teljes
+     | fájlra épült volna az `O(n·m)` tábla — egy 5000 soros sablonnál ez több száz
+     | megabájt, akkor is, ha EGYETLEN sor változott.
      */
+    $lines = array_map(fn (int $i) => "sor {$i}", range(1, 5000));
+
+    $before = implode("\n", $lines);
+
+    $lines[2500] = 'MÁS SOR';
+    $after = implode("\n", $lines);
+
+    $result = app(VersionDiff::class)->compare($before, $after);
+
+    expect($result['truncated'])->toBeFalse();
+
+    $types = array_count_values(array_column($result['lines'], 'type'));
+
+    expect($types['added'] ?? 0)->toBe(1)
+        ->and($types['removed'] ?? 0)->toBe(1)
+        // A VÁLTOZATLAN sorok NEM mennek ki mind: a kimenet a változás környezete plusz
+        // egy összevont „kihagyva" jelzés. Enélkül 5000 sor érkezett volna Inertia-propként.
+        ->and(count($result['lines']))->toBeLessThan(20)
+        ->and($types['skipped'] ?? 0)->toBeGreaterThan(0);
+});
+
+it('a diff a SZABAD MEMÓRIÁHOZ igazodik — a korláton belül fut, fölötte megmondja', function () {
+    /*
+     | AZ ELSŐ VÁLTOZAT ITT BUKOTT EL, és a teszt nem vette észre: a korlát 4000 sor volt,
+     | az éles `memory_limit` viszont 128 MB (a teszt-futásé 512 MB — `phpunit.xml`). Mérve:
+     | 2200 sornál FATAL. A verziólistás oldal MAGÁTÓL diffel, tehát a sablon verziólistája
+     | és az „Aktiválás" gomb is elérhetetlen lett volna — pont a visszaállítási út.
+     |
+     | A teszt a SZABAD MEMÓRIÁT szűkíti le arra, amennyi egy éles FPM-workernek marad, és
+     | nem egy fix `memory_limit`-et állít be: a PHPUnit soros futásban 130 MB fölött jár,
+     | tehát a `ini_set('memory_limit', '128M')` maga bukna el — a mérés helyett a
+     | mérőeszköz. Az érvényes állítás így is ugyanaz: a korláton BELÜLI legrosszabb eset
+     | lefut (ha nem férne bele, ez FATAL lenne), a korlát FÖLÖTTI pedig „nem futott le"
+     | választ ad, nem üres diffet és nem halált.
+     */
+    $headroom = 100 * 1024 * 1024;
+    $original = ini_get('memory_limit');
+
+    ini_set('memory_limit', (string) (memory_get_usage(true) + $headroom));
+
+    try {
+        $diff = app(VersionDiff::class);
+        $limit = $diff->regionLimit();
+
+        expect($limit)->toBeGreaterThan(0)->toBeLessThanOrEqual(VersionDiff::MAX_REGION_LINES);
+
+        // A KORLÁT ALATTI legrosszabb eset: két TELJESEN eltérő szakasz, közös prefix és
+        // suffix nélkül — itt a levágás nem segít, a táblát tényleg fel kell építeni.
+        $before = implode("\n", array_map(fn (int $i) => "bal {$i}", range(1, $limit)));
+        $after = implode("\n", array_map(fn (int $i) => "jobb {$i}", range(1, $limit)));
+
+        expect($diff->compare($before, $after)['truncated'])->toBeFalse();
+
+        // A KORLÁT FÖLÖTT megmondja, hogy nem futott le — nem üres diffet ad (az azt
+        // jelentené, hogy nem változott semmi), és nem is hal meg.
+        $tooBig = implode("\n", array_map(fn (int $i) => "bal {$i}", range(1, $limit + 1)));
+        $tooBigOther = implode("\n", array_map(fn (int $i) => "jobb {$i}", range(1, $limit + 1)));
+
+        $overflow = $diff->compare($tooBig, $tooBigOther);
+
+        expect($overflow['truncated'])->toBeTrue()
+            ->and($overflow['lines'])->toBe([]);
+    } finally {
+        ini_set('memory_limit', (string) $original);
+    }
+});
+
+it('a KORLÁT a szabad memóriával mozog — szűkebb környezetben szigorúbb', function () {
+    /*
+     | Ez a lényeg: a korlát nem beégetett szám. A régi 4000-es konstans a teszt 512 MB-ján
+     | átment, éles 128 MB-on viszont FATAL volt — a szám ugyanaz, a környezet más.
+     */
+    $original = ini_get('memory_limit');
     $diff = app(VersionDiff::class);
 
-    $huge = implode("\n", array_fill(0, VersionDiff::MAX_LINES + 1, 'sor'));
+    try {
+        ini_set('memory_limit', (string) (memory_get_usage(true) + 400 * 1024 * 1024));
+        $wide = $diff->regionLimit();
 
-    $result = $diff->compare($huge, $huge);
+        ini_set('memory_limit', (string) (memory_get_usage(true) + 40 * 1024 * 1024));
+        $narrow = $diff->regionLimit();
 
-    expect($result['truncated'])->toBeTrue()
-        ->and($result['lines'])->toBe([]);
+        expect($narrow)->toBeLessThan($wide);
+    } finally {
+        ini_set('memory_limit', (string) $original);
+    }
+});
+
+it('a felület a NEM LÉTEZŐ verzióra hibát ad, nem sikerüzenetet', function () {
+    /*
+     | A csendes visszatérés mellett a felület „A verzió aktív lett" üzenetet írt — éles
+     | incidens közben az üzemeltető azt hitte volna, hogy visszaállt, miközben semmi nem
+     | történt.
+     */
+    $workspace = Workspace::factory()->create();
+    $user = storedTemplateUser($workspace);
+    $template = seedStoredTemplate($workspace);
+
+    $this->actingAs($user)->withSession(['workspace_uuid' => $workspace->uuid])
+        ->from('/stored-templates')
+        ->post('/stored-templates/'.$template->uuid.'/versions/99/activate')
+        ->assertRedirect('/stored-templates')
+        ->assertSessionHas('error');
+
+    app(WorkspaceContext::class)->runFor($workspace, function () use ($template) {
+        expect((int) $template->activeVersion()->version)->toBe(1);
+    });
 });
 
 it('a diff a SORSZÁMOKAT is megadja, hogy a két oldal összeolvasható legyen', function () {

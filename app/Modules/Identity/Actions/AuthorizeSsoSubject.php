@@ -67,7 +67,9 @@ final class AuthorizeSsoSubject
             return false;
         }
 
-        $email = DomainNormalizer::listKey(trim((string) ($claims['email'] ?? '')));
+        // HOZZÁFÉRÉSI kulcs (fail-closed): a nem tisztán leképezhető cím NEM ad
+        // belépési jogcímet.
+        $email = DomainNormalizer::authKey((string) ($claims['email'] ?? ''));
 
         if ($email === '') {
             return false;

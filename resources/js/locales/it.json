@@ -449,7 +449,10 @@
         "createSubAccount": "Crea sotto-account",
         "subAccountLocked": "Questo workspace è già un sotto-account — la gerarchia è a un solo livello.",
         "parentIs": "Questo workspace è un sotto-account di {name}.",
-        "memberCount": "{count} membri"
+        "memberCount": "{count} membri",
+        "lockedRoles": "Ruoli non modificabili (più forti del tuo): {roles}",
+        "removeConfirm": "Sì, rimuovi",
+        "cancel": "Annulla"
     },
     "forms": {
         "title": "Moduli di iscrizione",
@@ -494,6 +497,17 @@
         "activeShort": "attiva",
         "activate": "Attiva",
         "tooLarge": "Il confronto non parte oltre {lines} righe — scarica le versioni dall’API.",
-        "activated": "La versione è ora attiva."
+        "activated": "La versione è ora attiva.",
+        "skipped": "{count} righe invariate omesse"
+    },
+    "invitations": {
+        "title": "I tuoi inviti",
+        "note": "L’invito appartiene al tuo indirizzo. Finché non accetti, l’organizzazione che invita non vede nulla di te; rifiutando, l’invito viene eliminato.",
+        "unverified": "ventSSO non ha ancora verificato questo indirizzo e-mail, quindi l’invito non può essere accettato.",
+        "roles": "Ruoli: {roles}",
+        "expires": "Valido fino al: {date}",
+        "accept": "Accetto",
+        "decline": "Rifiuto",
+        "empty": "Non hai inviti in sospeso."
     }
 }

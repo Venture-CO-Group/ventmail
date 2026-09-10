@@ -449,7 +449,10 @@
         "createSubAccount": "Al-fiók létrehozása",
         "subAccountLocked": "Ez a workspace maga is al-fiók — a hierarchia egyszintű, alá nem hozható létre újabb.",
         "parentIs": "Ez a workspace a(z) {name} al-fiókja.",
-        "memberCount": "{count} tag"
+        "memberCount": "{count} tag",
+        "lockedRoles": "Nem szerkeszthető szerepek (nálad erősebb): {roles}",
+        "removeConfirm": "Igen, eltávolítom",
+        "cancel": "Mégse"
     },
     "forms": {
         "title": "Beiratkozó űrlapok",
@@ -494,6 +497,17 @@
         "activeShort": "élő",
         "activate": "Aktiválás",
         "tooLarge": "Az összehasonlítás {lines} sor fölött nem fut le — töltsd le a verziókat az API-ból.",
-        "activated": "A verzió aktív lett."
+        "activated": "A verzió aktív lett.",
+        "skipped": "{count} változatlan sor kihagyva"
+    },
+    "invitations": {
+        "title": "Meghívóid",
+        "note": "A meghívó a te címedhez szól. Elfogadásig a meghívó szervezet nem lát rólad semmit; elutasításkor a meghívó törlődik.",
+        "unverified": "A ventSSO még nem igazolta ezt az e-mail-címet, ezért a meghívó nem fogadható el.",
+        "roles": "Szerepek: {roles}",
+        "expires": "Érvényes eddig: {date}",
+        "accept": "Elfogadom",
+        "decline": "Elutasítom",
+        "empty": "Nincs függőben lévő meghívód."
     }
 }
