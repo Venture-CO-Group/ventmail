@@ -116,15 +116,15 @@ final class CreateSubAccount
         );
 
         foreach ($owners as $owner) {
-            WorkspaceMember::create([
+            $mirrored = WorkspaceMember::create([
                 'workspace_id' => $child->getKey(),
                 'user_id' => $owner->user_id,
                 'roles' => [Role::Owner->value],
-                // A TÜKRÖZÉS JELÖLVE: ha a parentben megszűnik a tulajdonosi joga, ez a sor
-                // visszavonható — a childban KÜLÖN kiosztott szerepekhez viszont a parent
-                // felől nem nyúlunk (a jelölés hiánya emberi döntést jelent).
-                'source' => WorkspaceMember::SOURCE_PARENT_OWNER,
             ]);
+
+            // A TÜKRÖZÖTT TULAJDONOSI JOG JELÖLVE: ha a parentben megszűnik, ez
+            // visszavonható — a childban KÜLÖN kiosztotthoz a parent felől nem nyúlunk.
+            $mirrored->forceFill(['owner_mirrored' => true])->save();
         }
 
         if ($owners->contains(fn (WorkspaceMember $member) => (int) $member->user_id === (int) $actor->getKey())) {

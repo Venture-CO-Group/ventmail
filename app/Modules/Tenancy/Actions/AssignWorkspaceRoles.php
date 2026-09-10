@@ -15,6 +15,7 @@ use App\Modules\Tenancy\Services\WorkspaceContext;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Log;
 use InvalidArgumentException;
 
 /**
@@ -68,6 +69,13 @@ final class AssignWorkspaceRoles
             ['roles' => $roleValues],
         );
 
+        // A KIFEJEZETT KIOSZTÁS EMBERI DÖNTÉS: a tükrözés-jelölés törlődik.
+        //
+        // Enélkül a jelölés „ragadós" volt: a child SAJÁT tulajdonosának kiosztása egy
+        // korábban tükrözött soron továbbra is tükrözöttnek számított, és a parent
+        // leszedte — pedig a childban valaki kifejezetten úgy döntött, hogy odaadja.
+        $member->forceFill(['owner_mirrored' => false])->save();
+
         // A LEFOKOZOTT TAG DÖNTÉSE SEM ÉLHET TOVÁBB.
         //
         // A `RemoveMember` revokálja az eltávolított tag nyitott meghívóit, a lefokozás
@@ -83,7 +91,16 @@ final class AssignWorkspaceRoles
         // A CHILD WORKSPACE-EK tulajdonosi köre követi a parentét (lásd a metódus
         // indoklását): enélkül a távozó kolléga megtartaná az owner-jogot minden általa
         // létrehozott al-fiókon, az új tulajdonos pedig be sem lépne oda.
-        $this->syncChildOwnership($target, in_array(Role::Owner->value, $roleValues, true));
+        //
+        // CSAK AKKOR, HA A TULAJDONOSI BIT VÁLTOZOTT: egy szerep-módosítás, ami az ownert
+        // nem érinti, ne írjon 50 al-fiók naplójába — az audit append-only, DB-oldali 365
+        // napos alsó időhatárral, tehát a fölösleges sor egy évig velünk marad.
+        $wasOwner = in_array(Role::Owner->value, $existing?->roles() ?? [], true);
+        $isOwner = in_array(Role::Owner->value, $roleValues, true);
+
+        if ($wasOwner !== $isOwner) {
+            $this->syncChildOwnership($target, $isOwner);
+        }
 
         // Golden rule 11: a szerep-kiosztás a legprivilegizáltabb admin-művelet — enélkül
         // valaki jogot oszthatna magának úgy, hogy nyoma sem marad.
@@ -330,8 +347,9 @@ final class AssignWorkspaceRoles
                 'workspace_id' => $child->getKey(),
                 'user_id' => $target->getKey(),
                 'roles' => [Role::Owner->value],
-                'source' => WorkspaceMember::SOURCE_PARENT_OWNER,
             ]);
+
+            $created->forceFill(['owner_mirrored' => true])->save();
 
             $this->auditChild($child, 'member.roles.assigned', $created, [], [Role::Owner->value], $target);
 
@@ -344,15 +362,26 @@ final class AssignWorkspaceRoles
 
         $before = $member->roles();
 
-        $member->update(['roles' => [...$before, Role::Owner->value]]);
+        /*
+         | A MEGLÉVŐ SORON IS JELÖLNI KELL.
+         |
+         | Ez volt a fail-open ág: aki a childban emberi döntésből `editor` volt, majd a
+         | parentben `owner` lett, JELÖLETLEN tulajdonosi jogot kapott — és a parentből való
+         | eltávolítása után is `owner` maradt a childban. Offboarding után teljes
+         | hozzáférés egy olyan workspace-hez, ami a parent számlájára fogy.
+         */
+        $member->forceFill([
+            'roles' => [...$before, Role::Owner->value],
+            'owner_mirrored' => true,
+        ])->save();
 
         $this->auditChild($child, 'member.roles.assigned', $member, $before, $member->roles(), $target);
     }
 
     private function withdrawMirroredOwnership(Workspace $child, User $target, ?WorkspaceMember $member): void
     {
-        // A childban KÜLÖN kiosztott tagsághoz a parent felől nem nyúlunk.
-        if ($member === null || ! $member->isMirroredFromParent()) {
+        // A childban KÜLÖN kiosztott TULAJDONOSI JOGHOZ a parent felől nem nyúlunk.
+        if ($member === null || ! $member->hasMirroredOwnership()) {
             return;
         }
 
@@ -368,11 +397,25 @@ final class AssignWorkspaceRoles
             ->contains(fn (WorkspaceMember $other) => in_array(Role::Owner->value, $other->roles(), true));
 
         if (! $otherOwners) {
+            /*
+             | A CHILD UTOLSÓ TULAJDONOSA MARAD — de a művelet nem sikerül csendben.
+             |
+             | A hívó (`RemoveMember`) sikert jelez, miközben az illető megtartja a
+             | child-tulajdonjogot: ezt az üzemeltetőnek látnia kell, különben azt hiszi,
+             | hogy a hozzáférés mindenhol megszűnt.
+             */
+            Log::warning('Az al-fiók utolsó tulajdonosa megmarad a parent-oldali döntés ellenére.', [
+                'child_workspace_id' => $child->getKey(),
+                'user_id' => $target->getKey(),
+            ]);
+
             return;
         }
 
         $before = $member->roles();
         $remaining = array_values(array_diff($before, [Role::Owner->value]));
+
+        $member->forceFill(['owner_mirrored' => false])->save();
 
         if ($remaining === []) {
             $this->auditChild($child, 'member.removed', $member, $before, [], $target);

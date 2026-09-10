@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Models\User;
 use App\Modules\Audit\Models\AuditLog;
 use App\Modules\Identity\Actions\AuthorizeSsoSubject;
+use App\Modules\Tenancy\Actions\AssignWorkspaceRoles;
 use App\Modules\Tenancy\Actions\CreateSubAccount;
 use App\Modules\Tenancy\Actions\InviteMember;
 use App\Modules\Tenancy\Actions\RedeemInvitations;
@@ -835,7 +836,19 @@ it('a BACKFILL pótolja a régi al-fiókok hiányzó tulajdonosait — és csak 
     // A CHILDNAK van egy SAJÁT tagja, akihez a parancs nem nyúl.
     $localAdmin = memberUser($child, 'admin');
 
+    // ALAPBÓL SZÁRAZ FUTÁS: a parancs jogot oszt, tehát írni külön kell kérni.
     $this->artisan('tenancy:sync-sub-account-owners')->assertSuccessful();
+
+    expect(WorkspaceMember::query()
+        ->where('workspace_id', $child->getKey())
+        ->where('user_id', $owner->getKey())
+        ->exists())->toBeFalse();
+
+    // ÍRÁSHOZ FELELŐS is kell: egy jogot osztó művelet nem maradhat név nélkül a naplóban.
+    $this->artisan('tenancy:sync-sub-account-owners --force')->assertFailed();
+
+    $this->artisan('tenancy:sync-sub-account-owners --force --actor=uzemeltetes@pelda.hu')
+        ->assertSuccessful();
 
     $mirrored = WorkspaceMember::query()
         ->where('workspace_id', $child->getKey())
@@ -843,11 +856,117 @@ it('a BACKFILL pótolja a régi al-fiókok hiányzó tulajdonosait — és csak 
         ->firstOrFail();
 
     expect($mirrored->roles())->toBe(['owner'])
-        ->and($mirrored->isMirroredFromParent())->toBeTrue()
+        ->and($mirrored->hasMirroredOwnership())->toBeTrue()
         // A SAJÁT tagság érintetlen.
         ->and(WorkspaceMember::query()
             ->where('workspace_id', $child->getKey())
             ->where('user_id', $localAdmin->getKey())
             ->firstOrFail()
             ->roles())->toBe(['admin']);
+});
+
+it('a TÜKRÖZÖTT tulajdonosi jog a MEGLÉVŐ soron is jelölve van — különben visszavonhatatlan', function () {
+    /*
+     | FAIL-OPEN ÁG, a security-review mérése alapján.
+     |
+     | Aki a childban emberi döntésből `editor` volt, majd a parentben `owner` lett, a
+     | régi kódban JELÖLETLEN tulajdonosi jogot kapott (a jelölés csak az INSERT ágon volt).
+     | A visszavonás ezért azonnal visszatért: a parentből eltávolított kolléga `owner`
+     | maradt a child workspace-ben — `billing.manage`, `workspace.delete`, `member.manage`
+     | egy olyan fiókon, ami a parent számlájára fogy. Offboarding után teljes hozzáférés.
+     */
+    $parent = Workspace::factory()->create();
+    $owner = memberUser($parent, 'owner');
+    $colleague = memberUser($parent, 'editor');
+
+    Auth::login($owner);
+
+    $child = app(WorkspaceContext::class)->runFor($parent, fn () => app(CreateSubAccount::class)('Ügyfél Kft.'));
+
+    // A KOLLÉGA a childban EMBERI DÖNTÉSBŐL `editor` (nem tükrözés).
+    WorkspaceMember::create([
+        'workspace_id' => $child->getKey(),
+        'user_id' => $colleague->getKey(),
+        'roles' => ['editor'],
+    ]);
+
+    $colleagueMember = WorkspaceMember::query()
+        ->where('workspace_id', $parent->getKey())
+        ->where('user_id', $colleague->getKey())
+        ->firstOrFail();
+
+    // ELŐLÉPTETÉS a parentben → a tükrözés a MEGLÉVŐ sorhoz adja hozzá az ownert.
+    $this->actingAs($owner)->withSession(['workspace_uuid' => $parent->uuid])
+        ->from('/members')
+        ->post('/members/'.$colleagueMember->getKey().'/roles', ['roles' => ['owner']])
+        ->assertRedirect('/members');
+
+    $inChild = WorkspaceMember::query()
+        ->where('workspace_id', $child->getKey())
+        ->where('user_id', $colleague->getKey())
+        ->firstOrFail();
+
+    expect($inChild->roles())->toContain('owner')
+        ->and($inChild->hasMirroredOwnership())->toBeTrue();
+
+    // ELTÁVOLÍTÁS a parentből → a TÜKRÖZÖTT tulajdonosi jog elesik, az EMBERI DÖNTÉSBŐL
+    // kapott `editor` viszont marad.
+    $this->actingAs($owner)->withSession(['workspace_uuid' => $parent->uuid])
+        ->from('/members')
+        ->delete('/members/'.$colleagueMember->getKey())
+        ->assertRedirect('/members');
+
+    $after = WorkspaceMember::query()
+        ->where('workspace_id', $child->getKey())
+        ->where('user_id', $colleague->getKey())
+        ->firstOrFail();
+
+    expect($after->roles())->toBe(['editor'])
+        ->and($after->hasMirroredOwnership())->toBeFalse();
+});
+
+it('a CHILD SAJÁT döntése felülírja a tükrözés-jelölést', function () {
+    /*
+     | A MÁSIK IRÁNY, ugyanabból a mérésből: a jelölés „ragadós" volt. A child tulajdonosa
+     | KIFEJEZETTEN `owner`-t adott valakinek egy korábban tükrözött soron — a sor mégis
+     | tükrözésnek számított, és a parent-oldali lefokozás leszedte. A jelölés nem azt
+     | tárolja, hogyan keletkezett a sor, hanem hogy a TULAJDONOSI JOGOT ki adta utoljára.
+     */
+    $parent = Workspace::factory()->create();
+    $owner = memberUser($parent, 'owner');
+    $colleague = memberUser($parent, 'owner');
+
+    Auth::login($owner);
+
+    $child = app(WorkspaceContext::class)->runFor($parent, fn () => app(CreateSubAccount::class)('Ügyfél Kft.'));
+
+    // A CHILDBAN a kolléga tükrözött ownerként van bent…
+    $inChild = WorkspaceMember::query()
+        ->where('workspace_id', $child->getKey())
+        ->where('user_id', $colleague->getKey())
+        ->firstOrFail();
+
+    expect($inChild->hasMirroredOwnership())->toBeTrue();
+
+    // …majd a CHILD tulajdonosa KIFEJEZETTEN kiosztja neki ugyanezt a szerepet.
+    app(WorkspaceContext::class)->runFor($child, function () use ($owner, $colleague) {
+        Auth::login($owner);
+
+        app(AssignWorkspaceRoles::class)($colleague, ['owner']);
+    });
+
+    expect($inChild->fresh()->hasMirroredOwnership())->toBeFalse();
+
+    // A PARENT-OLDALI lefokozás ezt már nem veheti el: a childban emberi döntés született.
+    $parentMember = WorkspaceMember::query()
+        ->where('workspace_id', $parent->getKey())
+        ->where('user_id', $colleague->getKey())
+        ->firstOrFail();
+
+    $this->actingAs($owner)->withSession(['workspace_uuid' => $parent->uuid])
+        ->from('/members')
+        ->post('/members/'.$parentMember->getKey().'/roles', ['roles' => ['analyst']])
+        ->assertRedirect('/members');
+
+    expect($inChild->fresh()->roles())->toBe(['owner']);
 });

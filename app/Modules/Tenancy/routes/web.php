@@ -35,7 +35,11 @@ Route::post('/members/invitations', [MemberController::class, 'invite'])
     ->middleware('throttle:member-invites')->name('members.invite');
 Route::delete('/members/invitations/{uuid}', [MemberController::class, 'revokeInvitation'])
     ->where('uuid', '[0-9a-fA-F\-]{36}')->name('members.invitations.revoke');
+// A SZEREP-KIOSZTÁS is plafonos: a tulajdonosi bit ki-be kapcsolgatása al-fiókonként
+// audit-sort ír, egy append-only táblába, aminek 365 napos alsó időhatára van — a
+// fölösleges sor egy évig velünk marad.
 Route::post('/members/{member}/roles', [MemberController::class, 'assignRoles'])
+    ->middleware('throttle:member-roles')
     ->where('member', '[0-9]+')->name('members.roles');
 Route::delete('/members/{member}', [MemberController::class, 'remove'])
     ->where('member', '[0-9]+')->name('members.remove');

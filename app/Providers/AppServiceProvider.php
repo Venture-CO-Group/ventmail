@@ -266,6 +266,10 @@ class AppServiceProvider extends ServiceProvider
             Limit::perDay(100)->by('ws:'.self::workspaceKey($request)),
         ]);
 
+        RateLimiter::for('member-roles', fn (Request $request) => [
+            Limit::perMinute(30)->by('ws:'.self::workspaceKey($request)),
+        ]);
+
         RateLimiter::for('sub-accounts', fn (Request $request) => [
             Limit::perMinute(5)->by('ws:'.self::workspaceKey($request)),
             Limit::perDay(50)->by('ws:'.self::workspaceKey($request)),

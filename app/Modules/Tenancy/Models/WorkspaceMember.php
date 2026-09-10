@@ -16,18 +16,14 @@ final class WorkspaceMember extends Model
 {
     // A workspace_id csak a Tenancy modul sanctionált útján (AssignWorkspaceRoles) állítható:
     // egy tagkezelő endpoint tömeges hozzárendeléssel idegen workspace-be írhatna tagságot.
-    protected $fillable = ['workspace_id', 'user_id', 'roles', 'source'];
-
-    /** A PARENT tulajdonosi köréből TÜKRÖZÖTT tagság jelölése. */
-    public const SOURCE_PARENT_OWNER = 'parent_owner_sync';
+    // Az `owner_mirrored` SZÁNDÉKOSAN nem tömegesen kitölthető: ez BIZTONSÁGI
+    // diszkriminátor (ő dönti el, hogy a parent visszaveheti-e a tulajdonosi jogot), és
+    // egy jövőbeli `create($request->validated())` csendben megnyitná. A négy sanctionált
+    // hely explicit attribútum-értékadással írja.
+    protected $fillable = ['workspace_id', 'user_id', 'roles'];
 
     /** @var list<string> */
     protected $hidden = [];
-
-    protected function casts(): array
-    {
-        return ['roles' => 'array'];
-    }
 
     public function workspace(): BelongsTo
     {
@@ -39,10 +35,20 @@ final class WorkspaceMember extends Model
         return $this->belongsTo(User::class);
     }
 
-    /** A tükrözésből származó (tehát a parent felől visszavonható) tagság? */
-    public function isMirroredFromParent(): bool
+    protected function casts(): array
     {
-        return $this->source === self::SOURCE_PARENT_OWNER;
+        return ['roles' => 'array', 'owner_mirrored' => 'boolean'];
+    }
+
+    /**
+     * A TULAJDONOSI JOG a parent tükrözéséből származik-e?
+     *
+     * Csak erre a szerepre vonatkozik, és minden emberi kiosztás hamisra állítja: a döntés
+     * utolsó gazdája számít, nem az, hogyan keletkezett a sor.
+     */
+    public function hasMirroredOwnership(): bool
+    {
+        return (bool) $this->owner_mirrored;
     }
 
     /** @return list<string> */

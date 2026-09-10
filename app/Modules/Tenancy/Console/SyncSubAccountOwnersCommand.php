@@ -24,13 +24,36 @@ use Illuminate\Console\Command;
  */
 final class SyncSubAccountOwnersCommand extends Command
 {
-    protected $signature = 'tenancy:sync-sub-account-owners {--dry-run : csak felsorol, nem ír}';
+    /*
+     | AZ ALAPÉRTELMEZÉS A SZÁRAZ FUTÁS.
+     |
+     | Ez a parancs JOGOT OSZT, platform-szinten, minden tenantra, és az audit-sort egy évig
+     | nem lehet takarítani. Egy ügynökségnél teljesen legitim, hogy egy al-fiókból egy adott
+     | parent-tulajdonost SZÁNDÉKOSAN kihagytak (ügyfél-szeparáció) — a backfill ezt csendben
+     | felülírná. Írni ezért külön `--force` kell, és a `--workspace=` szűrővel egyetlen
+     | parentre is lehet korlátozni.
+     */
+    protected $signature = 'tenancy:sync-sub-account-owners
+        {--force : tényleges írás (alapból csak felsorol)}
+        {--workspace= : csak erre a parent workspace uuid-ra}
+        {--actor= : a naplóba kerülő felelős (e-mail vagy azonosító)}';
 
     protected $description = 'A parent tulajdonosainak pótlása a meglévő al-fiókokban (csak hozzáad).';
 
     public function handle(AuditLogger $audit): int
     {
-        $dryRun = (bool) $this->option('dry-run');
+        $dryRun = ! (bool) $this->option('force');
+        $onlyWorkspace = (string) ($this->option('workspace') ?? '');
+        // KI FELEL A MŰVELETÉRT: konzolon nincs bejelentkezett felhasználó, és a rendszer
+        // legerősebb műveletei nem kerülhetnek NÉV NÉLKÜL a naplóba.
+        $actor = (string) ($this->option('actor') ?? '');
+
+        if (! $dryRun && $actor === '') {
+            $this->error('Íráshoz add meg a felelőst: --actor=nev@pelda.hu');
+
+            return self::FAILURE;
+        }
+
         $added = 0;
 
         /*
@@ -38,8 +61,12 @@ final class SyncSubAccountOwnersCommand extends Command
          | nincs (és nem is lehet) workspace-kontextus. A `Workspace` amúgy sem scope-olt —
          | ő maga a scope alanya.
          */
-        Workspace::query()->whereHas('children')->with('children')->get()
-            ->each(function (Workspace $parent) use (&$added, $dryRun, $audit): void {
+        Workspace::query()
+            ->whereHas('children')
+            ->when($onlyWorkspace !== '', fn ($query) => $query->where('uuid', $onlyWorkspace))
+            ->with('children')
+            ->get()
+            ->each(function (Workspace $parent) use (&$added, $dryRun, $audit, $actor): void {
                 $owners = WorkspaceMember::query()
                     ->where('workspace_id', $parent->getKey())
                     ->get()
@@ -73,8 +100,9 @@ final class SyncSubAccountOwnersCommand extends Command
                             'workspace_id' => $child->getKey(),
                             'user_id' => $owner->user_id,
                             'roles' => [Role::Owner->value],
-                            'source' => WorkspaceMember::SOURCE_PARENT_OWNER,
                         ]);
+
+                        $member->forceFill(['owner_mirrored' => true])->save();
 
                         $audit->log(
                             'member.roles.assigned',
@@ -84,6 +112,9 @@ final class SyncSubAccountOwnersCommand extends Command
                                 'target_user_id' => $owner->user_id,
                                 'reason' => 'parent_owner_backfill',
                                 'parent_workspace_id' => $parent->getKey(),
+                                // A FELELŐS neve: konzolon nincs `Auth::user()`, és egy
+                                // jogot osztó művelet nem maradhat név nélkül a naplóban.
+                                'operator' => $actor,
                             ],
                             workspaceId: (int) $child->getKey(),
                         );
@@ -91,7 +122,9 @@ final class SyncSubAccountOwnersCommand extends Command
                 }
             });
 
-        $this->info($dryRun ? "Pótolható tagság: {$added}." : "Pótolt tagság: {$added}.");
+        $this->info($dryRun
+            ? "Pótolható tagság: {$added}. (Íráshoz: --force --actor=…)"
+            : "Pótolt tagság: {$added}.");
 
         return self::SUCCESS;
     }
