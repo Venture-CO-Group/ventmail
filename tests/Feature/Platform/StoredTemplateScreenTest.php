@@ -180,6 +180,83 @@ it('a diff a SZABAD MEMÓRIÁHOZ igazodik — a korláton belül fut, fölötte 
     }
 });
 
+it('a HATALMAS sablon sem viszi el a processzt — a levágott rész SOSEM épül fel', function () {
+    /*
+     | EZ AZ A HIÁNY, AMIT A SECURITY-REVIEW MÉRT KI az első javításban.
+     |
+     | A `regionLimit()` a KÖZÉPSŐ szakaszt fogja — egy 300 000 soros sablonpárnál viszont a
+     | középső szakasz EGY sor, tehát a guard sosem sült el, a levágott prefix és suffix
+     | pedig teljes egészében felépült a kimeneti tömbben. Mérve: NÉMA PROCESSZ-HALÁL
+     | (nem elkapható fatal — FPM alatt 502 és worker-halál), miközben az oldal
+     | PARAMÉTER NÉLKÜL, magától diffel.
+     |
+     | A teszt a szabad memóriát szűkíti, és azt állítja: a hatalmas bemenet vagy lefut
+     | KEVÉS kimeneti sorral, vagy `truncated` — de sosem eszi meg a memóriát.
+     */
+    $original = ini_get('memory_limit');
+
+    ini_set('memory_limit', (string) (memory_get_usage(true) + 100 * 1024 * 1024));
+
+    try {
+        $diff = app(VersionDiff::class);
+
+        // A BEMENETI PLAFON a fájl MÉRETÉRE néz, nem a különbségre.
+        expect($diff->inputLimit())->toBeGreaterThan(0)
+            ->toBeLessThanOrEqual(VersionDiff::MAX_INPUT_LINES);
+
+        $huge = $diff->inputLimit() + 1;
+
+        $lines = array_fill(0, $huge, '<tr><td>x</td></tr>');
+        $before = implode("\n", $lines);
+        $lines[(int) ($huge / 2)] = '<tr><td>MÁS</td></tr>';
+        $after = implode("\n", $lines);
+
+        $result = $diff->compare($before, $after);
+
+        // A PLAFON FÖLÖTT: megmondja, hogy nem futott le.
+        expect($result['truncated'])->toBeTrue();
+
+        // A PLAFON ALATT, DE HATALMAS FÁJLLAL: lefut, és KEVÉS sort ad — a memória a
+        // VÁLTOZÁSOK számával skálázik, nem a fájl méretével.
+        $big = (int) ($diff->inputLimit() * 0.9);
+        $lines = array_fill(0, $big, '<tr><td>x</td></tr>');
+        $before = implode("\n", $lines);
+        $lines[(int) ($big / 2)] = '<tr><td>MÁS</td></tr>';
+        $after = implode("\n", $lines);
+
+        $result = $diff->compare($before, $after);
+
+        expect($result['truncated'])->toBeFalse()
+            ->and($result['identical'])->toBeFalse()
+            ->and(count($result['lines']))->toBeLessThan(20);
+
+        // A KIHAGYOTT SZAKASZOK SORTARTOMÁNYT is hoznak: enélkül a sorszám-oszlop
+        // magyarázat nélkül ugrana.
+        $skipped = collect($result['lines'])->firstWhere('type', 'skipped');
+
+        expect($skipped)->not->toBeNull()
+            ->and($skipped['left'])->toBe(1)
+            ->and($skipped['skipped'])->toBeGreaterThan(1000);
+    } finally {
+        ini_set('memory_limit', (string) $original);
+    }
+});
+
+it('AZONOS verziókra kimondja, hogy nincs eltérés — nem egy „kihagyva" sort ad', function () {
+    /*
+     | A kontextusos kimenet két azonos verzióra EGYETLEN összevont sor lenne, és a
+     | felhasználónak abból kellene kikövetkeztetnie, hogy nem változott semmi. Ezen a
+     | képernyőn ez pont a rossz irányba téveszt.
+     */
+    $body = implode("\n", array_map(fn (int $i) => "sor {$i}", range(1, 500)));
+
+    $result = app(VersionDiff::class)->compare($body, $body);
+
+    expect($result['identical'])->toBeTrue()
+        ->and($result['truncated'])->toBeFalse()
+        ->and($result['lines'])->toBe([]);
+});
+
 it('a KORLÁT a szabad memóriával mozog — szűkebb környezetben szigorúbb', function () {
     /*
      | Ez a lényeg: a korlát nem beégetett szám. A régi 4000-es konstans a teszt 512 MB-ján

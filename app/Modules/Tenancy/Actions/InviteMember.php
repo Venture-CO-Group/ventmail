@@ -127,6 +127,9 @@ final class InviteMember
      * Tranzakciós, mert nem marketing: a címzett a saját hozzáférését kapja meg, nem
      * ajánlatot. A `SendMessage`-en megy, tehát mind a hat kapun át — nincs kiskapu.
      *
+     * A meghívó SZÖVEGE a meghívó felületi nyelvén megy: a meghívottnak még nincs `users`
+     * sora, tehát a nyelvét nem ismerjük. Ez tudott pontatlanság, nem véletlen.
+     *
      * Best-effort, mert a küldés MEGBUKHAT rajtunk kívül álló okból (a workspace-nek még
      * nincs hitelesített domainje). A meghívó ettől ÉRVÉNYES marad: a felületen látszik, a
      * meghívott a belépéssel akkor is bekerül. A levél elmaradását naplózzuk — a hívó
@@ -141,7 +144,9 @@ final class InviteMember
         }
 
         $workspace = $this->context->workspace()->name;
-        $url = rtrim((string) config('app.url'), '/').'/dashboard';
+        // A MEGHÍVOTT a saját `/invitations` képernyőjén dönt — nem a dashboardon köt ki
+        // (oda tagság híján a `workspace` middleware úgysem engedné be).
+        $url = rtrim((string) config('app.url'), '/').'/invitations';
 
         try {
             app(SendMessage::class)([
@@ -155,6 +160,12 @@ final class InviteMember
                 'text' => __('ventmail.members.mailText', ['workspace' => $workspace, 'url' => $url]),
                 'html' => '<p>'.e(__('ventmail.members.mailIntro', ['workspace' => $workspace])).'</p>'
                     .'<p><a href="'.e($url).'">'.e($url).'</a></p>',
+                // A LEVÉL CÍMKÉZETT: a napló- és trace-képernyőn egy sorból kiderül, MIÉRT
+                // ment ki — és lesz mire kulcsolni, ha később tag-alapú napló-hozzáférés
+                // kerül be. (A cím a workspace SAJÁT levélnaplójába kerül, mint minden más
+                // kimenő levél: elrejteni naplózatlan küldési utat teremtene, ami a
+                // golden rule 2-vel ütközik. A felület ezt ki is írja a meghívónak.)
+                'o:tag' => ['membership-invite'],
                 // Egy meghívóhoz EGY levél: az újrahívás ugyanazt a sort frissíti, tehát a
                 // kulcsba a lejárat is belemegy — új meghívás, új levél.
                 'idempotency_key' => 'invite:'.hash('sha256', (string) $invitation->uuid.'|'.$invitation->expires_at?->timestamp),

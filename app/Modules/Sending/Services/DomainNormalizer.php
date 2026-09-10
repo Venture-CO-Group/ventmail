@@ -153,7 +153,12 @@ final class DomainNormalizer
         }
 
         // NEM-ASCII helyi rész: nincs tiszta leképezés, tehát nincs kulcs.
-        if (preg_match('/^[\x21-\x7E]+$/', $local) !== 1) {
+        //
+        // A `\z` (és nem `$`) SZÁNDÉKOS: PCRE-ben a `$` a string vége VAGY egy záró `\n`
+        // ELŐTT is illeszkedik — mérve a `bob\n` átment a `$`-os alakon. Ma egy másik
+        // ellenőrzés (a hívó `filter_var`-ja) fogta volna meg, de a kanonizáló ígérete nem
+        // állhat egy másik függvényen: itt kell hangosan elutasítani.
+        if (preg_match('/\A[\x21-\x7E]+\z/', $local) !== 1) {
             return '';
         }
 

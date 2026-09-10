@@ -452,7 +452,8 @@
         "memberCount": "{count} tag",
         "lockedRoles": "Nem szerkeszthető szerepek (nálad erősebb): {roles}",
         "removeConfirm": "Igen, eltávolítom",
-        "cancel": "Mégse"
+        "cancel": "Mégse",
+        "inviteLogged": "A meghívó levele a workspace levélnaplójába is bekerül (mint minden kimenő levél)."
     },
     "forms": {
         "title": "Beiratkozó űrlapok",
@@ -498,7 +499,8 @@
         "activate": "Aktiválás",
         "tooLarge": "Az összehasonlítás {lines} sor fölött nem fut le — töltsd le a verziókat az API-ból.",
         "activated": "A verzió aktív lett.",
-        "skipped": "{count} változatlan sor kihagyva"
+        "skipped": "{count} változatlan sor kihagyva ({from}–{to}. sor)",
+        "identical": "A két verzió tartalma AZONOS — nincs eltérés."
     },
     "invitations": {
         "title": "Meghívóid",

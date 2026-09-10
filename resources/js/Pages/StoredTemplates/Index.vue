@@ -32,7 +32,14 @@ interface DiffLine {
 const props = defineProps<{
     templates: Array<{ uuid: string; name: string; description: string | null; versions: number }>;
     selected: { name: string; description: string | null; versions: VersionRow[] } | null;
-    comparison: { left: number; right: number; truncated: boolean; limit: number; lines: DiffLine[] } | null;
+    comparison: {
+        left: number;
+        right: number;
+        truncated: boolean;
+        identical: boolean;
+        limit: number;
+        lines: DiffLine[];
+    } | null;
     maxLines: number;
 }>();
 
@@ -139,7 +146,15 @@ function activate(version: number): void {
             <!-- A TÚL NAGY diff nem „üres", hanem MEGMONDJUK, miért nincs: egy csendben
                  üres összehasonlítás azt jelentené, hogy nem változott semmi. -->
             <p v-if="comparison?.truncated" data-testid="diff-truncated">
-                {{ t('storedTemplates.tooLarge', { lines: maxLines }) }}
+                <!-- A KORLÁT AZ, AMIVEL A DIFF DOLGOZOTT (`comparison.limit`) — nem egy
+                     újraszámolt szám, ami a diff futása után már kisebb. -->
+                {{ t('storedTemplates.tooLarge', { lines: comparison.limit }) }}
+            </p>
+
+            <!-- AZ „NINCS ELTÉRÉS" külön állítás: egyetlen „kihagyva" sorból a
+                 felhasználónak kellett volna kikövetkeztetnie, hogy nem változott semmi. -->
+            <p v-else-if="comparison?.identical" data-testid="diff-identical">
+                {{ t('storedTemplates.identical') }}
             </p>
 
             <div v-else-if="comparison" class="vm-diff" data-testid="diff-body">
@@ -151,7 +166,9 @@ function activate(version: number): void {
                     :data-diff="line.type"
                 >
                     <template v-if="line.type === 'skipped'">
-                        <span class="vm-diff__text">{{ t('storedTemplates.skipped', { count: line.skipped }) }}</span>
+                        <span class="vm-diff__text">
+                            {{ t('storedTemplates.skipped', { count: line.skipped, from: line.left, to: line.right }) }}
+                        </span>
                     </template>
                     <template v-else>
                         <span class="vm-diff__gutter">{{ line.left ?? '' }}</span>

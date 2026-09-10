@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Tenancy\Actions;
 
+use App\Models\User;
 use App\Modules\Audit\Services\AuditLogger;
 use App\Modules\Tenancy\Models\WorkspaceInvitation;
 use App\Modules\Tenancy\Models\WorkspaceMember;
@@ -72,6 +73,14 @@ final class RemoveMember
 
                 $invitation->delete();
             });
+
+        // A CHILD-TULAJDONOSSÁG is elesik: a parentből eltávolított tag ne maradjon
+        // owner az al-fiókokon (ugyanaz a pillanatkép-probléma, mint a lefokozásnál).
+        $target = User::query()->whereKey($member->user_id)->first();
+
+        if ($target !== null) {
+            $this->roles->dropChildOwnership($target);
+        }
 
         $before = $member->roles();
 

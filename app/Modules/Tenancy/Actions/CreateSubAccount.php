@@ -59,15 +59,6 @@ final class CreateSubAccount
 
         $parent = $this->context->workspace();
 
-        // DARABSZÁM-PLAFON: az al-fiók INGYEN létrehozható, a fogyása viszont a parent
-        // számlájára megy — plafon nélkül egy ciklus ezer workspace-t hozna létre, mind
-        // saját kvótával, ugyanarra a számlára.
-        $max = (int) config('tenancy.sub_accounts.max', 50);
-
-        if ($this->context->workspace()->children()->count() >= $max) {
-            throw new RuntimeException(__('ventmail.members.subAccountLimit', ['max' => $max]));
-        }
-
         // AZ EGYSZINTŰSÉGET az adatbázis-trigger őrzi (`workspace_parents_single_level`),
         // de a hibát ITT is meg akarjuk fogni, olvasható üzenettel: aki már child, az nem
         // hozhat létre további sub-accountot.
@@ -75,7 +66,23 @@ final class CreateSubAccount
             throw new AuthorizationException(__('ventmail.members.subAccountSingleLevel'));
         }
 
-        return DB::transaction(function () use ($parent, $name, $actor): Workspace {
+        $max = (int) config('tenancy.sub_accounts.max', 50);
+
+        return DB::transaction(function () use ($parent, $name, $actor, $max): Workspace {
+            /*
+             | DARABSZÁM-PLAFON — A TRANZAKCIÓN BELÜL, ZÁROLT parent-sorral.
+             |
+             | Az al-fiók INGYEN létrehozható, a fogyása viszont a parent számlájára megy.
+             | A tranzakción kívüli ellenőrzés versenyezhető: két párhuzamos kérés 49-nél
+             | mindkettő átment volna. A `throttle:sub-accounts` ezt csak mérsékli, nem
+             | zárja.
+             */
+            $locked = Workspace::query()->whereKey($parent->getKey())->lockForUpdate()->firstOrFail();
+
+            if ($locked->children()->count() >= $max) {
+                throw new RuntimeException(__('ventmail.members.subAccountLimit', ['max' => $max]));
+            }
+
             $child = Workspace::create([
                 'name' => $name,
                 'slug' => Str::slug($name).'-'.Str::lower(Str::random(8)),
@@ -124,12 +131,22 @@ final class CreateSubAccount
             ->first(fn (WorkspaceMember $member) => (int) $member->user_id === (int) $actor->getKey())
             ?->roles() ?? [];
 
+        // TULAJDONOS NÉLKÜLI PARENT: HANGOS HIBA, nem „adjunk owner-t a létrehozónak".
+        //
+        // Egy biztonsági elágazás alapértéke nem lehet a jog KIOSZTÁSA: pont azt az
+        // eszkalációt nyitná ki, amit ez a metódus bezár (az `admin` a saját maga
+        // tulajdonolta childban bármit beállíthatna, a számlát a parent kapja). Az
+        // utolsó-tulajdonos invariáns miatt ez az ág elvileg elérhetetlen — ha mégis
+        // előfordul, az ADATHIBA, és javítani kell, nem megkerülni. Egy elérhetetlen
+        // al-fiók javítható; egy tévedésből kiosztott `owner` nem vonható vissza utólag.
+        if ($owners->isEmpty()) {
+            throw new RuntimeException('A workspace-nek nincs tulajdonosa — al-fiók nem hozható létre.');
+        }
+
         WorkspaceMember::create([
             'workspace_id' => $child->getKey(),
             'user_id' => $actor->getKey(),
-            // Ha a parentnek NINCS tulajdonosa (elvileg lehetetlen), a létrehozó kapja —
-            // egy elérhetetlen al-fiók rosszabb, mint egy pontatlan szerep.
-            'roles' => $owners->isEmpty() ? [Role::Owner->value] : ($actorRoles ?: [Role::Admin->value]),
+            'roles' => $actorRoles ?: [Role::Admin->value],
         ]);
     }
 }

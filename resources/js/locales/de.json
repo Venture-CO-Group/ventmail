@@ -452,7 +452,8 @@
         "memberCount": "{count} Mitglieder",
         "lockedRoles": "Nicht bearbeitbare Rollen (stärker als deine): {roles}",
         "removeConfirm": "Ja, entfernen",
-        "cancel": "Abbrechen"
+        "cancel": "Abbrechen",
+        "inviteLogged": "Die Einladungs-E-Mail erscheint auch im Nachrichtenprotokoll des Workspace, wie jede ausgehende Nachricht."
     },
     "forms": {
         "title": "Anmeldeformulare",
@@ -498,7 +499,8 @@
         "activate": "Aktivieren",
         "tooLarge": "Der Vergleich läuft über {lines} Zeilen nicht — lade die Versionen über die API herunter.",
         "activated": "Die Version ist jetzt aktiv.",
-        "skipped": "{count} unveränderte Zeilen übersprungen"
+        "skipped": "{count} unveränderte Zeilen übersprungen (Zeilen {from}–{to})",
+        "identical": "Die beiden Versionen sind IDENTISCH — kein Unterschied."
     },
     "invitations": {
         "title": "Deine Einladungen",

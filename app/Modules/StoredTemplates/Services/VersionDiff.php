@@ -26,16 +26,24 @@ namespace App\Modules\StoredTemplates\Services;
  *
  * A javítás három rétegű, és mindhárom a VALÓDI használatra van szabva:
  *
+ *  0. **BEMENETI PLAFON, SPLIT ELŐTT.** A sorokra bontás MAGA is memória: 300 000 sor két
+ *     oldalon már százmegás nagyságrend. A sorszámot ezért `substr_count()` méri, MIELŐTT
+ *     bármit felbontanánk — ez az egyetlen réteg, ami a fájl MÉRETÉRE néz.
  *  1. **KÖZÖS ELEJE-VÉGE LEVÁGÁSA.** Két egymást követő sablon-verzió jellemzően néhány
  *     sorban tér el. A táblát csak az ELTÉRŐ középső szakaszra építjük — egy 5000 soros
  *     sablon két verziója így néhány tucat soron számolódik.
  *  2. **A KORLÁT A KÖZÉPSŐ SZAKASZRA vonatkozik**, és a PROCESSZ szabad memóriájából
  *     származik, nem egy kitalált számból. Ha nem fér bele, a válasz „nem futott le" —
  *     nem üres diff, és nem fatal.
- *  3. **KONTEXTUSOS KIMENET.** A változatlan sorok közül csak a változás körüli néhány
- *     megy ki; a kihagyott szakaszok egy összevont sorként jelennek meg. Enélkül egy
- *     4000 soros sablon diffje 4000 DOM-csomópontként és több MB-os Inertia-propként
- *     érkezett volna a böngészőbe.
+ *  3. **KONTEXTUSOS KIMENET — ÉS A LEVÁGOTT RÉSZ SOSEM ÉPÜL FEL.** A változatlan sorok
+ *     közül csak a változás körüli néhány megy ki; a kihagyott szakaszok egy összevont
+ *     sorként jelennek meg. Ez nem csak a válasz méretéről szól: az első javítás a
+ *     levágott prefixet és suffixet VISSZAÉPÍTETTE a kimeneti tömbbe, mielőtt összevonta
+ *     volna — a security-review ezt mérte meg: 300 000 soros (600 kB-os) sablonpár, egy
+ *     sor eltéréssel, NÉMA PROCESSZ-HALÁL (nem elkapható fatal, FPM alatt 502 és
+ *     worker-halál), miközben a `regionLimit()` végig 1300-at adott, tehát a `truncated`
+ *     ág SOHA nem sült el. Ma a memóriaigény a VÁLTOZÁSOK számával skálázik, nem a fájl
+ *     méretével.
  */
 final class VersionDiff
 {
@@ -64,10 +72,37 @@ final class VersionDiff
     public const MAX_REGION_LINES = 2000;
 
     /**
-     * @return array{truncated: bool, limit: int, lines: list<array{type: string, left: ?int, right: ?int, text: string, skipped?: int}>}
+     * EGY BEMENETI SOR mért memóriaigénye a felbontott tömbben, bájtban.
+     *
+     * Egy rövid sor is `zval` + hash-bejegyzés; a mérés 80–110 bájt között szór, a 128 a
+     * felső érték fölött van. A `substr_count()` ezzel a szorzóval dönt még a `preg_split`
+     * ELŐTT — utána már késő: a felbontás maga a memóriafogyasztó lépés.
+     */
+    private const INPUT_BYTES_PER_LINE = 128;
+
+    /** Abszolút felső korlát a BEMENET sorszámára (oldalanként). */
+    public const MAX_INPUT_LINES = 60000;
+
+    /**
+     * @return array{truncated: bool, identical: bool, limit: int, lines: list<array{type: string, left: ?int, right: ?int, text: string, skipped?: int}>}
      */
     public function compare(string $before, string $after): array
     {
+        $limit = $this->regionLimit();
+
+        /*
+         | 0. BEMENETI PLAFON — A FELBONTÁS ELŐTT.
+         |
+         | A `preg_split()` maga a memóriafogyasztó lépés: 300 000 sor két oldalon
+         | százmegás nagyságrend, és ez a `regionLimit()`-en KÍVÜL van (az a táblára néz).
+         | A sorszámot ezért olcsón, felbontás nélkül mérjük.
+         */
+        $inputLimit = $this->inputLimit();
+
+        if ($this->lineCount($before) > $inputLimit || $this->lineCount($after) > $inputLimit) {
+            return ['truncated' => true, 'identical' => false, 'limit' => $limit, 'lines' => []];
+        }
+
         $left = $this->lines($before);
         $right = $this->lines($after);
 
@@ -94,26 +129,50 @@ final class VersionDiff
         $leftMiddle = array_slice($left, $prefix, $leftCount - $prefix - $suffix);
         $rightMiddle = array_slice($right, $prefix, $rightCount - $prefix - $suffix);
 
-        $limit = $this->regionLimit();
-
         if (count($leftMiddle) > $limit || count($rightMiddle) > $limit) {
-            return ['truncated' => true, 'limit' => $limit, 'lines' => []];
+            return ['truncated' => true, 'identical' => false, 'limit' => $limit, 'lines' => []];
         }
 
-        $middle = $this->walk($leftMiddle, $rightMiddle, $prefix);
+        // AZ „NINCS ELTÉRÉS" ÁLLAPOT KÜLÖN ÁLLÍTÁS.
+        //
+        // Két azonos verzióra a kontextusos kimenet EGYETLEN „kihagyva" sor lenne, és a
+        // felhasználónak abból kellene kikövetkeztetnie, hogy nem változott semmi. Ezen a
+        // képernyőn ez pont a rossz irányba téveszt: a verziók megváltoztathatatlanok, és
+        // a diff alapján dől el, kell-e új verzió.
+        if ($leftMiddle === [] && $rightMiddle === []) {
+            return ['truncated' => false, 'identical' => true, 'limit' => $limit, 'lines' => []];
+        }
 
-        // A LEVÁGOTT ELEJE-VÉGE is a diff része — csak nem kell mind kiírni.
+        /*
+         | A LEVÁGOTT ELEJE-VÉGE SOSEM ÉPÜL FEL EGÉSZBEN.
+         |
+         | Csak a változás KÖRNYEZETE kell belőle (`CONTEXT` sor), a többi egyetlen
+         | „kihagyva" sor. Az első javítás itt hibázott: visszaépítette mind, és a
+         | `withContext()` utólag dobta el — a memóriacsúcs addigra megvolt.
+         */
         $lines = [];
 
-        foreach (range(0, $prefix - 1) as $index) {
-            if ($prefix > 0) {
-                $lines[] = ['type' => 'same', 'left' => $index + 1, 'right' => $index + 1, 'text' => $left[$index]];
-            }
+        $contextBefore = min($prefix, self::CONTEXT);
+
+        if ($prefix > $contextBefore) {
+            $lines[] = [
+                'type' => 'skipped',
+                'left' => 1,
+                'right' => $prefix - $contextBefore,
+                'text' => '',
+                'skipped' => $prefix - $contextBefore,
+            ];
         }
 
-        $lines = array_merge($lines, $middle);
+        for ($i = $prefix - $contextBefore; $i < $prefix; $i++) {
+            $lines[] = ['type' => 'same', 'left' => $i + 1, 'right' => $i + 1, 'text' => $left[$i]];
+        }
 
-        for ($i = 0; $i < $suffix; $i++) {
+        $lines = array_merge($lines, $this->withContext($this->walk($leftMiddle, $rightMiddle, $prefix)));
+
+        $contextAfter = min($suffix, self::CONTEXT);
+
+        for ($i = 0; $i < $contextAfter; $i++) {
             $leftLine = $leftCount - $suffix + $i;
             $rightLine = $rightCount - $suffix + $i;
 
@@ -125,7 +184,43 @@ final class VersionDiff
             ];
         }
 
-        return ['truncated' => false, 'limit' => $limit, 'lines' => $this->withContext($lines)];
+        if ($suffix > $contextAfter) {
+            $lines[] = [
+                'type' => 'skipped',
+                'left' => $leftCount - $suffix + $contextAfter + 1,
+                'right' => $leftCount,
+                'text' => '',
+                'skipped' => $suffix - $contextAfter,
+            ];
+        }
+
+        return ['truncated' => false, 'identical' => false, 'limit' => $limit, 'lines' => $lines];
+    }
+
+    /**
+     * A BEMENET sorszám-plafonja — a szabad memóriából, két oldalra.
+     *
+     * Ez a réteg a FÁJL MÉRETÉRE néz, nem a különbségre: a `regionLimit()` a táblát fogja,
+     * ez a felbontott sor-tömböket.
+     */
+    public function inputLimit(): int
+    {
+        $limit = $this->memoryLimitBytes();
+
+        if ($limit <= 0) {
+            return self::MAX_INPUT_LINES;
+        }
+
+        $available = max(0, $limit - memory_get_usage(true));
+        $lines = (int) floor($available * self::MEMORY_BUDGET / (2 * self::INPUT_BYTES_PER_LINE));
+
+        return max(0, min(self::MAX_INPUT_LINES, $lines));
+    }
+
+    /** Sorszám FELBONTÁS NÉLKÜL — a felbontás maga a drága lépés. */
+    private function lineCount(string $body): int
+    {
+        return substr_count($body, "\n") + substr_count($body, "\r") + 1;
     }
 
     /**
@@ -258,12 +353,24 @@ final class VersionDiff
 
         $out = [];
         $skipped = 0;
+        $from = null;
 
         foreach ($lines as $index => $line) {
             if (isset($keep[$index])) {
                 if ($skipped > 0) {
-                    $out[] = ['type' => 'skipped', 'left' => null, 'right' => null, 'text' => '', 'skipped' => $skipped];
+                    // A KIHAGYOTT SZAKASZ SORTARTOMÁNYA is kimegy — az unified diff
+                    // `@@ -119,3 +119,3 @@` fejléce pont ezért van. Nélküle a sorszám-oszlop
+                    // 9996-ról 9997-re ugrik magyarázat nélkül, és az olvasó azt hiszi,
+                    // hogy a két oldal elcsúszott.
+                    $out[] = [
+                        'type' => 'skipped',
+                        'left' => $from,
+                        'right' => $lines[$index - 1]['left'] ?? null,
+                        'text' => '',
+                        'skipped' => $skipped,
+                    ];
                     $skipped = 0;
+                    $from = null;
                 }
 
                 $out[] = $line;
@@ -271,11 +378,18 @@ final class VersionDiff
                 continue;
             }
 
+            $from ??= $line['left'];
             $skipped++;
         }
 
         if ($skipped > 0) {
-            $out[] = ['type' => 'skipped', 'left' => null, 'right' => null, 'text' => '', 'skipped' => $skipped];
+            $out[] = [
+                'type' => 'skipped',
+                'left' => $from,
+                'right' => $lines[count($lines) - 1]['left'] ?? null,
+                'text' => '',
+                'skipped' => $skipped,
+            ];
         }
 
         return $out;

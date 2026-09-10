@@ -452,7 +452,8 @@
         "memberCount": "{count} members",
         "lockedRoles": "Roles you cannot edit (stronger than yours): {roles}",
         "removeConfirm": "Yes, remove",
-        "cancel": "Cancel"
+        "cancel": "Cancel",
+        "inviteLogged": "The invitation e-mail also appears in the workspace message log, like every outgoing message."
     },
     "forms": {
         "title": "Signup forms",
@@ -498,7 +499,8 @@
         "activate": "Activate",
         "tooLarge": "Comparison does not run above {lines} lines — download the versions through the API.",
         "activated": "The version is now live.",
-        "skipped": "{count} unchanged lines skipped"
+        "skipped": "{count} unchanged lines skipped (lines {from}–{to})",
+        "identical": "The two versions are IDENTICAL — no differences."
     },
     "invitations": {
         "title": "Your invitations",

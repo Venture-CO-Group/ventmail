@@ -80,3 +80,75 @@ it('érvénytelen domainnél a cím VÁLTOZATLAN marad — a hibát a kapu jelzi
     // Csendben csonkolni a legrosszabb: a hívó azt hinné, elfogadtuk.
     expect(DomainNormalizer::email('user@.pelda.hu'))->toBe('user@.pelda.hu');
 });
+
+/*
+ | KAT-vektorok a HOZZÁFÉRÉSI kulcsra (`authKey`).
+ |
+ | Ez a kulcs dönti el, hogy egy meghívó KIÉ: a beváltás és a belépési jogcím is pontos
+ | egyezést néz rajta. A hibairánya ellentétes a `listKey()`-ével — ott a túl-illesztés
+ | fail-SAFE (több cím tiltódik a suppression-listán), itt fail-OPEN (több embernek jár
+ | hozzáférés). A security-review mérte meg, mit jelentett a különbség figyelmen kívül
+ | hagyása: a KELVIN SIGN-os `bo\u{212A}@corp.com` az `mb_strtolower` után `bok@corp.com`,
+ | vagyis egy admin-meghívót egy MÁSIK postafiók tulajdonosa válthatott volna be.
+ |
+ | Ezek a sorok ezért nem „formázási elvárások": mindegyik egy egykarakteres változtatás
+ | ellen véd (`strtolower` ↔ `mb_strtolower`, `$` ↔ `\z`, ASCII-szűrő megléte).
+ */
+dataset('auth-kulcs-vektorok', [
+    // ELFOGADOTT: ASCII helyi rész + kanonikus domain.
+    'egyszerű' => ['bob@corp.com', 'bob@corp.com'],
+    'nagybetűs helyi rész' => ['Bob@corp.com', 'bob@corp.com'],
+    'nagybetűs domain' => ['bob@CORP.COM', 'bob@corp.com'],
+    'körülvevő szóköz' => ['  bob@corp.com  ', 'bob@corp.com'],
+    'pluszos címzés MEGMARAD' => ['bob+hirlevel@corp.com', 'bob+hirlevel@corp.com'],
+    'pont a helyi részben MEGMARAD' => ['nagy.bela@corp.com', 'nagy.bela@corp.com'],
+    'IDN domain punycode-ra' => ['bob@bücher.de', 'bob@xn--bcher-kva.de'],
+    'már punycode' => ['bob@xn--bcher-kva.de', 'bob@xn--bcher-kva.de'],
+
+    // ELUTASÍTOTT (üres kulcs): nincs TISZTA leképezés, tehát nincs hozzáférés.
+    'KELVIN SIGN a helyi részben' => ["bo\u{212A}@corp.com", ''],
+    'török nagy I pont felett' => ["bo\u{0130}@corp.com", ''],
+    'fullwidth helyi rész' => ["\u{FF42}ob@corp.com", ''],
+    'ékezet a helyi részben' => ['ünnepi@corp.com', ''],
+    'záró sortörés' => ["bob\n@corp.com", ''],
+    'nullbájt' => ["bob\0@corp.com", ''],
+    'CRLF' => ["bob\r\n@corp.com", ''],
+    'szóköz idézőjelben' => ['"john smith"@corp.com', ''],
+    'üres helyi rész' => ['@corp.com', ''],
+    'domain nélkül' => ['bob', ''],
+    'címliterál' => ['bob@[10.0.0.1]', ''],
+    'záró pont a domainen' => ['bob@corp.com.', ''],
+    'fullwidth domain' => ['bob@ｃorp.com', ''],
+    'üres' => ['', ''],
+]);
+
+it('a hozzáférési kulcs vektorai', function (string $input, string $expected) {
+    expect(DomainNormalizer::authKey($input))->toBe($expected);
+})->with('auth-kulcs-vektorok');
+
+it('a hozzáférési kulcs INJEKTÍV a unicode-változatokra', function () {
+    /*
+     | A `listKey()` ezen a halmazon ÜTKÖZIK (mind `bok@corp.com` lesz) — és ez ott helyes,
+     | mert a suppression-lista túl-illesztése biztonságos irányba téved. Az `authKey()`-nek
+     | viszont vagy pontosan egyeznie kell, vagy semmit nem szabad adnia.
+     */
+    $variants = [
+        'bok@corp.com',
+        "bo\u{212A}@corp.com",
+        "\u{FF42}ok@corp.com",
+        "bo\u{0138}@corp.com",
+    ];
+
+    $keys = array_values(array_filter(array_map(
+        fn (string $email) => DomainNormalizer::authKey($email),
+        $variants
+    )));
+
+    expect($keys)->toBe(['bok@corp.com'])
+        // A `listKey()` ugyanezen a halmazon TÖBB címet mos egy kulcsra — a különbség
+        // szándékos, és ez a sor rögzíti, hogy nem véletlenül lett ugyanaz a két függvény.
+        ->and(count(array_unique(array_map(
+            fn (string $email) => DomainNormalizer::listKey($email),
+            $variants
+        ))))->toBeLessThan(count($variants));
+});

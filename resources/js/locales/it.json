@@ -452,7 +452,8 @@
         "memberCount": "{count} membri",
         "lockedRoles": "Ruoli non modificabili (più forti del tuo): {roles}",
         "removeConfirm": "Sì, rimuovi",
-        "cancel": "Annulla"
+        "cancel": "Annulla",
+        "inviteLogged": "L’e-mail di invito compare anche nel registro dei messaggi del workspace, come ogni messaggio in uscita."
     },
     "forms": {
         "title": "Moduli di iscrizione",
@@ -498,7 +499,8 @@
         "activate": "Attiva",
         "tooLarge": "Il confronto non parte oltre {lines} righe — scarica le versioni dall’API.",
         "activated": "La versione è ora attiva.",
-        "skipped": "{count} righe invariate omesse"
+        "skipped": "{count} righe invariate omesse (righe {from}–{to})",
+        "identical": "Le due versioni sono IDENTICHE — nessuna differenza."
     },
     "invitations": {
         "title": "I tuoi inviti",

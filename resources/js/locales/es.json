@@ -452,7 +452,8 @@
         "memberCount": "{count} miembros",
         "lockedRoles": "Roles que no puedes editar (más fuertes que el tuyo): {roles}",
         "removeConfirm": "Sí, quitar",
-        "cancel": "Cancelar"
+        "cancel": "Cancelar",
+        "inviteLogged": "El correo de invitación también aparece en el registro de mensajes del workspace, como cualquier envío."
     },
     "forms": {
         "title": "Formularios de suscripción",
@@ -498,7 +499,8 @@
         "activate": "Activar",
         "tooLarge": "La comparación no se ejecuta por encima de {lines} líneas — descarga las versiones por la API.",
         "activated": "La versión ya está activa.",
-        "skipped": "{count} líneas sin cambios omitidas"
+        "skipped": "{count} líneas sin cambios omitidas (líneas {from}–{to})",
+        "identical": "Las dos versiones son IDÉNTICAS — no hay diferencias."
     },
     "invitations": {
         "title": "Tus invitaciones",

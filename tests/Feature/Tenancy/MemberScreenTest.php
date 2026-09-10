@@ -611,3 +611,87 @@ it('a BEVÁLTOTT és LEJÁRT meghívók a retenció után törlődnek', function
     expect($remaining)->toHaveCount(1)
         ->and((string) $remaining->first())->toBe((string) $open->uuid);
 });
+
+it('a LEFOKOZOTT tag már nem kiosztható meghívói is elesnek', function () {
+    /*
+     | A `RemoveMember` revokálta az eltávolított tag meghívóit, a lefokozás viszont nem —
+     | pedig az az olcsóbb, gyakoribb reakció. Mérve: `admin` A `admin`-meghívót ír, az
+     | owner `analyst`-ra fokozza A-t, a meghívó nyitva marad `["admin"]` szereppel, a
+     | meghívott elfogadja — és `admin` tagságot kap attól, akitől ezt a jogot épp elvették.
+     */
+    $workspace = Workspace::factory()->create();
+    $owner = memberUser($workspace, 'owner');
+    $admin = memberUser($workspace, 'admin');
+
+    Auth::login($admin);
+
+    app(WorkspaceContext::class)->runFor($workspace, function () {
+        app(InviteMember::class)('eros@pelda.hu', ['admin']);
+        // A GYENGE meghívó megmarad: egy lefokozás nem vonja vissza azt, amit az új
+        // szerep is fedez.
+        app(InviteMember::class)('gyenge@pelda.hu', ['analyst']);
+    });
+
+    $member = WorkspaceMember::query()->where('user_id', $admin->getKey())->firstOrFail();
+
+    $this->actingAs($owner)->withSession(['workspace_uuid' => $workspace->uuid])
+        ->from('/members')
+        ->post('/members/'.$member->getKey().'/roles', ['roles' => ['analyst']])
+        ->assertRedirect('/members');
+
+    $open = WorkspaceInvitation::query()->withoutGlobalScopes()->pluck('email')->all();
+
+    expect($open)->toBe(['gyenge@pelda.hu']);
+});
+
+it('a PARENT tulajdonosi köre lekövetődik az al-fiókokra', function () {
+    /*
+     | A `CreateSubAccount` a létrehozáskori állapotot MÁSOLJA — az pillanatkép. Mérve, mit
+     | jelentett önmagában: a childot létrehozó owner távozása után a child tagsága
+     | változatlan maradt, az ÚJ tulajdonosnak pedig NULLA tagsága lett benne — a child ott
+     | maradt az al-fiók-listán, a parent számlájára fogyott, de a jelenlegi tulajdonos be
+     | sem tudott lépni. Élesebben: a távozó kolléga megtartotta az owner-jogot minden
+     | általa létrehozott al-fiókon.
+     */
+    $parent = Workspace::factory()->create();
+    $founder = memberUser($parent, 'owner');
+    $successor = memberUser($parent, 'admin');
+
+    Auth::login($founder);
+
+    $child = app(WorkspaceContext::class)->runFor($parent, fn () => app(CreateSubAccount::class)('Ügyfél Kft.'));
+
+    // AZ UTÓD OWNER LESZ a parentben → owner lesz a childban is.
+    $successorMember = WorkspaceMember::query()->where('user_id', $successor->getKey())->firstOrFail();
+
+    $this->actingAs($founder)->withSession(['workspace_uuid' => $parent->uuid])
+        ->from('/members')
+        ->post('/members/'.$successorMember->getKey().'/roles', ['roles' => ['owner']])
+        ->assertRedirect('/members');
+
+    $inChild = WorkspaceMember::query()
+        ->where('workspace_id', $child->getKey())
+        ->where('user_id', $successor->getKey())
+        ->firstOrFail();
+
+    expect($inChild->roles())->toBe(['owner']);
+
+    // AZ ALAPÍTÓ TÁVOZIK a parentből → a child owner-jogát is elveszíti.
+    $founderMember = WorkspaceMember::query()
+        ->where('workspace_id', $parent->getKey())
+        ->where('user_id', $founder->getKey())
+        ->firstOrFail();
+
+    $this->actingAs($successor)->withSession(['workspace_uuid' => $parent->uuid])
+        ->from('/members')
+        ->delete('/members/'.$founderMember->getKey())
+        ->assertRedirect('/members');
+
+    expect(WorkspaceMember::query()
+        ->where('workspace_id', $child->getKey())
+        ->where('user_id', $founder->getKey())
+        ->exists())->toBeFalse();
+
+    // A CHILD NEM MARAD GAZDÁTLAN.
+    expect(WorkspaceMember::query()->where('workspace_id', $child->getKey())->count())->toBeGreaterThan(0);
+});

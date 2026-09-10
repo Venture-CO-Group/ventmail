@@ -82,10 +82,14 @@ final class StoredTemplateUiController
                 ...$diff->compare((string) $left->body, (string) $right->body),
             ],
 
-            // A KORLÁT FUTÁSIDŐBEN dől el (a szabad memóriából), ezért a felület a
-            // ténylegesen érvényes számot kapja — nem egy konstanst, ami éles környezetben
-            // már nem igaz.
-            'maxLines' => $diff->regionLimit(),
+            // A KORLÁT a `comparison.limit`-ben jön, MERT AZT A DIFF SZÁMOLTA.
+            //
+            // Egy MÁSODIK `regionLimit()` hívás itt kisebb számot adna: a diff futása után
+            // a `memory_get_usage(true)` már megnőtt. Mérve egyetlen kérésen belül: a
+            // `compare()` 1305-tel dolgozott, a felületnek 1007 ment volna ki — vagyis a
+            // „nem fut le X sor fölött" üzenet olyan számot írt volna ki, amivel a
+            // felhasználó nem tud számolni (1200 sorra újrapróbálva működne).
+            'maxLines' => VersionDiff::MAX_REGION_LINES,
         ]);
     }
 

@@ -215,6 +215,11 @@ function createSubAccount(): void {
 
             <p>{{ t('members.inviteHint') }}</p>
 
+            <!-- A CÍM a workspace levélnaplójába kerül (a levél a tenant SAJÁT kimenő
+                 levele). Elrejteni naplózatlan küldési utat teremtene — de a meghívó
+                 tudjon róla, mert a naplót gyengébb szerepek is látják. -->
+            <p data-testid="invite-logged">{{ t('members.inviteLogged') }}</p>
+
             <VtField :label="t('members.email')">
                 <VtInput v-model="inviteEmail" data-testid="invite-email" placeholder="kollega@pelda.hu" />
             </VtField>
