@@ -15,4 +15,7 @@ Route::get('/campaigns', [CampaignUiController::class, 'index'])->name('campaign
 Route::post('/campaigns', [CampaignUiController::class, 'store'])->name('campaigns.store');
 Route::get('/campaigns/{uuid}', [CampaignUiController::class, 'show'])->name('campaigns.show');
 Route::put('/campaigns/{uuid}', [CampaignUiController::class, 'update'])->name('campaigns.update');
+Route::post('/campaigns/{uuid}/variants', [CampaignUiController::class, 'addVariant'])->name('campaigns.variants.store');
+Route::delete('/campaigns/{uuid}/variants/{variant}', [CampaignUiController::class, 'deleteVariant'])
+    ->where('variant', '[0-9a-fA-F\-]{36}')->name('campaigns.variants.destroy');
 Route::post('/campaigns/{uuid}/transition', [CampaignUiController::class, 'transition'])->name('campaigns.transition');

@@ -63,6 +63,7 @@ final class AudienceController
                 'name' => (string) $list->name,
                 'description' => $list->description,
                 'fromEmail' => $list->from_email,
+                'fromName' => $list->from_name,
                 'contacts' => $list->contacts()->count(),
             ])->values()->all(),
 
@@ -117,5 +118,35 @@ final class AudienceController
         ]);
 
         return back()->with('success', __('ventmail.audience.listCreated'));
+    }
+
+    /**
+     * LISTA SZERKESZTÉSE.
+     *
+     | A NÉV ÉS A LEÍRÁS a CÍMZETTNEK is megjelenik: a preference center a kontakt saját
+     | listáit sorolja fel, névvel. Szerkesztés nélkül egy elgépelt név örökre ott maradt
+     | volna a leiratkozó felületen — javítani csak adatbázisból lehetett.
+     */
+    public function updateList(Request $request, string $uuid): RedirectResponse
+    {
+        Gate::authorize('audience.manage');
+
+        $list = ContactList::query()->where('uuid', $uuid)->firstOrFail();
+
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:120'],
+            'description' => ['nullable', 'string', 'max:500'],
+            'fromEmail' => ['nullable', 'string', 'email', 'max:320'],
+            'fromName' => ['nullable', 'string', 'max:120'],
+        ]);
+
+        $list->fill([
+            'name' => $validated['name'],
+            'description' => $validated['description'] ?? null,
+            'from_email' => $validated['fromEmail'] ?? null,
+            'from_name' => $validated['fromName'] ?? null,
+        ])->save();
+
+        return back()->with('success', __('ventmail.audience.listUpdated'));
     }
 }

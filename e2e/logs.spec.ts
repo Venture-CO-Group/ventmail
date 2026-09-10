@@ -23,6 +23,17 @@ test('a napló szűrhető, és a szűrés a SZERVEREN történik', async ({ page
 
     const rows = page.getByTestId('log-table').locator('tbody tr');
 
+    /*
+     | A SAJÁT SORÁRA SZŰR, nem az üres tenantra épít.
+     |
+     | A böngésző-suite EGY tenanton fut, és minden teszt, ami levelet küld (akár csak
+     | elutasítottat — a meghívó értesítője ilyen), sort tesz a naplóba. A korábbi
+     | „pontosan egy sor van" feltevés ezért attól bukott el, hogy egy MÁSIK teszt
+     | dolgozott — a hiba ott látszott, ahol nem volt.
+     */
+    await page.getByTestId('filter-recipient').fill('demo@example.test');
+    await page.getByTestId('log-search').click();
+
     await expect(rows).toHaveCount(1);
     await expect(rows.first()).toContainText('demo@example.test');
 
@@ -41,7 +52,9 @@ test('a napló szűrhető, és a szűrés a SZERVEREN történik', async ({ page
 });
 
 test('a sorból megnyílik a trace, és a TELJES lánc látszik', async ({ page }) => {
-    await page.goto('/logs');
+    // A DEMÓ-SORRA szűrve nyitjuk meg a trace-t: a napló a közös dev-tenanté, és a
+    // „legelső sor" attól függene, melyik teszt futott előtte.
+    await page.goto('/logs?recipient=demo%40example.test');
 
     await page.getByTestId('log-trace').first().click();
 

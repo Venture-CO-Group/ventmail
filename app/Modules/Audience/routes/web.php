@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Modules\Audience\Http\Controllers\AudienceController;
+use App\Modules\Audience\Http\Controllers\FormUiController;
 use App\Modules\Audience\Http\Controllers\PublicFormController;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
 use Illuminate\Support\Facades\Route;
@@ -37,4 +38,21 @@ Route::post('/f/{slug}', PublicFormController::class)
 Route::middleware(['auth', 'workspace'])->group(function (): void {
     Route::get('/audience', [AudienceController::class, 'index'])->name('audience.index');
     Route::post('/audience/lists', [AudienceController::class, 'storeList'])->name('audience.lists.store');
+    Route::post('/audience/lists/{uuid}', [AudienceController::class, 'updateList'])
+        ->where('uuid', '[0-9a-fA-F\-]{36}')->name('audience.lists.update');
+});
+
+/*
+ | ŰRLAP-ADMIN — a publikus `POST /f/{slug}` ellenpárja.
+ |
+ | Ugyanaz a stack, mint a közönség-képernyőé: a modul route-jai hitelesítés előttiek,
+ | ezért az `auth` + `workspace` itt EXPLICIT.
+ */
+Route::middleware(['auth', 'workspace'])->group(function (): void {
+    Route::get('/forms', [FormUiController::class, 'index'])->name('forms.index');
+    Route::post('/forms', [FormUiController::class, 'store'])->name('forms.store');
+    Route::post('/forms/{uuid}', [FormUiController::class, 'update'])
+        ->where('uuid', '[0-9a-fA-F\-]{36}')->name('forms.update');
+    Route::post('/forms/{uuid}/toggle', [FormUiController::class, 'toggle'])
+        ->where('uuid', '[0-9a-fA-F\-]{36}')->name('forms.toggle');
 });

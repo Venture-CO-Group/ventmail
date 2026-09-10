@@ -28,6 +28,14 @@ final class AbilityMap
      | developer): a mailbox-szonda RBL-kockázatot hordoz és mérve is van (metering),
      | tehát nem futtathatja bárki — az `analyst` és a tartalmi szerepek szándékosan
      | maradnak ki.
+     |
+     | ÚJ KÉPESSÉG (M4-6): `storedTemplate.manage`.
+     |
+     | A TÁROLT sablon (`/v1/templates`) a FEJLESZTŐ szerződése: a tranzakciós küldés
+     | `template=` paramétere erre hivatkozik, és a verziói megváltoztathatatlanok. Ezért
+     | nem a Studio `template.create` képessége alá tartozik: a block editor sablonja a
+     | marketingesé, ez pedig az integrációé — aki egy aktív verziót átkapcsol, egy MÁR
+     | MŰKÖDŐ integráció kimenetét változtatja meg. A három üzemeltető szerep kapja.
      */
 
     /** @var array<string, list<string>> */
@@ -35,21 +43,21 @@ final class AbilityMap
         'owner' => [
             'workspace.manage', 'workspace.delete', 'member.manage', 'billing.manage',
             'subAccount.manage', 'domain.manage', 'ipPool.manage',
-            'apiKey.manage', 'smtpCredential.manage', 'webhook.manage',
+            'apiKey.manage', 'smtpCredential.manage', 'webhook.manage', 'storedTemplate.manage',
             'suppression.manage', 'validation.run', 'logs.view', 'analytics.view',
             'campaign.create', 'campaign.publish', 'template.create', 'template.publish', 'audience.manage',
         ],
         'admin' => [
             'workspace.manage', 'member.manage',
             'subAccount.manage', 'domain.manage', 'ipPool.manage',
-            'apiKey.manage', 'smtpCredential.manage', 'webhook.manage',
+            'apiKey.manage', 'smtpCredential.manage', 'webhook.manage', 'storedTemplate.manage',
             'suppression.manage', 'validation.run', 'logs.view', 'analytics.view',
             'campaign.create', 'campaign.publish', 'template.create', 'template.publish', 'audience.manage',
         ],
         // Fejlesztő: a küldő infrastruktúra igen, a marketing tartalom nem.
         'developer' => [
             'domain.manage', 'ipPool.manage',
-            'apiKey.manage', 'smtpCredential.manage', 'webhook.manage',
+            'apiKey.manage', 'smtpCredential.manage', 'webhook.manage', 'storedTemplate.manage',
             'suppression.manage', 'validation.run', 'logs.view', 'analytics.view',
         ],
         'editor' => [

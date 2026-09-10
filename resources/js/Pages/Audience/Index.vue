@@ -21,7 +21,14 @@ interface ContactRow {
 
 const props = defineProps<{
     search: string;
-    lists: Array<{ uuid: string; name: string; description: string | null; fromEmail: string | null; contacts: number }>;
+    lists: Array<{
+        uuid: string;
+        name: string;
+        description: string | null;
+        fromEmail: string | null;
+        fromName: string | null;
+        contacts: number;
+    }>;
     segments: Array<{ uuid: string; name: string; description: string | null; estimatedSize: number | null; estimatedAt: string | null }>;
     contacts: { items: ContactRow[]; nextCursor: string | null };
 }>();
@@ -30,6 +37,14 @@ const { t } = useI18n();
 
 const search = ref(props.search);
 const listName = ref('');
+
+/*
+ | A LISTA NEVE ÉS LEÍRÁSA a CÍMZETTNEK is megjelenik (a preference center a kontakt saját
+ | listáit sorolja fel), ezért szerkeszthetőnek kell lennie — soronként, hogy látható
+ | legyen, melyik sort írjuk át.
+ */
+const editingList = ref<string | null>(null);
+const listForm = ref({ name: '', description: '', fromEmail: '', fromName: '' });
 
 type Row = { email: string; name: string; status: string; consent: string; validation: string };
 
@@ -59,6 +74,29 @@ function applySearch(): void {
     router.get('/audience', { search: search.value }, { preserveState: true, preserveScroll: true });
 }
 
+function startListEdit(list: { uuid: string; name: string; description: string | null; fromEmail: string | null; fromName: string | null }): void {
+    editingList.value = list.uuid;
+    listForm.value = {
+        name: list.name,
+        description: list.description ?? '',
+        fromEmail: list.fromEmail ?? '',
+        fromName: list.fromName ?? '',
+    };
+}
+
+function saveList(uuid: string): void {
+    router.post(
+        `/audience/lists/${uuid}`,
+        {
+            name: listForm.value.name.trim(),
+            description: listForm.value.description.trim() || null,
+            fromEmail: listForm.value.fromEmail.trim() || null,
+            fromName: listForm.value.fromName.trim() || null,
+        },
+        { preserveScroll: true, onSuccess: () => (editingList.value = null) },
+    );
+}
+
 function createList(): void {
     if (!listName.value.trim()) return;
 
@@ -80,10 +118,38 @@ function createList(): void {
         <VtCard>
             <h2>{{ t('audience.lists') }}</h2>
 
-            <div v-for="list in lists" :key="list.uuid" class="vm-cluster" :data-testid="`list-${list.uuid}`">
-                <strong>{{ list.name }}</strong>
-                <span>{{ t('audience.contactCount', { count: list.contacts }) }}</span>
-                <span v-if="list.fromEmail" class="vt-text-mono">{{ list.fromEmail }}</span>
+            <div v-for="list in lists" :key="list.uuid" class="vm-stack" :data-testid="`list-${list.uuid}`">
+                <div class="vm-cluster">
+                    <strong>{{ list.name }}</strong>
+                    <span>{{ t('audience.contactCount', { count: list.contacts }) }}</span>
+                    <span v-if="list.fromEmail" class="vt-text-mono">{{ list.fromEmail }}</span>
+
+                    <VtButton variant="ghost" :data-testid="`list-edit-${list.uuid}`" @click="startListEdit(list)">
+                        {{ t('audience.editList') }}
+                    </VtButton>
+                </div>
+
+                <div v-if="editingList === list.uuid" class="vm-stack" :data-testid="`list-form-${list.uuid}`">
+                    <VtField :label="t('audience.listName')">
+                        <VtInput v-model="listForm.name" :data-testid="`list-edit-name-${list.uuid}`" />
+                    </VtField>
+
+                    <VtField :label="t('audience.listDescription')" :hint="t('audience.listDescriptionHint')">
+                        <VtInput v-model="listForm.description" :data-testid="`list-edit-description-${list.uuid}`" />
+                    </VtField>
+
+                    <VtField :label="t('audience.listFromEmail')">
+                        <VtInput v-model="listForm.fromEmail" :data-testid="`list-edit-from-${list.uuid}`" />
+                    </VtField>
+
+                    <VtButton
+                        :disabled="!listForm.name.trim()"
+                        :data-testid="`list-save-${list.uuid}`"
+                        @click="saveList(list.uuid)"
+                    >
+                        {{ t('audience.saveList') }}
+                    </VtButton>
+                </div>
             </div>
 
             <p v-if="!lists.length" data-testid="lists-empty">{{ t('audience.noLists') }}</p>

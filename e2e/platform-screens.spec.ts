@@ -87,7 +87,14 @@ test('a címellenőrzés javaslatot ad az elgépelt címre, és a javaslat egy k
     await page.getByTestId('validation-email').fill('valaki@gmial.com');
     await page.getByTestId('validation-submit').click();
 
-    await expect(page.getByTestId('validation-verdict')).toBeVisible();
+    /*
+     | HOSSZABB HATÁRIDŐ, és nem lustaságból: a dev-stack VALÓDI DNS/MX-lekérdezést futtat
+     | (a CI-ban `DOMAINS_RESOLVER=fake`), egy nem létező domainre (`gmial.com`) pedig a
+     | feloldó a negatív választ lassan adja — a teljes suite alatt mérve 5 másodperc fölött
+     | is. Az alapértelmezett határidővel a teszt akkor bukott el, amikor a kérés MÉG FUTOTT:
+     | a hiba ott látszott, ahol nem volt.
+     */
+    await expect(page.getByTestId('validation-verdict')).toBeVisible({ timeout: 20_000 });
     await expect(page.getByTestId('verdict-suggestion')).toContainText('valaki@gmail.com');
 
     // A JAVASLAT ÚJRAELLENŐRZÉSE: ez menti meg a címet, ami különben örökre bounce-olna.

@@ -41,6 +41,10 @@ Schedule::command('logs:purge')->dailyAt('03:40');
 // törlési ablak pedig 365+ napos.
 Schedule::command('audit:prune')->weeklyOn(0, '04:30');
 
+// A MEGHÍVÓK a legkevésbé indokolható PII-t tartják: olyan ember címét, aki lehet, hogy
+// sosem lesz felhasználó. A beváltás TÉNYE az audit-naplóban marad, ez a tábla takarítható.
+Schedule::command('tenancy:prune-invitations')->weeklyOn(0, '04:45');
+
 // A bejövő levél IDEGEN tartalom, rövid retencióval (alap 3 nap): GYAKRABBAN takarítunk,
 // mint a saját naplónkat, és a fájltárat is ürítjük vele.
 Schedule::command('inbound:purge')->hourly();

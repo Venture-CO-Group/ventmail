@@ -85,12 +85,28 @@ final class CampaignUiController
                 'excludeSegments' => array_values((array) $campaign->exclude_segments),
                 'scheduledAt' => $campaign->scheduled_at?->toIso8601String(),
                 'timezone' => $campaign->timezone,
+                // AZ ÖSSZEG a felületen: az indítás 100-at követel, és egy 90-es összeget
+                // nem szabad az indítás hibaüzenetéből megtudni.
+                'variantWeightTotal' => (int) $campaign->variants->sum('weight'),
                 'variants' => $campaign->variants->map(fn ($variant) => [
                     'uuid' => (string) $variant->uuid,
                     'label' => (string) $variant->label,
                     'subject' => (string) $variant->subject,
-                    'share' => (int) $variant->share,
-                    'winner' => (bool) $variant->winner,
+                    // A SÚLY SZÁZALÉK, és az összegüknek PONTOSAN 100-nak kell lennie:
+                    // ezt a `CampaignLifecycle::assertReady()` kényszeríti ki az
+                    // indításnál. A felület ezért az ÖSSZEGET is kiírja — enélkül a
+                    // felhasználó az indítás pillanatában szembesülne vele.
+                    'weight' => (int) $variant->weight,
+                    // AZ OSZLOP NEVE `is_winner`. A korábbi `winner` (és `share`) egyik
+                    // sem létezett: a szerkesztő képernyő ezért MINDEN olyan kampányon
+                    // 500-zal esett el, aminek volt változata — vagyis pont az A/B
+                    // teszten. Strict módban a nem létező attribútum kivétel, nem null.
+                    'winner' => (bool) $variant->is_winner,
+                    // AZ EREDMÉNY a variáns mellett: e nélkül a felhasználó felvenné a
+                    // változatokat, és a nyertest máshol keresné.
+                    'sent' => (int) $variant->sent_count,
+                    'opened' => (int) $variant->opened_count,
+                    'clicked' => (int) $variant->clicked_count,
                 ])->values()->all(),
             ],
             'templates' => Template::query()->orderBy('name')->get(['uuid', 'name'])
@@ -171,6 +187,79 @@ final class CampaignUiController
         }
 
         return back()->with('success', __('ventmail.campaigns.saved'));
+    }
+
+    /**
+     * A/B VÁLTOZAT hozzáadása (64. kritérium).
+     *
+     * ## Miért a felületen is, és miért csak DRAFT állapotban
+     *
+     * Eddig a variánst csak API-ból lehetett létrehozni, a felület pedig CSAK MUTATTA —
+     * vagyis az A/B teszt gyakorlatilag fejlesztői funkció volt. Küldés közben viszont új
+     * változat nem jöhet: a kiosztás (`VariantAssigner`) a küldés elején dől el, és egy
+     * menet közben érkező variáns a már kiküldött felével összehasonlíthatatlan lenne.
+     */
+    public function addVariant(Request $request, string $uuid): RedirectResponse
+    {
+        Gate::authorize('campaign.create');
+
+        $campaign = Campaign::query()->where('uuid', $uuid)->firstOrFail();
+
+        if (! $campaign->statusEnum()->isEditable()) {
+            return back()->with('error', __('ventmail.campaigns.variantLocked'));
+        }
+
+        $validated = $request->validate([
+            'label' => ['required', 'string', 'max:40'],
+            'subject' => ['required', 'string', 'max:255'],
+            // A SÚLY SZÁZALÉK. A nulla nem engedett: egy 0%-os változat sosem kapna
+            // címzettet, viszont beleszámítana a „legalább két variáns" feltételbe — a
+            // felhasználó A/B tesztet hinne ott, ahol egyetlen tárgysor megy ki.
+            'weight' => ['required', 'integer', 'min:1', 'max:100'],
+        ]);
+
+        try {
+            $campaign->variants()->create([
+                'label' => $validated['label'],
+                'subject' => $validated['subject'],
+                'weight' => (int) $validated['weight'],
+            ]);
+        } catch (RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', __('ventmail.campaigns.variantAdded'));
+    }
+
+    /**
+     * VÁLTOZAT TÖRLÉSE — piszkozat állapotban.
+     *
+     * Enélkül a képernyő zsákutca lenne: a súlyok összegének PONTOSAN 100-nak kell lennie
+     * az indításhoz, és egy elgépelt súlyú változatot csak API-ból lehetett volna
+     * eltüntetni. Küldés közben (vagy után) viszont nem törölhető: a variáns a kiküldött
+     * levelek MAGYARÁZATA, és a nélküle maradt statisztika értelmezhetetlen lenne.
+     */
+    public function deleteVariant(string $uuid, string $variant): RedirectResponse
+    {
+        Gate::authorize('campaign.create');
+
+        $campaign = Campaign::query()->where('uuid', $uuid)->firstOrFail();
+
+        if (! $campaign->statusEnum()->isEditable()) {
+            return back()->with('error', __('ventmail.campaigns.variantLocked'));
+        }
+
+        $target = $campaign->variants()->where('uuid', $variant)->first();
+
+        // NEM LÉTEZŐ VÁLTOZAT: siker-üzenet helyett hiba — különben a felhasználó azt
+        // hinné, hogy törölt valamit, ami ott sem volt (vagy ami máshoz tartozik).
+        if ($target === null) {
+            return back()->with('error', __('ventmail.campaigns.variantMissing'));
+        }
+
+        $target->delete();
+
+        return back()->with('success', __('ventmail.campaigns.variantRemoved'));
     }
 
     public function transition(Request $request, string $uuid, CampaignLifecycle $lifecycle): RedirectResponse

@@ -9,6 +9,7 @@ use App\Modules\Identity\Actions\SyncSsoUser;
 use App\Modules\Identity\Services\OidcClient;
 use App\Modules\Identity\Services\PlatformAdminSync;
 use App\Modules\Identity\Services\RoleMapper;
+use App\Modules\Tenancy\Actions\RedeemInvitations;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -29,6 +30,7 @@ final class OidcCallbackController
         RoleMapper $roleMapper,
         PlatformAdminSync $platformAdmin,
         AuthorizeSsoSubject $authorizeSubject,
+        RedeemInvitations $redeemInvitations,
     ): RedirectResponse {
         $claims = $client->handleCallback($request);
 
@@ -50,6 +52,21 @@ final class OidcCallbackController
 
         Auth::login($user);
         $request->session()->regenerate();
+
+        /*
+         | NYITOTT MEGHÍVÓ ESETÉN a MEGHÍVOTT DÖNT — nem váltjuk be magától.
+         |
+         | Az automatikus beváltás azt jelentette volna, hogy egy idegen szervezet PII-t
+         | szerez valakiről (név, cím, utolsó belépés a tagok-képernyőjükön) pusztán attól,
+         | hogy beírta a címét egy űrlapba. A `/invitations` képernyőn az érintett elfogad
+         | vagy elutasít; az elutasítás törli a sort.
+         |
+         | A `users` sor addigra létezik (a ventSSO belépése hozta létre) — identitást
+         | továbbra sem gyártunk (golden rule 1).
+         */
+        if ($redeemInvitations->openFor($user)->isNotEmpty()) {
+            return redirect('/invitations');
+        }
 
         // DIAGNOSZTIKA. Jogosultsági döntéshez TILOS használni: a hozzáférés egyetlen
         // forrása a `workspace_members` tábla (golden rule 1).

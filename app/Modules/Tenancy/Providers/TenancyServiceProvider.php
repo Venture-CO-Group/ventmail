@@ -6,6 +6,8 @@ namespace App\Modules\Tenancy\Providers;
 
 use App\Models\User;
 use App\Modules\Support\ModuleServiceProvider;
+use App\Modules\Tenancy\Console\PruneInvitationsCommand;
+use App\Modules\Tenancy\Console\SyncSubAccountOwnersCommand;
 use App\Modules\Tenancy\Policies\AbilityMap;
 use App\Modules\Tenancy\Policies\WorkspaceGate;
 use App\Modules\Tenancy\Services\WorkspaceContext;
@@ -24,6 +26,10 @@ final class TenancyServiceProvider extends ModuleServiceProvider
 
     protected function bootModule(): void
     {
+        if ($this->app->runningInConsole()) {
+            $this->commands([PruneInvitationsCommand::class, SyncSubAccountOwnersCommand::class]);
+        }
+
         foreach (AbilityMap::all() as $ability) {
             // A WorkspaceGate-et MINDIG futásidőben oldjuk fel: a WorkspaceContext `scoped`,
             // amit a queue worker két job között eldob. Egy boot-időben becsukott példány

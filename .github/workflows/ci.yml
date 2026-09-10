@@ -368,6 +368,19 @@ jobs:
       - name: playwright test
         run: npx playwright test
 
+      # A BÖNGÉSZŐ-TESZT BUKÁSA MELLÉ A SZERVER SAJÁT SZAVA IS KELL.
+      #
+      # A Playwright csak azt látja, amit a böngésző kapott: „az elem nincs meg". Hogy a
+      # kérés MIÉRT nem járt sikerrel (kivétel, kapu-elutasítás, 500), az kizárólag az
+      # alkalmazás naplójában van — és a runner a futás végén eldobja. Mérve: egy CI-only
+      # bukást (nálunk zöld, ott piros) e nélkül csak találgatni lehetett.
+      - name: 'alkalmazás-napló bukás esetén'
+        if: failure()
+        run: |
+          echo "::group::laravel.log (utolsó 300 sor)"
+          tail -n 300 storage/logs/laravel.log 2>/dev/null || echo "nincs napló"
+          echo "::endgroup::"
+
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: failure()
         with:

@@ -43,6 +43,12 @@ const platform = computed(() =>
         { href: '/smtp-credentials', id: 'nav-smtp', label: t('nav.smtp'), show: can('smtpCredential.manage') },
         { href: '/suppressions', id: 'nav-suppressions', label: t('nav.suppressions'), show: can('suppression.manage') },
         { href: '/webhooks', id: 'nav-webhooks', label: t('nav.webhooks'), show: can('webhook.manage') },
+        {
+            href: '/stored-templates',
+            id: 'nav-stored-templates',
+            label: t('nav.storedTemplates'),
+            show: can('storedTemplate.manage'),
+        },
         { href: '/ip-pools', id: 'nav-ip-pools', label: t('nav.ipPools'), show: can('ipPool.manage') },
         { href: '/validation', id: 'nav-validation', label: t('nav.validation'), show: can('validation.run') },
         { href: '/deliverability', id: 'nav-deliverability', label: t('nav.deliverability'), show: can('analytics.view') },
@@ -60,11 +66,25 @@ const platform = computed(() =>
 const studio = computed(() =>
     [
         { href: '/audience', id: 'nav-audience', label: t('nav.audience'), show: can('audience.manage') },
+        { href: '/forms', id: 'nav-forms', label: t('nav.forms'), show: can('audience.manage') },
         { href: '/templates', id: 'nav-templates', label: t('nav.templates'), show: can('template.create') },
         { href: '/campaigns', id: 'nav-campaigns', label: t('nav.campaigns'), show: can('campaign.create') },
         { href: '/journeys', id: 'nav-journeys', label: t('nav.journeys'), show: can('campaign.create') },
         { href: '/analytics', id: 'nav-analytics', label: t('nav.analytics'), show: can('analytics.view') },
     ].filter((item) => item.show),
+);
+
+/*
+ | BEÁLLÍTÁSOK: ami a WORKSPACE-ről szól, nem a küldésről.
+ |
+ | Külön csoport, mert más a kérdés: a platform- és a studio-menüpont azt mondja meg, MIT
+ | csinálsz, ez pedig azt, KI CSINÁLHATJA. Egy közös listában a tagkezelés a huszonegyedik
+ | menüpont lenne, és ott senki nem keresi.
+ */
+const settings = computed(() =>
+    [{ href: '/members', id: 'nav-members', label: t('nav.members'), show: can('member.manage') }].filter(
+        (item) => item.show,
+    ),
 );
 
 const workspaceOptions = computed(() =>
@@ -136,6 +156,20 @@ async function switchLocale(code: string): Promise<void> {
                 <span class="vm-nav-group__title vt-eyebrow">{{ t('nav.studio') }}</span>
                 <Link
                     v-for="item in studio"
+                    :key="item.href"
+                    class="vm-nav-link"
+                    :href="item.href"
+                    :data-testid="item.id"
+                    :aria-current="$page.url.startsWith(item.href) ? 'page' : undefined"
+                >
+                    {{ item.label }}
+                </Link>
+            </div>
+
+            <div v-if="settings.length" class="vm-nav-group" data-testid="nav-settings">
+                <span class="vm-nav-group__title vt-eyebrow">{{ t('nav.settings') }}</span>
+                <Link
+                    v-for="item in settings"
                     :key="item.href"
                     class="vm-nav-link"
                     :href="item.href"
