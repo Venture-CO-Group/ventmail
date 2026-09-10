@@ -14,6 +14,7 @@ use App\Modules\Tenancy\Policies\AbilityMap;
 use App\Modules\Tenancy\Services\WorkspaceContext;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
 use InvalidArgumentException;
@@ -64,58 +65,81 @@ final class AssignWorkspaceRoles
         // a saját felületén nem volt visszaút, csak platform-adminnal.
         $this->assertOwnerRemains($existing, in_array(Role::Owner->value, $roleValues, true));
 
-        $member = WorkspaceMember::updateOrCreate(
-            ['workspace_id' => $this->context->workspaceId(), 'user_id' => $target->getKey()],
-            ['roles' => $roleValues],
-        );
+        /*
+         | MINDEN ÍRÁS EGY TRANZAKCIÓBAN — ÉS AZ AUDIT IS BENNE.
+         |
+         | A művelet négy táblát érint: a szülő tagságát, a meghívókat, az al-fiókok
+         | tagságát és az audit-naplót. Tranzakció nélkül a security-review hibainjektálása
+         | ezt mérte: ha a child-oldali írás elbukik (a valós megfelelője a
+         | `(workspace_id, user_id)` unique ütközése két párhuzamos kiosztásnál), a SZÜLŐ
+         | szerep-változás már kint van, az audit-sor viszont soha nem születik meg — a
+         | rendszer legprivilegizáltabb művelete nyom nélkül megy végbe (golden rule 11).
+         |
+         | A másik, élesebb következmény a RÉSZLEGES TÜKRÖZÉS: ha a visszavonás a 25.
+         | al-fióknál bukik, az 1–24-ről a jog elesett, a 26–50-ről nem — és ezt semmi nem
+         | javítja utólag, mert a backfill-parancs kizárólag hozzáad. Megszakadt offboarding
+         | után tartós, észrevétlen hozzáférés-maradvány.
+         |
+         | Az AUDIT a szülő-írás UTÁN, de a tranzakción BELÜL: ha bármi elbukik, a napló és
+         | az adat együtt gördül vissza — nincs olyan állapot, ahol az egyik látszik és a
+         | másik nem.
+         */
+        return DB::transaction(function () use ($target, $roleValues, $existing): WorkspaceMember {
+            $member = WorkspaceMember::updateOrCreate(
+                ['workspace_id' => $this->context->workspaceId(), 'user_id' => $target->getKey()],
+                ['roles' => $roleValues],
+            );
 
-        // A KIFEJEZETT KIOSZTÁS EMBERI DÖNTÉS: a tükrözés-jelölés törlődik.
-        //
-        // Enélkül a jelölés „ragadós" volt: a child SAJÁT tulajdonosának kiosztása egy
-        // korábban tükrözött soron továbbra is tükrözöttnek számított, és a parent
-        // leszedte — pedig a childban valaki kifejezetten úgy döntött, hogy odaadja.
-        $member->forceFill(['owner_mirrored' => false])->save();
+            // A KIFEJEZETT KIOSZTÁS EMBERI DÖNTÉS: a tükrözés-jelölés törlődik.
+            //
+            // Enélkül a jelölés „ragadós" volt: a child SAJÁT tulajdonosának kiosztása egy
+            // korábban tükrözött soron továbbra is tükrözöttnek számított, és a parent
+            // leszedte — pedig a childban valaki kifejezetten úgy döntött, hogy odaadja.
+            $member->forceFill(['owner_mirrored' => false])->save();
 
-        // A LEFOKOZOTT TAG DÖNTÉSE SEM ÉLHET TOVÁBB.
-        //
-        // A `RemoveMember` revokálja az eltávolított tag nyitott meghívóit, a lefokozás
-        // viszont nem tette — pedig az az olcsóbb, gyakoribb reakció. Mérve: `admin` A
-        // `admin`-meghívót ír, az owner `analyst`-ra fokozza A-t, a meghívó nyitva marad
-        // `["admin"]` szereppel, a meghívott elfogadja — és `admin` tagságot kap attól,
-        // akitől ezt a jogot épp elvették.
-        //
-        // CSAK a már nem kiosztható meghívók esnek el: egy előléptetés (több szerep) nem
-        // vonja vissza a korábbi, továbbra is fedezett meghívókat.
-        $this->revokeUngrantableInvitations($target, $roleValues);
+            // Golden rule 11: a szerep-kiosztás a legprivilegizáltabb admin-művelet —
+            // enélkül valaki jogot oszthatna magának úgy, hogy nyoma sem marad. A sor
+            // KÖZVETLENÜL a döntés után íródik, nem a mellékhatások végén.
+            $this->audit->log(
+                'member.roles.assigned',
+                $member,
+                before: ['roles' => $existing?->roles() ?? []],
+                after: ['roles' => $roleValues],
+                context: [
+                    'target_user_id' => $target->getKey(),
+                    'target_sso_subject' => $target->sso_subject,
+                ],
+            );
 
-        // A CHILD WORKSPACE-EK tulajdonosi köre követi a parentét (lásd a metódus
-        // indoklását): enélkül a távozó kolléga megtartaná az owner-jogot minden általa
-        // létrehozott al-fiókon, az új tulajdonos pedig be sem lépne oda.
-        //
-        // CSAK AKKOR, HA A TULAJDONOSI BIT VÁLTOZOTT: egy szerep-módosítás, ami az ownert
-        // nem érinti, ne írjon 50 al-fiók naplójába — az audit append-only, DB-oldali 365
-        // napos alsó időhatárral, tehát a fölösleges sor egy évig velünk marad.
-        $wasOwner = in_array(Role::Owner->value, $existing?->roles() ?? [], true);
-        $isOwner = in_array(Role::Owner->value, $roleValues, true);
+            // A LEFOKOZOTT TAG DÖNTÉSE SEM ÉLHET TOVÁBB.
+            //
+            // A `RemoveMember` revokálja az eltávolított tag nyitott meghívóit, a lefokozás
+            // viszont nem tette — pedig az az olcsóbb, gyakoribb reakció. Mérve: `admin` A
+            // `admin`-meghívót ír, az owner `analyst`-ra fokozza A-t, a meghívó nyitva
+            // marad `["admin"]` szereppel, a meghívott elfogadja — és `admin` tagságot kap
+            // attól, akitől ezt a jogot épp elvették.
+            //
+            // CSAK a már nem kiosztható meghívók esnek el: egy előléptetés (több szerep)
+            // nem vonja vissza a korábbi, továbbra is fedezett meghívókat.
+            $this->revokeUngrantableInvitations($target, $roleValues);
 
-        if ($wasOwner !== $isOwner) {
-            $this->syncChildOwnership($target, $isOwner);
-        }
+            // A CHILD WORKSPACE-EK tulajdonosi köre követi a parentét (lásd a metódus
+            // indoklását): enélkül a távozó kolléga megtartaná az owner-jogot minden általa
+            // létrehozott al-fiókon, az új tulajdonos pedig be sem lépne oda.
+            //
+            // CSAK AKKOR, HA A TULAJDONOSI BIT VÁLTOZOTT: egy szerep-módosítás, ami az
+            // ownert nem érinti, ne írjon 50 al-fiók naplójába — az audit append-only,
+            // DB-oldali 365 napos alsó időhatárral, tehát a fölösleges sor egy évig velünk
+            // marad.
+            $wasOwner = in_array(Role::Owner->value, $existing?->roles() ?? [], true);
+            $isOwner = in_array(Role::Owner->value, $roleValues, true);
 
-        // Golden rule 11: a szerep-kiosztás a legprivilegizáltabb admin-művelet — enélkül
-        // valaki jogot oszthatna magának úgy, hogy nyoma sem marad.
-        $this->audit->log(
-            'member.roles.assigned',
-            $member,
-            before: ['roles' => $existing?->roles() ?? []],
-            after: ['roles' => $roleValues],
-            context: [
-                'target_user_id' => $target->getKey(),
-                'target_sso_subject' => $target->sso_subject,
-            ],
-        );
+            if ($wasOwner !== $isOwner) {
+                $this->syncChildOwnership($target, $isOwner);
+            }
 
-        return $member;
+            return $member;
+        });
     }
 
     /**

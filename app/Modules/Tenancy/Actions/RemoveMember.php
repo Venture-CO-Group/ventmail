@@ -11,6 +11,7 @@ use App\Modules\Tenancy\Models\WorkspaceMember;
 use App\Modules\Tenancy\Services\WorkspaceContext;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 
 /**
@@ -56,41 +57,52 @@ final class RemoveMember
 
         $this->roles->assertOwnerRemains($member, keepsOwner: false);
 
-        // A TŐLE SZÁRMAZÓ NYITOTT MEGHÍVÓK is elesnek: aki már nincs bent, annak a
-        // döntése ne lépjen hatályba 13 nappal később. A meghívó 14 napig él, a tagság
-        // visszavonása pedig azonnal — a kettő között eddig rés volt.
-        WorkspaceInvitation::query()
-            ->where('workspace_id', $member->workspace_id)
-            ->where('invited_by_user_id', $member->user_id)
-            ->whereNull('accepted_at')
-            ->get()
-            ->each(function (WorkspaceInvitation $invitation) {
-                $this->audit->log('member.invitation.revoked', $invitation, before: [
-                    'email' => (string) $invitation->email,
-                    'roles' => $invitation->roles(),
-                    'reason' => 'inviter_removed',
-                ]);
+        /*
+         | MINDEN ÍRÁS EGY TRANZAKCIÓBAN.
+         |
+         | A művelet négy dolgot érint: a meghívókat, az al-fiókok tagságát, az
+         | audit-naplót és magát a tagság-sort. Tranzakció nélkül egy félbeszakadás
+         | maradandó féleredményt hagy: a meghívók már törlődtek, a tükrözött child-jog egy
+         | RÉSZÉN elesett — és ezt semmi nem javítja utólag, mert a backfill-parancs
+         | kizárólag hozzáad. Megszakadt offboarding után marad néhány al-fiók, ahol a
+         | távozott kolléga `owner`: tartós, észrevétlen hozzáférés-maradvány.
+         */
+        DB::transaction(function () use ($member): void {
+            // A TŐLE SZÁRMAZÓ NYITOTT MEGHÍVÓK is elesnek: aki már nincs bent, annak a
+            // döntése ne lépjen hatályba 13 nappal később. A meghívó 14 napig él, a tagság
+            // visszavonása pedig azonnal — a kettő között eddig rés volt.
+            WorkspaceInvitation::query()
+                ->where('workspace_id', $member->workspace_id)
+                ->where('invited_by_user_id', $member->user_id)
+                ->whereNull('accepted_at')
+                ->get()
+                ->each(function (WorkspaceInvitation $invitation): void {
+                    $this->audit->log('member.invitation.revoked', $invitation, before: [
+                        'email' => (string) $invitation->email,
+                        'roles' => $invitation->roles(),
+                        'reason' => 'inviter_removed',
+                    ]);
 
-                $invitation->delete();
-            });
+                    $invitation->delete();
+                });
 
-        // A CHILD-TULAJDONOSSÁG is elesik: a parentből eltávolított tag ne maradjon
-        // owner az al-fiókokon (ugyanaz a pillanatkép-probléma, mint a lefokozásnál).
-        $target = User::query()->whereKey($member->user_id)->first();
+            // A CHILD-TULAJDONOSSÁG is elesik: a parentből eltávolított tag ne maradjon
+            // owner az al-fiókokon (ugyanaz a pillanatkép-probléma, mint a lefokozásnál).
+            // CSAK a tükrözött jog — a childban külön kiosztotthoz nem nyúlunk.
+            $target = User::query()->whereKey($member->user_id)->first();
 
-        if ($target !== null) {
-            $this->roles->dropChildOwnership($target);
-        }
+            if ($target !== null) {
+                $this->roles->dropChildOwnership($target);
+            }
 
-        $before = $member->roles();
+            $this->audit->log(
+                'member.removed',
+                $member,
+                before: ['roles' => $member->roles()],
+                context: ['target_user_id' => $member->user_id],
+            );
 
-        $this->audit->log(
-            'member.removed',
-            $member,
-            before: ['roles' => $before],
-            context: ['target_user_id' => $member->user_id],
-        );
-
-        $member->delete();
+            $member->delete();
+        });
     }
 }

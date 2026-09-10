@@ -15,8 +15,10 @@ use App\Modules\Tenancy\Models\WorkspaceInvitation;
 use App\Modules\Tenancy\Models\WorkspaceMember;
 use App\Modules\Tenancy\Services\WorkspaceContext;
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 uses(RefreshDatabase::class);
 
@@ -969,4 +971,60 @@ it('a CHILD SAJÁT döntése felülírja a tükrözés-jelölést', function () 
         ->assertRedirect('/members');
 
     expect($inChild->fresh()->roles())->toBe(['owner']);
+});
+
+it('a MEGSZAKADT szerep-kiosztás semmit nem hagy hátra — sem jogot, sem auditálatlan változást', function () {
+    /*
+     | HIBAINJEKTÁLÁS, a security-review mérése nyomán.
+     |
+     | A művelet négy táblát érint: a szülő tagságát, a meghívókat, az al-fiókok tagságát
+     | és az audit-naplót. Tranzakció nélkül mérve: a child-oldali írás bukásakor a SZÜLŐ
+     | szerep-változás már kint volt, az audit-sor viszont soha nem született meg — a
+     | rendszer legprivilegizáltabb művelete nyom nélkül ment végbe (golden rule 11). A
+     | részleges tükrözés pedig maradandó: a backfill-parancs csak hozzáad, tehát a
+     | félbeszakadt offboarding után marad néhány al-fiók, ahol a távozott kolléga `owner`.
+     |
+     | A hibát ADATBÁZIS-SZINTEN injektáljuk, egy ideiglenes triggerrel a child
+     | audit-írására: ez pontosan az a pillanat, ahol a féleredmény keletkezett, és a
+     | valós megfelelője (unique-ütközés két párhuzamos kiosztásnál) ugyanígy viselkedik.
+     */
+    $parent = Workspace::factory()->create();
+    $owner = memberUser($parent, 'owner');
+    $colleague = memberUser($parent, 'editor');
+
+    Auth::login($owner);
+
+    $child = app(WorkspaceContext::class)->runFor($parent, fn () => app(CreateSubAccount::class)('Ügyfél Kft.'));
+
+    $member = WorkspaceMember::query()
+        ->where('workspace_id', $parent->getKey())
+        ->where('user_id', $colleague->getKey())
+        ->firstOrFail();
+
+    $auditsBefore = AuditLog::query()->count();
+
+    DB::statement('create or replace function vm_fail_child_write() returns trigger as $$
+        begin raise exception \'szimulált child-oldali hiba\'; end;
+    $$ language plpgsql');
+
+    DB::statement(sprintf(
+        'create trigger vm_fail_child_write_trigger before insert on workspace_members
+         for each row when (new.workspace_id = %d) execute function vm_fail_child_write()',
+        $child->getKey()
+    ));
+
+    try {
+        expect(fn () => app(WorkspaceContext::class)->runFor(
+            $parent,
+            fn () => app(AssignWorkspaceRoles::class)($colleague, ['owner'])
+        ))->toThrow(QueryException::class);
+    } finally {
+        DB::statement('drop trigger if exists vm_fail_child_write_trigger on workspace_members');
+        DB::statement('drop function if exists vm_fail_child_write()');
+    }
+
+    // A SZÜLŐ SZEREP VÁLTOZATLAN…
+    expect($member->fresh()->roles())->toBe(['editor'])
+        // …és nincs auditálatlan változás sem: a napló és az adat együtt gördült vissza.
+        ->and(AuditLog::query()->count())->toBe($auditsBefore);
 });
