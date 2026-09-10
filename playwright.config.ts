@@ -46,11 +46,31 @@ export default defineConfig({
     webServer: process.env.APP_URL
         ? undefined
         : {
-              // Az e2e-szerver nem függ Redistől/Meilitől, de a session-nek PERZISZTENSNEK
-              // kell lennie: `array` driverrel a bejelentkezés nem élné túl a következő kérést.
-              command: 'SESSION_DRIVER=file CACHE_STORE=array QUEUE_CONNECTION=sync php artisan serve --port=8000',
+              /*
+               | Az e2e-szerver nem függ Redistől/Meilitől, de a session-nek PERZISZTENSNEK
+               | kell lennie: `array` driverrel a bejelentkezés nem élné túl a következő kérést.
+               |
+               | A `--no-reload` és a `PHP_CLI_SERVER_WORKERS` NEM optimalizálás:
+               |
+               |  - reload-dal az `artisan serve` FIGYELI a környezeti fájlt, és változásra
+               |    ÚJRAINDÍTJA a szervert — az újraindulás ablakában a böngésző
+               |    `ERR_CONNECTION_REFUSED`-öt kap, és a hiba ott látszik, ahol nincs;
+               |  - workerek nélkül a beépített szerver EGYETLEN folyamat, tehát bármelyik
+               |    lassú (vagy önmagára hivatkozó) kérés megállítja az összes többit.
+               |
+               | Mérve: CI-ban egy bukás után a suite maradéka mind `ERR_CONNECTION_REFUSED`
+               | lett — a szerver eltűnt, miközben az alkalmazás-naplóban EGYETLEN hiba sem
+               | volt. A `--no-reload` a workerek előfeltétele is (az `artisan serve`
+               | különben figyelmeztet, és egy folyamattal indul).
+               */
+              command: 'SESSION_DRIVER=file CACHE_STORE=array QUEUE_CONNECTION=sync PHP_CLI_SERVER_WORKERS=4 php artisan serve --port=8000 --no-reload',
               url: 'http://127.0.0.1:8000/up',
               reuseExistingServer: !process.env.CI,
               timeout: 60_000,
+              // A SZERVER SAJÁT SZAVA is kell a bukás mellé: a Playwright csak azt látja,
+              // amit a böngésző kapott. Egy folyamat-szintű halálról (OOM, szegmentálási
+              // hiba) az alkalmazás-napló nem tud — az itt jelenik meg.
+              stdout: 'pipe',
+              stderr: 'pipe',
           },
 });
