@@ -199,13 +199,17 @@ return [
         'saved' => 'Tus preferencias se han guardado.',
     ],
     'editor' => [
+        'inUse' => 'La plantilla la usa una campaña en curso o un recorrido activo: :names. Páusalo o termínalo primero.',
         'nameTaken' => 'Ya existe una plantilla con este nombre.',
         'deleted' => 'La plantilla se ha eliminado.',
+        'blocksFull' => 'Puedes guardar como máximo :max bloques — elimina uno primero.',
         'blockDeleted' => 'El bloque guardado se ha eliminado.',
         'assets' => [
             'tooLarge' => 'La imagen es demasiado grande (máx. :max MB).',
             'badType' => 'Solo se pueden subir imágenes JPG, PNG, GIF o WebP.',
             'badDimensions' => 'La imagen debe medir como máximo :max × :max píxeles.',
+            'quota' => 'El almacenamiento de imágenes del espacio está lleno (máx. :max MB).',
+            'processing' => 'El procesamiento de imágenes no está disponible — se rechazó la subida.',
         ],
         'compliance' => [
             'missing' => 'Una plantilla apta para campañas debe incluir un pie con: :items.',

@@ -24,12 +24,14 @@ final class WebVersionTokens
 
     public function issue(int $workspaceId, string $messageUuid): string
     {
-        $payload = json_encode(['p' => self::PURPOSE, 'v' => self::VERSION, 'w' => $workspaceId, 'm' => $messageUuid]);
+        // LEJÁRAT (SS2): a webes nézet nem élhet örökké egy link mögött.
+        $expires = now()->addDays((int) config('template.web_version_ttl_days', 30))->getTimestamp();
+        $payload = json_encode(['p' => self::PURPOSE, 'v' => self::VERSION, 'w' => $workspaceId, 'm' => $messageUuid, 'e' => $expires]);
 
         return strtr(Crypt::encryptString((string) $payload), '+/=', '-_~');
     }
 
-    /** @return array{workspaceId: int, messageUuid: string}|null */
+    /** @return array{workspaceId: int, messageUuid: string, expired: bool}|null */
     public function parse(string $token): ?array
     {
         $base64 = strtr($token, '-_~', '+/=');
@@ -46,10 +48,14 @@ final class WebVersionTokens
         }
 
         if (! is_array($decoded) || ($decoded['p'] ?? null) !== self::PURPOSE || ($decoded['v'] ?? null) !== self::VERSION
-            || ! isset($decoded['w'], $decoded['m'])) {
+            || ! isset($decoded['w'], $decoded['m'], $decoded['e'])) {
             return null;
         }
 
-        return ['workspaceId' => (int) $decoded['w'], 'messageUuid' => (string) $decoded['m']];
+        return [
+            'workspaceId' => (int) $decoded['w'],
+            'messageUuid' => (string) $decoded['m'],
+            'expired' => (int) $decoded['e'] < now()->getTimestamp(),
+        ];
     }
 }

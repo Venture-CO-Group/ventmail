@@ -30,7 +30,12 @@ use Illuminate\Http\Response;
  */
 final class WebVersionController
 {
-    private const CSP = "default-src 'none'; img-src https: data:; style-src 'unsafe-inline'; "
+    /*
+     | `sandbox` (SS1): a dokumentum egyedi (opaque) originben fut — nincs szkript, űrlap,
+     | felugró ablak, és a mi originünk sütijeihez / tárolójához sem fér hozzá. A külön,
+     | süti-mentes hoszt (a tenant nyomkövetési hosztja) deploy-változás → HUMAN-QUEUE.
+     */
+    private const CSP = "sandbox; default-src 'none'; img-src https: data:; style-src 'unsafe-inline'; "
         ."font-src https:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
 
     public function show(string $token, WebVersionTokens $tokens, WorkspaceContext $context, TemplateRenderer $renderer): Response
@@ -42,6 +47,10 @@ final class WebVersionController
             return $this->respond('', 404);
         }
 
+        if ($claim['expired']) {
+            return $this->respond('', 410);
+        }
+
         // A TENANT-KONTEXTUS a TOKENBŐL jön (mint a leiratkozásnál): a lekérdezés a token
         // workspace-ére szűkül, és a kérés végén a korábbi állapot áll vissza.
         $previous = $context->hasWorkspace() ? $context->workspace() : null;
@@ -51,12 +60,13 @@ final class WebVersionController
             $message = Message::query()->where('uuid', $claim['messageUuid'])->first();
             $body = $message?->options['body_html'] ?? null;
 
-            $html = ! is_string($body) || $body === '' ? null : $renderer->render($body, [
+            // A webes nézet NEM személyre szabott: a feltételes rész a „nincs adat" ágon.
+            $html = ! is_string($body) || $body === '' || ! $message?->isStudioOrigin() ? null : $renderer->render($body, [
                 'workspace' => [
                     'name' => (string) $workspace->name,
                     'address' => (string) (($workspace->settings ?? [])['postal_address'] ?? ''),
                 ],
-            ]);
+            ], conditions: true);
         } finally {
             $previous === null ? $context->forget() : $context->set($previous);
         }

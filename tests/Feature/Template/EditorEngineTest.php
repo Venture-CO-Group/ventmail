@@ -92,7 +92,7 @@ it('az új blokkok érvényes fája átmegy, és mindegyik megjelenik a HTML-ben
     expect($text)
         ->toContain('Single origin')
         ->toContain('- Igen: https://pelda.hu/kerdoiv?answer=1')
-        ->toContain('Leiratkozás: {{ unsubscribe_url }}')
+        ->toContain(': {{ unsubscribe_url }}')
         ->toContain('Minta utca 1.');
 });
 
@@ -136,9 +136,9 @@ it('a FELTÉTELES blokk címzettenként dől el — mező és szegmens szerint',
 
     $renderer = app(TemplateRenderer::class);
 
-    $vip = $renderer->renderForRecipient($html, 'a@pelda.hu', [], ['contact' => ['segments' => [$segment], 'attributes' => ['city' => 'Szeged']]]);
-    $local = $renderer->renderForRecipient($html, 'b@pelda.hu', [], ['contact' => ['segments' => [], 'attributes' => ['city' => 'budapest']]]);
-    $nobody = $renderer->render($html, []);
+    $vip = $renderer->renderForRecipient($html, 'a@pelda.hu', [], ['contact' => ['segments' => [$segment], 'attributes' => ['city' => 'Szeged']]], conditions: true);
+    $local = $renderer->renderForRecipient($html, 'b@pelda.hu', [], ['contact' => ['segments' => [], 'attributes' => ['city' => 'budapest']]], conditions: true);
+    $nobody = $renderer->render($html, [], conditions: true);
 
     expect($vip)->toContain('Csak VIP')->not->toContain('Budapestieknek')->toContain('Mindenkinek');
     expect($local)->toContain('Budapestieknek')->not->toContain('Csak VIP');
@@ -150,9 +150,9 @@ it('a sérült vagy hamisított feltétel-jelölő ELREJT, nem mutat', function 
     $content = 'A'.ConditionalContent::openEncoded(base64_encode('{"kind":"nope"}')).'Titok'.ConditionalContent::END.'B'
         .'<!--vm:if:!!!-->X<!--vm:endif-->';
 
-    // A sérült feltétel mögötti tartalom ELTŰNIK; a nem értelmezhető jelölő maga is
-    // kikerül (nem marad komment-szemét a címzettnél).
-    expect(ConditionalContent::apply($content, []))->toBe('ABX');
+    // A sérült vagy nem értelmezhető jelölő mögötti tartalom ELTŰNIK (fail-closed), és a
+    // jelölő maga sem marad a címzettnél.
+    expect(ConditionalContent::apply($content, []))->toBe('AB');
 });
 
 it('a behelyettesített érték nem tud feltétel-jelölőt becsempészni (a feltétel ELŐBB dől el)', function () {
@@ -232,7 +232,9 @@ it('MIND A HAT indulósablon érvényes, marketing-kész, és minden nyelven ös
             $content = StarterTemplates::build($key, $this->workspace);
 
             expect(app(BlockTreeValidator::class)->errorsIn($content['blocks']))->toBe([], "$locale/$key")
-                ->and(app(TemplateCompliance::class)->missing($content['blocks']))->toBe([], "$locale/$key")
+                // A helyőrző cím (S1) mentéskor elfogadott, kampányra NEM: szigorúan hiányzik.
+                ->and(app(TemplateCompliance::class)->missing($content['blocks'], strict: false))->toBe([], "$locale/$key")
+                ->and(app(TemplateCompliance::class)->missing($content['blocks']))->toBe(['postal_address'], "$locale/$key")
                 ->and($content['subject'])->not->toStartWith('editor.');
 
             $template = Template::create([

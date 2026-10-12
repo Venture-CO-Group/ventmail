@@ -6,6 +6,8 @@ namespace App\Modules\Campaign\Services;
 
 use App\Modules\Campaign\Enums\CampaignStatus;
 use App\Modules\Campaign\Models\Campaign;
+use App\Modules\Template\Models\Template;
+use App\Modules\Template\Services\TemplateCompliance;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Bus;
 use InvalidArgumentException;
@@ -266,6 +268,18 @@ final class CampaignLifecycle
 
         if ((array) $campaign->target_lists === [] && (array) $campaign->target_segments === []) {
             $missing[] = 'célzás (lista vagy szegmens)';
+        }
+
+        // v1.1 (S1) · a lábléc HELYŐRZŐ postai címe nem postai cím: a marketing levél
+        // így nem indulhat el (a sablonnak és a változatok sablonjainak egyaránt).
+        $templates = Template::query()
+            ->whereKey(array_filter([$campaign->template_id, ...$campaign->variants()->pluck('template_id')->all()]))
+            ->get();
+
+        foreach ($templates as $template) {
+            if ($template->marketing && app(TemplateCompliance::class)->hasPlaceholderAddress((array) $template->blocks)) {
+                $missing[] = 'valódi postai cím a láblécben ('.$template->name.')';
+            }
         }
 
         if ($missing !== []) {

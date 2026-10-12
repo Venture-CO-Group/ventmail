@@ -179,6 +179,11 @@ final class BlockTreeValidator
                 $this->errors[] = $here.': a leiratkozó / lábléc blokkot tartalmazó szakasz nem lehet feltételes.';
             }
 
+            // S2 · ugyanez a mobil-rejtésre: a mobilon olvasó címzett is lássa a leiratkozót.
+            if (($attrs['hide_on_mobile'] ?? false) === true && self::containsCompliance((array) ($block['children'] ?? []))) {
+                $this->errors[] = $here.': a leiratkozó / lábléc blokkot tartalmazó szakasz nem rejthető el mobilon.';
+            }
+
             $children = $block['children'] ?? [];
 
             if ($spec['children'] === null) {

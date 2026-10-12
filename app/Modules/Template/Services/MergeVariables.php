@@ -34,6 +34,9 @@ final class MergeVariables
     /** @var array<string, array<int, true>> szegmens-uuid → a tag kontakt-id-k */
     private array $membership = [];
 
+    /** @var list<string> a sablonban hivatkozott `contact.attributes.*` kulcsok */
+    private array $attributes = [];
+
     public function __construct(private readonly SegmentEngine $segments) {}
 
     /**
@@ -46,12 +49,21 @@ final class MergeVariables
     public function prepare(array $contents, array $contactIds): void
     {
         $this->membership = [];
+        $this->attributes = [];
 
         $referenced = [];
 
         foreach ($contents as $content) {
             $referenced = [...$referenced, ...ConditionalContent::referencedSegments($content)];
+
+            // ADATMINIMALIZÁLÁS: csak a sablonban HIVATKOZOTT egyéni mezők utaznak tovább
+            // (merge-tag vagy feltétel), nem a kontakt teljes attribútum-készlete.
+            preg_match_all('/\{\{\s*contact\.attributes\.([a-z0-9_]{1,64})/', $content, $tags);
+            $this->attributes = [...$this->attributes, ...($tags[1] ?? []), ...ConditionalContent::referencedAttributes($content)];
         }
+
+        $this->attributes = array_values(array_unique($this->attributes));
+        sort($this->attributes);
 
         $referenced = array_values(array_unique($referenced));
 
@@ -59,7 +71,8 @@ final class MergeVariables
             return;
         }
 
-        foreach (Segment::query()->whereIn('uuid', $referenced)->get() as $segment) {
+        // DETERMINISZTIKUS sorrend (B1): ugyanaz a köteg ugyanazt a változó-halmazt adja.
+        foreach (Segment::query()->whereIn('uuid', $referenced)->orderBy('uuid')->get() as $segment) {
             try {
                 $ids = $this->segments->query((array) $segment->definition)
                     ->whereIn('contacts.id', $contactIds)
@@ -95,7 +108,7 @@ final class MergeVariables
                 'last_name' => (string) ($contact?->last_name ?? ''),
                 'email' => (string) ($contact?->email ?? ''),
                 'company' => is_scalar($attributes['company'] ?? null) ? (string) $attributes['company'] : '',
-                'attributes' => array_filter($attributes, static fn ($value) => is_scalar($value) || $value === null),
+                'attributes' => $this->referencedAttributes($attributes),
                 'segments' => $segments,
             ],
             'workspace' => [
@@ -103,5 +116,21 @@ final class MergeVariables
                 'address' => (string) (($workspace->settings ?? [])['postal_address'] ?? ''),
             ],
         ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $attributes
+     * @return array<string, scalar|null>
+     */
+    private function referencedAttributes(array $attributes): array
+    {
+        $out = [];
+
+        foreach ($this->attributes as $key) {
+            $value = $attributes[$key] ?? null;
+            $out[$key] = is_scalar($value) ? $value : null;
+        }
+
+        return $out;
     }
 }

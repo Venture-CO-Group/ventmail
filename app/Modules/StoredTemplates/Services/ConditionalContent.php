@@ -45,12 +45,6 @@ final class ConditionalContent
 
     public const SEGMENT_OPERATORS = ['in', 'not_in'];
 
-    /** A legbelső feltételes szakasz (nincs benne újabb nyitó jelölő). */
-    private const INNERMOST = '/<!--vm:if:([A-Za-z0-9+\/=]{1,2048})-->((?:(?!<!--vm:if:).)*?)<!--vm:endif-->/s';
-
-    /** A beágyazás felső határa — egy rosszindulatú bemenet ne pörgesse a ciklust. */
-    private const MAX_PASSES = 32;
-
     /** @param array<string, mixed> $condition */
     public static function open(array $condition): string
     {
@@ -70,46 +64,162 @@ final class ConditionalContent
     /** A nyitó jelölő egy már kódolt feltételből — a nem-base64 bemenet üres jelölőt ad. */
     public static function openEncoded(string $encoded): string
     {
-        return preg_match('/^[A-Za-z0-9+\/=]{1,2048}$/', $encoded) === 1 ? '<!--vm:if:'.$encoded.'-->' : '';
+        return $encoded !== '' && strlen($encoded) <= self::MAX_MARKER
+            && strspn($encoded, 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=') === strlen($encoded)
+            ? self::OPEN.$encoded.'-->'
+            : '';
     }
 
     /**
+     * A feltételben hivatkozott kontakt-mezők (`contact.attributes.x` → `x`) — az
+     * adatminimalizáláshoz: a küldő csak ezeket az attribútumokat adja át.
+     *
+     * @return list<string>
+     */
+    public static function referencedAttributes(string $content): array
+    {
+        $keys = [];
+
+        foreach (self::markers($content) as $condition) {
+            if (($condition['kind'] ?? null) === 'field' && str_starts_with((string) ($condition['field'] ?? ''), 'contact.attributes.')) {
+                $keys[] = substr((string) $condition['field'], strlen('contact.attributes.'));
+            }
+        }
+
+        return array_values(array_unique($keys));
+    }
+
+    /** @return list<array<string, mixed>> a tartalom érvényes feltételei */
+    private static function markers(string $content): array
+    {
+        $out = [];
+        $offset = 0;
+
+        while (($start = strpos($content, self::OPEN, $offset)) !== false) {
+            $close = strpos($content, '-->', $start);
+
+            if ($close === false) {
+                break;
+            }
+
+            $decoded = json_decode((string) base64_decode(substr($content, $start + strlen(self::OPEN), $close - $start - strlen(self::OPEN)), true), true);
+
+            if (is_array($decoded) && self::violation($decoded) === null) {
+                $out[] = $decoded;
+            }
+
+            $offset = $close + 3;
+        }
+
+        return $out;
+    }
+
+    private const OPEN = '<!--vm:if:';
+
+    private const MAX_MARKER = 2048;
+
+    /** A beágyazás felső határa — mélyebb fa csak hamisított bemenetből jöhet. */
+    private const MAX_DEPTH = 32;
+
+    /**
      * A feltételek KIÉRTÉKELÉSE a címzett változóival.
+     *
+     * ## Lineáris elemző, nem regex (SB1)
+     *
+     * A korábbi `(?:(?!…).)*?` minta a PCRE JIT veremkorlátján ~24 KB feltételes tartalom
+     * felett `null`-t adott, amit a `(string)` cast ÜRES törzzsé alakított — a levél (a
+     * láblécével együtt) üresen ment volna ki. Itt `strpos`-alapú, egyetlen menetes
+     * bejárás van veremmel: a futásidő és a memória a bemenettel lineáris, regex nincs.
+     *
+     * ## Fail-closed
+     *
+     * Hibás, értelmezhetetlen vagy le nem zárt jelölő mögötti tartalom ELREJTŐDIK; a
+     * páratlan záró jelölő eltűnik. A túl mély beágyazás kivételt dob — a hívó (a
+     * dispatcher) ilyenkor nem küld, nem egy félig kiértékelt levelet.
      *
      * @param  array<string, mixed>  $variables
      */
     public static function apply(string $content, array $variables): string
     {
-        if (! str_contains($content, '<!--vm:if:')) {
+        return self::walk($content, static fn (?array $condition): bool => $condition !== null && self::matches($condition, $variables));
+    }
+
+    /**
+     * MINDEN feltételes szakasz eltávolítása (jelölővel és tartalommal együtt) — a nem
+     * Studio-eredetű törzsekre (pl. `/v1` hívó, tárolt sablon): ott a feltétel adata nem a
+     * mi kontaktunké, a „csak VIP-eknek" tartalom tehát senkihez nem kerülhet ki.
+     */
+    public static function strip(string $content): string
+    {
+        return self::walk($content, static fn (): bool => false);
+    }
+
+    /** @param callable(?array<string, mixed>): bool $visible */
+    private static function walk(string $content, callable $visible): string
+    {
+        if (! str_contains($content, '<!--vm:')) {
             return $content;
         }
 
-        for ($pass = 0; $pass < self::MAX_PASSES && str_contains($content, '<!--vm:if:'); $pass++) {
-            $next = (string) preg_replace_callback(
-                self::INNERMOST,
-                static function (array $matches) use ($variables): string {
-                    $condition = json_decode((string) base64_decode($matches[1], true), true);
+        $out = '';
+        $stack = [];
+        $offset = 0;
+        $length = strlen($content);
 
-                    // A HIBÁS jelölő ELREJT, nem mutat: egy sérült feltétel mögötti tartalom
-                    // (pl. „csak VIP-eknek: 50% kupon") nem kerülhet mindenkihez.
-                    if (! is_array($condition) || self::violation($condition) !== null) {
-                        return '';
-                    }
+        while ($offset < $length) {
+            $next = strpos($content, '<!--vm:', $offset);
 
-                    return self::matches($condition, $variables) ? $matches[2] : '';
-                },
-                $content
-            );
+            if ($next === false) {
+                if (! in_array(false, $stack, true)) {
+                    $out .= substr($content, $offset);
+                }
 
-            if ($next === $content) {
                 break;
             }
 
-            $content = $next;
+            if (! in_array(false, $stack, true)) {
+                $out .= substr($content, $offset, $next - $offset);
+            }
+
+            if (substr_compare($content, self::END, $next, strlen(self::END)) === 0) {
+                // Páratlan záró jelölő: eltűnik.
+                array_pop($stack);
+                $offset = $next + strlen(self::END);
+
+                continue;
+            }
+
+            $close = strpos($content, '-->', $next);
+
+            if ($close === false) {
+                // Le nem zárt komment: a maradék nem értelmezhető — elrejtjük.
+                break;
+            }
+
+            $marker = substr($content, $next, $close + 3 - $next);
+            $offset = $close + 3;
+
+            if (! str_starts_with($marker, self::OPEN)) {
+                // Más `<!--vm:` alak: nem a mi jelölőnk, eltűnik (tartalom nélkül).
+                continue;
+            }
+
+            if (count($stack) >= self::MAX_DEPTH) {
+                throw new \RuntimeException('A feltételes tartalom beágyazása túl mély.');
+            }
+
+            $encoded = substr($marker, strlen(self::OPEN), -3);
+            $condition = null;
+
+            if ($encoded !== '' && strlen($encoded) <= self::MAX_MARKER && strspn($encoded, 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=') === strlen($encoded)) {
+                $decoded = json_decode((string) base64_decode($encoded, true), true);
+                $condition = is_array($decoded) && self::violation($decoded) === null ? $decoded : null;
+            }
+
+            $stack[] = (bool) $visible($condition);
         }
 
-        // A PÁRATLAN jelölők maradéka ne kerüljön ki a címzetthez.
-        return (string) preg_replace('/<!--vm:if:[^>]{0,4096}?-->|<!--vm:endif-->/', '', $content);
+        return $out;
     }
 
     /**
@@ -171,19 +281,18 @@ final class ConditionalContent
      */
     public static function referencedSegments(string $content): array
     {
-        preg_match_all('/<!--vm:if:([A-Za-z0-9+\/=]{1,2048})-->/', $content, $matches);
-
         $segments = [];
 
-        foreach ($matches[1] as $encoded) {
-            $condition = json_decode((string) base64_decode($encoded, true), true);
-
-            if (is_array($condition) && ($condition['kind'] ?? null) === 'segment' && is_string($condition['segment'] ?? null)) {
-                $segments[] = strtolower($condition['segment']);
+        foreach (self::markers($content) as $condition) {
+            if (($condition['kind'] ?? null) === 'segment') {
+                $segments[] = strtolower((string) $condition['segment']);
             }
         }
 
-        return array_values(array_unique($segments));
+        $segments = array_values(array_unique($segments));
+        sort($segments);
+
+        return $segments;
     }
 
     /**

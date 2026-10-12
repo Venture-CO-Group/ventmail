@@ -23,6 +23,12 @@ namespace App\Modules\Template\Services;
  *
  * - `footer` blokk: mindhármat hordozza (a cím kötelező mezője, a két link nem kapcsolható ki);
  * - `unsubscribe` blokk: a leiratkozó és a beállítás-linket hordozza, a postai címet NEM.
+ *
+ * ## A helyőrző cím (S1)
+ *
+ * A katalógus kitalált címe („1 Example Street") SZIGORÚ módban hiányzónak számít: az
+ * optimalizáló mutatja, a kampányindítás elutasítja. A szerkesztő MENTÉSE nem-szigorú —
+ * egy indulósablonból létrehozott piszkozat menthető, amíg a felhasználó kitölti.
  */
 final class TemplateCompliance
 {
@@ -38,11 +44,11 @@ final class TemplateCompliance
      * @param  array<int, mixed>  $blocks
      * @return list<string>
      */
-    public function missing(array $blocks): array
+    public function missing(array $blocks, bool $strict = true): array
     {
         $found = [self::POSTAL_ADDRESS => false, self::UNSUBSCRIBE => false, self::PREFERENCES => false];
 
-        $this->walk($blocks, $found);
+        $this->walk($blocks, $found, $strict);
 
         return array_keys(array_filter($found, static fn (bool $present) => ! $present));
     }
@@ -51,7 +57,7 @@ final class TemplateCompliance
      * @param  array<int, mixed>  $blocks
      * @param  array<string, bool>  $found
      */
-    private function walk(array $blocks, array &$found): void
+    private function walk(array $blocks, array &$found, bool $strict): void
     {
         foreach ($blocks as $block) {
             if (! is_array($block)) {
@@ -65,7 +71,8 @@ final class TemplateCompliance
                     $found[self::UNSUBSCRIBE] = true;
                     $found[self::PREFERENCES] = true;
 
-                    if (is_string($attrs['address'] ?? null) && trim($attrs['address']) !== '') {
+                    if (is_string($attrs['address'] ?? null) && trim($attrs['address']) !== ''
+                        && (! $strict || ! self::isPlaceholderAddress($attrs['address']))) {
                         $found[self::POSTAL_ADDRESS] = true;
                     }
 
@@ -78,7 +85,50 @@ final class TemplateCompliance
                     break;
             }
 
-            $this->walk((array) ($block['children'] ?? []), $found);
+            $this->walk((array) ($block['children'] ?? []), $found, $strict);
         }
+    }
+
+    /**
+     * Van-e a fában HELYŐRZŐ postai címmel kitöltött lábléc? (A kampányindítás kérdezi.)
+     *
+     * @param  array<int, mixed>  $blocks
+     */
+    public function hasPlaceholderAddress(array $blocks): bool
+    {
+        foreach ($blocks as $block) {
+            if (! is_array($block)) {
+                continue;
+            }
+
+            if (($block['type'] ?? null) === 'footer' && is_string($block['attrs']['address'] ?? null)
+                && self::isPlaceholderAddress($block['attrs']['address'])) {
+                return true;
+            }
+
+            if ($this->hasPlaceholderAddress((array) ($block['children'] ?? []))) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * A KATALÓGUS kitalált helyőrző-címe (S1) — bármelyik nyelven — HIÁNYZÓ címnek számít.
+     * Egy „1 Example Street" a levélben nem postai cím, csak annak látszik.
+     */
+    public static function isPlaceholderAddress(string $address): bool
+    {
+        $normalize = static fn (string $value): string => mb_strtolower((string) preg_replace('/\s+/u', ' ', trim($value)));
+        $needle = $normalize($address);
+
+        foreach ((array) config('app.supported_locales', ['en']) as $locale) {
+            if ($needle === $normalize((string) __('editor.defaults.footerAddress', [], (string) $locale))) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

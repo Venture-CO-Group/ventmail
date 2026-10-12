@@ -20,6 +20,8 @@ use Illuminate\Validation\ValidationException;
  */
 final class SavedBlockController
 {
+    public const MAX_BLOCKS = 200;
+
     public function store(Request $request, BlockTreeValidator $validator): JsonResponse
     {
         Gate::authorize('template.create');
@@ -29,6 +31,12 @@ final class SavedBlockController
             'kind' => ['required', Rule::in(['section', 'block'])],
             'block' => ['required', 'array'],
         ]);
+
+        // DARABPLAFON workspace-enként: a mentett blokk a szerkesztő minden megnyitásakor a
+        // katalógussal együtt utazik — korlátlan számuk a szerkesztőt lassítaná.
+        if (SavedBlock::query()->count() >= self::MAX_BLOCKS) {
+            throw ValidationException::withMessages(['name' => [__('ventmail.editor.blocksFull', ['max' => self::MAX_BLOCKS])]]);
+        }
 
         // A blokkot egy MINIMÁLIS fába tesszük, és azt validáljuk: így a `block` fajta is a
         // valódi szabályon (oszlop-gyereke-e) megy át, nem egy külön, gyengébb ellenőrzésen.

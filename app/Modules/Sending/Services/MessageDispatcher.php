@@ -434,6 +434,9 @@ final class MessageDispatcher
         $trackingBase = $this->trackingBase->for($this->domainOf($message));
 
         $rendered = [];
+        // A FELTÉTELES BLOKK csak Studio-eredetű (kampány, journey, sablon-teszt) törzsön
+        // értékelődik ki; máshol a feltételes rész eltűnik (fail-closed).
+        $studio = $message->isStudioOrigin();
 
         foreach ($message->recipients as $recipient) {
             $recipient = (string) $recipient;
@@ -445,7 +448,17 @@ final class MessageDispatcher
 
             $recipientHtml = $html === ''
                 ? null
-                : $this->renderer->renderForRecipient($html, $recipient, $recipientVariables, $shared, reserved: $reserved);
+                : $this->renderer->renderForRecipient($html, $recipient, $recipientVariables, $shared, reserved: $reserved, conditions: $studio);
+
+            /*
+             | ÜRES RENDERELT TÖRZS SOHA nem megy ki (SB1). Ha a kanonikus törzs nem üres, a
+             | renderelt viszont igen, a renderelés hibázott (pl. egy regex-motor korlát) —
+             | kimenne egy üres levél, a lábléc és a leiratkozó link nélkül. Kivétel: a
+             | `dispatch()` `deferred`-re teszi, a trace megmutatja, és nem küld.
+             */
+            if ($recipientHtml !== null && trim($recipientHtml) === '') {
+                throw new RuntimeException(sprintf('A(z) %s üzenet renderelt HTML-törzse üres — a küldés leállt.', $message->uuid));
+            }
 
             // A NYOMKÖVETÉS a személyre szabás UTÁN és az ALÁÍRÁS ELŐTT kerül be: a pixel és
             // a becsomagolt link címzettenként más (különben nem lehetne megmondani, KI
@@ -465,7 +478,7 @@ final class MessageDispatcher
 
             $rendered[$recipient] = [
                 'html' => $recipientHtml,
-                'text' => $text === '' ? null : $this->renderer->renderForRecipient($text, $recipient, $recipientVariables, $shared, escape: false, reserved: $reserved),
+                'text' => $text === '' ? null : $this->renderer->renderForRecipient($text, $recipient, $recipientVariables, $shared, escape: false, reserved: $reserved, conditions: $studio),
                 'mime' => null,
             ];
         }

@@ -199,13 +199,17 @@ return [
         'saved' => 'A beállításaid mentve.',
     ],
     'editor' => [
+        'inUse' => 'A sablont futó kampány vagy aktív journey használja: :names. Előbb állítsd le vagy zárd le.',
         'nameTaken' => 'Ilyen nevű sablon már létezik.',
         'deleted' => 'A sablon törölve.',
+        'blocksFull' => 'Legfeljebb :max mentett blokk lehet — előbb törölj egyet.',
         'blockDeleted' => 'A mentett blokk törölve.',
         'assets' => [
             'tooLarge' => 'A kép túl nagy (legfeljebb :max MB).',
             'badType' => 'Csak JPG, PNG, GIF vagy WebP kép tölthető fel.',
             'badDimensions' => 'A kép legfeljebb :max × :max pixeles lehet.',
+            'quota' => 'A workspace képtárhelye megtelt (legfeljebb :max MB).',
+            'processing' => 'A képfeldolgozás nem érhető el — a feltöltés elutasítva.',
         ],
         'compliance' => [
             'missing' => 'A kampányra használható sablonnak láblécet kell tartalmaznia ezekkel: :items.',

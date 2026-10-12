@@ -6,6 +6,7 @@ namespace App\Modules\Template\Services;
 
 use App\Modules\StoredTemplates\Services\ConditionalContent;
 use App\Modules\Template\Data\BlockSchema;
+use App\Modules\Template\Data\EditorCatalog;
 use App\Modules\Template\Data\TemplateStyles;
 
 /**
@@ -401,8 +402,8 @@ final class MjmlWriter
 
         $link = isset($attrs['link_color']) ? ' style="color:'.$this->colour($attrs['link_color']).';"' : '';
 
-        $lines[] = '<a href="{{ unsubscribe_url }}"'.$link.'>'.$this->plain($attrs['unsubscribe_label'] ?? 'Leiratkozás').'</a>'
-            .' &#183; <a href="{{ preferences_url }}"'.$link.'>'.$this->plain($attrs['preferences_label'] ?? 'Levélbeállítások').'</a>';
+        $lines[] = '<a href="{{ unsubscribe_url }}"'.$link.'>'.$this->plain($attrs['unsubscribe_label'] ?? EditorCatalog::footerLabel('unsubscribe')).'</a>'
+            .' &#183; <a href="{{ preferences_url }}"'.$link.'>'.$this->plain($attrs['preferences_label'] ?? EditorCatalog::footerLabel('preferences')).'</a>';
 
         $parts = ' align="'.$this->keyword($attrs['align'] ?? 'center', ['left', 'center', 'right'], 'center').'"'
             .' font-size="'.(int) ($attrs['font_size'] ?? 12).'px"'

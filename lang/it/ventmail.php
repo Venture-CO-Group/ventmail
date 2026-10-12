@@ -199,13 +199,17 @@ return [
         'saved' => 'Le tue impostazioni sono state salvate.',
     ],
     'editor' => [
+        'inUse' => 'Il modello è usato da una campagna in corso o da un journey attivo: :names. Mettilo prima in pausa o concludilo.',
         'nameTaken' => 'Esiste già un modello con questo nome.',
         'deleted' => 'Il modello è stato eliminato.',
+        'blocksFull' => 'Puoi tenere al massimo :max blocchi salvati — eliminane prima uno.',
         'blockDeleted' => 'Il blocco salvato è stato eliminato.',
         'assets' => [
             'tooLarge' => 'L’immagine è troppo grande (max :max MB).',
             'badType' => 'Si possono caricare solo immagini JPG, PNG, GIF o WebP.',
             'badDimensions' => 'L’immagine può essere al massimo di :max × :max pixel.',
+            'quota' => 'Lo spazio immagini del workspace è pieno (max :max MB).',
+            'processing' => 'L’elaborazione delle immagini non è disponibile — caricamento rifiutato.',
         ],
         'compliance' => [
             'missing' => 'Un modello utilizzabile nelle campagne deve contenere un piè di pagina con: :items.',

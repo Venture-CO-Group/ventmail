@@ -199,13 +199,17 @@ return [
         'saved' => 'Deine Einstellungen wurden gespeichert.',
     ],
     'editor' => [
+        'inUse' => 'Die Vorlage wird von einer laufenden Kampagne oder einer aktiven Journey verwendet: :names. Pausieren oder beenden Sie sie zuerst.',
         'nameTaken' => 'Eine Vorlage mit diesem Namen existiert bereits.',
         'deleted' => 'Die Vorlage wurde gelöscht.',
+        'blocksFull' => 'Sie können höchstens :max gespeicherte Blöcke haben — löschen Sie zuerst einen.',
         'blockDeleted' => 'Der gespeicherte Block wurde gelöscht.',
         'assets' => [
             'tooLarge' => 'Das Bild ist zu groß (max. :max MB).',
             'badType' => 'Nur JPG-, PNG-, GIF- oder WebP-Bilder können hochgeladen werden.',
             'badDimensions' => 'Das Bild darf höchstens :max × :max Pixel groß sein.',
+            'quota' => 'Der Bildspeicher des Workspaces ist voll (max. :max MB).',
+            'processing' => 'Die Bildverarbeitung ist nicht verfügbar — der Upload wurde abgelehnt.',
         ],
         'compliance' => [
             'missing' => 'Eine kampagnenfähige Vorlage braucht eine Fußzeile mit: :items.',

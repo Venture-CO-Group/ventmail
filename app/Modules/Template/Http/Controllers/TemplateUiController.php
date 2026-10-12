@@ -15,6 +15,7 @@ use App\Modules\Template\Services\MjmlCompiler;
 use App\Modules\Template\Services\MjmlWriter;
 use App\Modules\Template\Services\TemplateEditorSaver;
 use App\Modules\Template\Services\TemplateTestSender;
+use App\Modules\Template\Services\TemplateUsage;
 use App\Modules\Template\Services\TemplateVersions;
 use App\Modules\Tenancy\Services\WorkspaceContext;
 use Illuminate\Http\RedirectResponse;
@@ -22,6 +23,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -47,13 +49,13 @@ final class TemplateUiController
         Gate::authorize('template.create');
 
         return Inertia::render('Template/Index', [
-            'templates' => Template::query()->orderByDesc('updated_at')->get()->map(fn (Template $template) => [
+            'templates' => Template::query()->withMax('versions', 'number')->orderByDesc('updated_at')->get()->map(fn (Template $template) => [
                 'uuid' => (string) $template->uuid,
                 'name' => (string) $template->name,
                 'subject' => (string) $template->subject,
                 'marketing' => (bool) $template->marketing,
                 'blockCount' => count((array) $template->blocks),
-                'version' => (int) $template->versions()->max('number'),
+                'version' => (int) $template->versions_max_number,
                 'thumb' => self::thumb((array) $template->blocks),
                 'updatedAt' => $template->updated_at?->toIso8601String(),
             ])->values()->all(),
@@ -187,11 +189,21 @@ final class TemplateUiController
         return back()->with('success', __('ventmail.templates.saved'));
     }
 
-    public function destroy(string $uuid): RedirectResponse
+    public function destroy(string $uuid, TemplateUsage $usage): RedirectResponse
     {
         Gate::authorize('template.create');
 
         $template = Template::query()->where('uuid', $uuid)->firstOrFail();
+
+        // B2 · FUTÓ kampány / változat / aktív journey sablonja nem törölhető: a folytatás
+        // `no_template`-re futna, és a címzettek levél nélkül maradnának.
+        $blockers = $usage->blockers($template);
+
+        if ($blockers['campaigns'] !== [] || $blockers['journeys'] !== []) {
+            throw ValidationException::withMessages(['template' => [__('ventmail.editor.inUse', [
+                'names' => implode(', ', [...$blockers['campaigns'], ...$blockers['journeys']]),
+            ])]]);
+        }
 
         // SOFT delete: a kampányok `template_id`-je nem lóg a levegőben, és az audit a tényt
         // (`deleted`) megőrzi.

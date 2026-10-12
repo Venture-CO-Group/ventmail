@@ -7,6 +7,7 @@ namespace App\Modules\Deliverability\Services;
 use App\Modules\Deliverability\Contracts\BlocklistClient;
 use App\Modules\Deliverability\Data\SpamScore;
 use App\Modules\Sending\Services\DomainNormalizer;
+use Illuminate\Support\Facades\Cache;
 
 /**
  * KÜLDÉS ELŐTTI spam-pontszám (46. kritérium).
@@ -28,11 +29,22 @@ final class SpamScorer
      */
     private const MAX_DOMAIN_LOOKUPS = 10;
 
+    /** A hosztonkénti DBL-válasz gyorsítótára (SS4) — ugyanaz a link-domain ne kérdezzen újra. */
+    private const DBL_CACHE_SECONDS = 3600;
+
+    private bool $lookupDomains = true;
+
     public function __construct(private readonly BlocklistClient $blocklist) {}
 
     /** @param list<string> $links a törzsből kiszedett URL-ek */
-    public function score(?string $subject, ?string $html, ?string $text, array $links = []): SpamScore
+    /**
+     * @param  bool  $lookupDomains  a domain-feketelista (DNS) lekérdezése — a szerkesztő
+     *                               optimalizálója workspace-keret felett kikapcsolja (SS4)
+     */
+    public function score(?string $subject, ?string $html, ?string $text, array $links = [], bool $lookupDomains = true): SpamScore
     {
+        $this->lookupDomains = $lookupDomains;
+
         $findings = [];
         $score = 0.0;
 
@@ -148,7 +160,7 @@ final class SpamScorer
     {
         $zone = (string) config('deliverability.spam_score.domain_blocklist_zone');
 
-        if ($zone === '') {
+        if ($zone === '' || ! $this->lookupDomains) {
             return 0.0;
         }
 
@@ -162,7 +174,15 @@ final class SpamScorer
 
             $checked++;
 
-            if ($this->blocklist->check($host, $zone)->listed) {
+            // GYORSÍTÓTÁR hosztonként (SS4): a szerkesztő optimalizálója sokszor fut ugyanarra
+            // a levélre, és minden futás ugyanazt kérdezné a Spamhaustól.
+            $isListed = Cache::remember(
+                'dbl:'.$zone.':'.$host,
+                self::DBL_CACHE_SECONDS,
+                fn (): bool => $this->blocklist->check($host, $zone)->listed,
+            );
+
+            if ($isListed) {
                 $listed[] = $host;
             }
         }

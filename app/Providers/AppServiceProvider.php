@@ -319,9 +319,11 @@ class AppServiceProvider extends ServiceProvider
             Limit::perHour(100)->by('ws:'.self::workspaceKey($request)),
         ]);
 
+        // KÜLÖN kulcs ablakonként: a Laravel a limitet md5(név + kulcs) szerint tárolja,
+        // azonos kulccsal a napi plafon soha nem érvényesülne (a percenkénti nullázza).
         RateLimiter::for('template-assets', fn (Request $request) => [
-            Limit::perMinute(30)->by('ws:'.self::workspaceKey($request)),
-            Limit::perDay(1000)->by('ws:'.self::workspaceKey($request)),
+            Limit::perMinute(30)->by('ws-min:'.self::workspaceKey($request)),
+            Limit::perDay(1000)->by('ws-day:'.self::workspaceKey($request)),
         ]);
 
         /*

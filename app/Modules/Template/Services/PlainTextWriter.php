@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Modules\Template\Services;
 
 use App\Modules\StoredTemplates\Services\ConditionalContent;
+use App\Modules\Template\Data\BlockSchema;
+use App\Modules\Template\Data\EditorCatalog;
 
 /**
  * BLOCK-TREE → PLAINTEXT (59. kritérium).
@@ -61,6 +63,18 @@ final class PlainTextWriter
         $before = count($lines);
 
         $this->emit($block, $lines);
+
+        // A FELHASZNÁLÓI SZÖVEG nem hordozhat feltétel-jelölőt (SS3): a plaintext a
+        // `html_entity_decode` után a beírt `&lt;!--vm:endif--&gt;`-ből valódi jelölőt
+        // csinálna. A saját jelölőinket ez után tesszük fel.
+        // Csak LEVÉL-blokkon (a szakasz/oszlop sorai a gyerekeké, azokban már ott a saját,
+        // legitim jelölőnk).
+        if (! isset(BlockSchema::BLOCKS[(string) ($block['type'] ?? '')]['children'])
+            || BlockSchema::BLOCKS[(string) ($block['type'] ?? '')]['children'] === null) {
+            for ($i = $before; $i < count($lines); $i++) {
+                $lines[$i] = str_replace('<!--vm:', '<!- -vm:', $lines[$i]);
+            }
+        }
 
         // A FELTÉTEL (v1.1) a plaintextben is ugyanazzal a jelölővel él, mint a HTML-ben: a
         // renderer mindkét részt ugyanúgy értékeli ki, tehát a két levél nem mondhat mást.
@@ -255,8 +269,8 @@ final class PlainTextWriter
             $lines[] = $this->flatten($attrs['content']);
         }
 
-        $lines[] = $this->flatten($attrs['unsubscribe_label'] ?? 'Leiratkozás').': {{ unsubscribe_url }}';
-        $lines[] = $this->flatten($attrs['preferences_label'] ?? 'Levélbeállítások').': {{ preferences_url }}';
+        $lines[] = $this->flatten($attrs['unsubscribe_label'] ?? EditorCatalog::footerLabel('unsubscribe')).': {{ unsubscribe_url }}';
+        $lines[] = $this->flatten($attrs['preferences_label'] ?? EditorCatalog::footerLabel('preferences')).': {{ preferences_url }}';
     }
 
     /**

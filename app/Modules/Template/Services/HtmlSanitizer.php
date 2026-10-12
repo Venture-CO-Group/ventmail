@@ -5,9 +5,12 @@ declare(strict_types=1);
 namespace App\Modules\Template\Services;
 
 use DOMAttr;
+use DOMCdataSection;
+use DOMComment;
 use DOMDocument;
 use DOMElement;
 use DOMNode;
+use DOMProcessingInstruction;
 
 /**
  * ALLOWLIST-ALAPÚ HTML-tisztítás — a nyers HTML blokkhoz és a formázott szöveghez.
@@ -175,6 +178,20 @@ final class HtmlSanitizer
     {
         for ($i = $node->childNodes->length - 1; $i >= 0; $i--) {
             $child = $node->childNodes->item($i);
+
+            /*
+             | KOMMENT és PROCESSING INSTRUCTION: MIND eltűnik (SS3). Mérve mindhárom rés élt:
+             | `<!--[if mso]>…<![endif]-->` az Outlookban szűretlen HTML-t futtat (a tartalma a
+             | DOM-ban csak szöveg, a sanitizer nem látja), egy beírt `<!--vm:endif-->`
+             | hamisítja a feltételes blokk határát (a „csak VIP" tartalom mindenkihez kerül),
+             | a `<!-->` alak pedig régebbi libxml-en mXSS. A levél tartalmának kommentre
+             | nincs szüksége.
+             */
+            if ($child instanceof DOMComment || $child instanceof DOMProcessingInstruction || $child instanceof DOMCdataSection) {
+                $node->removeChild($child);
+
+                continue;
+            }
 
             if (! $child instanceof DOMElement) {
                 continue;

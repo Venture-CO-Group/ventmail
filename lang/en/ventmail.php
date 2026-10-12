@@ -215,13 +215,17 @@ return [
         'saved' => 'Your preferences have been saved.',
     ],
     'editor' => [
+        'inUse' => 'The template is used by a running campaign or an active journey: :names. Pause or finish it first.',
         'nameTaken' => 'A template with this name already exists.',
         'deleted' => 'The template was deleted.',
+        'blocksFull' => 'You can keep at most :max saved blocks — delete one first.',
         'blockDeleted' => 'The saved block was deleted.',
         'assets' => [
             'tooLarge' => 'The image is too large (max :max MB).',
             'badType' => 'Only JPG, PNG, GIF or WebP images can be uploaded.',
             'badDimensions' => 'The image must be at most :max × :max pixels.',
+            'quota' => 'The workspace image storage is full (max :max MB).',
+            'processing' => 'Image processing is not available — the upload was refused.',
         ],
         'compliance' => [
             'missing' => 'A campaign-ready template must include a footer with: :items.',

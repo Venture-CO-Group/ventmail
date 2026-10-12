@@ -11,6 +11,7 @@ use App\Modules\Campaign\Models\CampaignVariant;
 use App\Modules\Campaign\Services\CampaignLifecycle;
 use App\Modules\Sending\Actions\SendMessage;
 use App\Modules\Sending\Gate\GateReason;
+use App\Modules\Sending\Models\Message;
 use App\Modules\Template\Services\MergeVariables;
 use App\Modules\Tenancy\Models\Workspace;
 use App\Modules\Tenancy\Services\WorkspaceContext;
@@ -211,6 +212,16 @@ final class SendCampaignChunk implements ShouldQueue
             return self::OUTCOME_FAILED;
         }
 
+        /*
+         | AZ IDEMPOTENCIA-KULCS a kampány és a címzett párosa — ÁTMENETI elutasítás után
+         | (S11) új kísérlet-sorszámmal. A `RATE_LIMITED` / `GATE_ERROR` levél a kapun nem
+         | ment át, tehát ki sem ment; ugyanazzal a kulccsal viszont a `SendMessage` mindig a
+         | régi elutasítást tükrözte vissza, és a címzett SOHA nem kapta meg a levelet. A
+         | sorszám a sor `skip_reason`-jében (`retry:N`) él, amíg a címzett `pending`.
+         */
+        $attempt = str_starts_with((string) $recipient->skip_reason, 'retry:') ? (int) substr((string) $recipient->skip_reason, 6) : 0;
+        $key = 'campaign:'.$campaign->uuid.':'.$recipient->email_hash.($attempt > 0 ? ':r'.$attempt : '');
+
         try {
             $result = $send([
                 // A `campaign` csatorna: legalacsonyabb sor-prioritás, de a
@@ -225,6 +236,8 @@ final class SendCampaignChunk implements ShouldQueue
                 // v1.1 — a merge-tagek és a feltételes blokkok adata (titkosítva tárolódik,
                 // a kézbesítés után törlődik; az esemény-naplóba nem kerül).
                 'render_variables' => $renderVariables,
+                // STUDIO-EREDET: a feltételes blokk és a `browser_url` csak ilyen törzsön él.
+                'options' => ['studio_origin' => 'campaign'],
                 // A KAMPÁNY-CÍMKE: a tag-szintű statisztika (A3) és a marketing analitika
                 // (B4) ebből dolgozik — ugyanabból az esemény-forrásból, mint a
                 // platform-napló.
@@ -235,7 +248,7 @@ final class SendCampaignChunk implements ShouldQueue
                 // AZ IDEMPOTENCIA-KULCS a kampány és a címzett párosa: egy újrapróbált
                 // köteg ugyanazt a kulcsot adja, tehát a levél nem megy ki kétszer — a
                 // védelem így nem csak a `pending` szűrőn múlik.
-                'idempotency_key' => 'campaign:'.$campaign->uuid.':'.$recipient->email_hash,
+                'idempotency_key' => $key,
             ]);
 
             if ($result->decision->allowed) {
@@ -251,8 +264,28 @@ final class SendCampaignChunk implements ShouldQueue
 
             $reason = (string) $result->decision->reason;
 
+            /*
+             | B1 · UGYANAZ a kulcs MÁS lenyomattal: ugyanannak a címzettnek UGYANAZ a kampány-
+             | levele, csak a renderelési adat (név, szegmens-tagság) változott két kísérlet
+             | között. Ez NEM másik levél — az ELŐZŐ kísérlet üzenete dönt: ha átment a
+             | kapun, a címzett megkapta (`sent`); ha elutasult, annak az oka számít.
+             */
+            if ($reason === GateReason::IdempotencyKeyReused->value) {
+                $existing = Message::query()->where('idempotency_key', $key)->first();
+
+                if ($existing !== null && $existing->status !== 'rejected') {
+                    $recipient->forceFill(['status' => 'sent', 'skip_reason' => null, 'message_uuid' => $existing->uuid, 'sent_at' => now()])->save();
+
+                    return self::OUTCOME_SENT;
+                }
+
+                $reason = (string) ($existing?->reason ?? $reason);
+            }
+
             if (in_array($reason, self::TRANSIENT_REASONS, true)) {
-                // A SOR ÉRINTETLEN marad `pending`-ben — a köteg újrafutása felveszi.
+                // A SOR `pending` marad — a köteg újrafutása ÚJ kísérlet-kulccsal veszi fel.
+                $recipient->forceFill(['skip_reason' => 'retry:'.($attempt + 1)])->save();
+
                 return self::OUTCOME_RETRY;
             }
 

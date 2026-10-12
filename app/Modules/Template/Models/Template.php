@@ -43,6 +43,22 @@ final class Template extends Model
 
     protected $attributes = ['blocks' => '[]', 'marketing' => true];
 
+    /**
+     * Az AUDIT a fordítás gyorsítótárát nem viszi (S4): a `mjml`/`html`/`text` a `blocks`-ból
+     * származik, és soronként több tíz KB lenne — az igazság a fa (és a verziótörténet).
+     *
+     * @var list<string>
+     */
+    public array $auditRedacted = ['mjml', 'html', 'text'];
+
+    /** Az autosave a teljes diff helyett tömör `template.autosaved` sort ír (a saver). */
+    public bool $compactAudit = false;
+
+    public function skipsUpdateAudit(): bool
+    {
+        return $this->compactAudit;
+    }
+
     public function uniqueIds(): array
     {
         return ['uuid'];

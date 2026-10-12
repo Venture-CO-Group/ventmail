@@ -63,6 +63,18 @@ final class AssetUploader
             throw ValidationException::withMessages(['file' => __('ventmail.editor.assets.badDimensions', ['max' => $limit])]);
         }
 
+        // TÁRHELY-KVÓTA workspace-enként (SS5): a feltöltés publikus tárba ír.
+        $used = (int) TemplateAsset::query()->sum('size');
+        $quota = (int) config('template.assets.workspace_quota_bytes');
+
+        // ÚJRAKÓDOLÁS metaadat nélkül (SS5): az EXIF (GPS, készülék, név) különben a
+        // publikus URL-en bárkinek olvasható lenne.
+        $contents = $this->reencode($contents, $mime);
+
+        if ($used + strlen($contents) > $quota) {
+            throw ValidationException::withMessages(['file' => __('ventmail.editor.assets.quota', ['max' => (int) round($quota / 1024 / 1024)])]);
+        }
+
         $stored = $this->store->put((string) $this->context->workspace()->uuid, $contents, self::ALLOWED[$mime]);
 
         return TemplateAsset::query()->create([
@@ -77,5 +89,51 @@ final class AssetUploader
             'original_name' => mb_substr((string) preg_replace('/[\x00-\x1f\x7f]/u', '', $file->getClientOriginalName()), 0, 255),
             'created_by' => Auth::id(),
         ]);
+    }
+
+    /**
+     * A kép ÚJRAKÓDOLÁSA GD-vel: a kimenet csak pixeladat, metaadat (EXIF, XMP, ICC-
+     * megjegyzés) nélkül. A GIF változatlan marad (az animáció a GD-n elveszne; a GIF-nek
+     * nincs EXIF-je) — de csak a fenti tartalom-ellenőrzés után.
+     *
+     * GD nélkül a feltöltés ELUTASUL (fail-closed): metaadatos képet nem teszünk publikussá.
+     */
+    private function reencode(string $contents, string $mime): string
+    {
+        if ($mime === 'image/gif') {
+            return $contents;
+        }
+
+        if (! function_exists('imagecreatefromstring')) {
+            throw ValidationException::withMessages(['file' => __('ventmail.editor.assets.processing')]);
+        }
+
+        $image = @imagecreatefromstring($contents);
+
+        if ($image === false) {
+            throw ValidationException::withMessages(['file' => __('ventmail.editor.assets.badType')]);
+        }
+
+        if ($mime === 'image/png' || $mime === 'image/webp') {
+            imagealphablending($image, false);
+            imagesavealpha($image, true);
+        }
+
+        ob_start();
+
+        $ok = match ($mime) {
+            'image/jpeg' => imagejpeg($image, null, 88),
+            'image/png' => imagepng($image, null, 9),
+            'image/webp' => imagewebp($image, null, 88),
+            default => false,
+        };
+
+        $out = (string) ob_get_clean();
+
+        if (! $ok || $out === '') {
+            throw ValidationException::withMessages(['file' => __('ventmail.editor.assets.processing')]);
+        }
+
+        return $out;
     }
 }

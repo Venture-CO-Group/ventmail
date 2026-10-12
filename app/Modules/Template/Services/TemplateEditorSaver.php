@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Template\Services;
 
+use App\Modules\Audit\Services\AuditLogger;
 use App\Modules\Template\Data\TemplateStyles;
 use App\Modules\Template\Models\Template;
 use App\Modules\Template\Models\TemplateVersion;
@@ -30,6 +31,7 @@ final class TemplateEditorSaver
         private readonly BlockTreeValidator $validator,
         private readonly TemplateCompliance $compliance,
         private readonly TemplateVersions $versions,
+        private readonly AuditLogger $audit,
     ) {}
 
     /**
@@ -50,7 +52,7 @@ final class TemplateEditorSaver
         }
 
         if ($marketing) {
-            $missing = $this->compliance->missing($blocks);
+            $missing = $this->compliance->missing($blocks, strict: false);
 
             if ($missing !== []) {
                 throw ValidationException::withMessages(['blocks' => [__('ventmail.editor.compliance.missing', [
@@ -72,6 +74,9 @@ final class TemplateEditorSaver
         $this->assertValid($data['blocks'], $styles, (bool) $template->marketing);
 
         return DB::transaction(function () use ($template, $data, $styles, $reason): ?TemplateVersion {
+            // S4: az autosave (másodpercenként is jöhet) nem írja a teljes diffet az auditba.
+            $template->compactAudit = $reason === 'autosave';
+
             try {
                 $template->fill(array_filter([
                     'name' => $data['name'] ?? null,
@@ -84,9 +89,21 @@ final class TemplateEditorSaver
             } catch (InvalidArgumentException $e) {
                 // A MODELL saját szabálya (leiratkozó blokk) — mező-hiba, nem 500.
                 throw ValidationException::withMessages(['blocks' => [$e->getMessage()]]);
+            } finally {
+                $template->compactAudit = false;
             }
 
-            return $this->versions->snapshot($template, $reason);
+            $version = $this->versions->snapshot($template, $reason);
+
+            if ($reason === 'autosave') {
+                $this->audit->log('template.autosaved', $template, context: [
+                    'render_hash' => (string) $template->render_hash,
+                    'blocks' => count((array) $template->blocks),
+                    'version' => $version?->number,
+                ]);
+            }
+
+            return $version;
         });
     }
 }

@@ -6,6 +6,8 @@ namespace App\Modules\Template\Services;
 
 use App\Modules\Deliverability\Services\SpamScorer;
 use App\Modules\Template\Models\TemplateAsset;
+use App\Modules\Tenancy\Services\WorkspaceContext;
+use Illuminate\Support\Facades\RateLimiter;
 
 /**
  * AZ OPTIMALIZÁLÁS PANEL (v1.1): linkek, képek, súly, spam-becslés, kötelező elemek.
@@ -28,6 +30,8 @@ final class TemplateOptimizer
     private const PLACEHOLDER_HOSTS = ['example.com', 'example.org', 'example.net', 'pelda.hu', 'localhost'];
 
     private const UTM_KEYS = ['utm_source', 'utm_medium', 'utm_campaign'];
+
+    private const DBL_RUNS_PER_HOUR = 30;
 
     public function __construct(private readonly SpamScorer $spam, private readonly TemplateCompliance $compliance) {}
 
@@ -66,12 +70,31 @@ final class TemplateOptimizer
                 'limit' => $limit,
                 'clipped' => $bytes > $limit,
             ],
-            'spam' => $this->spam->score($subject, $html, $text, $plainLinks)->toArray(),
+            'spam' => $this->spam->score($subject, $html, $text, $plainLinks, $this->mayLookupDomains())->toArray(),
             'compliance' => [
                 'required' => $marketing,
                 'missing' => $marketing ? $this->compliance->missing($blocks) : [],
             ],
         ];
+    }
+
+    /**
+     * A DBL (DNS) lekérdezés WORKSPACE-KERETE (SS4, D46 kiegészítés): óránként legfeljebb
+     * `DBL_RUNS_PER_HOUR` optimalizálás kérdez külső feketelistát; felette a becslés a helyi
+     * szabályokkal fut (a hoszt-szintű gyorsítótár a `SpamScorer`-ben van).
+     */
+    private function mayLookupDomains(): bool
+    {
+        $context = app(WorkspaceContext::class);
+        $key = 'template-dbl:'.($context->hasWorkspace() ? $context->workspaceId() : 'none');
+
+        if (RateLimiter::tooManyAttempts($key, self::DBL_RUNS_PER_HOUR)) {
+            return false;
+        }
+
+        RateLimiter::hit($key, 3600);
+
+        return true;
     }
 
     /**

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Journey\Services;
 
+use App\Modules\Audience\Models\Contact;
 use App\Modules\Audience\Models\ContactTag;
 use App\Modules\Audience\Models\Segment;
 use App\Modules\Audience\Services\SegmentEngine;
@@ -20,7 +21,9 @@ use App\Modules\Sending\Actions\SendMessage;
 use App\Modules\Sending\Enums\Channel;
 use App\Modules\Suppression\Models\Suppression;
 use App\Modules\Template\Models\Template;
+use App\Modules\Template\Services\MergeVariables;
 use App\Modules\Tenancy\Models\Workspace;
+use App\Modules\Tenancy\Services\WorkspaceContext;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -529,6 +532,15 @@ final class JourneyEngine
         }
 
         try {
+            /*
+             | v1.1 (S8) — a merge-tagek és a feltételes blokkok ADATA, ugyanazzal a szabállyal,
+             | mint a kampánynál (`MergeVariables`): kontakt, workspace, a sablonban hivatkozott
+             | szegmensek tagsága és egyéni mezők.
+             */
+            $contact = $run->contact_id === null ? null : Contact::query()->find($run->contact_id);
+            $variables = app(MergeVariables::class);
+            $variables->prepare([(string) $template->html], $contact === null ? [] : [(int) $contact->getKey()]);
+
             $result = app(SendMessage::class)([
                 /*
                  | A `journey` CSATORNA — a tranzakciós ÉS a kampány KÖZÖTT.
@@ -549,6 +561,8 @@ final class JourneyEngine
                 'html' => (string) $template->html,
                 'text' => (string) $template->text,
                 'tags' => ['journey:'.$run->journey_id, 'journey_step:'.$step->uuid],
+                'render_variables' => $variables->forContact($contact, app(WorkspaceContext::class)->workspace()),
+                'options' => ['studio_origin' => 'journey'],
                 /*
                  | AZ IDEMPOTENCIA-KULCS a futás, a lépés ÉS AZ ISMÉTLÉS hármasa.
                  |

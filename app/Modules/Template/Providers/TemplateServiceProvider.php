@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Template\Providers;
 
 use App\Modules\Support\ModuleServiceProvider;
+use App\Modules\Template\Console\PurgeTemplateAssetsCommand;
 use App\Modules\Template\Contracts\AssetStore;
 use App\Modules\Template\Services\Assets\LocalPublicAssetStore;
 use App\Modules\Template\Services\Assets\NullAssetStore;
@@ -33,5 +34,12 @@ final class TemplateServiceProvider extends ModuleServiceProvider
             'null' => new NullAssetStore,
             default => new LocalPublicAssetStore,
         });
+    }
+
+    protected function bootModule(): void
+    {
+        if ($this->app->runningInConsole()) {
+            $this->commands([PurgeTemplateAssetsCommand::class]);
+        }
     }
 }

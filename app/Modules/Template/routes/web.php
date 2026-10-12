@@ -72,6 +72,6 @@ Route::middleware(['auth', 'workspace'])->group(function (): void {
     Route::post('/template-assets', [TemplateAssetController::class, 'store'])->middleware('throttle:template-assets')->name('template-assets.store');
     Route::delete('/template-assets/{uuid}', [TemplateAssetController::class, 'destroy'])->whereUuid('uuid')->name('template-assets.destroy');
 
-    Route::post('/template-blocks', [SavedBlockController::class, 'store'])->name('template-blocks.store');
+    Route::post('/template-blocks', [SavedBlockController::class, 'store'])->middleware('throttle:template-editor')->name('template-blocks.store');
     Route::delete('/template-blocks/{uuid}', [SavedBlockController::class, 'destroy'])->whereUuid('uuid')->name('template-blocks.destroy');
 });

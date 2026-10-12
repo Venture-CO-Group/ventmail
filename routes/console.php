@@ -127,3 +127,6 @@ Schedule::command('messages:purge-raw-mime')->dailyAt('03:20');
 Schedule::command('billing:close')->monthlyOn(1, '04:30')->withoutOverlapping();
 Schedule::command('billing:snapshot')->dailyAt('04:15');
 Schedule::command('billing:dunning')->dailyAt('04:45');
+
+// A TÖRÖLT workspace-ek sablon-képei publikus URL-en élnének tovább (v1.1 · SS5).
+Schedule::command('templates:purge-assets')->dailyAt('04:10');

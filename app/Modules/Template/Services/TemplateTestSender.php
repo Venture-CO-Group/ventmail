@@ -6,12 +6,10 @@ namespace App\Modules\Template\Services;
 
 use App\Models\User;
 use App\Modules\Audit\Services\AuditLogger;
-use App\Modules\Deliverability\Contracts\SeedListProvider;
 use App\Modules\Sending\Actions\SendMessage;
 use App\Modules\Sending\Data\SendResult;
 use App\Modules\Template\Models\Template;
 use App\Modules\Tenancy\Services\WorkspaceContext;
-use Throwable;
 
 /**
  * TESZT-KÜLDÉS a szerkesztőből (v1.1 · Optimalizálás panel).
@@ -29,11 +27,13 @@ use Throwable;
  * `SeedListProvider`-e). Szabad cím nincs: a teszt-küldés különben egy consent-mentes,
  * tranzakciós csatornán futó tömeges küldő lenne — a „teszt" csak egy címke.
  *
- * ## A csatorna `transactional`
+ * ## A csatorna a sablon fajtája szerint (D52, a D45 helyett)
  *
- * A levél a feladó SAJÁT csapatának megy, nem egy kontaktnak: marketing-consent itt nem
- * értelmezett (a tag nem feliratkozó). A tárgy `[TESZT]` előtagot kap és `template-test`
- * címkét, tehát a naplóban és a statisztikában elkülönül.
+ * A marketing sablon tesztje `campaign`, a tranzakciósé `transactional` csatornán megy —
+ * a két pool (tx/mk) nem keveredhet. A marketing tesztet a consent-kapu csak akkor engedi,
+ * ha MINDEN címzett workspace-tag vagy seed-cím (`TestRecipients`); kikapcsolt marketing-
+ * küldésnél (`SENDING_MARKETING_ENABLED=false`) elutasul. A tárgy `[TESZT]` előtagot és
+ * `template-test` címkét kap.
  */
 final class TemplateTestSender
 {
@@ -41,44 +41,13 @@ final class TemplateTestSender
         private readonly SendMessage $send,
         private readonly WorkspaceContext $context,
         private readonly AuditLogger $audit,
+        private readonly TestRecipients $recipients,
     ) {}
 
-    /**
-     * A megengedett teszt-címzettek (kisbetűs, egyedi).
-     *
-     * @return list<array{email: string, kind: string}>
-     */
+    /** @return list<array{email: string, kind: string}> */
     public function allowedRecipients(): array
     {
-        $workspace = $this->context->workspace();
-
-        $members = User::query()
-            ->whereIn('id', $workspace->members()->pluck('user_id'))
-            ->orderBy('email')
-            ->pluck('email')
-            ->map(static fn ($email) => ['email' => strtolower(trim((string) $email)), 'kind' => 'member'])
-            ->all();
-
-        $seeds = [];
-
-        try {
-            foreach (app(SeedListProvider::class)->addresses() as $seed) {
-                $seeds[] = ['email' => strtolower(trim($seed->address)), 'kind' => 'seed'];
-            }
-        } catch (Throwable) {
-            // ÉLESBEN nincs seed-szolgáltató (a Deliverability provider szándékosan hibát
-            // dob): ilyenkor csak a tagok címe marad. A teszt-küldés nem áll meg emiatt.
-        }
-
-        $unique = [];
-
-        foreach ([...$members, ...$seeds] as $entry) {
-            if ($entry['email'] !== '' && ! isset($unique[$entry['email']])) {
-                $unique[$entry['email']] = $entry;
-            }
-        }
-
-        return array_values($unique);
+        return $this->recipients->all();
     }
 
     /**
@@ -91,7 +60,11 @@ final class TemplateTestSender
         $parts = preg_split('/\s+/', $name) ?: [];
 
         $result = ($this->send)([
-            'channel' => 'transactional',
+            // D52: a MARKETING sablon tesztje a `campaign` csatornán (mk pool, List-
+            // Unsubscribe) megy — a tx és az mk forgalom nem keveredik. A consent-kapu a
+            // `template_test` eredetű, belső címzettű levélre explicit kivételt ad.
+            'channel' => $template->marketing ? 'campaign' : 'transactional',
+            'options' => ['studio_origin' => 'template_test'],
             'from_email' => $fromEmail,
             'from_name' => (string) $workspace->name,
             'to' => $recipients,
@@ -113,7 +86,9 @@ final class TemplateTestSender
                     'address' => (string) (($workspace->settings ?? [])['postal_address'] ?? ''),
                 ],
             ],
-            'idempotency_key' => 'template-test:'.$template->uuid.':'.$idempotencyKey,
+            // A kulcs HASH-elve: a hívó kulcsa 255 karakteres is lehet, a prefixszel együtt a
+            // `messages.idempotency_key` oszlopon túlnyúlna.
+            'idempotency_key' => self::key((string) $template->uuid, $idempotencyKey),
         ]);
 
         $this->audit->log('template.test_sent', $template, context: [
@@ -124,5 +99,10 @@ final class TemplateTestSender
         ]);
 
         return $result;
+    }
+
+    public static function key(string $templateUuid, string $idempotencyKey): string
+    {
+        return 'template-test:'.hash('sha256', $templateUuid.'|'.$idempotencyKey);
     }
 }

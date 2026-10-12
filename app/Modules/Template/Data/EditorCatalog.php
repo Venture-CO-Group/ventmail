@@ -7,6 +7,7 @@ namespace App\Modules\Template\Data;
 use App\Modules\Audience\Models\ContactField;
 use App\Modules\Audience\Models\Segment;
 use App\Modules\Tenancy\Models\Workspace;
+use App\Modules\Tenancy\Services\WorkspaceContext;
 
 /**
  * A SZERKESZTŐ KATALÓGUSA (v1.1): paletta, elrendezések, minták, merge-tagek, színminták.
@@ -211,5 +212,19 @@ final class EditorCatalog
     public static function httpsBase(): string
     {
         return (string) preg_replace('#^http://#i', 'https://', rtrim((string) config('app.url'), '/'));
+    }
+
+    /**
+     * A lábléc FALLBACK felirata (leiratkozás / beállítások) a workspace nyelvén — ha a
+     * workspace nem mond nyelvet, az aktuálisén. A felhasználó által megadott felirat
+     * mindig elsőbbséget élvez; ez csak az üres mező helyére kerül.
+     */
+    public static function footerLabel(string $key): string
+    {
+        $context = app(WorkspaceContext::class);
+        $locale = $context->hasWorkspace() ? (($context->workspace()->settings ?? [])['locale'] ?? null) : null;
+        $locale = is_string($locale) && in_array($locale, (array) config('app.supported_locales'), true) ? $locale : app()->getLocale();
+
+        return (string) __('editor.defaults.'.$key, [], $locale);
     }
 }

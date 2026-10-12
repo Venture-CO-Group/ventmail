@@ -18,6 +18,7 @@ use App\Modules\Template\Models\TemplateVersion;
 use App\Modules\Template\Services\MergeVariables;
 use App\Modules\Template\Services\MjmlCompiler;
 use App\Modules\Template\Services\MjmlWriter;
+use App\Modules\Template\Services\TemplateTestSender;
 use App\Modules\Template\Services\TemplateVersions;
 use App\Modules\Template\Services\WebVersionTokens;
 use App\Modules\Tenancy\Models\Workspace;
@@ -253,18 +254,17 @@ it('a TESZT-KÜLDÉS a PreSendGate-en megy, a fake driverrel, csak megengedett c
         ->assertStatus(202)
         ->assertJsonPath('allowed', true);
 
-    $message = Message::query()->where('idempotency_key', 'template-test:'.$template->uuid.':teszt-1')->firstOrFail();
+    $message = Message::query()->where('idempotency_key', TemplateTestSender::key((string) $template->uuid, 'teszt-1'))->firstOrFail();
 
-    expect($message->channel)->toBe('transactional')
+    // D52: a MARKETING sablon tesztje a campaign csatornán (mk pool) megy.
+    expect($message->channel)->toBe('campaign')
         ->and($message->subject)->toMatch('/^\[(TESZT|TEST)\] Ősz$/u')
         ->and($message->tags)->toContain('template-test')
         ->and(FakeDriver::$sent)->toHaveCount(1)
         ->and(AuditLog::query()->where('action', 'template.test_sent')->exists())->toBeTrue();
 
-    // A merge-tag a küldő MINTA-adatával helyettesítődik (a renderelt törzs nem perzisztál,
-    // ezért a renderert közvetlenül kérdezzük meg ugyanazzal a változóval).
-    expect(app(TemplateRenderer::class)->render((string) $template->html, ['contact' => ['first_name' => 'Szabó']]))
-        ->toContain('Szia, Szabó!');
+    // S10 · a merge-tag a küldő MINTA-adatával helyettesítődik — a driver által kapott törzsben.
+    expect((string) FakeDriver::$sent[0]['bodies']['bence@pelda.hu']['html'])->toContain('Szia, Szabó!');
 
     // UGYANAZ a kulcs: nincs második levél.
     $this->postJson("/templates/{$template->uuid}/test-send", [
@@ -394,7 +394,7 @@ it('a WEBES NÉZET a kanonikus törzset mutatja, CSP-vel, hamis tokenre 404', fu
     $this->postJson("/templates/{$template->uuid}/test-send", ['recipients' => ['bence@pelda.hu'], 'from_email' => 'hello@pelda.hu'], ['Idempotency-Key' => 'web-1'])
         ->assertStatus(202);
 
-    $message = Message::query()->where('idempotency_key', 'template-test:'.$template->uuid.':web-1')->firstOrFail();
+    $message = Message::query()->where('idempotency_key', TemplateTestSender::key((string) $template->uuid, 'web-1'))->firstOrFail();
 
     // A `browser_url` fenntartott változó: címzettenként ugyanaz a webes nézet.
     expect($message->bodyLinkVariables('bence@pelda.hu'))->toHaveKey('browser_url');
@@ -432,8 +432,8 @@ it('a KAMPÁNY-küldés a kontakt merge-változóit és a hivatkozott szegmens-t
 
     $renderer = app(TemplateRenderer::class);
 
-    expect($renderer->render($html, $variables->forContact($vip, $this->workspace)))
+    expect($renderer->render($html, $variables->forContact($vip, $this->workspace), conditions: true))
         ->toContain('Szia Anna (Kávé Kft.)')->toContain('VIP kupon');
-    expect($renderer->render($html, $variables->forContact($plain, $this->workspace)))
+    expect($renderer->render($html, $variables->forContact($plain, $this->workspace), conditions: true))
         ->toContain('Szia Béla (–)')->not->toContain('VIP kupon');
 });

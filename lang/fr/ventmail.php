@@ -201,13 +201,17 @@ return [
         'saved' => 'Vos préférences ont été enregistrées.',
     ],
     'editor' => [
+        'inUse' => 'Le modèle est utilisé par une campagne en cours ou un parcours actif : :names. Mettez-le d’abord en pause ou terminez-le.',
         'nameTaken' => 'Un modèle portant ce nom existe déjà.',
         'deleted' => 'Le modèle a été supprimé.',
+        'blocksFull' => 'Vous pouvez conserver au plus :max blocs enregistrés — supprimez-en un d’abord.',
         'blockDeleted' => 'Le bloc enregistré a été supprimé.',
         'assets' => [
             'tooLarge' => 'L’image est trop lourde (max. :max Mo).',
             'badType' => 'Seules les images JPG, PNG, GIF ou WebP peuvent être importées.',
             'badDimensions' => 'L’image doit faire au maximum :max × :max pixels.',
+            'quota' => 'Le stockage d’images de l’espace est plein (max. :max Mo).',
+            'processing' => 'Le traitement d’image n’est pas disponible — l’import a été refusé.',
         ],
         'compliance' => [
             'missing' => 'Un modèle utilisable en campagne doit contenir un pied de page avec : :items.',
