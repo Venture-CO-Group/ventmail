@@ -58,12 +58,21 @@ export default defineConfig({
                |  - workerek nélkül a beépített szerver EGYETLEN folyamat, tehát bármelyik
                |    lassú (vagy önmagára hivatkozó) kérés megállítja az összes többit.
                |
+               | A KONTAKT-IMPORT háttérfeladata (`AUDIENCE_IMPORT_QUEUE_CONNECTION=database`) a
+               | `database` sorra megy, és az `audience-import.spec.ts` saját `queue:work`
+               | folyamatot indít rá — a 300 000 soros import így a böngészőtől függetlenül,
+               | valódi queue-n fut. Minden más job továbbra is szinkron.
+               |
+               | A `PHP_INI_SCAN_DIR` (kezdő `:` = az alap ini-könyvtár MARAD) a feltöltési
+               | plafont emeli (`e2e/php.d/e2e.ini`): a CLI-szerver alapból 8 MB-os POST-ot
+               | enged, a 300 000 soros CSV ~13 MB.
+               |
                | Mérve: CI-ban egy bukás után a suite maradéka mind `ERR_CONNECTION_REFUSED`
                | lett — a szerver eltűnt, miközben az alkalmazás-naplóban EGYETLEN hiba sem
                | volt. A `--no-reload` a workerek előfeltétele is (az `artisan serve`
                | különben figyelmeztet, és egy folyamattal indul).
                */
-              command: 'SESSION_DRIVER=file CACHE_STORE=array QUEUE_CONNECTION=sync TENANCY_WORKSPACE_MAX_OWNED=1000 PHP_CLI_SERVER_WORKERS=4 php artisan serve --port=8000 --no-reload',
+              command: 'PHP_INI_SCAN_DIR=":$PWD/e2e/php.d" SESSION_DRIVER=file CACHE_STORE=array QUEUE_CONNECTION=sync AUDIENCE_IMPORT_QUEUE_CONNECTION=database TENANCY_WORKSPACE_MAX_OWNED=1000 PHP_CLI_SERVER_WORKERS=4 php artisan serve --port=8000 --no-reload',
               url: 'http://127.0.0.1:8000/up',
               reuseExistingServer: !process.env.CI,
               timeout: 60_000,
