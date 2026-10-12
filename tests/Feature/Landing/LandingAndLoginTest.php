@@ -17,7 +17,8 @@ it('az apex host a statikus landinget adja, indexelhetően', function () {
     $response = $this->withHeaders(['Accept-Language' => 'hu'])->get('http://ventmail.app/');
 
     $response->assertOk()
-        ->assertSee('A Venture család e-mail infrastruktúrája')
+        // Nem törő kötőjel (U+2011): a cím szélesen sem törhet „e-” / „mail”-ra.
+        ->assertSee('A Venture család e‑mail infrastruktúrája')
         ->assertSee('<link rel="canonical" href="https://ventmail.app/">', false)
         ->assertSee('property="og:title"', false)
         ->assertSee('https://app.ventmail.app', false)

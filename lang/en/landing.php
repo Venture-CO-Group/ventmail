@@ -59,6 +59,7 @@ return [
             ['title' => 'Separate IP pools', 'text' => 'Transactional and marketing traffic use separate pools.'],
             ['title' => 'Suppression', 'text' => 'No email goes to bounced or unsubscribed addresses.'],
             ['title' => 'PreSendGate', 'text' => 'Every send, including through the SMTP relay, passes the same six gates.'],
+            ['title' => 'Signed webhooks', 'text' => 'HMAC-SHA256 signatures, retries and replay for every event.'],
         ],
     ],
     'eu' => [

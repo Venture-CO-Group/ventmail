@@ -18,7 +18,7 @@ return [
     ],
     'hero' => [
         'eyebrow' => 'E-Mail-Infrastruktur',
-        'title' => 'Die E-Mail-Infrastruktur der Venture-Familie',
+        'title' => 'Die E‑Mail-Infrastruktur der Venture-Familie',
         'lede' => 'Ausgehende UND eingehende E-Mails auf einer Engine: Transaktions-API und SMTP für Entwickler, Marketing-Studio für Teams.',
     ],
     'platform' => [
@@ -59,6 +59,7 @@ return [
             ['title' => 'Getrennte IP-Pools', 'text' => 'Transaktions- und Marketing-Verkehr laufen über getrennte Pools.'],
             ['title' => 'Suppression', 'text' => 'An abgewiesene oder abgemeldete Adressen geht keine E-Mail.'],
             ['title' => 'PreSendGate', 'text' => 'Jeder Versand, auch über das SMTP-Relay, durchläuft dieselben sechs Tore.'],
+            ['title' => 'Signierte Webhooks', 'text' => 'HMAC-SHA256-Signatur, Wiederholung und Replay für jedes Ereignis.'],
         ],
     ],
     'eu' => [

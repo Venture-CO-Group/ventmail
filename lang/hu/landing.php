@@ -18,7 +18,7 @@ return [
     ],
     'hero' => [
         'eyebrow' => 'E-mail infrastruktúra',
-        'title' => 'A Venture család e-mail infrastruktúrája',
+        'title' => 'A Venture család e‑mail infrastruktúrája',
         'lede' => 'Kimenő ÉS bejövő levelezés egy motoron: tranzakciós API és SMTP fejlesztőknek, marketing Studio csapatoknak.',
     ],
     'platform' => [
@@ -59,6 +59,7 @@ return [
             ['title' => 'Külön IP-pool', 'text' => 'A tranzakciós és a marketing forgalom külön poolon megy.'],
             ['title' => 'Suppression', 'text' => 'Visszapattanó és leiratkozott címekre nem megy levél.'],
             ['title' => 'PreSendGate', 'text' => 'Minden küldés, az SMTP relayen át is, ugyanazon a hat kapun megy át.'],
+            ['title' => 'Aláírt webhookok', 'text' => 'HMAC-SHA256 aláírás, újrapróbálás és visszajátszás minden eseményhez.'],
         ],
     ],
     'eu' => [

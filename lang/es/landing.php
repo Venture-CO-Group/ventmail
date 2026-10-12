@@ -59,6 +59,7 @@ return [
             ['title' => 'IP pools separados', 'text' => 'El tráfico transaccional y el de marketing usan pools distintos.'],
             ['title' => 'Supresión', 'text' => 'No se envía correo a direcciones rebotadas o dadas de baja.'],
             ['title' => 'PreSendGate', 'text' => 'Cada envío, también por el SMTP relay, pasa por las mismas seis puertas.'],
+            ['title' => 'Webhooks firmados', 'text' => 'Firma HMAC-SHA256, reintentos y reenvío para cada evento.'],
         ],
     ],
     'eu' => [

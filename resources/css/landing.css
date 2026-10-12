@@ -220,7 +220,8 @@ main,
 
 .landing__grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(calc(var(--vt-space-24) * 2), 100%), 1fr));
+    /* Hat kártya: szélesen 3×2, közepesen 2×3, mobilon egy oszlop — árva kártya nélkül. */
+    grid-template-columns: repeat(auto-fit, minmax(min(calc(var(--vt-space-32) * 2.2), 100%), 1fr));
     gap: var(--vt-space-4);
     margin: 0;
     padding: 0;
