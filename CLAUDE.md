@@ -34,6 +34,7 @@ MTA: self-hosted **Postal** (kimenő) + **MX-fogadó** (bejövő) + **SMTP submi
   `dedicated_ips`, `log_retention_tier`. Kártyaadat SOHA. Amíg nem él → `FakeVentPayClient`.
 - **ventOS:** kétirányú CRM-sync (`external_id`). Amíg nem él → `FakeVentureOsSync`.
 - **ventStudio:** közös block-tree JSON Schema; MJML a ventMail oldalán. **Landing page NEM itt** — ventStudio.
+  *Kivétel (tulajdonosi döntés):* a ventMail saját, STATIKUS termékoldala az apexen (`ventmail.app`, Blade, `config('app.landing_host')`) itt él — ez NEM a landing-page-builder képesség, az marad a ventStudióé.
 - **ventSupport:** az inbound route `forward()`-olja neki az e-mail csatornát.
 - **ventSec:** csatolmány-szkennelés (ClamAV), később SIEM.
 

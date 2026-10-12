@@ -20,7 +20,8 @@ it('a Caddyfile Basic Authot követel a dev-en', function () {
 });
 
 it('a robots.txt mindent tilt', function () {
-    $robots = file_get_contents(public_path('robots.txt'));
+    // A robots.txt hostonként dinamikus (a landing indexelhető, az app/api nem) — az app-host tilt.
+    $robots = $this->get('http://app.ventmail.app/robots.txt')->getContent();
 
     expect($robots)->toContain('Disallow: /');
 });

@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 160" role="img" aria-label="ventMail">
+  <defs>
+    <linearGradient id="g" x1="8" y1="8" x2="152" y2="152" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#46D6FF"/>
+      <stop offset="0.5" stop-color="#5B7CFF"/>
+      <stop offset="1" stop-color="#9670FF"/>
+    </linearGradient>
+  </defs>
+  <g transform="translate(8 8) scale(0.28125)">
+    <rect width="512" height="512" rx="120" fill="url(#g)"/>
+    <rect x="104" y="146" width="304" height="220" rx="40" fill="none" stroke="#080B16" stroke-width="34" stroke-linejoin="round"/>
+    <path d="M116 176 256 286 396 176" fill="none" stroke="#080B16" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <text x="176" y="102" font-family="Space Grotesk, Inter, Helvetica, Arial, sans-serif" font-size="80" fill="#FFFFFF" letter-spacing="-2"><tspan font-weight="400">vent</tspan><tspan font-weight="700">Mail</tspan></text>
+</svg>

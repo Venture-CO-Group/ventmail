@@ -1,0 +1,31 @@
+/* A ventMail szó-jel — közös az app-héjban, a belépőben és (Blade-ben ugyanezekkel az osztályokkal) a landingen. */
+.brand-logo {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--vt-space-3);
+    color: var(--vt-text);
+    text-decoration: none;
+}
+
+.brand-logo__mark {
+    display: block;
+    width: var(--vt-space-8);
+    height: var(--vt-space-8);
+}
+
+.brand-logo__word {
+    font-size: var(--vt-fs-h6);
+    font-weight: var(--vt-weight-regular);
+    letter-spacing: var(--vt-tracking-tight);
+    line-height: 1;
+}
+
+.brand-logo__word strong {
+    font-weight: var(--vt-weight-bold);
+}
+
+.brand-logo:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 var(--vt-space-1) var(--vt-ring);
+    border-radius: var(--vt-radius-sm);
+}

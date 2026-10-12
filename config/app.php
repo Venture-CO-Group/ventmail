@@ -92,6 +92,18 @@ return [
      | A `LocaleCompletenessTest` ezt a listát járja végig: a hiányzó VAGY extra kulcs
      | teszt-bukás, nem futásidejű fallback.
      */
+    /*
+     | A kiadott verzió (a Dockerfile `ENV VENTMAIL_VERSION=${VERSION}`-ja tölti) — a belépő
+     | oldal lábléce mutatja, mint a ventSSO-é.
+     */
+    'version' => env('VENTMAIL_VERSION', 'dev'),
+
+    /*
+     | A STATIKUS termékoldal hostja (apex). Ez NEM a landing-page-builder képesség (az a
+     | ventStudióé): egyetlen, a ventMailt bemutató oldal. Az apexen az app semmi mást nem szolgál ki.
+     */
+    'landing_host' => env('LANDING_HOST', 'ventmail.app'),
+
     'supported_locales' => ['hu', 'en', 'de', 'it', 'es', 'ru'],
 
     'faker_locale' => env('APP_FAKER_LOCALE', 'en_US'),

@@ -511,5 +511,22 @@
         "accept": "Accept",
         "decline": "Decline",
         "empty": "You have no pending invitations."
+    },
+    "auth": {
+        "legalNav": "Legal information",
+        "terms": "Terms of use",
+        "privacy": "Privacy policy",
+        "login": {
+            "title": "Sign in",
+            "lede": "Sign in with your Venture account to open ventMail.",
+            "button": "Continue with your Venture account",
+            "note": "Sign-in is handled by ventSSO (sso.ventureco.app)."
+        },
+        "denied": {
+            "title": "No access",
+            "lede": "This Venture account has no access to ventMail.",
+            "hint": "Ask the workspace owner to invite you or to grant your account a ventMail role.",
+            "back": "Back to sign in"
+        }
     }
 }

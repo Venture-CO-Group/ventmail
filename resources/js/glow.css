@@ -1,0 +1,170 @@
+/*
+ | A VENTURE GLOW-RENDSZER (ventSSO v1.2 portja) — kizárólag @venture/design tokenekből.
+ |
+ |  - .vt-glow-rim        a teljes keret, csak fókuszkártyán (belépő, megtagadva);
+ |  - .vt-glow-hairline   halvány futó vonal egy sáv alatt (oldalsáv-fej);
+ |  - .vt-glow-indicator  az aktív navigációs elem függőleges jelölője.
+ |
+ | `@property` nélkül a keret statikus színátmenet; `prefers-reduced-motion` mellett semmi
+ | nem mozog. A hajszálvonalak `calc(var(--vt-space-1) / 4)`-ek (a token 4 egység), mert a
+ | tokenteszt nyers hosszt nem enged; az eredeti 1 px-es, 2 px-es értéket adják vissza.
+ |
+ | JELENTÉS a @venture/ui felé: a glow-rim/-hairline/-indicator mindkét app (ventSSO, ventMail)
+ | saját példánya — a @venture/design utilities-ébe kellene költöznie.
+ */
+@property --vt-rim-angle {
+    syntax: '<angle>';
+    initial-value: 0deg;
+    inherits: false;
+}
+
+:root {
+    --vt-hair: calc(var(--vt-space-1) / 4);
+    --vt-glow-conic: conic-gradient(
+        from var(--vt-rim-angle),
+        var(--vt-color-cyan-400),
+        var(--vt-accent),
+        var(--vt-color-violet-400),
+        var(--vt-accent),
+        var(--vt-color-cyan-400)
+    );
+    --vt-glow-linear: linear-gradient(
+        90deg,
+        var(--vt-color-cyan-400),
+        var(--vt-accent),
+        var(--vt-color-violet-400),
+        var(--vt-accent),
+        var(--vt-color-cyan-400)
+    );
+    --vt-glow-vertical: linear-gradient(
+        180deg,
+        var(--vt-color-cyan-400),
+        var(--vt-accent),
+        var(--vt-color-violet-400)
+    );
+}
+
+@keyframes vt-rim-spin {
+    to {
+        --vt-rim-angle: 360deg;
+    }
+}
+
+@keyframes vt-rim-breathe {
+    0%,
+    100% {
+        opacity: 0.55;
+    }
+    50% {
+        opacity: 1;
+    }
+}
+
+@keyframes vt-glow-flow {
+    to {
+        background-position: 200% 0;
+    }
+}
+
+/* A burkoló viszi a fényudvart (mögötte) és a hajszálkeretet (felül); a belső kártya majdnem átlátszatlan. */
+.vt-glow-rim {
+    --vt-rim-radius: var(--vt-radius-xl);
+    --vt-rim-speed: 10s;
+    position: relative;
+    isolation: isolate;
+    border-radius: var(--vt-rim-radius);
+}
+
+.vt-glow-rim::before,
+.vt-glow-rim::after {
+    --vt-rim-angle: 0deg;
+    content: '';
+    position: absolute;
+    pointer-events: none;
+    background: var(--vt-glow-conic);
+    animation: vt-rim-spin var(--vt-rim-speed) linear infinite;
+}
+
+.vt-glow-rim::before {
+    inset: calc(var(--vt-space-1) * -0.5);
+    z-index: -1;
+    border-radius: calc(var(--vt-rim-radius) + var(--vt-space-1) / 2);
+    filter: blur(calc(var(--vt-space-6) - var(--vt-space-1)));
+    opacity: 0.32;
+    animation:
+        vt-rim-spin var(--vt-rim-speed) linear infinite,
+        vt-rim-breathe 5s ease-in-out infinite;
+}
+
+/* A keret: kitöltés-maszk. A maszk csak az alfa-csatornát használja, a szín tetszőleges átlátszatlan token. */
+.vt-glow-rim::after {
+    inset: 0;
+    z-index: 1;
+    border-radius: var(--vt-rim-radius);
+    padding: var(--vt-hair);
+    -webkit-mask:
+        linear-gradient(var(--vt-bg) 0 0) content-box,
+        linear-gradient(var(--vt-bg) 0 0);
+    -webkit-mask-composite: xor;
+    mask:
+        linear-gradient(var(--vt-bg) 0 0) content-box exclude,
+        linear-gradient(var(--vt-bg) 0 0);
+}
+
+.vt-glow-rim > .vt-glow-rim__card {
+    border-color: transparent;
+    border-radius: var(--vt-rim-radius);
+    background: linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--vt-bg-elevated) 94%, transparent),
+        color-mix(in srgb, var(--vt-bg) 96%, transparent)
+    );
+}
+
+/* Foglalt (belépés, mentés): a keret felgyorsul, és előrehaladásjelzőként is szolgál. */
+.vt-glow-rim[data-busy='true'] {
+    --vt-rim-speed: 1.4s;
+}
+
+.vt-glow-rim[data-busy='true']::before {
+    opacity: 0.6;
+}
+
+.vt-glow-hairline {
+    position: relative;
+    padding-block-end: var(--vt-space-4);
+}
+
+.vt-glow-hairline::after {
+    content: '';
+    position: absolute;
+    inset: auto 0 0 0;
+    height: var(--vt-hair);
+    pointer-events: none;
+    background: var(--vt-glow-linear);
+    background-size: 200% 100%;
+    opacity: 0.45;
+    animation: vt-glow-flow 12s linear infinite;
+}
+
+.vt-glow-indicator {
+    position: relative;
+}
+
+.vt-glow-indicator::before {
+    content: '';
+    position: absolute;
+    inset-block: var(--vt-space-2);
+    inset-inline-start: 0;
+    width: calc(var(--vt-space-1) / 2);
+    border-radius: var(--vt-radius-full);
+    background: var(--vt-glow-vertical);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .vt-glow-rim::before,
+    .vt-glow-rim::after,
+    .vt-glow-hairline::after {
+        animation: none !important;
+    }
+}

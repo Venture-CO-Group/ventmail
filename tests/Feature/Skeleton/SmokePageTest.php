@@ -7,19 +7,24 @@ declare(strict_types=1);
  | és @venture/ui komponenst használ @venture/design tokenekkel.
  */
 
-it('a smoke oldal Inertia-választ ad', function () {
+it('a belépő oldal Inertián keresztül renderel', function () {
     // A backend-kapu nem függhet a lefordított Vite-manifesttől (a CI ott nem buildel);
     // a tényleges renderelést a Playwright e2e fedi.
     $this->withoutVite()
         ->get('/')
         ->assertOk()
-        ->assertInertia(fn ($page) => $page->component('Smoke'));
+        ->assertInertia(fn ($page) => $page->component('Auth/Login'));
 });
 
-it('a smoke oldal Vue komponense @venture/ui-ból importál', function () {
-    $source = file_get_contents(resource_path('js/Pages/Smoke.vue'));
+it('a belépő a ventSSO-val azonos üveg-kártya + glow-keret nyelvet használja', function () {
+    // A @venture/ui-ban nincs link-gomb (a VtButton csak <button>): a belépés teljes
+    // navigáció, ezért <a> + design-utility (`vt-glass`) és token-stílus.
+    $shell = file_get_contents(resource_path('js/Components/AuthShell.vue'));
+    $login = file_get_contents(resource_path('js/Pages/Auth/Login.vue'));
 
-    expect($source)->toContain('@venture/ui');
+    expect($shell)->toContain('vt-glass')->toContain('vt-glow-rim')
+        ->and($login)->toContain('href="/auth/redirect"')
+        ->and($login)->not->toContain('<Link');
 });
 
 it('az app belépési pontja betölti a @venture/design tokeneket', function () {

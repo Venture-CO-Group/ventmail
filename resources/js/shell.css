@@ -30,7 +30,9 @@
     flex-wrap: wrap;
     align-items: stretch;
     min-height: 100vh;
-    background: var(--vt-bg);
+    background:
+        radial-gradient(55% 40% at 20% 0%, color-mix(in srgb, var(--vt-accent) 14%, transparent), transparent 70%),
+        var(--vt-bg);
     color: var(--vt-text);
     font-family: var(--vt-font-body);
 }
@@ -46,8 +48,14 @@
     flex: 1 1 calc(var(--vt-space-32) * 2);
     max-width: calc(var(--vt-space-32) * 3);
     padding: var(--vt-space-6);
-    border-right: thin solid var(--vt-border);
-    background: var(--vt-bg-elevated);
+    border-right: thin solid var(--vt-glass-base-stroke);
+    /* Üveg-felület: a ventSSO admin-sávjával azonos nyelv (átlátszó kitöltés + elmosás). */
+    background: var(--vt-glass-base-fill);
+    backdrop-filter: blur(var(--vt-glass-base-blur)) saturate(var(--vt-glass-base-saturate));
+}
+
+.vm-shell__brand {
+    padding-inline: var(--vt-space-2);
 }
 
 .vm-shell__main {
@@ -83,8 +91,18 @@
 }
 
 .vm-nav-link[aria-current='page'] {
-    background: var(--vt-glass-base-fill);
-    color: var(--vt-accent);
+    background: var(--vt-glass-thin-fill);
+    color: var(--vt-text);
+}
+
+/* A glow-jelölő CSAK az aktív menüponton látszik. */
+.vm-nav-link.vt-glow-indicator:not([aria-current='page'])::before {
+    content: none;
+}
+
+.vm-nav-link:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 var(--vt-space-1) var(--vt-ring);
 }
 
 /* VÍZSZINTES CSOPORT: gombok, választók, jelölők egy sorban, töréssel. */

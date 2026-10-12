@@ -2,3 +2,18 @@
    Lokális szín/spacing/font érték TILOS — ha nincs token, jelentsd a design repóba. */
 @import '@venture/design/styles.css';
 @import '@venture/ui/style.css';
+
+/* Alap: sötét felület, token-szín és -betű. A téma a <html data-theme="dark">-ból jön. */
+html,
+body {
+    margin: 0;
+    background: var(--vt-bg);
+    color: var(--vt-text);
+    font-family: var(--vt-font-body);
+}
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}

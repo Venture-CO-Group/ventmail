@@ -1,0 +1,269 @@
+/*
+ | A STATIKUS TERMÉKOLDAL stílusa — csak @venture/design tokenek, mint az app. A glow- és
+ | szó-jel-stílus az app-belépő fájljaiból jön, hogy a két felület egy nyelvet beszéljen.
+ | Töréspont nélküli, folyékony elrendezés: `flex-wrap`, `auto-fit` rács és `min()` —
+ | a media query nem olvas `var()`-t, és 375 szélességen sem szabad vízszintes görgetés.
+ */
+@import '@venture/design/styles.css';
+@import '../js/glow.css';
+@import '../js/brand.css';
+
+html,
+body {
+    margin: 0;
+    background: var(--vt-bg);
+    color: var(--vt-text);
+    font-family: var(--vt-font-body);
+}
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+.landing {
+    position: relative;
+    min-height: 100vh;
+    overflow-x: clip;
+    line-height: var(--vt-leading-relaxed);
+}
+
+.landing > :not(.landing__blobs) {
+    position: relative;
+    z-index: var(--vt-z-base);
+}
+
+/* Háttér-foltok: ugyanaz az ambient nyelv, mint a látványtervben. */
+.landing__blobs {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.landing__blob {
+    position: absolute;
+    width: min(calc(var(--vt-space-32) * 5), 90vw);
+    aspect-ratio: 1;
+    border-radius: var(--vt-radius-full);
+    filter: blur(calc(var(--vt-space-16) + var(--vt-space-8)));
+    opacity: 0.28;
+}
+
+.landing__blob--a {
+    top: calc(var(--vt-space-24) * -1);
+    left: 10%;
+    background: var(--vt-accent);
+}
+
+.landing__blob--b {
+    top: calc(var(--vt-space-32) * 2);
+    right: 0;
+    background: var(--vt-color-violet-400);
+    opacity: 0.2;
+}
+
+.landing__blob--c {
+    top: calc(var(--vt-space-32) * 6);
+    left: 0;
+    background: var(--vt-color-cyan-400);
+    opacity: 0.14;
+}
+
+.landing__skip:not(:focus):not(:active) {
+    position: absolute;
+    inline-size: var(--vt-space-1);
+    block-size: var(--vt-space-1);
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
+.landing__skip {
+    padding: var(--vt-space-2) var(--vt-space-4);
+    color: var(--vt-text);
+}
+
+.landing__header,
+main,
+.landing__footer {
+    width: min(calc(var(--vt-space-32) * 8), 100%);
+    margin-inline: auto;
+    padding-inline: var(--vt-space-6);
+}
+
+.landing__header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--vt-space-4);
+    padding-block: var(--vt-space-5);
+}
+
+.landing__btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: calc(var(--vt-space-10) + var(--vt-space-1));
+    padding: 0 var(--vt-space-6);
+    border-radius: var(--vt-radius-md);
+    background-color: var(--vt-accent);
+    color: var(--vt-on-accent);
+    font-weight: var(--vt-weight-semibold);
+    text-decoration: none;
+    box-shadow: var(--vt-glow-line-bloom);
+}
+
+.landing__btn:hover {
+    background-color: var(--vt-accent-hover);
+}
+
+.landing__btn--ghost {
+    background: transparent;
+    color: var(--vt-text);
+    border: thin solid var(--vt-border-strong);
+    box-shadow: none;
+}
+
+.landing__btn--ghost:hover {
+    background: var(--vt-glass-thin-fill);
+}
+
+.landing__btn:focus-visible,
+.landing__legal a:focus-visible,
+.landing__skip:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 var(--vt-space-1) var(--vt-ring);
+}
+
+.landing__hero {
+    padding-block: var(--vt-space-16) var(--vt-space-12);
+}
+
+.landing__title {
+    max-width: calc(var(--vt-space-32) * 5);
+    margin: var(--vt-space-3) 0 var(--vt-space-5);
+    font-family: var(--vt-font-display);
+    font-size: clamp(var(--vt-fs-h4), 7vw, var(--vt-fs-h1));
+    font-weight: var(--vt-weight-bold);
+    letter-spacing: var(--vt-tracking-display);
+    line-height: var(--vt-leading-display);
+    overflow-wrap: anywhere;
+}
+
+.landing__lede {
+    max-width: calc(var(--vt-space-32) * 5);
+    margin: 0 0 var(--vt-space-6);
+    color: var(--vt-text-muted);
+    font-size: var(--vt-fs-lead);
+}
+
+.landing__cta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--vt-space-3);
+}
+
+.landing__pillars {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(calc(var(--vt-space-32) * 2.5), 100%), 1fr));
+    gap: var(--vt-space-6);
+    padding-block: var(--vt-space-8);
+}
+
+.landing__card {
+    padding: var(--vt-space-8);
+    border-radius: var(--vt-radius-xl);
+}
+
+.landing__h2 {
+    margin: 0 0 var(--vt-space-2);
+    font-family: var(--vt-font-display);
+    font-size: var(--vt-fs-h5);
+    font-weight: var(--vt-weight-semibold);
+    letter-spacing: var(--vt-tracking-tight);
+}
+
+.landing__h3 {
+    margin: 0 0 var(--vt-space-2);
+    font-family: var(--vt-font-display);
+    font-size: var(--vt-fs-h6);
+    font-weight: var(--vt-weight-semibold);
+}
+
+.landing__muted {
+    margin: 0;
+    color: var(--vt-text-muted);
+}
+
+.landing__list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--vt-space-2);
+    margin: var(--vt-space-5) 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.landing__list li {
+    padding-block: var(--vt-space-2);
+    border-top: thin solid var(--vt-border);
+}
+
+.landing__engine,
+.landing__deliver,
+.landing__eu {
+    padding-block: var(--vt-space-8);
+}
+
+.landing__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(calc(var(--vt-space-24) * 2), 100%), 1fr));
+    gap: var(--vt-space-4);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.landing__tile {
+    padding: var(--vt-space-6);
+    border-radius: var(--vt-radius-lg);
+}
+
+.landing__eu {
+    border-top: thin solid var(--vt-border);
+}
+
+.landing__footer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--vt-space-4);
+    padding-block: var(--vt-space-8);
+    border-top: thin solid var(--vt-border);
+    font-size: var(--vt-fs-body-sm);
+}
+
+.landing__legal {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--vt-space-5);
+}
+
+.landing__legal a {
+    color: var(--vt-text-muted);
+}
+
+.landing__legal a:hover {
+    color: var(--vt-text);
+}
+
+.landing__copy {
+    margin: 0;
+    color: var(--vt-text-subtle);
+    font-family: var(--vt-font-mono);
+    font-size: var(--vt-fs-caption);
+}
