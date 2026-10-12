@@ -25,7 +25,7 @@ const selected = ref<string[]>(props.recipients.slice(0, 1).map((recipient) => r
 const localPart = ref('hello');
 const domain = ref(props.domains[0] ?? '');
 const sending = ref(false);
-const result = ref<{ ok: boolean; text: string } | null>(null);
+const result = ref<{ ok: boolean; text: string; reason?: string } | null>(null);
 
 const from = computed(() => `${localPart.value.trim()}@${domain.value}`);
 
@@ -69,6 +69,7 @@ async function send(): Promise<void> {
 
         result.value = {
             ok: false,
+            reason: data?.reason ?? 'VALIDATION',
             text: data?.reason ? reasonText(data.reason) : (Object.values(data?.errors ?? {}).flat()[0] ?? data?.message ?? failure.message),
         };
     } finally {
@@ -106,7 +107,8 @@ async function send(): Promise<void> {
             {{ t('editor.testSend.submit') }}
         </VtButton>
 
-        <p v-if="result" class="vm-banner" :class="result.ok ? '' : 'vm-banner--warning'" role="status" data-testid="test-send-result" :data-ok="result.ok ? 'true' : 'false'">
+        <p v-if="result" class="vm-banner" :class="result.ok ? '' : 'vm-banner--warning'" role="status" data-testid="test-send-result" :data-ok="result.ok ? 'true' : 'false'"
+            :data-reason="result.reason ?? ''">
             {{ result.text }}
         </p>
     </div>

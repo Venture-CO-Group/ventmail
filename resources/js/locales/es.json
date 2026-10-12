@@ -1323,7 +1323,7 @@
             "saveFirst": "Corrige los errores y guarda antes de enviar una prueba.",
             "reasons": {
                 "SENDING_RESTRICTED": "Modo seed: ahora solo las direcciones autorizadas pueden recibir correo.",
-                "CHANNEL_DISABLED": "El envío está desactivado en este canal.",
+                "CHANNEL_DISABLED": "El envío de marketing está desactivado en la plataforma, así que no se puede enviar la prueba de una plantilla de marketing.",
                 "DOMAIN_UNVERIFIED": "El dominio del remitente no está verificado.",
                 "SUPPRESSED": "El destinatario está en la lista de supresión.",
                 "NO_CONSENT": "No hay consentimiento para este destinatario.",

@@ -1323,7 +1323,7 @@
             "saveFirst": "Corrigez les erreurs et enregistrez avant d’envoyer un test.",
             "reasons": {
                 "SENDING_RESTRICTED": "Mode seed : seules les adresses autorisées peuvent recevoir des e-mails pour l’instant.",
-                "CHANNEL_DISABLED": "L’envoi est désactivé sur ce canal.",
+                "CHANNEL_DISABLED": "L’envoi marketing est désactivé sur la plateforme : le test d’un modèle marketing ne peut pas être envoyé.",
                 "DOMAIN_UNVERIFIED": "Le domaine de l’expéditeur n’est pas vérifié.",
                 "SUPPRESSED": "Le destinataire figure sur la liste d’exclusion.",
                 "NO_CONSENT": "Aucun consentement pour ce destinataire.",

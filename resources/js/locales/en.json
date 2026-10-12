@@ -1323,7 +1323,7 @@
             "saveFirst": "Fix the errors and save before sending a test.",
             "reasons": {
                 "SENDING_RESTRICTED": "Seed mode: only allowlisted addresses can receive email right now.",
-                "CHANNEL_DISABLED": "Sending is switched off on this channel.",
+                "CHANNEL_DISABLED": "Marketing sending is switched off on the platform, so a marketing template test cannot be sent.",
                 "DOMAIN_UNVERIFIED": "The sender domain is not verified.",
                 "SUPPRESSED": "The recipient is on the suppression list.",
                 "NO_CONSENT": "There is no consent for this recipient.",

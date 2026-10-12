@@ -184,7 +184,13 @@ test('a TESZT-KÜLDÉS a PreSendGate-en megy — a válasz a kapu döntése', as
     // OKÁT kapjuk vissza — mindkét esetben a levél a kapun ment át, nem driver-hívással.
     const result = form.getByTestId('test-send-result');
     await expect(result).toBeVisible({ timeout: 15_000 });
-    await expect(result).not.toBeEmpty();
+
+    // A dev-környezet küldési módja dönt: vagy kiment (data-ok=true), vagy a KAPU konkrét
+    // okát kapjuk vissza (seed-mód / kikapcsolt marketing — D52: a marketing teszt a
+    // campaign csatornán megy). Validációs hiba vagy ismeretlen ok NEM elfogadható.
+    const ok = await result.getAttribute('data-ok');
+    const reason = await result.getAttribute('data-reason');
+    expect(ok === 'true' || ['SENDING_RESTRICTED', 'CHANNEL_DISABLED'].includes(reason ?? ''), `ok=${ok} reason=${reason}`).toBe(true);
 });
 
 test('az ELŐNÉZET a szerver fordítójából jön (HTML és plaintext)', async ({ page }) => {
@@ -210,8 +216,11 @@ test('a kötelező lábléc nélkül a mentés elutasít — a hiba látszik, a 
     await expect(page.getByTestId('save-status')).toHaveAttribute('data-state', 'error', { timeout: 15_000 });
     await expect(page.getByTestId('save-error')).toBeVisible();
 
-    await page.getByTestId('editor-undo').click();
-    await waitSaved(page);
+    // A SZERVER állapota: újratöltés után a lábléc ott van — a hibás mentés nem írt felül.
+    page.once('dialog', (dialog) => void dialog.accept());
+    await page.reload();
+    await expect(page.locator('[data-testid="editor-canvas"] [data-type="footer"]')).toHaveCount(1);
+    await expect(page.getByTestId('save-status')).toHaveAttribute('data-state', 'saved');
 });
 
 test('a könyvtárban a sablon a saját sablonok között van, és mentett blokk is létrehozható', async ({ page }) => {

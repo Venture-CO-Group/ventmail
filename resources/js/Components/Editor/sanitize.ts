@@ -81,7 +81,9 @@ function walk(node: Element, allowed: string[]): void {
     for (let i = node.childNodes.length - 1; i >= 0; i--) {
         const child = node.childNodes[i];
 
-        if (child.nodeType === Node.COMMENT_NODE) {
+        // KOMMENT és PROCESSING INSTRUCTION mind eltűnik (SS3 — a szerverrel azonosan):
+        // `[if mso]`, hamisított `vm:` jelölő, `<!-->` mXSS.
+        if (child.nodeType === Node.COMMENT_NODE || child.nodeType === Node.PROCESSING_INSTRUCTION_NODE || child.nodeType === Node.CDATA_SECTION_NODE) {
             child.remove();
             continue;
         }

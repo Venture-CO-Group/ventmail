@@ -1323,7 +1323,7 @@
             "saveFirst": "Javítsd a hibákat és ments a teszt-küldés előtt.",
             "reasons": {
                 "SENDING_RESTRICTED": "Seed-mód: most csak az allowlistes címek kaphatnak levelet.",
-                "CHANNEL_DISABLED": "Ezen a csatornán a küldés ki van kapcsolva.",
+                "CHANNEL_DISABLED": "A platformon ki van kapcsolva a marketing-küldés, ezért marketing sablon tesztje nem küldhető.",
                 "DOMAIN_UNVERIFIED": "A feladó domainje nincs hitelesítve.",
                 "SUPPRESSED": "A címzett a tiltólistán van.",
                 "NO_CONSENT": "Ehhez a címzetthez nincs hozzájárulás.",

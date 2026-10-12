@@ -1323,7 +1323,7 @@
             "saveFirst": "Beheben Sie die Fehler und speichern Sie vor dem Testversand.",
             "reasons": {
                 "SENDING_RESTRICTED": "Seed-Modus: Derzeit können nur freigegebene Adressen E-Mails erhalten.",
-                "CHANNEL_DISABLED": "Der Versand ist auf diesem Kanal deaktiviert.",
+                "CHANNEL_DISABLED": "Der Marketing-Versand ist auf der Plattform deaktiviert, daher kann kein Test einer Marketing-Vorlage gesendet werden.",
                 "DOMAIN_UNVERIFIED": "Die Absenderdomain ist nicht verifiziert.",
                 "SUPPRESSED": "Der Empfänger steht auf der Sperrliste.",
                 "NO_CONSENT": "Für diesen Empfänger liegt keine Einwilligung vor.",
