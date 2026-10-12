@@ -153,15 +153,15 @@ function filterStatus(value: string): void {
                         :hint="t('webhooks.eventsHint')"
                         data-testid="endpoint-events"
                     >
-                    <VtCheckbox
-                        v-for="event in availableEvents"
-                        :key="event"
-                        :model-value="events.includes(event)"
-                        :data-testid="`event-${event}`"
-                        @update:model-value="toggleEvent(event)"
-                    >
-                        {{ event }}
-                    </VtCheckbox>
+                        <VtCheckbox
+                            v-for="event in availableEvents"
+                            :key="event"
+                            :model-value="events.includes(event)"
+                            :data-testid="`event-${event}`"
+                            @update:model-value="toggleEvent(event)"
+                        >
+                            {{ event }}
+                        </VtCheckbox>
                     </VmFieldGroup>
                 </VmFormSection>
 

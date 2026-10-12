@@ -5,7 +5,7 @@
  * Az űrlap-családot három komponens alkotja, és a távolságok táblázata itt van leírva,
  * hogy egy új oldalnak ne kelljen CSS-t írnia:
  *
- *   cím ↔ mező (a `VtField`-ben)  --vt-space-2   (8pt-rács)
+ *   cím ↔ mező (a `VtField`-ben)  --vt-space-2   (--vt-space-2)
  *   mező ↔ mező                  --vt-space-5   (`VmFormSection`)
  *   szakasz ↔ szakasz            --vt-space-8   (`VmForm`)
  *   kártya belső margó           --vt-space-6   (`VtCard`)

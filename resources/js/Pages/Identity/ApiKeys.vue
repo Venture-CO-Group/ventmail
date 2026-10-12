@@ -134,27 +134,27 @@ function revoke(uuid: string): void {
                     </VtField>
 
                     <VmFieldGroup :legend="t('apiKeys.scopes')" data-testid="key-scopes">
-                    <VtCheckbox
-                        v-for="scope in availableScopes"
-                        :key="scope"
-                        :model-value="scopes.includes(scope)"
-                        :data-testid="`scope-${scope}`"
-                        @update:model-value="toggleScope(scope)"
-                    >
-                        {{ scope }}
-                    </VtCheckbox>
+                        <VtCheckbox
+                            v-for="scope in availableScopes"
+                            :key="scope"
+                            :model-value="scopes.includes(scope)"
+                            :data-testid="`scope-${scope}`"
+                            @update:model-value="toggleScope(scope)"
+                        >
+                            {{ scope }}
+                        </VtCheckbox>
                     </VmFieldGroup>
 
                     <VmFieldGroup :legend="t('apiKeys.channels')" :hint="t('apiKeys.channelsHint')" data-testid="key-channels">
-                    <VtCheckbox
-                        v-for="channel in availableChannels"
-                        :key="channel"
-                        :model-value="channels.includes(channel)"
-                        :data-testid="`channel-${channel}`"
-                        @update:model-value="toggleChannel(channel)"
-                    >
-                        {{ channel }}
-                    </VtCheckbox>
+                        <VtCheckbox
+                            v-for="channel in availableChannels"
+                            :key="channel"
+                            :model-value="channels.includes(channel)"
+                            :data-testid="`channel-${channel}`"
+                            @update:model-value="toggleChannel(channel)"
+                        >
+                            {{ channel }}
+                        </VtCheckbox>
                     </VmFieldGroup>
 
                     <VtCheckbox v-model="testmode" data-testid="key-testmode">

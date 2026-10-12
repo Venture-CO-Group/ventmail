@@ -2,7 +2,7 @@
 /**
  * MEZŐ-SOR: több mező egymás mellett, keskeny helyen egymás alatt.
  *
- * Media query nélkül (nincs töréspont-token): `auto-fit` + `minmax` racs, tehát a mezők
+ * Media query nélkül (nincs töréspont-token): `auto-fit` + `minmax` rács, tehát a mezők
  * akkor törnek új sorba, amikor a minimum-szélességük már nem fér el. A minimum a
  * spacing-skálából számolt érték.
  */

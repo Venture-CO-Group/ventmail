@@ -173,15 +173,15 @@ function removeSuppression(uuid: string): void {
                     </VtField>
 
                     <VmFieldGroup :legend="t('platform.features')">
-                    <VtCheckbox
-                        v-for="feature in features"
-                        :key="feature"
-                        :model-value="overrideForm.features.includes(feature)"
-                        :data-testid="`override-feature-${feature}`"
-                        @update:model-value="toggleFeature(feature)"
-                    >
-                        {{ feature }}
-                    </VtCheckbox>
+                        <VtCheckbox
+                            v-for="feature in features"
+                            :key="feature"
+                            :model-value="overrideForm.features.includes(feature)"
+                            :data-testid="`override-feature-${feature}`"
+                            @update:model-value="toggleFeature(feature)"
+                        >
+                            {{ feature }}
+                        </VtCheckbox>
                     </VmFieldGroup>
 
                     <VmFormRow>

@@ -192,23 +192,21 @@ function save(): void {
         <h1 class="vt-text-display">{{ t('templates.editor') }}</h1>
 
         <VmCard>
-            <VmForm @submit.prevent="save">
-                <VmFormSection>
-                    <VmFormRow>
-                        <VtField :label="t('templates.name')">
-                            <VtInput v-model="name" data-testid="editor-name" />
-                        </VtField>
-
-                        <VtField :label="t('templates.subject')">
-                            <VtInput v-model="subject" data-testid="editor-subject" />
-                        </VtField>
-                    </VmFormRow>
-
-                    <VtField :label="t('templates.preheader')" :hint="t('templates.preheaderHint')">
-                        <VtInput v-model="preheader" data-testid="editor-preheader" />
+            <VmFormSection>
+                <VmFormRow>
+                    <VtField :label="t('templates.name')">
+                        <VtInput v-model="name" data-testid="editor-name" />
                     </VtField>
-                </VmFormSection>
-            </VmForm>
+
+                    <VtField :label="t('templates.subject')">
+                        <VtInput v-model="subject" data-testid="editor-subject" />
+                    </VtField>
+                </VmFormRow>
+
+                <VtField :label="t('templates.preheader')" :hint="t('templates.preheaderHint')">
+                    <VtInput v-model="preheader" data-testid="editor-preheader" />
+                </VtField>
+            </VmFormSection>
         </VmCard>
 
         <VmCard>

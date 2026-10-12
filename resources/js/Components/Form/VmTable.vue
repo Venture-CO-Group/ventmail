@@ -24,7 +24,14 @@ defineProps<{
     <VtTable class="vm-table" :columns="columns" :rows="rows" :glass="glass" :caption="caption">
         <template #cell="slotProps">
             <slot name="cell" v-bind="slotProps">
-                <span class="vm-truncate" :title="String(slotProps.value ?? '')">{{ slotProps.value }}</span>
+                <span
+                    class="vm-truncate"
+                    :class="{
+                        'vm-truncate--end': slotProps.column.align === 'right',
+                        'vm-truncate--center': slotProps.column.align === 'center',
+                    }"
+                    :title="String(slotProps.value ?? '')"
+                >{{ slotProps.value }}</span>
             </slot>
         </template>
     </VtTable>

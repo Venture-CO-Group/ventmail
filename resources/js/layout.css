@@ -71,3 +71,12 @@ div.vt-table.vm-table {
 .vm-cluster > :where(strong, span, p, a, code) {
     overflow-wrap: anywhere;
 }
+
+/* Jobbra/középre igazított oszlopban a (korlátozott szélességű) blokk is oda üljön. */
+.vm-truncate--end {
+    margin-inline-start: auto;
+}
+
+.vm-truncate--center {
+    margin-inline: auto;
+}
