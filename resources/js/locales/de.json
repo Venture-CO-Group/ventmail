@@ -1604,7 +1604,9 @@
                 "revoked": "widerrufen",
                 "none": "keine"
             }
-        }
+        },
+        "bulkTitle": "Treffer taggen",
+        "bulkHint": "Gilt für ALLE Treffer des gespeicherten Segments (nicht nur die Stichprobe)."
     },
     "tags": {
         "title": "Tags",

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Head, router } from '@inertiajs/vue3';
-import { VtButton, VtField, VtInput, VtTextarea } from '@venture/ui';
+import { VtButton, VtField, VtInput, VtSelect, VtTextarea } from '@venture/ui';
 import axios, { AxiosError } from 'axios';
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
@@ -85,6 +85,27 @@ function changed(): void {
 onMounted(preview);
 onBeforeUnmount(() => clearTimeout(timer));
 
+/* A SZEGMENS TALÁLATAINAK tömeges címkézése (csak mentett szegmensen: a mentett definíció
+   számít, nem a félkész szerkesztés). A szerver egy halmaz-utasítással írja. */
+const bulkAction = ref('tag');
+const bulkTag = ref(props.tags[0]?.uuid ?? '__new__');
+const bulkNewTag = ref('');
+
+function applyBulk(): void {
+    if (!props.segment) return;
+
+    router.post(
+        '/audience/contacts/bulk-tags',
+        {
+            action: bulkAction.value,
+            tagUuid: bulkTag.value === '__new__' ? null : bulkTag.value,
+            tagName: bulkTag.value === '__new__' ? bulkNewTag.value.trim() : null,
+            target: { type: 'segment', uuid: props.segment.uuid },
+        },
+        { preserveScroll: true, onSuccess: () => (bulkNewTag.value = '') },
+    );
+}
+
 function save(): void {
     if (!name.value.trim()) return;
 
@@ -157,6 +178,34 @@ function save(): void {
                         </VtButton>
                     </VmFormActions>
                 </VmCard>
+
+                <VmCard v-if="segment" data-testid="segment-bulk">
+                    <h2>{{ t('segments.bulkTitle') }}</h2>
+                    <p class="vm-seg-count__hint">{{ t('segments.bulkHint') }}</p>
+                    <label class="vm-visually-hidden" for="segment-bulk-action">{{ t('audience.bulkActionLabel') }}</label>
+                    <VtSelect
+                        id="segment-bulk-action"
+                        v-model="bulkAction"
+                        :options="[
+                            { value: 'tag', label: t('audience.bulkTag') },
+                            { value: 'untag', label: t('audience.bulkUntag') },
+                        ]"
+                        data-testid="segment-bulk-action"
+                    />
+                    <label class="vm-visually-hidden" for="segment-bulk-tag">{{ t('audience.bulkTagLabel') }}</label>
+                    <VtSelect
+                        id="segment-bulk-tag"
+                        v-model="bulkTag"
+                        :options="[...tags.map((tag) => ({ value: tag.uuid, label: tag.name })), { value: '__new__', label: t('audience.bulkNewTag') }]"
+                        data-testid="segment-bulk-tag"
+                    />
+                    <VtInput v-if="bulkTag === '__new__'" v-model="bulkNewTag" :placeholder="t('audience.bulkNewTagPlaceholder')" :aria-label="t('audience.bulkNewTag')" data-testid="segment-bulk-new-tag" />
+                    <VmFormActions>
+                        <VtButton variant="subtle" :disabled="bulkTag === '__new__' && !bulkNewTag.trim()" data-testid="segment-bulk-apply" @click="applyBulk">
+                            {{ t('audience.bulkApply') }}
+                        </VtButton>
+                    </VmFormActions>
+                </VmCard>
             </aside>
         </div>
     </AppLayout>
@@ -179,10 +228,11 @@ function save(): void {
 }
 
 .vm-seg-layout__side {
+    display: flex;
     flex: 1 1 calc(var(--vt-space-32) * 2);
+    flex-direction: column;
+    gap: var(--vt-space-6);
     min-width: 0;
-    position: sticky;
-    inset-block-start: var(--vt-space-20);
 }
 
 .vm-seg-count__label,

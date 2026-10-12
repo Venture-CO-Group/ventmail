@@ -51,6 +51,19 @@ test('a szegmensépítő ÉS/VAGY csoportokkal élő számot ad, és a mentett s
     await expect(page).toHaveURL(/\/audience\/segments\/[0-9a-f-]{36}$/);
     await expect(page.getByTestId('flash-success')).toBeVisible();
 
+    // A SZEGMENS TALÁLATAINAK tömeges címkézése — egy új címkével, a mentett definíció szerint.
+    const segmentTag = `e2e-szegmens-${run}`;
+
+    await page.getByTestId('segment-bulk-tag').locator('select').selectOption('__new__');
+    await page.getByTestId('segment-bulk-new-tag').fill(segmentTag);
+    await page.getByTestId('segment-bulk-apply').click();
+    await expect(page.getByTestId('flash-success')).toBeVisible();
+    const segmentUrl = page.url();
+
+    await page.goto('/audience/tags');
+    await expect(page.getByTestId(`tag-count-${segmentTag}`)).toContainText('2');
+    await page.goto(segmentUrl);
+
     await page.goto('/audience/segments');
     const row = page.locator('[data-testid^="segment-row-"]', { hasText: `E2E szegmens ${run}` });
     await expect(row).toContainText('2');

@@ -1604,7 +1604,9 @@
                 "revoked": "visszavont",
                 "none": "nincs"
             }
-        }
+        },
+        "bulkTitle": "A találatok címkézése",
+        "bulkHint": "A mentett szegmens MINDEN találatára vonatkozik (nem csak a mintára)."
     },
     "tags": {
         "title": "Címkék",

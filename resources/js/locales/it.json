@@ -1604,7 +1604,9 @@
                 "revoked": "revocato",
                 "none": "nessuno"
             }
-        }
+        },
+        "bulkTitle": "Etichetta i risultati",
+        "bulkHint": "Si applica a TUTTI i risultati del segmento salvato (non solo al campione)."
     },
     "tags": {
         "title": "Etichette",

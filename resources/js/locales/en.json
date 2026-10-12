@@ -1604,7 +1604,9 @@
                 "revoked": "revoked",
                 "none": "none"
             }
-        }
+        },
+        "bulkTitle": "Tag the matches",
+        "bulkHint": "Applies to EVERY match of the saved segment (not only the sample)."
     },
     "tags": {
         "title": "Tags",
