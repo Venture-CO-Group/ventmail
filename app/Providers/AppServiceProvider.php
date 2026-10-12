@@ -302,6 +302,33 @@ class AppServiceProvider extends ServiceProvider
         // olcsóbbak, mint a feltöltés, de a munkalap-váltás újra felmér, a beállítások pedig
         // háttérfeladatot indít — korlát nélkül egy tag az FPM-workereket foglalná le.
         // A MUNKALAP-VÁLTÁS újra felmér (zip-menet): ezért a többi lépésnél jóval szigorúbb.
+        /*
+         | v1.1 · 5. modul — STUDIO aggregátumok és tömeges műveletek.
+         |
+         | A szegmens-ELŐNÉZET és a dashboard-aggregátum minden hívása egy teljes közönség-
+         | lekérdezés (300k kontakt): a szerkesztő debounce-szal kéri, a plafon a hurokba
+         | szaladt klienst és a terhelő tagot fogja. A TÖMEGES tag-művelet egyetlen
+         | halmaz-utasítás, de akár százezres sort ír — ezért szigorúbb.
+         */
+        RateLimiter::for('segment-preview', fn (Request $request) => [
+            Limit::perMinute(60)->by('ws-min:'.self::workspaceKey($request)),
+        ]);
+
+        RateLimiter::for('audience-insights', fn (Request $request) => [
+            Limit::perMinute(30)->by('ws-min:'.self::workspaceKey($request)),
+        ]);
+
+        RateLimiter::for('audience-bulk', fn (Request $request) => [
+            Limit::perMinute(20)->by('ws-min:'.self::workspaceKey($request)),
+            Limit::perHour(200)->by('ws-hour:'.self::workspaceKey($request)),
+        ]);
+
+        // A HOSZTOLT űrlap-oldal (GET) névtelen, mint a beküldés: partnerenként plafon.
+        RateLimiter::for('hosted-form', fn (Request $request) => [
+            Limit::perMinute(60)->by('peer:'.self::peer($request)),
+            Limit::perMinute(600)->by('form-page:'.$request->route('slug')),
+        ]);
+
         RateLimiter::for('audience-import-sheet', fn (Request $request) => [
             Limit::perMinute(5)->by('ws-min:'.self::workspaceKey($request)),
             Limit::perHour(30)->by('ws-hour:'.self::workspaceKey($request)),

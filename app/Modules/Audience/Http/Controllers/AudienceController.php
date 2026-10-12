@@ -6,9 +6,14 @@ namespace App\Modules\Audience\Http\Controllers;
 
 use App\Modules\Audience\Models\Contact;
 use App\Modules\Audience\Models\ContactList;
+use App\Modules\Audience\Models\ContactTag;
 use App\Modules\Audience\Models\Segment;
+use App\Modules\Audience\Services\AudienceInsights;
 use App\Modules\Audience\Services\SegmentEngine;
 use App\Modules\Consent\Models\Consent;
+use App\Modules\Tenancy\Services\WorkspaceContext;
+use App\Support\WorkspaceTimezone;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -38,6 +43,8 @@ final class AudienceController
         $search = $request->string('search')->toString();
 
         $contacts = Contact::query()
+            // v1.1 · a CÍMKÉK a sor mellett (egy eager load a lapra, nem soronként).
+            ->with('tags:contact_tags.id,contact_tags.uuid,contact_tags.name')
             ->when($search !== '', fn ($query) => $query->where(
                 'email',
                 'like',
@@ -67,6 +74,11 @@ final class AudienceController
                 'contacts' => $list->contacts()->count(),
             ])->values()->all(),
 
+            // v1.1 · a tömeges címkézés választója.
+            'tags' => ContactTag::query()->orderBy('name')->get(['uuid', 'name'])
+                ->map(fn (ContactTag $tag) => ['uuid' => (string) $tag->uuid, 'name' => (string) $tag->name])
+                ->values()->all(),
+
             'segments' => Segment::query()->orderBy('name')->get()->map(fn (Segment $segment) => [
                 'uuid' => (string) $segment->uuid,
                 'name' => (string) $segment->name,
@@ -92,11 +104,29 @@ final class AudienceController
                         'consent' => $consent === null ? 'none' : (string) $consent->status,
                         'validation' => $contact->validation_verdict,
                         'createdAt' => $contact->created_at?->toIso8601String(),
+                        'source' => $contact->source,
+                        'tags' => $contact->tags->map(fn (ContactTag $tag) => (string) $tag->name)->values()->all(),
                     ];
                 })->values()->all(),
                 'nextCursor' => $contacts->nextCursor()?->encode(),
             ],
         ]);
+    }
+
+    /**
+     * KÖZÖNSÉG-DASHBOARD adatai (v1.1 · 5. modul) — JSON, chart-könyvtártól független alak.
+     *
+     * Külön végpont, nem Inertia-prop: a kontaktlista lapozása (cursor) ne számolja újra a
+     * három aggregátumot, és a 8. modul grafikonjai ugyanezt a végpontot olvassák.
+     */
+    public function insights(Request $request, AudienceInsights $insights, WorkspaceContext $context): JsonResponse
+    {
+        Gate::authorize('audience.manage');
+
+        return response()->json($insights->summary(
+            (int) $request->integer('days', 30),
+            WorkspaceTimezone::for($context->workspace(), $request->user()),
+        ));
     }
 
     public function storeList(Request $request): RedirectResponse

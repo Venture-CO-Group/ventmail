@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Audience\Services;
 
 use App\Modules\Audience\Models\Contact;
+use App\Modules\Audience\Models\ContactField;
 use App\Modules\Tenancy\Services\WorkspaceContext;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Str;
@@ -59,10 +60,46 @@ final class SegmentEngine
         'gt', 'gte', 'lt', 'lte', 'set', 'not_set',
         'in_list', 'not_in_list', 'has_tag', 'not_has_tag',
         'opened_campaign', 'clicked_campaign', 'not_opened_campaign',
+        // v1.1 · relatív dátum és engagement („az elmúlt N napban").
+        'within_days', 'not_within_days',
+        'opened_within_days', 'clicked_within_days', 'not_opened_within_days', 'not_clicked_within_days', 'never_opened',
     ];
 
-    /** A szabályok felső száma: egy 200 ágú szegmens lekérdezése a felületet állítaná meg. */
+    /** v1.1 · A consent-állapot (marketing csatorna) — zárt értékkészlet; `none` = nincs consent-sor. */
+    public const CONSENT_VALUES = ['confirmed', 'pending', 'revoked', 'none'];
+
+    /** v1.1 · A feliratkozási forrás — zárt értékkészlet. */
+    public const SOURCE_VALUES = ['import', 'form', 'api', 'manual'];
+
+    /** v1.1 · Az engagement-operátorok (mező: `engagement`). */
+    private const ENGAGEMENT_OPERATORS = [
+        'opened_within_days', 'clicked_within_days', 'not_opened_within_days', 'not_clicked_within_days', 'never_opened',
+    ];
+
+    /**
+     * A FELIRATKOZÁSI FORRÁS kifejezése — a dashboard forrás-bontása UGYANEZT használja.
+     *
+     * A `contacts.source` a v1.1-től töltődik (import / űrlap / API-szinkron / kézi). A régi
+     * soroknál a marketing-consent `source`-a a tartalék, és ha az sincs: `manual`. A
+     * kifejezés a `contacts` táblára korrelál, a consent-sort a tenant SAJÁT
+     * `(workspace_id, email, channel)` egyedi indexén keresi.
+     */
+    public const SOURCE_EXPRESSION = "coalesce(contacts.source, (select case cs.source when 'form' then 'form' "
+        ."when 'import' then 'import' when 'api' then 'api' else null end from consents cs "
+        .'where cs.workspace_id = contacts.workspace_id and cs.email = contacts.email '
+        ."and cs.channel = 'marketing' limit 1), 'manual')";
+
+    /** A szabályok felső száma — a TELJES fára (csoportokkal együtt). */
     private const MAX_RULES = 50;
+
+    /** A csoportok mélysége (a gyökér az 1.): gyökér + két beágyazott szint. */
+    public const MAX_DEPTH = 3;
+
+    /** Az „elmúlt N nap" felső határa (10 év) — a nagyobb érték elírás. */
+    private const MAX_DAYS = 3650;
+
+    /** @var array<int, array<string, string>> workspace → (kulcs → típus) */
+    private array $fieldTypes = [];
 
     /**
      * @param  array<string, mixed>  $definition
@@ -70,47 +107,12 @@ final class SegmentEngine
      */
     public function query(array $definition): Builder
     {
-        $match = strtolower((string) ($definition['match'] ?? 'all'));
-
-        if (! in_array($match, ['all', 'any'], true)) {
-            throw new InvalidArgumentException("Ismeretlen illesztési mód: {$match} (all|any).");
-        }
-
-        $rules = $definition['rules'] ?? [];
-
-        if (! is_array($rules)) {
-            throw new InvalidArgumentException('A `rules` listát vár.');
-        }
-
-        if (count($rules) > self::MAX_RULES) {
-            throw new InvalidArgumentException(sprintf(
-                'Legfeljebb %d szabály adható meg (%d érkezett).',
-                self::MAX_RULES,
-                count($rules)
-            ));
-        }
-
         // A DETERMINIZMUS alapja: a rendezés MINDIG az `id`, sosem implicit.
         $query = Contact::query()->reachable()->orderBy('id');
 
-        // Az ÜRES szabálylista a TELJES elérhető közönség — de ezt ki kell mondani, mert a
-        // másik értelmezés (üres halmaz) épp az ellenkezője, és egy elrontott szerkesztő
-        // csendben nulla címzettet adna egy kampánynak.
-        if ($rules === []) {
-            return $query;
-        }
+        $count = 0;
 
-        $query->where(function (Builder $group) use ($rules, $match): void {
-            foreach ($rules as $rule) {
-                if (! is_array($rule)) {
-                    throw new InvalidArgumentException('Minden szabály objektum.');
-                }
-
-                $match === 'all'
-                    ? $group->where(fn (Builder $inner) => $this->applyRule($inner, $rule))
-                    : $group->orWhere(fn (Builder $inner) => $this->applyRule($inner, $rule));
-            }
-        });
+        $this->applyGroup($query, $definition, 1, $count);
 
         return $query;
     }
@@ -119,6 +121,133 @@ final class SegmentEngine
     public function count(array $definition): int
     {
         return $this->query($definition)->count();
+    }
+
+    /**
+     * EGY CSOPORT (v1.1): `{"match": "all|any", "rules": [szabály | {"group": {…}}]}`.
+     *
+     * A régi, lapos definíció a gyökér-csoport — visszafelé kompatibilis. A beágyazott
+     * csoport NEM lehet üres: egy üres `any`-ág a Laravel-ben nyom nélkül eltűnne, és a
+     * szegmens SZÉLESEBB lenne a beállítottnál.
+     *
+     * @param  array<string, mixed>  $group
+     */
+    private function applyGroup(Builder $query, array $group, int $depth, int &$count): void
+    {
+        if ($depth > self::MAX_DEPTH) {
+            throw new InvalidArgumentException(sprintf('A csoportok legfeljebb %d szint mélyek lehetnek.', self::MAX_DEPTH));
+        }
+
+        $match = strtolower((string) ($group['match'] ?? 'all'));
+
+        if (! in_array($match, ['all', 'any'], true)) {
+            throw new InvalidArgumentException("Ismeretlen illesztési mód: {$match} (all|any).");
+        }
+
+        $rules = $group['rules'] ?? [];
+
+        if (! is_array($rules) || ! array_is_list($rules)) {
+            throw new InvalidArgumentException('A `rules` listát vár.');
+        }
+
+        // Az ÜRES szabálylista a gyökéren a TELJES elérhető közönség — de ezt ki kell mondani,
+        // mert a másik értelmezés (üres halmaz) épp az ellenkezője. Beágyazva tilos.
+        if ($rules === []) {
+            if ($depth > 1) {
+                throw new InvalidArgumentException('Egy feltétel-csoport nem lehet üres.');
+            }
+
+            return;
+        }
+
+        $query->where(function (Builder $inner) use ($rules, $match, $depth, &$count): void {
+            foreach ($rules as $rule) {
+                if (! is_array($rule)) {
+                    throw new InvalidArgumentException('Minden szabály objektum.');
+                }
+
+                $method = $match === 'all' ? 'where' : 'orWhere';
+
+                if (array_key_exists('group', $rule)) {
+                    if (! is_array($rule['group'])) {
+                        throw new InvalidArgumentException('A `group` objektumot vár.');
+                    }
+
+                    // TELJES closure `&$count`-tal: az arrow fn ÉRTÉK szerint zárna, és a
+                    // csoportok szabályai kimaradnának az összesített plafonból.
+                    $inner->{$method}(function (Builder $nested) use ($rule, $depth, &$count): void {
+                        $this->applyGroup($nested, $rule['group'], $depth + 1, $count);
+                    });
+
+                    continue;
+                }
+
+                if (++$count > self::MAX_RULES) {
+                    throw new InvalidArgumentException(sprintf('Legfeljebb %d szabály adható meg.', self::MAX_RULES));
+                }
+
+                $inner->{$method}(fn (Builder $nested) => $this->applyRule($nested, $rule));
+            }
+        });
+    }
+
+    /**
+     * A SZERKESZTŐ KATALÓGUSA — mezők, típusok, operátorok, a tenant egyéni mezőivel.
+     *
+     * A felület ebből épít legördülőt: a mezők és az operátorok engedélylistája így EGY helyen
+     * él (itt), és a kliens nem küldhet olyat, amit a motor nem ismer — ha mégis, a motor
+     * hangosan elutasítja.
+     *
+     * @return array{fields: list<array<string, mixed>>, operators: array<string, list<string>>, maxRules: int, maxDepth: int}
+     */
+    public function catalog(): array
+    {
+        $fields = [
+            ['key' => 'email', 'type' => 'string', 'group' => 'contact'],
+            ['key' => 'first_name', 'type' => 'string', 'group' => 'contact'],
+            ['key' => 'last_name', 'type' => 'string', 'group' => 'contact'],
+            ['key' => 'status', 'type' => 'enum', 'group' => 'contact', 'values' => ['subscribed', 'pending']],
+            ['key' => 'external_id', 'type' => 'string', 'group' => 'contact'],
+            ['key' => 'validation_verdict', 'type' => 'string', 'group' => 'contact'],
+            ['key' => 'validation_risk', 'type' => 'number', 'group' => 'contact'],
+            ['key' => 'created_at', 'type' => 'date', 'group' => 'signup'],
+            ['key' => 'subscribed_at', 'type' => 'date', 'group' => 'signup'],
+            ['key' => 'source', 'type' => 'enum', 'group' => 'signup', 'values' => self::SOURCE_VALUES],
+            ['key' => 'consent', 'type' => 'enum', 'group' => 'consent', 'values' => self::CONSENT_VALUES],
+            ['key' => 'engagement', 'type' => 'engagement', 'group' => 'engagement'],
+            ['key' => 'list', 'type' => 'list', 'group' => 'membership'],
+            ['key' => 'tag', 'type' => 'tag', 'group' => 'membership'],
+        ];
+
+        foreach (ContactField::query()->orderBy('label')->get(['key', 'label', 'type']) as $field) {
+            $fields[] = [
+                'key' => 'attr:'.$field->key,
+                'type' => match ((string) $field->type) {
+                    'number' => 'number',
+                    'date' => 'date',
+                    'boolean' => 'boolean',
+                    default => 'string',
+                },
+                'group' => 'custom',
+                'label' => (string) $field->label,
+            ];
+        }
+
+        return [
+            'fields' => $fields,
+            'operators' => [
+                'string' => ['is', 'is_not', 'contains', 'not_contains', 'starts_with', 'ends_with', 'set', 'not_set'],
+                'number' => ['is', 'is_not', 'gt', 'gte', 'lt', 'lte', 'set', 'not_set'],
+                'date' => ['gt', 'lt', 'within_days', 'not_within_days', 'set', 'not_set'],
+                'boolean' => ['is'],
+                'enum' => ['is', 'is_not'],
+                'engagement' => self::ENGAGEMENT_OPERATORS,
+                'list' => ['in_list', 'not_in_list'],
+                'tag' => ['has_tag', 'not_has_tag'],
+            ],
+            'maxRules' => self::MAX_RULES,
+            'maxDepth' => self::MAX_DEPTH,
+        ];
     }
 
     /** @param array<string, mixed> $rule */
@@ -155,7 +284,50 @@ final class SegmentEngine
             return;
         }
 
+        if (in_array($operator, self::ENGAGEMENT_OPERATORS, true)) {
+            $this->applyEngagement($query, $operator, $value);
+
+            return;
+        }
+
+        if ($field === 'consent') {
+            $this->applyConsent($query, $operator, $value);
+
+            return;
+        }
+
+        if ($field === 'source') {
+            $this->applySource($query, $operator, $value);
+
+            return;
+        }
+
         [$column, $type] = $this->resolveField($field);
+
+        // v1.1 · TÍPUSOS egyéni mező (szám / dátum / logikai): saját kifejezés, ami a nem
+        // illeszkedő értéket NULL-nak látja — egy „sok" érték a számmezőben nem cast-hiba (500),
+        // hanem egyszerűen nem felel meg a feltételnek.
+        if (in_array($type, ['json_number', 'json_date', 'json_boolean'], true)) {
+            $this->applyTypedAttribute($query, $field, $type, $operator, $value);
+
+            return;
+        }
+
+        if (in_array($operator, ['within_days', 'not_within_days'], true)) {
+            if ($type !== 'date') {
+                throw new InvalidArgumentException('Az „elmúlt N napban" csak dátum-mezőn értelmes.');
+            }
+
+            $since = now()->subDays($this->days($value));
+
+            $operator === 'within_days'
+                ? $query->where($column, '>=', $since)
+                // A HIÁNYZÓ dátum („sosem iratkozott fel") NEM „az elmúlt N napban" — tehát
+                // a tagadásba beletartozik.
+                : $query->where(fn (Builder $inner) => $inner->whereNull($column)->orWhere($column, '<', $since));
+
+            return;
+        }
 
         // A SZÖVEGES operátorokhoz a NYERS SQL-kifejezés kell, és az JSON-nál MÁS.
         //
@@ -200,6 +372,195 @@ final class SegmentEngine
     }
 
     /**
+     * TÍPUSOS egyéni mező (a `contact_fields` definíciója szerint).
+     *
+     * A kulcs a `resolveField()`-ben már karakterkészletre szorított (`[A-Za-z0-9_-]`), tehát a
+     * kifejezésbe idézőjel vagy zárójel nem kerülhet. Az ÉRTÉK mindig kötésen megy.
+     *
+     * - szám: csak a szám-alakú érték kap numerikus alakot (különben NULL — nincs cast-hiba);
+     * - dátum: az ISO `ÉÉÉÉ-HH-NN` előtag SZÖVEGKÉNT hasonlít (lexikografikusan = időrendben),
+     *   így egy „2024-02-31" sem dob dátum-hibát a lekérdezésben;
+     * - logikai: az importált `true`/`false` (és a gyakori igen-alakok).
+     */
+    private function applyTypedAttribute(Builder $query, string $field, string $type, string $operator, mixed $value): void
+    {
+        $key = $this->jsonKey($field);
+        $raw = "(attributes->>'{$key}')";
+
+        if (in_array($operator, ['set', 'not_set'], true)) {
+            $operator === 'set'
+                ? $query->whereRaw('jsonb_exists(attributes, ?)', [$key])
+                : $query->whereRaw('not jsonb_exists(attributes, ?)', [$key]);
+
+            return;
+        }
+
+        if ($type === 'json_boolean') {
+            if ($operator !== 'is') {
+                throw new InvalidArgumentException('A logikai mező csak „egyenlő" operátorral szűrhető.');
+            }
+
+            $truthy = in_array(strtolower($this->scalar($value)), ['1', 'true', 'yes', 'igen'], true);
+
+            $truthy
+                ? $query->whereRaw("lower(coalesce({$raw}, '')) in ('true', '1', 'yes', 'igen')")
+                : $query->whereRaw("lower(coalesce({$raw}, '')) not in ('true', '1', 'yes', 'igen')");
+
+            return;
+        }
+
+        if ($type === 'json_number') {
+            $expression = "(case when {$raw} ~ '^\\s*-{0,1}[0-9]+(\\.[0-9]+){0,1}\\s*$' then trim({$raw})::numeric end)";
+            $sql = match ($operator) {
+                'is' => '=', 'gt' => '>', 'gte' => '>=', 'lt' => '<', 'lte' => '<=',
+                'is_not' => null,
+                default => throw new InvalidArgumentException("A számmezőn nem értelmezett operátor: {$operator}."),
+            };
+
+            $number = $this->typed($value, 'number');
+
+            $sql === null
+                ? $query->whereRaw("({$expression} is null or {$expression} <> ?)", [$number])
+                : $query->whereRaw("{$expression} {$sql} ?", [$number]);
+
+            return;
+        }
+
+        // DÁTUM
+        $expression = "(case when {$raw} ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}' then substr({$raw}, 1, 10) end)";
+
+        if (in_array($operator, ['within_days', 'not_within_days'], true)) {
+            $since = now()->subDays($this->days($value))->toDateString();
+
+            $operator === 'within_days'
+                ? $query->whereRaw("{$expression} >= ?", [$since])
+                : $query->whereRaw("({$expression} is null or {$expression} < ?)", [$since]);
+
+            return;
+        }
+
+        $sql = match ($operator) {
+            'is' => '=', 'gt' => '>', 'gte' => '>=', 'lt' => '<', 'lte' => '<=',
+            default => throw new InvalidArgumentException("A dátummezőn nem értelmezett operátor: {$operator}."),
+        };
+
+        $date = strtotime($this->scalar($value));
+
+        if ($date === false) {
+            throw new InvalidArgumentException('Dátumot vár ez a mező.');
+        }
+
+        $query->whereRaw("{$expression} {$sql} ?", [date('Y-m-d', $date)]);
+    }
+
+    /**
+     * ENGAGEMENT — „megnyitotta / kattintott az elmúlt N napban" (v1.1).
+     *
+     * A forrás a `campaign_engagement` ténytábla (kampány + journey levelek), NEM a nyers
+     * eseménynapló: az a napló-retencióval törlődik (golden rule 10), a ténytábla viszont a
+     * riport része és túléli. A kapcsolat a kontakt peppered cím-hash-e (`email_hash` =
+     * `recipient_hash`, ugyanaz a `KeyedHash` + `listKey()` alak).
+     *
+     * A HASH WORKSPACE-FÜGGETLEN (a cím hash-e), ezért a `workspace_id` szűrő itt EXPLICIT és
+     * kötelező — enélkül egy másik tenant forgalma döntené el, ki kap levelet.
+     *
+     * A kattintás nyitásnak is számít: a képek letiltásával a nyitás-pixel nem tölt be, a
+     * kattintás viszont bizonyítja, hogy a levelet elolvasták.
+     */
+    private function applyEngagement(Builder $query, string $operator, mixed $value): void
+    {
+        $workspaceId = (int) app(WorkspaceContext::class)->workspaceId();
+
+        $base = fn ($inner) => $inner->selectRaw('1')
+            ->from('campaign_engagement')
+            ->where('campaign_engagement.workspace_id', $workspaceId)
+            ->whereColumn('campaign_engagement.recipient_hash', 'contacts.email_hash');
+
+        if ($operator === 'never_opened') {
+            // KAPOTT levelet, de SOHA nem nyitotta meg (és nem is kattintott).
+            $query->whereExists(fn ($inner) => $base($inner)->where(fn ($q) => $q
+                ->where('campaign_engagement.accepted', '>', 0)
+                ->orWhere('campaign_engagement.delivered', '>', 0)))
+                ->whereNotExists(fn ($inner) => $base($inner)->where(fn ($q) => $q
+                    ->where('campaign_engagement.opens', '>', 0)
+                    ->orWhere('campaign_engagement.clicks', '>', 0)));
+
+            return;
+        }
+
+        $since = now()->subDays($this->days($value));
+
+        $clicked = 'coalesce(campaign_engagement.last_clicked_at, campaign_engagement.first_clicked_at)';
+        $opened = "greatest(coalesce(campaign_engagement.last_opened_at, campaign_engagement.first_opened_at), {$clicked})";
+
+        $expression = str_contains($operator, 'clicked') ? $clicked : $opened;
+
+        $exists = fn ($inner) => $base($inner)->whereRaw("{$expression} >= ?", [$since]);
+
+        str_starts_with($operator, 'not_')
+            ? $query->whereNotExists($exists)
+            : $query->whereExists($exists);
+    }
+
+    /**
+     * CONSENT-ÁLLAPOT (marketing csatorna) — a PreSendGate 3. kapujának bemenete.
+     *
+     * A `none` a consent-sor HIÁNYA: az ilyen kontaktnak a kapu marketinget nem enged.
+     */
+    private function applyConsent(Builder $query, string $operator, mixed $value): void
+    {
+        $status = $this->scalar($value);
+
+        if (! in_array($status, self::CONSENT_VALUES, true) || ! in_array($operator, ['is', 'is_not'], true)) {
+            throw new InvalidArgumentException('A consent-feltétel: is|is_not, értéke: '.implode(', ', self::CONSENT_VALUES).'.');
+        }
+
+        $exists = function ($inner) use ($status) {
+            $inner->selectRaw('1')
+                ->from('consents')
+                // A korreláció a kontakt SAJÁT workspace-ére megy (a `contacts` global scope-pal
+                // szűrt), a `(workspace_id, email, channel)` egyedi indexen.
+                ->whereColumn('consents.workspace_id', 'contacts.workspace_id')
+                ->whereColumn('consents.email', 'contacts.email')
+                ->where('consents.channel', 'marketing');
+
+            if ($status !== 'none') {
+                $inner->where('consents.status', $status);
+            }
+
+            return $inner;
+        };
+
+        $positive = ($operator === 'is') !== ($status === 'none');
+
+        $positive ? $query->whereExists($exists) : $query->whereNotExists($exists);
+    }
+
+    /** FELIRATKOZÁSI FORRÁS — ugyanaz a kifejezés, mint a dashboard forrás-bontásáé. */
+    private function applySource(Builder $query, string $operator, mixed $value): void
+    {
+        $source = $this->scalar($value);
+
+        if (! in_array($source, self::SOURCE_VALUES, true) || ! in_array($operator, ['is', 'is_not'], true)) {
+            throw new InvalidArgumentException('A forrás-feltétel: is|is_not, értéke: '.implode(', ', self::SOURCE_VALUES).'.');
+        }
+
+        $query->whereRaw(self::SOURCE_EXPRESSION.($operator === 'is' ? ' = ?' : ' <> ?'), [$source]);
+    }
+
+    /** Az „elmúlt N nap" értéke: egész, 1..3650. */
+    private function days(mixed $value): int
+    {
+        $raw = $this->scalar($value);
+
+        if (preg_match('/^\d{1,4}$/', $raw) !== 1 || (int) $raw < 1 || (int) $raw > self::MAX_DAYS) {
+            throw new InvalidArgumentException(sprintf('A napok száma 1 és %d közötti egész.', self::MAX_DAYS));
+        }
+
+        return (int) $raw;
+    }
+
+    /**
      * A mezőnév feloldása — ZÁRT listából, vagy szabad attribútumként.
      *
      * @return array{0: string, 1: string}
@@ -220,7 +581,7 @@ final class SegmentEngine
                 throw new InvalidArgumentException("Érvénytelen attribútum-név: {$key}.");
             }
 
-            return ["attributes->{$key}", 'json'];
+            return ["attributes->{$key}", $this->attributeType($key)];
         }
 
         throw new InvalidArgumentException(sprintf(
@@ -293,6 +654,25 @@ final class SegmentEngine
         $negated
             ? $query->whereNotExists($exists)
             : $query->whereExists($exists);
+    }
+
+    /**
+     * Az egyéni mező TÍPUSA a `contact_fields` definícióból (tenantonként egyszer olvasva).
+     * Definíció nélkül (szabad attribútum) szövegként viselkedik — a v1.1 előtti szemantika.
+     */
+    private function attributeType(string $key): string
+    {
+        $workspaceId = (int) app(WorkspaceContext::class)->workspaceId();
+
+        $this->fieldTypes[$workspaceId] ??= ContactField::query()->pluck('type', 'key')
+            ->map(fn ($type) => (string) $type)->all();
+
+        return match ($this->fieldTypes[$workspaceId][$key] ?? 'text') {
+            'number' => 'json_number',
+            'date' => 'json_date',
+            'boolean' => 'json_boolean',
+            default => 'json',
+        };
     }
 
     /**

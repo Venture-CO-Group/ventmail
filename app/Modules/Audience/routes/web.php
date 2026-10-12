@@ -5,8 +5,11 @@ declare(strict_types=1);
 use App\Modules\Audience\Http\Controllers\AudienceController;
 use App\Modules\Audience\Http\Controllers\ContactController;
 use App\Modules\Audience\Http\Controllers\ContactImportController;
+use App\Modules\Audience\Http\Controllers\DevStudioSeedController;
 use App\Modules\Audience\Http\Controllers\FormUiController;
 use App\Modules\Audience\Http\Controllers\PublicFormController;
+use App\Modules\Audience\Http\Controllers\SegmentController;
+use App\Modules\Audience\Http\Controllers\TagController;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
 use Illuminate\Support\Facades\Route;
 
@@ -42,6 +45,35 @@ Route::middleware(['auth', 'workspace'])->group(function (): void {
     Route::post('/audience/lists', [AudienceController::class, 'storeList'])->name('audience.lists.store');
     Route::post('/audience/lists/{uuid}', [AudienceController::class, 'updateList'])
         ->where('uuid', '[0-9a-fA-F\-]{36}')->name('audience.lists.update');
+
+    // KÖZÖNSÉG-DASHBOARD (v1.1 · 5. modul): növekedés, forrás, engagement — JSON.
+    Route::get('/audience/insights', [AudienceController::class, 'insights'])
+        ->middleware('throttle:audience-insights')->name('audience.insights');
+
+    // SZEGMENSÉPÍTŐ (v1.1 · 5. modul). Az előnézet JSON (a szerkesztő debounce-szal kéri).
+    Route::get('/audience/segments', [SegmentController::class, 'index'])->name('audience.segments.index');
+    Route::get('/audience/segments/new', [SegmentController::class, 'create'])->name('audience.segments.create');
+    Route::post('/audience/segments/preview', [SegmentController::class, 'preview'])
+        ->middleware('throttle:segment-preview')->name('audience.segments.preview');
+    Route::post('/audience/segments', [SegmentController::class, 'store'])->name('audience.segments.store');
+    Route::get('/audience/segments/{uuid}', [SegmentController::class, 'show'])
+        ->where('uuid', '[0-9a-fA-F\-]{36}')->name('audience.segments.show');
+    Route::put('/audience/segments/{uuid}', [SegmentController::class, 'update'])
+        ->where('uuid', '[0-9a-fA-F\-]{36}')->name('audience.segments.update');
+    Route::delete('/audience/segments/{uuid}', [SegmentController::class, 'destroy'])
+        ->where('uuid', '[0-9a-fA-F\-]{36}')->name('audience.segments.destroy');
+
+    // CÍMKÉK (v1.1 · 5. modul): kezelés + tömeges címkézés (kijelölés / keresés / szegmens).
+    Route::get('/audience/tags', [TagController::class, 'index'])->name('audience.tags.index');
+    Route::post('/audience/tags', [TagController::class, 'store'])->name('audience.tags.store');
+    Route::put('/audience/tags/{uuid}', [TagController::class, 'update'])
+        ->where('uuid', '[0-9a-fA-F\-]{36}')->name('audience.tags.update');
+    Route::post('/audience/tags/{uuid}/merge', [TagController::class, 'merge'])
+        ->where('uuid', '[0-9a-fA-F\-]{36}')->middleware('throttle:audience-bulk')->name('audience.tags.merge');
+    Route::delete('/audience/tags/{uuid}', [TagController::class, 'destroy'])
+        ->where('uuid', '[0-9a-fA-F\-]{36}')->name('audience.tags.destroy');
+    Route::post('/audience/contacts/bulk-tags', [TagController::class, 'bulk'])
+        ->middleware('throttle:audience-bulk')->name('audience.contacts.bulk-tags');
 
     // A KONTAKT ADATLAPJA: mezők, listák, címkék, hozzájárulás-történet (import-forrással).
     Route::get('/audience/contacts/{uuid}', [ContactController::class, 'show'])
@@ -84,3 +116,14 @@ Route::middleware(['auth', 'workspace'])->group(function (): void {
     Route::post('/forms/{uuid}/toggle', [FormUiController::class, 'toggle'])
         ->where('uuid', '[0-9a-fA-F\-]{36}')->name('forms.toggle');
 });
+
+/*
+ | v1.1 · 5. modul — KIZÁRÓLAG fejlesztői/teszt-környezetben: a Studio böngésző-tesztjeinek
+ | kiinduló adata (lásd `DevStudioSeedController`). Ugyanaz a kettős kapcsoló, mint a
+ | dev-belépőnél: a regisztráció környezethez kötött, és a kontroller maga is ellenőriz.
+ */
+if (config('identity.dev_login_enabled') && app()->environment('local', 'testing')) {
+    Route::get('/dev/seed-studio', DevStudioSeedController::class)
+        ->middleware(['auth', 'workspace'])
+        ->name('dev.seed-studio');
+}

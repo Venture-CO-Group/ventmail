@@ -92,6 +92,8 @@ final class ContactSynchroniser
                         // Az importált kontakt `pending`: a CRM-ből érkező cím NEM jelent
                         // hozzájárulást (`ConsentRecorder::imported()` dokumentálja, miért).
                         'status' => 'pending',
+                        // v1.1 · forrás: a ventOS / API-szinkron (a dashboard „API" sávja).
+                        'source' => 'api',
                         'last_synced_at' => now(),
                     ]);
 

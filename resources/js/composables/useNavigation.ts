@@ -73,6 +73,7 @@ export function useNavigation(): {
     const groups = computed<NavGroup[]>(() => {
         const studio = build([
             { href: '/audience', testid: 'nav-audience', key: 'audience', icon: 'users', show: can('audience.manage') },
+            { href: '/audience/segments', testid: 'nav-segments', key: 'segments', icon: 'filter', show: can('audience.manage') },
             { href: '/forms', testid: 'nav-forms', key: 'forms', icon: 'file-text', show: can('audience.manage') },
             { href: '/templates', testid: 'nav-templates', key: 'templates', icon: 'layout', show: can('template.create') },
             { href: '/campaigns', testid: 'nav-campaigns', key: 'campaigns', icon: 'send', show: can('campaign.create') },

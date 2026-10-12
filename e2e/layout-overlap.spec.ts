@@ -36,6 +36,9 @@ const LONG_URL = `https://93.184.216.34/nagyon/hosszu/utvonal/amely/sokszegmensu
 const STATIC_PAGES = [
     '/dashboard',
     '/audience',
+    '/audience/segments',
+    '/audience/segments/new',
+    '/audience/tags',
     '/forms',
     '/templates',
     '/campaigns',

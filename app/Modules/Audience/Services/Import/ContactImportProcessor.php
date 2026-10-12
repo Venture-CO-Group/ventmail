@@ -342,6 +342,8 @@ final class ContactImportProcessor
                     'last_name' => $candidate['last'],
                     'attributes' => $candidate['attributes'] === [] ? '{}' : json_encode($candidate['attributes'], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
                     'status' => $run->status,
+                    // v1.1 · a feliratkozási forrás: a kézi bevitel / beillesztés `manual`, a fájl `import`.
+                    'source' => in_array((string) $run->import->source_type, ['manual', 'paste'], true) ? 'manual' : 'import',
                     'subscribed_at' => $subscribedAt,
                     'created_at' => $stamp,
                     'updated_at' => $stamp,

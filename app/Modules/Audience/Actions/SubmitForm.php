@@ -111,6 +111,12 @@ final class SubmitForm
         DB::transaction(function () use ($form, $submission, $email): void {
             $contact = Contact::query()->firstOrNew(['email' => $email]);
 
+            // v1.1 · a FORRÁS csak új kontaktnál íródik: egy importált cím későbbi űrlap-
+            // beküldése nem írja át, honnan érkezett eredetileg.
+            if (! $contact->exists) {
+                $contact->source = 'form';
+            }
+
             $contact->fill(array_filter([
                 'first_name' => $submission->firstName,
                 'last_name' => $submission->lastName,

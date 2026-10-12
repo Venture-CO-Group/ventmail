@@ -39,6 +39,9 @@ final class Contact extends Model
         'email', 'first_name', 'last_name', 'attributes', 'status', 'external_id',
         'validation_verdict', 'validation_risk', 'subscribed_at', 'unsubscribed_at',
         'last_synced_at',
+        // v1.1 · a feliratkozási forrás (`import` | `form` | `api` | `manual`) — belső írók
+        // töltik (import, űrlap, CRM-szinkron), felhasználói kérésből nem.
+        'source',
     ];
 
     /**

@@ -12,6 +12,9 @@ import { computed } from 'vue';
 const props = defineProps<{ name: string }>();
 
 const PATHS: Record<string, string[]> = {
+    // v1.1 · 5. modul (Studio): címke és szűrő.
+    tag: ['M3 12V4h8l10 10-8 8L3 12Z', 'M7.5 8.5h.01'],
+    filter: ['M3 5h18l-7 8v6l-4 2v-8L3 5Z'],
     home: ['M3 10.5 12 3l9 7.5', 'M5 9.5V21h14V9.5', 'M10 21v-6h4v6'],
     megaphone: ['M3 11v3a1 1 0 0 0 1 1h2l7 4V6L6 10H4a1 1 0 0 0-1 1Z', 'M17 9a4 4 0 0 1 0 6'],
     code: ['m8 8-5 4 5 4', 'm16 8 5 4-5 4', 'm14 5-4 14'],
