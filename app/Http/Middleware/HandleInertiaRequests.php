@@ -55,12 +55,18 @@ final class HandleInertiaRequests extends Middleware
             'appName' => config('app.name'),
             'app' => ['version' => (string) config('app.version')],
 
+            // A ventSSO fiókoldala: a profil és az avatar-menü ide LINKEL (nincs duplikálás).
+            'ssoAccountUrl' => (string) config('identity.sso_account_url'),
+
             'auth' => fn (): array => [
                 'user' => ($user = $request->user()) instanceof User ? [
                     'name' => $user->name,
                     'email' => $user->email,
                     'locale' => $user->preferredLocale(),
                     'platformAdmin' => $user->isPlatformAdmin(),
+                    'timezone' => $user->raw('timezone'),
+                    'dateFormat' => $user->raw('date_format'),
+                    'numberFormat' => $user->raw('number_format'),
                 ] : null,
             ],
 

@@ -276,6 +276,12 @@ class AppServiceProvider extends ServiceProvider
             Limit::perMinute(30)->by('ws:'.self::workspaceKey($request)),
         ]);
 
+        // ÚJ WORKSPACE: a kulcs a FELHASZNÁLÓ (nincs még tenant, amit védeni lehetne).
+        RateLimiter::for('workspace-create', fn (Request $request) => [
+            Limit::perMinute(5)->by('user:'.($request->user()?->getAuthIdentifier() ?? self::peer($request))),
+            Limit::perDay(30)->by('user:'.($request->user()?->getAuthIdentifier() ?? self::peer($request))),
+        ]);
+
         RateLimiter::for('sub-accounts', fn (Request $request) => [
             Limit::perMinute(5)->by('ws:'.self::workspaceKey($request)),
             Limit::perDay(50)->by('ws:'.self::workspaceKey($request)),

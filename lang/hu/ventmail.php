@@ -156,4 +156,11 @@ return [
     'auth' => [
         'retry' => 'A bejelentkezés nem sikerült. Próbáld újra.',
     ],
+    'workspaces' => [
+        'created' => 'A(z) „:name” workspace létrejött.',
+        'limit' => 'Elérted a birtokolt workspace-ek korlátját (:max).',
+    ],
+    'profile' => [
+        'saved' => 'A beállításaid mentve.',
+    ],
 ];

@@ -156,4 +156,11 @@ return [
     'auth' => [
         'retry' => 'Accesso non riuscito. Riprova.',
     ],
+    'workspaces' => [
+        'created' => 'Workspace «:name» creato.',
+        'limit' => 'Hai raggiunto il limite di :max workspace di cui sei proprietario.',
+    ],
+    'profile' => [
+        'saved' => 'Le tue impostazioni sono state salvate.',
+    ],
 ];

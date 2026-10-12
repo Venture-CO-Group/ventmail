@@ -24,14 +24,78 @@
         "forms": "Moduli",
         "members": "Membri",
         "settings": "Impostazioni",
-        "storedTemplates": "Modelli salvati"
+        "storedTemplates": "Modelli salvati",
+        "menu": "Menu",
+        "main": "Navigazione principale",
+        "soon": "presto",
+        "openMenu": "Apri il menu",
+        "closeMenu": "Chiudi il menu",
+        "validationApi": "API di validazione",
+        "desc": {
+            "audience": "Contatti, segmenti e tag",
+            "forms": "Moduli di iscrizione e centro preferenze",
+            "templates": "Libreria modelli, blocchi, versioni",
+            "campaigns": "Invii singoli e test A/B",
+            "journeys": "Sequenze e-mail automatiche",
+            "analytics": "Grafici, esportazioni e report",
+            "domains": "Record DNS e autenticazione",
+            "apiKeys": "Scope e ciclo di vita delle chiavi",
+            "smtp": "Credenziali relay per dominio",
+            "suppressions": "Bounce, reclami, disiscrizioni",
+            "webhooks": "Eventi firmati e replay",
+            "storedTemplates": "Modelli transazionali versionati",
+            "ipPools": "Pool, warmup e reputazione",
+            "validation": "Verifica indirizzi e job in blocco",
+            "deliverability": "Blocklist, DMARC, inbox placement",
+            "logs": "Ricerca e tracciamento messaggi",
+            "statistics": "Contatori per tag",
+            "inbound": "Instrada la posta in arrivo",
+            "billing": "Utilizzo, piano ed estratti",
+            "members": "Inviti, ruoli, sotto-account",
+            "profile": "Lingua, formati, notifiche",
+            "console": "Stato del cluster e vista supporto",
+            "audit": "Cerca nel registro di audit"
+        },
+        "profile": "Impostazioni del profilo"
     },
     "shell": {
         "workspace": "Workspace",
         "language": "Lingua",
         "logout": "Esci",
         "skipToContent": "Vai al contenuto",
-        "impersonation": "Vista di supporto: {workspace} — LA SCRITTURA È VIETATA, la vista scade alle {expires}."
+        "impersonation": "Vista di supporto: {workspace} — LA SCRITTURA È VIETATA, la vista scade alle {expires}.",
+        "workspaceSwitcher": "Cambia workspace",
+        "workspaceSearch": "Cerca workspace…",
+        "workspaceList": "Workspace · {count}",
+        "workspaceNoMatch": "Nessun workspace corrisponde.",
+        "workspaceNew": "Nuovo workspace",
+        "workspaceNameLabel": "Nome del workspace",
+        "workspaceCreate": "Crea workspace",
+        "cancel": "Annulla",
+        "userMenu": "Menu account",
+        "profile": "Impostazioni del profilo",
+        "account": "Account e sicurezza (ventSSO)",
+        "opensNewTab": "si apre in una nuova scheda",
+        "version": "ventMail {version}",
+        "languageMenu": "Lingua dell’interfaccia",
+        "languageName": {
+            "hu": "Magyar",
+            "en": "English",
+            "de": "Deutsch",
+            "fr": "Français",
+            "it": "Italiano",
+            "es": "Español",
+            "ru": "Русский"
+        },
+        "role": {
+            "owner": "Proprietario",
+            "admin": "Admin",
+            "developer": "Sviluppatore",
+            "editor": "Editor",
+            "author": "Autore",
+            "analyst": "Analista"
+        },
+        "editorNav": "Navigazione compatta"
     },
     "dashboard": {
         "title": "Panoramica",
@@ -528,5 +592,47 @@
             "hint": "Chiedi al proprietario del workspace di invitarti o di assegnare un ruolo ventMail al tuo account.",
             "back": "Torna all'accesso"
         }
+    },
+    "profile": {
+        "title": "Impostazioni del profilo",
+        "eyebrow": "Account",
+        "lead": "Solo impostazioni specifiche di ventMail. Dati personali, password e 2FA restano in ventSSO.",
+        "save": "Salva",
+        "sectionFormats": "Lingua e formati",
+        "language": "Lingua dell’interfaccia",
+        "languageHint": "Valore iniziale dal claim locale di ventSSO; qui puoi sovrascriverlo.",
+        "timezone": "Fuso orario",
+        "timezoneHint": "Gli invii programmati e i log vengono mostrati in questo fuso.",
+        "dateFormat": "Formato data",
+        "numberFormat": "Formato numerico",
+        "defaultWorkspace": "Workspace predefinito",
+        "defaultWorkspaceHint": "Arrivi qui dopo l’accesso.",
+        "defaultWorkspaceNone": "Primo workspace",
+        "sectionNotifications": "Notifiche",
+        "notifications": {
+            "import_finished": {
+                "label": "Importazione completata",
+                "hint": "Riepilogo e link al report errori al termine di un’importazione."
+            },
+            "report_ready": {
+                "label": "Report pronto",
+                "hint": "Quando un report esportato o pianificato è scaricabile."
+            },
+            "deliverability_alerts": {
+                "label": "Avvisi di recapito",
+                "hint": "Tasso di bounce o reclami oltre soglia, presenza in blocklist."
+            },
+            "weekly_summary": {
+                "label": "Riepilogo settimanale",
+                "hint": "Lunedì mattina, per i tuoi workspace."
+            }
+        },
+        "sso": {
+            "title": "Account ventSSO",
+            "text": "Nome, immagine, password, autenticazione a due fattori e sessioni attive si gestiscono in ventSSO — qui non vengono duplicati.",
+            "open": "Apri account e sicurezza"
+        },
+        "rolesTitle": "I tuoi ruoli",
+        "saveFailed": "Controlla i campi evidenziati."
     }
 }

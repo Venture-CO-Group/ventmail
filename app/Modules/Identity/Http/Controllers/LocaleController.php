@@ -30,7 +30,7 @@ final class LocaleController
             'locale' => ['required', 'string', Rule::in($supported)],
         ]);
 
-        $request->user()?->forceFill(['locale' => $validated['locale']])->save();
+        $request->user()?->forceFill(['locale' => $validated['locale'], 'locale_source' => 'user'])->save();
 
         app()->setLocale($validated['locale']);
 

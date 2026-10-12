@@ -25,7 +25,7 @@ use Illuminate\Support\Facades\File;
 const REFERENCE_LOCALE = 'en';
 
 /** A hat támogatott nyelv (spec: HU/EN/DE/IT/ES/RU). */
-const SUPPORTED_LOCALES = ['hu', 'en', 'de', 'it', 'es', 'ru'];
+const SUPPORTED_LOCALES = ['hu', 'en', 'de', 'fr', 'it', 'es', 'ru'];
 
 /**
  * A fordítás-tömb LAPOS kulcslistája.
@@ -66,7 +66,7 @@ function localeFiles(): array
         ->all();
 }
 
-it('MIND A HAT nyelv könyvtára létezik', function () {
+it('MIND A HÉT nyelv könyvtára létezik', function () {
     // A hiányzó könyvtár nem „még nincs lefordítva", hanem egy nyelv, amit a felület
     // felajánl, és ami a kulcsokat írja ki szöveg helyett.
     foreach (SUPPORTED_LOCALES as $locale) {

@@ -172,4 +172,11 @@ return [
     'auth' => [
         'retry' => 'Sign-in did not succeed. Please try again.',
     ],
+    'workspaces' => [
+        'created' => 'Workspace ":name" created.',
+        'limit' => 'You have reached the limit of :max workspaces you own.',
+    ],
+    'profile' => [
+        'saved' => 'Your preferences have been saved.',
+    ],
 ];

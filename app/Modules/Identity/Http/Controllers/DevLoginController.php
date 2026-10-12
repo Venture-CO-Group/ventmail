@@ -40,6 +40,12 @@ final class DevLoginController
             ['name' => 'Fejlesztői felhasználó', 'email' => 'dev@ventmail.test']
         );
 
+        // Determinisztikus nyelv a flow-teszteknek: a böngésző `Accept-Language`-e (en-US) ne
+        // írja át a dev-felhasználó felületét — a `locale_source` nélküli sor fejlécre esne.
+        if ($user->raw('locale_source') === null) {
+            $user->forceFill(['locale' => 'hu', 'locale_source' => 'user'])->save();
+        }
+
         // Az `uuid`-t a HasUuids tölti; kézzel megadva tömeges-hozzárendelési hibát adna.
         $workspace = Workspace::firstOrCreate(['slug' => 'dev'], ['name' => 'Dev workspace']);
 

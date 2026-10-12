@@ -193,3 +193,22 @@ it('a letöltött build-eszközt checksum ellenőrzi', function () {
         }
     }
 });
+
+it('a futó verzió a git tagből jut el a lábléc `config(app.version)` értékéig', function () {
+    /*
+     | v1.1 · Shell: az avatar-menü alján a verzió látszik. A lánc négy láncszeme: a release
+     | workflow a TAGből képzi a `VERSION` build-arg-ot → a Dockerfile `ENV VENTMAIL_VERSION`
+     | → `config('app.version')` → az Inertia megosztott `app.version` prop. Ha bármelyik
+     | elszakad, a felület „dev"-et mutat éles image-en is.
+     */
+    $release = file_get_contents(base_path('.github/workflows/release.yml'));
+    $dockerfile = file_get_contents(base_path('Dockerfile'));
+
+    expect($release)->toContain('version="${GITHUB_REF_NAME}"')
+        ->and($release)->toContain('VERSION=${{ steps.meta.outputs.version }}')
+        ->and($dockerfile)->toMatch('/^ARG VERSION=/m')
+        ->and($dockerfile)->toContain('VENTMAIL_VERSION=${VERSION}')
+        ->and(file_get_contents(base_path('config/app.php')))->toContain("env('VENTMAIL_VERSION'")
+        ->and(file_get_contents(app_path('Http/Middleware/HandleInertiaRequests.php')))
+        ->toContain("'version' => (string) config('app.version')");
+});

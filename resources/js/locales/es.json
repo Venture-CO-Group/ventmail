@@ -24,14 +24,78 @@
         "forms": "Formularios",
         "members": "Miembros",
         "settings": "Ajustes",
-        "storedTemplates": "Plantillas almacenadas"
+        "storedTemplates": "Plantillas almacenadas",
+        "menu": "Menú",
+        "main": "Navegación principal",
+        "soon": "pronto",
+        "openMenu": "Abrir el menú",
+        "closeMenu": "Cerrar el menú",
+        "validationApi": "API de validación",
+        "desc": {
+            "audience": "Contactos, segmentos y etiquetas",
+            "forms": "Formularios de suscripción y centro de preferencias",
+            "templates": "Biblioteca de plantillas, bloques, versiones",
+            "campaigns": "Envíos puntuales y pruebas A/B",
+            "journeys": "Secuencias de correo automatizadas",
+            "analytics": "Gráficos, exportaciones e informes",
+            "domains": "Registros DNS y autenticación",
+            "apiKeys": "Ámbitos y ciclo de vida de las claves",
+            "smtp": "Credenciales de relay por dominio",
+            "suppressions": "Rebotes, quejas, bajas",
+            "webhooks": "Eventos firmados y reenvío",
+            "storedTemplates": "Plantillas transaccionales versionadas",
+            "ipPools": "Pools, warmup y reputación",
+            "validation": "Comprobación de direcciones y tareas masivas",
+            "deliverability": "Listas de bloqueo, DMARC, bandeja de entrada",
+            "logs": "Búsqueda y trazado de mensajes",
+            "statistics": "Contadores por etiqueta",
+            "inbound": "Enrutar el correo entrante",
+            "billing": "Uso, plan y extractos",
+            "members": "Invitaciones, roles, subcuentas",
+            "profile": "Idioma, formatos, notificaciones",
+            "console": "Estado del clúster y vista de soporte",
+            "audit": "Buscar en el registro de auditoría"
+        },
+        "profile": "Ajustes del perfil"
     },
     "shell": {
         "workspace": "Workspace",
         "language": "Idioma",
         "logout": "Salir",
         "skipToContent": "Saltar al contenido",
-        "impersonation": "Vista de soporte: {workspace} — LA ESCRITURA ESTÁ BLOQUEADA, la vista caduca a las {expires}."
+        "impersonation": "Vista de soporte: {workspace} — LA ESCRITURA ESTÁ BLOQUEADA, la vista caduca a las {expires}.",
+        "workspaceSwitcher": "Cambiar de espacio de trabajo",
+        "workspaceSearch": "Buscar espacios de trabajo…",
+        "workspaceList": "Espacios de trabajo · {count}",
+        "workspaceNoMatch": "Ningún espacio de trabajo coincide.",
+        "workspaceNew": "Nuevo espacio de trabajo",
+        "workspaceNameLabel": "Nombre del espacio de trabajo",
+        "workspaceCreate": "Crear espacio de trabajo",
+        "cancel": "Cancelar",
+        "userMenu": "Menú de la cuenta",
+        "profile": "Ajustes del perfil",
+        "account": "Cuenta y seguridad (ventSSO)",
+        "opensNewTab": "se abre en una pestaña nueva",
+        "version": "ventMail {version}",
+        "languageMenu": "Idioma de la interfaz",
+        "languageName": {
+            "hu": "Magyar",
+            "en": "English",
+            "de": "Deutsch",
+            "fr": "Français",
+            "it": "Italiano",
+            "es": "Español",
+            "ru": "Русский"
+        },
+        "role": {
+            "owner": "Propietario",
+            "admin": "Admin",
+            "developer": "Desarrollador",
+            "editor": "Editor",
+            "author": "Autor",
+            "analyst": "Analista"
+        },
+        "editorNav": "Navegación compacta"
     },
     "dashboard": {
         "title": "Resumen",
@@ -528,5 +592,47 @@
             "hint": "Pide al propietario del workspace que te invite o que asigne un rol de ventMail a tu cuenta.",
             "back": "Volver al inicio de sesión"
         }
+    },
+    "profile": {
+        "title": "Ajustes del perfil",
+        "eyebrow": "Cuenta",
+        "lead": "Solo ajustes propios de ventMail. Los datos personales, la contraseña y la 2FA viven en ventSSO.",
+        "save": "Guardar",
+        "sectionFormats": "Idioma y formatos",
+        "language": "Idioma de la interfaz",
+        "languageHint": "Valor inicial del claim locale de ventSSO; aquí puedes cambiarlo.",
+        "timezone": "Zona horaria",
+        "timezoneHint": "Los envíos programados y los registros se muestran en esta zona.",
+        "dateFormat": "Formato de fecha",
+        "numberFormat": "Formato de números",
+        "defaultWorkspace": "Espacio de trabajo predeterminado",
+        "defaultWorkspaceHint": "Llegas aquí tras iniciar sesión.",
+        "defaultWorkspaceNone": "Primer espacio de trabajo",
+        "sectionNotifications": "Notificaciones",
+        "notifications": {
+            "import_finished": {
+                "label": "Importación finalizada",
+                "hint": "Resumen y enlace al informe de errores al terminar una importación."
+            },
+            "report_ready": {
+                "label": "Informe listo",
+                "hint": "Cuando un informe exportado o programado está listo para descargar."
+            },
+            "deliverability_alerts": {
+                "label": "Alertas de entregabilidad",
+                "hint": "Tasa de rebotes o quejas sobre el umbral, apariciones en listas de bloqueo."
+            },
+            "weekly_summary": {
+                "label": "Resumen semanal",
+                "hint": "El lunes por la mañana, con tus espacios de trabajo."
+            }
+        },
+        "sso": {
+            "title": "Cuenta ventSSO",
+            "text": "El nombre, la imagen, la contraseña, la autenticación en dos pasos y las sesiones activas se gestionan en ventSSO; aquí no se duplican.",
+            "open": "Abrir cuenta y seguridad"
+        },
+        "rolesTitle": "Tus roles",
+        "saveFailed": "Revisa los campos marcados."
     }
 }

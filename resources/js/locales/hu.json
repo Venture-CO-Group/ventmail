@@ -24,14 +24,78 @@
         "forms": "Űrlapok",
         "members": "Tagok",
         "settings": "Beállítások",
-        "storedTemplates": "Tárolt sablonok"
+        "storedTemplates": "Tárolt sablonok",
+        "menu": "Menü",
+        "main": "Főmenü",
+        "soon": "hamarosan",
+        "openMenu": "Menü megnyitása",
+        "closeMenu": "Menü bezárása",
+        "validationApi": "Validation API",
+        "desc": {
+            "audience": "Kontaktok, szegmensek, címkék",
+            "forms": "Feliratkozó űrlapok, preferenciaközpont",
+            "templates": "Sablonkönyvtár, blokkok, verziók",
+            "campaigns": "Egyszeri küldések és A/B tesztek",
+            "journeys": "Automatizált levélsorozatok",
+            "analytics": "Grafikonok, export, riportok",
+            "domains": "DNS-rekordok és hitelesítés",
+            "apiKeys": "Scope-ok és kulcsok életciklusa",
+            "smtp": "Relay-hitelesítők domainenként",
+            "suppressions": "Bounce, panasz, leiratkozás",
+            "webhooks": "Aláírt események, újraküldés",
+            "storedTemplates": "Verziózott tranzakciós sablonok",
+            "ipPools": "Poolok, warmup és reputáció",
+            "validation": "Címellenőrzés és tömeges feladatok",
+            "deliverability": "Blocklisták, DMARC, inbox placement",
+            "logs": "Keresés és üzenet-trace",
+            "statistics": "Számlálók tag szerint",
+            "inbound": "Bejövő levelek irányítása",
+            "billing": "Használat, csomag és kimutatások",
+            "members": "Meghívók, szerepek, sub-accountok",
+            "profile": "Nyelv, formátumok, értesítések",
+            "console": "Klaszter-állapot és támogatói nézet",
+            "audit": "Keresés az audit-naplóban"
+        },
+        "profile": "Profilbeállítások"
     },
     "shell": {
         "workspace": "Workspace",
         "language": "Nyelv",
         "logout": "Kilépés",
         "skipToContent": "Ugrás a tartalomra",
-        "impersonation": "Támogatói nézet: {workspace} — az ÍRÁS TILOS, a nézet {expires} időpontban lejár."
+        "impersonation": "Támogatói nézet: {workspace} — az ÍRÁS TILOS, a nézet {expires} időpontban lejár.",
+        "workspaceSwitcher": "Workspace váltása",
+        "workspaceSearch": "Workspace keresése…",
+        "workspaceList": "Workspace-ek · {count}",
+        "workspaceNoMatch": "Nincs találat.",
+        "workspaceNew": "Új workspace",
+        "workspaceNameLabel": "Workspace neve",
+        "workspaceCreate": "Workspace létrehozása",
+        "cancel": "Mégse",
+        "userMenu": "Fiók menü",
+        "profile": "Profilbeállítások",
+        "account": "Fiók és biztonság (ventSSO)",
+        "opensNewTab": "új lapon nyílik",
+        "version": "ventMail {version}",
+        "languageMenu": "A felület nyelve",
+        "languageName": {
+            "hu": "Magyar",
+            "en": "English",
+            "de": "Deutsch",
+            "fr": "Français",
+            "it": "Italiano",
+            "es": "Español",
+            "ru": "Русский"
+        },
+        "role": {
+            "owner": "Owner",
+            "admin": "Admin",
+            "developer": "Fejlesztő",
+            "editor": "Szerkesztő",
+            "author": "Szerző",
+            "analyst": "Elemző"
+        },
+        "editorNav": "Kompakt navigáció"
     },
     "dashboard": {
         "title": "Áttekintés",
@@ -528,5 +592,47 @@
             "hint": "Kérd meg a workspace tulajdonosát, hogy hívjon meg, vagy adjon ventMail-szerepet a fiókodnak.",
             "back": "Vissza a bejelentkezéshez"
         }
+    },
+    "profile": {
+        "title": "Profilbeállítások",
+        "eyebrow": "Fiók",
+        "lead": "Csak ventMail-specifikus beállítások. A személyes adatok, a jelszó és a 2FA a ventSSO-ban élnek.",
+        "save": "Mentés",
+        "sectionFormats": "Nyelv és formátumok",
+        "language": "Felület nyelve",
+        "languageHint": "Alapérték a ventSSO locale claimből, itt felülírható.",
+        "timezone": "Időzóna",
+        "timezoneHint": "Az ütemezett küldések és a naplók ebben jelennek meg.",
+        "dateFormat": "Dátumformátum",
+        "numberFormat": "Számformátum",
+        "defaultWorkspace": "Alapértelmezett workspace",
+        "defaultWorkspaceHint": "Bejelentkezés után ide érkezel.",
+        "defaultWorkspaceNone": "Az első workspace",
+        "sectionNotifications": "Értesítések",
+        "notifications": {
+            "import_finished": {
+                "label": "Import kész",
+                "hint": "Összesítő és hibariport-link az import végén."
+            },
+            "report_ready": {
+                "label": "Riport elkészült",
+                "hint": "Amikor egy exportált vagy ütemezett riport letölthető."
+            },
+            "deliverability_alerts": {
+                "label": "Kézbesíthetőségi riasztás",
+                "hint": "Bounce vagy panasz küszöb átlépésekor, blocklista-találatnál."
+            },
+            "weekly_summary": {
+                "label": "Heti összefoglaló",
+                "hint": "Hétfő reggel, a workspace-ek összesítésével."
+            }
+        },
+        "sso": {
+            "title": "ventSSO-fiók",
+            "text": "Név, profilkép, jelszó, kétlépcsős azonosítás és az aktív munkamenetek kezelése a ventSSO-ban történik; itt nem duplikáljuk.",
+            "open": "Fiók és biztonság megnyitása"
+        },
+        "rolesTitle": "Szerepköreid",
+        "saveFailed": "Ellenőrizd a jelölt mezőket."
     }
 }

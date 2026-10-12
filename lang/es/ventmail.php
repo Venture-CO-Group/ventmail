@@ -156,4 +156,11 @@ return [
     'auth' => [
         'retry' => 'No se pudo iniciar sesión. Inténtalo de nuevo.',
     ],
+    'workspaces' => [
+        'created' => 'Espacio de trabajo «:name» creado.',
+        'limit' => 'Has alcanzado el límite de :max espacios de trabajo propios.',
+    ],
+    'profile' => [
+        'saved' => 'Tus preferencias se han guardado.',
+    ],
 ];

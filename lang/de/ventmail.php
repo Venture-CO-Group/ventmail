@@ -156,4 +156,11 @@ return [
     'auth' => [
         'retry' => 'Die Anmeldung ist fehlgeschlagen. Bitte versuche es erneut.',
     ],
+    'workspaces' => [
+        'created' => 'Workspace „:name“ wurde erstellt.',
+        'limit' => 'Du hast die Grenze von :max eigenen Workspaces erreicht.',
+    ],
+    'profile' => [
+        'saved' => 'Deine Einstellungen wurden gespeichert.',
+    ],
 ];

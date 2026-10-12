@@ -54,6 +54,7 @@ class User extends Model implements AuthenticatableContract, HasLocalePreference
         'name',
         'email',
         'locale',
+        'locale_source',
         'last_login_at',
     ];
 
@@ -92,6 +93,7 @@ class User extends Model implements AuthenticatableContract, HasLocalePreference
              | bejelentkezésnél újraszámolva.
              */
             'platform_admin' => 'boolean',
+            'notification_prefs' => 'array',
             'email_verified_at' => 'datetime',
             'last_login_at' => 'datetime',
         ];
@@ -137,6 +139,16 @@ class User extends Model implements AuthenticatableContract, HasLocalePreference
      * Mérve: a szigorú mód (`preventAccessingMissingAttributes`) különben az EGÉSZ
      * app-héjat leviszi.
      */
+    /**
+     * Nyers attribútum-olvasás: a szigorú mód (`preventAccessingMissingAttributes`) csonka
+     * példánynál (nem minden oszlop töltődött) kivételt dobna — az opcionális profil-
+     * beállításoknál a hiány egyszerűen „nincs beállítva".
+     */
+    public function raw(string $key): mixed
+    {
+        return $this->getAttributes()[$key] ?? null;
+    }
+
     public function preferredLocale(): string
     {
         $locale = trim((string) ($this->attributes['locale'] ?? ''));

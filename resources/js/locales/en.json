@@ -24,14 +24,78 @@
         "forms": "Forms",
         "members": "Members",
         "settings": "Settings",
-        "storedTemplates": "Stored templates"
+        "storedTemplates": "Stored templates",
+        "menu": "Menu",
+        "main": "Main navigation",
+        "soon": "soon",
+        "openMenu": "Open menu",
+        "closeMenu": "Close menu",
+        "validationApi": "Validation API",
+        "desc": {
+            "audience": "Contacts, segments and tags",
+            "forms": "Signup forms and preference center",
+            "templates": "Template library, blocks, versions",
+            "campaigns": "One-off sends and A/B tests",
+            "journeys": "Automated email sequences",
+            "analytics": "Charts, exports and reports",
+            "domains": "DNS records and authentication",
+            "apiKeys": "Scopes and key lifecycle",
+            "smtp": "Relay credentials per domain",
+            "suppressions": "Bounces, complaints, unsubscribes",
+            "webhooks": "Signed events and replay",
+            "storedTemplates": "Versioned transactional templates",
+            "ipPools": "Pools, warmup and reputation",
+            "validation": "Address checks and bulk jobs",
+            "deliverability": "Blocklists, DMARC, inbox placement",
+            "logs": "Search and message trace",
+            "statistics": "Counters by tag",
+            "inbound": "Route incoming mail",
+            "billing": "Usage, plan and statements",
+            "members": "Invitations, roles, sub-accounts",
+            "profile": "Language, formats, notifications",
+            "console": "Cluster health and support view",
+            "audit": "Search the audit log"
+        },
+        "profile": "Profile settings"
     },
     "shell": {
         "workspace": "Workspace",
         "language": "Language",
         "logout": "Sign out",
         "skipToContent": "Skip to content",
-        "impersonation": "Support view: {workspace} — WRITING IS BLOCKED, the view expires at {expires}."
+        "impersonation": "Support view: {workspace} — WRITING IS BLOCKED, the view expires at {expires}.",
+        "workspaceSwitcher": "Switch workspace",
+        "workspaceSearch": "Search workspaces…",
+        "workspaceList": "Workspaces · {count}",
+        "workspaceNoMatch": "No workspace matches.",
+        "workspaceNew": "New workspace",
+        "workspaceNameLabel": "Workspace name",
+        "workspaceCreate": "Create workspace",
+        "cancel": "Cancel",
+        "userMenu": "Account menu",
+        "profile": "Profile settings",
+        "account": "Account and security (ventSSO)",
+        "opensNewTab": "opens in a new tab",
+        "version": "ventMail {version}",
+        "languageMenu": "Interface language",
+        "languageName": {
+            "hu": "Magyar",
+            "en": "English",
+            "de": "Deutsch",
+            "fr": "Français",
+            "it": "Italiano",
+            "es": "Español",
+            "ru": "Русский"
+        },
+        "role": {
+            "owner": "Owner",
+            "admin": "Admin",
+            "developer": "Developer",
+            "editor": "Editor",
+            "author": "Author",
+            "analyst": "Analyst"
+        },
+        "editorNav": "Compact navigation"
     },
     "dashboard": {
         "title": "Overview",
@@ -528,5 +592,47 @@
             "hint": "Ask the workspace owner to invite you or to grant your account a ventMail role.",
             "back": "Back to sign in"
         }
+    },
+    "profile": {
+        "title": "Profile settings",
+        "eyebrow": "Account",
+        "lead": "Only ventMail-specific settings. Personal data, password and 2FA live in ventSSO.",
+        "save": "Save",
+        "sectionFormats": "Language and formats",
+        "language": "Interface language",
+        "languageHint": "Starts from the ventSSO locale claim; override it here.",
+        "timezone": "Time zone",
+        "timezoneHint": "Scheduled sends and logs are shown in this zone.",
+        "dateFormat": "Date format",
+        "numberFormat": "Number format",
+        "defaultWorkspace": "Default workspace",
+        "defaultWorkspaceHint": "You land here after signing in.",
+        "defaultWorkspaceNone": "First workspace",
+        "sectionNotifications": "Notifications",
+        "notifications": {
+            "import_finished": {
+                "label": "Import finished",
+                "hint": "Summary and error-report link when an import ends."
+            },
+            "report_ready": {
+                "label": "Report ready",
+                "hint": "When an exported or scheduled report can be downloaded."
+            },
+            "deliverability_alerts": {
+                "label": "Deliverability alerts",
+                "hint": "Bounce or complaint rate crossing a threshold, blocklist hits."
+            },
+            "weekly_summary": {
+                "label": "Weekly summary",
+                "hint": "Monday morning, covering your workspaces."
+            }
+        },
+        "sso": {
+            "title": "ventSSO account",
+            "text": "Name, picture, password, two-factor authentication and active sessions are managed in ventSSO — not duplicated here.",
+            "open": "Open account and security"
+        },
+        "rolesTitle": "Your roles",
+        "saveFailed": "Check the highlighted fields."
     }
 }

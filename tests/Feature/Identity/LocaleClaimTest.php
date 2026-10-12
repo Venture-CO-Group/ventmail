@@ -66,7 +66,7 @@ it('a BEJELENTKEZETT felhasználó nyelve dönti el a kérés nyelvét', functio
      */
     Route::middleware(['web', 'auth'])->get('/teszt/nyelv', fn () => ['locale' => app()->getLocale()]);
 
-    $user = User::factory()->create(['locale' => 'de']);
+    $user = User::factory()->create(['locale' => 'de', 'locale_source' => 'user']);
 
     $this->actingAs($user)
         ->withHeaders(['Accept-Language' => 'it'])

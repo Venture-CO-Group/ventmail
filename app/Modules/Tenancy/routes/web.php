@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Modules\Tenancy\Http\Controllers\DashboardController;
 use App\Modules\Tenancy\Http\Controllers\InvitationController;
 use App\Modules\Tenancy\Http\Controllers\MemberController;
+use App\Modules\Tenancy\Http\Controllers\WorkspaceCreateController;
 use App\Modules\Tenancy\Http\Controllers\WorkspaceSwitchController;
 use Illuminate\Support\Facades\Route;
 
@@ -20,6 +21,10 @@ Route::get('/dashboard', DashboardController::class)->name('dashboard');
 // A VÁLTÁS POST: egy GET-tel váltó link előre-hátra gombbal és link-előtöltéssel is
 // elsülne, és a felhasználó azt hinné, a másik tenant adatait látja, miközben nem.
 Route::post('/workspace/switch', WorkspaceSwitchController::class)->name('workspace.switch');
+
+// ÚJ WORKSPACE: a létrehozó tulajdonos lesz; plafonos és auditált (`CreateWorkspace`).
+Route::post('/workspaces', WorkspaceCreateController::class)
+    ->middleware('throttle:workspace-create')->name('workspaces.store');
 
 /*
  | TAGOK, MEGHÍVÓK, SUB-ACCOUNTOK.

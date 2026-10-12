@@ -107,7 +107,7 @@ return [
 
     'landing_host' => env('LANDING_HOST', 'ventmail.app'),
 
-    'supported_locales' => ['hu', 'en', 'de', 'it', 'es', 'ru'],
+    'supported_locales' => ['hu', 'en', 'de', 'fr', 'it', 'es', 'ru'],
 
     'faker_locale' => env('APP_FAKER_LOCALE', 'en_US'),
 

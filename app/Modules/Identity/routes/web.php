@@ -9,6 +9,7 @@ use App\Modules\Identity\Http\Controllers\LocaleController;
 use App\Modules\Identity\Http\Controllers\LogoutController;
 use App\Modules\Identity\Http\Controllers\OidcCallbackController;
 use App\Modules\Identity\Http\Controllers\OidcRedirectController;
+use App\Modules\Identity\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -37,6 +38,16 @@ Route::post('/locale', LocaleController::class)
     // Ugyanaz az érv, mint az API-kulcsoknál: a nyelvváltás nem bejelentkezési kísérlet.
     ->withoutMiddleware('throttle:oidc')
     ->name('locale.update');
+
+/*
+ | PROFILBEÁLLÍTÁSOK: az app-specifikus beállítások (nyelv, időzóna, formátumok,
+ | értesítések, alapértelmezett workspace). A személyes adat a ventSSO-ban marad.
+ | Ugyanaz a stack, mint a `/locale`-nál: `auth + workspace`, a bejelentkezési limiter nélkül.
+ */
+Route::middleware(['auth', 'workspace'])->withoutMiddleware('throttle:oidc')->group(function (): void {
+    Route::get('/profile', [ProfileController::class, 'show'])->name('profile.show');
+    Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update');
+});
 
 /*
  | API-KULCSOK felülete. A `/v1` gépi felület kulcsai innen születnek és itt halnak meg.
