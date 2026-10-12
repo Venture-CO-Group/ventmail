@@ -269,18 +269,18 @@ class AppServiceProvider extends ServiceProvider
          | mert a reputációt és a számlát a workspace viseli.
          */
         RateLimiter::for('member-invites', fn (Request $request) => [
-            Limit::perMinute(10)->by('ws:'.self::workspaceKey($request)),
-            Limit::perDay(100)->by('ws:'.self::workspaceKey($request)),
+            Limit::perMinute(10)->by('ws-min:'.self::workspaceKey($request)),
+            Limit::perDay(100)->by('ws-day:'.self::workspaceKey($request)),
         ]);
 
         RateLimiter::for('member-roles', fn (Request $request) => [
-            Limit::perMinute(30)->by('ws:'.self::workspaceKey($request)),
+            Limit::perMinute(30)->by('ws-min:'.self::workspaceKey($request)),
         ]);
 
         // ÚJ WORKSPACE: a kulcs a FELHASZNÁLÓ (nincs még tenant, amit védeni lehetne).
         RateLimiter::for('workspace-create', fn (Request $request) => [
-            Limit::perMinute(5)->by('user:'.($request->user()?->getAuthIdentifier() ?? self::peer($request))),
-            Limit::perDay(30)->by('user:'.($request->user()?->getAuthIdentifier() ?? self::peer($request))),
+            Limit::perMinute(5)->by('user-min:'.($request->user()?->getAuthIdentifier() ?? self::peer($request))),
+            Limit::perDay(30)->by('user-day:'.($request->user()?->getAuthIdentifier() ?? self::peer($request))),
         ]);
 
         /*
@@ -301,6 +301,12 @@ class AppServiceProvider extends ServiceProvider
         // A VARÁZSLÓ többi lépése (munkalap-váltás, leképezés, beállítások, indítás, egyéni mező):
         // olcsóbbak, mint a feltöltés, de a munkalap-váltás újra felmér, a beállítások pedig
         // háttérfeladatot indít — korlát nélkül egy tag az FPM-workereket foglalná le.
+        // A MUNKALAP-VÁLTÁS újra felmér (zip-menet): ezért a többi lépésnél jóval szigorúbb.
+        RateLimiter::for('audience-import-sheet', fn (Request $request) => [
+            Limit::perMinute(5)->by('ws-min:'.self::workspaceKey($request)),
+            Limit::perHour(30)->by('ws-hour:'.self::workspaceKey($request)),
+        ]);
+
         RateLimiter::for('audience-import-step', fn (Request $request) => [
             Limit::perMinute(60)->by('ws-min:'.self::workspaceKey($request)),
             Limit::perHour(600)->by('ws-hour:'.self::workspaceKey($request)),

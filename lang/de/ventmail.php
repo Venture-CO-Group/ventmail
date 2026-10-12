@@ -62,6 +62,7 @@ return [
                 'sheet' => 'Unbekanntes Tabellenblatt.',
                 'mapping' => 'Die E-Mail-Spalte ist nicht zugeordnet.',
             ],
+            'inspectBusy' => 'In diesem Workspace wird bereits eine andere Datei geprüft — versuche es in ein paar Sekunden erneut.',
             'concurrency' => 'In diesem Workspace laufen bereits genug Importe — warte, bis einer fertig ist.',
             'fieldLimit' => 'Du hast die Obergrenze für benutzerdefinierte Felder erreicht.',
             'pasteEmpty' => 'Füge mindestens eine E-Mail-Adresse ein.',

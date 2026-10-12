@@ -62,6 +62,7 @@ return [
                 'sheet' => 'Foglio sconosciuto.',
                 'mapping' => 'La colonna e-mail non è associata.',
             ],
+            'inspectBusy' => 'In questo workspace è già in corso l’analisi di un altro file — riprova tra qualche secondo.',
             'concurrency' => 'Ci sono già abbastanza importazioni in corso in questo workspace — attendi che una termini.',
             'fieldLimit' => 'Hai raggiunto il limite di campi personalizzati.',
             'pasteEmpty' => 'Incolla almeno un indirizzo e-mail.',

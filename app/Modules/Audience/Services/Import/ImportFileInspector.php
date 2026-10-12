@@ -31,11 +31,11 @@ final class ImportFileInspector
      *
      * @throws ImportLimitExceeded
      */
-    public function inspect(string $path, string $format, ?string $sheet = null, bool $verifyZip = true): array
+    public function inspect(string $path, string $format, ?string $sheet = null): array
     {
         $this->deadline = microtime(true) + (int) config('audience.import.inspect_budget_seconds');
 
-        return $format === 'xlsx' ? $this->xlsx($path, $sheet, $verifyZip) : $this->csv($path);
+        return $format === 'xlsx' ? $this->xlsx($path, $sheet) : $this->csv($path);
     }
 
     /** A felmérés időkerete (a kérésen belül fut — lásd a konfig `inspect_budget_seconds`). */
@@ -65,13 +65,13 @@ final class ImportFileInspector
     }
 
     /** @return array<string, mixed> */
-    private function xlsx(string $path, ?string $sheet, bool $verifyZip): array
+    private function xlsx(string $path, ?string $sheet): array
     {
-        // Egy már ellenőrzött fájlt (munkalap-váltás) nem tömörítünk ki újra: a fájl a privát
-        // lemezen megváltoztathatatlan.
-        if ($verifyZip) {
-            $this->assertSafeZip($path);
-        }
+        // A zip-ellenőrzés EGYBEN gyűjti a munkalapok csomópont- és sorstatisztikáját: a
+        // felmérés a teljes XML-t SOHA nem a (lassú) openspout-tal járja végig — az a háttérjob
+        // dolga. Egy `<row>` nélküli, csomóponttal teli `sheetData` (a security-review 9,9 MB-os,
+        // 200 MB-ra nyíló fájlja: 50 s) ezen a ponton, másodpercek alatt elbukik.
+        $stats = $this->assertSafeZip($path);
 
         $sheets = $this->sheetNames($path);
 
@@ -85,6 +85,9 @@ final class ImportFileInspector
             throw new ImportLimitExceeded('sheet');
         }
 
+        $file = $this->sheetFile($path, $sheet);
+        $records = (int) ($stats[$file]['rows'] ?? 0);
+
         return $this->profile(
             new XlsxRowReader($path, $sheet),
             format: 'xlsx',
@@ -92,6 +95,7 @@ final class ImportFileInspector
             encoding: 'UTF-8',
             sheets: $sheets,
             sheet: $sheet,
+            knownRecords: $records,
         );
     }
 
@@ -106,15 +110,24 @@ final class ImportFileInspector
         string $encoding,
         array $sheets,
         ?string $sheet,
+        ?int $knownRecords = null,
     ): array {
         $first = null;
         $sample = [];
         $count = 0;
         $width = 0;
 
-        foreach ($reader->rows() as $cells) {
+        $rows = $reader->rows();
+
+        foreach ($rows as $cells) {
             if (($count & 1023) === 0) {
                 $this->checkBudget();
+            }
+
+            // XLSX: a sorszámot a zip-menet adta; a mintához elég az első néhány sor (a
+            // generátor lezárásával az olvasó is leáll, nem megy végig a fájlon).
+            if ($knownRecords !== null && $count >= 6) {
+                break;
             }
 
             $count++;
@@ -129,6 +142,12 @@ final class ImportFileInspector
             if (count($sample) < 5) {
                 $sample[] = $cells;
             }
+        }
+
+        unset($rows);
+
+        if ($knownRecords !== null) {
+            $count = $knownRecords;
         }
 
         $first ??= [];
@@ -258,7 +277,7 @@ final class ImportFileInspector
      * arány (a nullákból álló 1 GB néhány KB-ra tömörödik — az arány ezt fogja meg akkor is,
      * ha az összméret belefér).
      */
-    private function assertSafeZip(string $path): void
+    private function assertSafeZip(string $path): array
     {
         $zip = new ZipArchive;
 
@@ -298,7 +317,7 @@ final class ImportFileInspector
                 throw new ImportLimitExceeded('format');
             }
 
-            $this->countRealBytes($zip);
+            return $this->countRealBytes($zip);
         } finally {
             $zip->close();
         }
@@ -310,21 +329,30 @@ final class ImportFileInspector
      * Streamen olvasunk, és megszakítjuk, ha egy bejegyzés meghaladja a deklarált méretét, vagy az
      * összeg a plafont, vagy az idő a keretet. A leállás a plafonnál történik, nem a végén.
      */
-    private function countRealBytes(ZipArchive $zip): void
+    private function countRealBytes(ZipArchive $zip): array
     {
         $ceiling = (int) config('audience.import.xlsx_max_uncompressed_bytes');
+        $maxNodes = (int) config('audience.import.xlsx_max_nodes');
+        $beforeData = (int) config('audience.import.xlsx_max_nodes_before_data');
         $total = 0;
+        $stats = [];
 
         for ($i = 0; $i < $zip->numFiles; $i++) {
             $stat = $zip->statIndex($i);
             $declared = (int) $stat['size'];
-            $stream = $zip->getStream($stat['name']);
+            // INDEX alapján, nem név alapján: egy ismétlődő nevű bejegyzés névvel a MÁSIKAT adná.
+            $stream = $zip->getStreamIndex($i);
 
             if ($stream === false) {
                 throw new ImportLimitExceeded('format');
             }
 
+            $isSheet = str_starts_with($stat['name'], 'xl/worksheets/') && str_ends_with($stat['name'], '.xml');
             $entry = 0;
+            $nodes = 0;
+            $rows = 0;
+            $sixthRowNodes = null;
+            $carry = '';
 
             try {
                 while (! feof($stream)) {
@@ -341,12 +369,88 @@ final class ImportFileInspector
                         throw new ImportLimitExceeded('zip');
                     }
 
+                    if ($isSheet) {
+                        // CSOMÓPONT-SZÁMLÁLÁS: a `<` jelek száma olcsó (másodperc törtrésze 200 MB-on),
+                        // és közelíti, mennyit dolgozna az XML-olvasó. Plafon az egészre ÉS az első
+                        // adatsor ELŐTTI részre: a `<row>` nélküli áradat itt bukik el.
+                        $nodes += substr_count($chunk, '<');
+                        $buffer = $carry.$chunk;
+                        $rows += substr_count($buffer, '<row ') + substr_count($buffer, '<row>');
+                        $carry = substr($buffer, -4);
+
+                        // A mintát az első HAT sorból olvassa az openspout, és közben végigmegy a köztes
+                        // csomópontokon: ha a hatodik sorig (vagy, ha kevesebb sor van, a fájl végéig)
+                        // több csomópont van a plafonnál, a felmérés időkerete megkerülhető lenne.
+                        if ($rows >= 6 && $sixthRowNodes === null) {
+                            $sixthRowNodes = $nodes;
+                        }
+
+                        if (
+                            $nodes > $maxNodes
+                            || ($rows < 6 && $nodes > $beforeData)
+                            || ($sixthRowNodes !== null && $sixthRowNodes > $beforeData)
+                        ) {
+                            throw new ImportLimitExceeded('zip');
+                        }
+                    }
+
                     $this->checkBudget();
                 }
             } finally {
                 fclose($stream);
             }
+
+            if ($isSheet) {
+                $stats[$stat['name']] = ['nodes' => $nodes, 'rows' => $rows];
+            }
         }
+
+        return $stats;
+    }
+
+    /**
+     * A munkalap fájlja (`xl/worksheets/sheetN.xml`) a neve alapján: a `workbook.xml` `r:id`-ja és
+     * a `workbook.xml.rels` célja. A két fájl kicsi — olvasásuk korlátos.
+     */
+    private function sheetFile(string $path, string $name): string
+    {
+        $zip = new ZipArchive;
+
+        if ($zip->open($path, ZipArchive::RDONLY) !== true) {
+            throw new ImportLimitExceeded('format');
+        }
+
+        try {
+            $workbook = (string) $zip->getFromName('xl/workbook.xml', 1_048_576);
+            $rels = (string) $zip->getFromName('xl/_rels/workbook.xml.rels', 1_048_576);
+        } finally {
+            $zip->close();
+        }
+
+        $book = @simplexml_load_string($workbook, options: LIBXML_NONET);
+        $relationships = @simplexml_load_string($rels, options: LIBXML_NONET);
+
+        if ($book === false || $relationships === false) {
+            throw new ImportLimitExceeded('format');
+        }
+
+        $rid = null;
+
+        foreach ($book->sheets->sheet ?? [] as $candidate) {
+            if ((string) $candidate['name'] === $name) {
+                $rid = (string) ($candidate->attributes('http://schemas.openxmlformats.org/officeDocument/2006/relationships')['id'] ?? '');
+            }
+        }
+
+        foreach ($relationships->Relationship ?? [] as $relationship) {
+            if ((string) $relationship['Id'] === $rid) {
+                $target = ltrim((string) $relationship['Target'], '/');
+
+                return str_starts_with($target, 'xl/') ? $target : 'xl/'.$target;
+            }
+        }
+
+        throw new ImportLimitExceeded('format');
     }
 
     /** @return list<string> */

@@ -62,6 +62,7 @@ return [
                 'sheet' => 'Hoja desconocida.',
                 'mapping' => 'La columna de correo no está asignada.',
             ],
+            'inspectBusy' => 'Ya se está analizando otro archivo en este workspace — inténtalo de nuevo en unos segundos.',
             'concurrency' => 'Ya hay suficientes importaciones en curso en este workspace — espera a que termine alguna.',
             'fieldLimit' => 'Has alcanzado el límite de campos personalizados.',
             'pasteEmpty' => 'Pega al menos una dirección de correo.',

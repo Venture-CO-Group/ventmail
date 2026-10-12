@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Http\Middleware\LimitRequestBody;
 use App\Http\Middleware\RestrictLandingHost;
 use App\Http\Middleware\TrustConfiguredHosts;
 use App\Http\Middleware\TrustEdgeProxies;
@@ -39,6 +40,9 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // A törzs-plafon a LEGELSŐ: a törzs feldolgozása (és bármi más) előtt dönt.
+        $middleware->prepend(LimitRequestBody::class);
+
         $middleware->web(append: [
             HandleInertiaRequests::class,
             AddLinkHeadersForPreloadedAssets::class,

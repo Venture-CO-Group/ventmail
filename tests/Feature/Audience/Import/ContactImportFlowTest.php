@@ -613,7 +613,8 @@ it('az import auditált: ki, mikor, milyen jogalappal — cím nélkül az audit
         ->and($started->user_id)->toBe($this->user->id)
         ->and($started->context['legal_basis'])->toBe('verified_consent')
         ->and($started->context['consent_source'])->toBe('Double opt-in a weboldalon, 2025-03')
-        ->and($started->context['file_name'])->toBe('vendegkonyv-osz.csv')
+        ->and($started->context)->not->toHaveKey('file_name')
+        ->and($started->context['file_ext'])->toBe('csv')
         ->and($completed)->not->toBeNull()
         ->and($completed->context['new'])->toBe(2);
 

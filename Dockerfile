@@ -36,7 +36,7 @@ WORKDIR /app
 
 ARG PHP_EXTENSION_INSTALLER=2.12.0
 ADD --chmod=0755 --checksum=sha256:3f49c71fa66c79b8b2b96bc0ce92885dafd7946f3b5a46f545b390d6f1617e2c https://github.com/mlocati/docker-php-extension-installer/releases/download/${PHP_EXTENSION_INSTALLER}/install-php-extensions /usr/local/bin/
-RUN install-php-extensions pdo_pgsql pcntl opcache redis intl zip bcmath sockets \
+RUN install-php-extensions pdo_pgsql pcntl opcache redis intl zip gd bcmath sockets \
     && apk add --no-cache fcgi \
     && addgroup -g 10001 -S ventmail \
     && adduser -u 10001 -S -D -H -G ventmail ventmail \

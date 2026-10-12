@@ -7,6 +7,13 @@
 	auto_https off
 	persist_config off
 	servers {
+		# SLOWLORIS elleni időkorlátok: a fejléc 10 mp, a törzs 10 perc (a 140MB-os import-feltöltés
+		# ~0,25 MB/s alatt bukik), az üresjárat 2 perc.
+		timeouts {
+			read_header 10s
+			read_body 10m
+			idle 2m
+		}
 		# Keep the edge's X-Forwarded-* (client IP, https); believed from the
 		# edge proxy address only.
 		trusted_proxies static {$TRUSTED_PROXIES}
@@ -27,10 +34,17 @@ import snippets/security-headers.caddy
 	}
 	respond @draining "draining" 503
 
-	# Kontakt-import feltöltés: a php.ini post_max_size-nál (132M) nem szűkebb, különben a
-	# Caddy 413-mal vágná el, mielőtt az alkalmazás a saját, érthető hibaüzenetét adhatná.
-	request_body {
+	# BODY-LIMIT útvonalanként: a kontakt-import feltöltés nagy törzset kér (a php.ini post_max_size-nál,
+	# 132M, nem szűkebb), minden más útvonal (belépés, /v1, nyilvános űrlap) 16MB-nál megáll — a
+	# PHP-limit globális, ezért a határ itt, a Caddyben húzódik; az alkalmazás ugyanezt a
+	# `LimitRequestBody` middleware-rel is ellenőrzi.
+	@import path /audience/import /audience/import/*
+	@other not path /audience/import /audience/import/*
+	request_body @import {
 		max_size 140MB
+	}
+	request_body @other {
+		max_size 16MB
 	}
 
 	root * /app/public

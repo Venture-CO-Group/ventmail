@@ -73,6 +73,7 @@ return [
                 'sheet' => 'Unknown worksheet.',
                 'mapping' => 'The e-mail column is not mapped.',
             ],
+            'inspectBusy' => 'Another file is already being inspected in this workspace — try again in a few seconds.',
             'concurrency' => 'Enough imports are already running in this workspace — wait for one to finish.',
             'fieldLimit' => 'You have reached the limit of custom fields.',
             'pasteEmpty' => 'Paste at least one e-mail address.',

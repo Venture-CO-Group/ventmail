@@ -50,7 +50,7 @@ final class ContactImport extends Model
         'started_at', 'completed_at',
     ];
 
-    public array $auditRedacted = ['profile', 'stats', 'storage_path', 'error_report_path'];
+    public array $auditRedacted = ['profile', 'stats', 'storage_path', 'error_report_path', 'file_name'];
 
     public function uniqueIds(): array
     {
@@ -78,6 +78,14 @@ final class ContactImport extends Model
     public function list(): BelongsTo
     {
         return $this->belongsTo(ContactList::class, 'contact_list_id');
+    }
+
+    /** Az audit-payloadba a fájlnév HELYETT: a kiterjesztés (kézi/beillesztett bevitelnél a forrás-típus). */
+    public function fileExtension(): string
+    {
+        $extension = strtolower(pathinfo((string) $this->file_name, PATHINFO_EXTENSION));
+
+        return $extension !== '' ? $extension : (string) $this->source_type;
     }
 
     /** A futás véget ért (sikerrel vagy hibával). */

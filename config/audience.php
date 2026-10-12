@@ -55,6 +55,11 @@ return [
         'max_cell_length' => (int) env('AUDIENCE_IMPORT_MAX_CELL', 2000),
         'xlsx_max_uncompressed_bytes' => (int) env('AUDIENCE_IMPORT_XLSX_MAX_MB', 1024) * 1024 * 1024,
         'xlsx_max_ratio' => (int) env('AUDIENCE_IMPORT_XLSX_MAX_RATIO', 200),
+        // XLSX csomópont-plafonok (a munkalap-XML `<` jeleinek száma): összesen, és az ELSŐ adatsor
+        // előtt. A felmérés kérésen belül fut, a `<row>` nélküli csomópont-áradat pedig a
+        // feldolgozónak percekbe kerülne (mérve: 52 M csomópont ≈ 50 mp).
+        'xlsx_max_nodes' => (int) env('AUDIENCE_IMPORT_XLSX_MAX_NODES', 100_000_000),
+        'xlsx_max_nodes_before_data' => (int) env('AUDIENCE_IMPORT_XLSX_MAX_NODES_BEFORE_DATA', 2_000_000),
         'xlsx_max_entries' => (int) env('AUDIENCE_IMPORT_XLSX_MAX_ENTRIES', 500),
         'manual_max_rows' => (int) env('AUDIENCE_IMPORT_MANUAL_MAX_ROWS', 20_000),
         // Egy fizikai sor (és egy CSV-rekord egy olvasása) legfeljebb ennyi bájt: sor-határ nélkül

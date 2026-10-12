@@ -61,7 +61,7 @@ Route::middleware(['auth', 'workspace'])->group(function (): void {
 
     Route::prefix('/audience/import/{uuid}')->where(['uuid' => '[0-9a-fA-F\-]{36}'])->group(function (): void {
         Route::get('/', [ContactImportController::class, 'show'])->name('audience.import.show');
-        Route::post('/sheet', [ContactImportController::class, 'sheet'])->middleware('throttle:audience-import-step')->name('audience.import.sheet');
+        Route::post('/sheet', [ContactImportController::class, 'sheet'])->middleware('throttle:audience-import-sheet')->name('audience.import.sheet');
         Route::post('/mapping', [ContactImportController::class, 'mapping'])->middleware('throttle:audience-import-step')->name('audience.import.mapping');
         Route::post('/settings', [ContactImportController::class, 'settings'])->middleware('throttle:audience-import-step')->name('audience.import.settings');
         Route::post('/start', [ContactImportController::class, 'start'])->middleware('throttle:audience-import-step')->name('audience.import.start');

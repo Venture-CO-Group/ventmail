@@ -66,9 +66,14 @@ final class AttributeCoercer
 
         if ($isInteger) {
             // Túlcsordulás: a PHP csendben lebegőpontosra vált (vagy PHP_INT_MAX-ra vág).
-            $int = (int) $clean;
+            // VEZETŐ NULLÁK: számmezőben `007` = 7 (következetesen, mint a `0012.5` = 12.5); az
+            // azonosító-jellegű, nullával kezdődő érték SZÖVEG-mezőbe való, ott érintetlen marad.
+            $sign = str_starts_with($clean, '-') ? '-' : '';
+            $digits = ltrim(ltrim($clean, '+-'), '0');
+            $digits = $digits === '' ? '0' : $digits;
+            $int = (int) ($sign.$digits);
 
-            return (string) $int === ltrim($clean, '+') ? $int : null;
+            return (string) $int === ($digits === '0' ? '0' : $sign.$digits) ? $int : null;
         }
 
         $float = (float) $clean;

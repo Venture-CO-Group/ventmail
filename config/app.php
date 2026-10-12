@@ -150,4 +150,10 @@ return [
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
     ],
 
+    /*
+     | A KÉRÉS-TÖRZS plafonja bájtban minden útvonalon, kivéve a kontakt-import feltöltést (ott a
+     | `audience.import.max_bytes` + a php.ini/Caddy nagyobb korlátja érvényes). Lásd
+     | `LimitRequestBody`.
+     */
+    'max_body_bytes' => (int) env('APP_MAX_BODY_MB', 16) * 1024 * 1024,
 ];

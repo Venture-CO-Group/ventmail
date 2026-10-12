@@ -701,7 +701,7 @@ final class ContactImportProcessor
                 'skipped' => $run->skipped,
                 'errors' => $run->errors,
                 'legal_basis' => $import->legal_basis,
-                'file_name' => $import->file_name,
+                'file_ext' => $import->fileExtension(),
             ],
             actor: $import->user,
         );
@@ -711,12 +711,19 @@ final class ContactImportProcessor
     {
         $run?->report?->close();
 
-        $reason = $e instanceof ImportLimitExceeded ? $e->reason : 'error';
+        $this->abandon($import, $e instanceof ImportLimitExceeded ? $e->reason : 'error');
+    }
 
-        // A HIBÁS futás nem hagyhat PII-t maga után: a (félig írt) hibariport-fájl, a forrásfájl és a
-        // mintasorok (valódi címek) törlődnek, a rekord nem hivatkozik rájuk. A riportot a
-        // felhasználó így nem tölti le — a hiba oka a rekordban, a részletek a naplóban (cím nélkül).
+    /**
+     * A megszakadt futás TAKARÍTÁSA — a `fail()` és a worker-kill (`RunContactImport::failed`) közös
+     * útja. A HIBÁS futás nem hagyhat PII-t maga után: a (félig írt) hibariport-fájl, a forrásfájl
+     * és a mintasorok törlődnek, a rekord nem hivatkozik rájuk; a státusz feltételes átmenettel
+     * megy `failed`-re (egy lezárt köteget nem ír felül).
+     */
+    public function abandon(ContactImport $import, string $reason): void
+    {
         $this->uploads->delete($this->uploads->reportPath($import));
+        $this->uploads->delete($import->error_report_path);
         $this->uploads->delete($import->storage_path);
 
         $profile = (array) $import->profile;
@@ -743,7 +750,7 @@ final class ContactImportProcessor
         $this->audit->log(
             'audience.import.failed',
             $import,
-            context: ['import' => (string) $import->uuid, 'reason' => $reason, 'file_name' => $import->file_name],
+            context: ['import' => (string) $import->uuid, 'reason' => $reason, 'file_ext' => $import->fileExtension()],
             actor: $import->user,
         );
     }

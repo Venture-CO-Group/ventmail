@@ -9,6 +9,7 @@ use App\Modules\Audience\Services\Import\ImportUploads;
 use App\Modules\Tenancy\Models\Workspace;
 use App\Modules\Tenancy\Services\WorkspaceContext;
 use Illuminate\Console\Command;
+use Illuminate\Support\Carbon;
 
 /**
  * Az import-fájlok MEGŐRZÉSI idejének betartatása (golden rule 10, v1.1).
@@ -77,6 +78,8 @@ final class PurgeImportsCommand extends Command
                             $import->forceFill(['error_report_path' => null])->saveQuietly();
                             $reports++;
                         });
+
+                    $this->sweepOrphans($uploads, (int) $workspace->id, $cutoff);
                 }
             });
         } finally {
@@ -86,5 +89,30 @@ final class PurgeImportsCommand extends Command
         $this->info("Törölve — félbehagyott import: {$drafts}, lejárt hibariport: {$reports}");
 
         return self::SUCCESS;
+    }
+
+    /**
+     * ÁRVA fájlok: a `imports/{workspace}/` könyvtár lejárt fájljai, amelyekre egyetlen rekord sem
+     * hivatkozik (a felmérés közben megszakadt feltöltés maradéka). A hivatkozottat és az újat
+     * nem bántja.
+     */
+    private function sweepOrphans(ImportUploads $uploads, int $workspaceId, Carbon $cutoff): void
+    {
+        $disk = $uploads->disk();
+        $referenced = [];
+
+        ContactImport::query()->get(['storage_path', 'error_report_path'])->each(function (ContactImport $import) use (&$referenced): void {
+            foreach ([$import->storage_path, $import->error_report_path] as $path) {
+                if ($path !== null) {
+                    $referenced[$path] = true;
+                }
+            }
+        });
+
+        foreach ($disk->files('imports/'.$workspaceId) as $file) {
+            if (! isset($referenced[$file]) && $disk->lastModified($file) <= $cutoff->getTimestamp()) {
+                $disk->delete($file);
+            }
+        }
     }
 }

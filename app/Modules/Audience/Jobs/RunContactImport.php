@@ -98,12 +98,10 @@ final class RunContactImport implements ShouldQueue
         try {
             $import = ContactImport::query()->where('uuid', $this->importUuid)->first();
 
+            // UGYANAZ a takarítás, mint a processzor `fail()`-jében (fájlok, minta, feltételes
+            // státuszátmenet): a worker-kill / timeout sem hagyhat PII-t a lemezen.
             if ($import !== null && ! $import->finished()) {
-                $import->forceFill([
-                    'status' => ContactImport::STATUS_FAILED,
-                    'failure_reason' => 'worker',
-                    'completed_at' => now(),
-                ])->saveQuietly();
+                app(ContactImportProcessor::class)->abandon($import, 'worker');
             }
 
             $this->report('Kontakt-import megszakadt', $e);

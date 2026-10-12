@@ -119,7 +119,8 @@ it('a php.ini és a Caddy plafonja nem szűkebb, mint az import konfigurált pla
 
     $caddy = (string) file_get_contents(base_path('docker/caddy/Caddyfile.web'));
 
-    expect(preg_match('/request_body\s*\{[^}]*max_size\s+(\d+)\s*(MB|MiB|GB)/i', $caddy, $m))->toBe(1);
+    // Az IMPORT-útvonal body-limitje: `request_body @import { max_size N }`.
+    expect(preg_match('/request_body\s+@import\s*\{[^}]*max_size\s+(\d+)\s*(MB|MiB|GB)/i', $caddy, $m))->toBe(1);
     $caddyBytes = (int) $m[1] * (strtoupper($m[2]) === 'GB' ? 1024 ** 3 : 1024 ** 2);
     expect($caddyBytes)->toBeGreaterThanOrEqual($post);
 });

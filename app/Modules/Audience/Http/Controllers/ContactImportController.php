@@ -22,8 +22,10 @@ use App\Modules\Audience\Services\Import\ImportMappingBuilder;
 use App\Modules\Audience\Services\Import\ImportUploads;
 use App\Modules\Audit\Services\AuditLogger;
 use App\Modules\Tenancy\Services\WorkspaceContext;
+use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -77,52 +79,70 @@ final class ContactImportController
         $workspaceId = $this->context->workspaceId();
         $mode = (string) $request->input('mode');
 
-        $name = null;
-        $hash = null;
-        $size = null;
-        $format = 'csv';
+        // Workspace-enként EGY egyidejű felmérés: a felmérés kérésen belül fut (időkerettel), és
+        // párhuzamos feltöltésekkel egy tag az összes FPM-workert lefoglalhatná.
+        $lock = Cache::lock('import-inspect:'.$workspaceId, (int) config('audience.import.inspect_budget_seconds') + 15);
 
-        if ($mode === 'file') {
-            $file = $request->file('file');
-            $format = strtolower($file->getClientOriginalExtension()) === 'xlsx' ? 'xlsx' : 'csv';
-            $name = mb_substr($file->getClientOriginalName(), 0, 255);
-            $hash = hash_file('sha256', (string) $file->getRealPath());
-            $size = (int) $file->getSize();
-            $path = $this->uploads->storeUpload($file, $workspaceId, $format);
-        } elseif ($mode === 'paste') {
-            $path = $this->uploads->storeText($this->csv([['email'], ...array_map(static fn (string $e): array => [$e], ImportPaste::entries((string) $request->input('emails')))]), $workspaceId);
-            $size = (int) $this->uploads->disk()->size($path);
-            $hash = hash('sha256', (string) $this->uploads->disk()->get($path));
-        } else {
-            $path = $this->uploads->storeText($this->csv([
-                ['email', 'first_name', 'last_name'],
-                [(string) $request->input('email'), (string) $request->input('first_name'), (string) $request->input('last_name')],
-            ]), $workspaceId);
-            $size = (int) $this->uploads->disk()->size($path);
-            $hash = hash('sha256', (string) $this->uploads->disk()->get($path));
+        if (! $lock->get()) {
+            return back()->withErrors(['file' => (string) __('ventmail.audience.import.inspectBusy')]);
         }
 
         try {
-            $profile = $this->inspector->inspect($this->uploads->absolute($path), $format);
-        } catch (ImportLimitExceeded $e) {
-            $this->uploads->delete($path);
+            $name = null;
+            $hash = null;
+            $size = null;
+            $format = 'csv';
 
-            return back()->withErrors(['file' => (string) __('ventmail.audience.import.limit.'.$e->reason)]);
+            if ($mode === 'file') {
+                $file = $request->file('file');
+                $format = strtolower($file->getClientOriginalExtension()) === 'xlsx' ? 'xlsx' : 'csv';
+                $name = mb_substr($file->getClientOriginalName(), 0, 255);
+                $hash = hash_file('sha256', (string) $file->getRealPath());
+                $size = (int) $file->getSize();
+                $path = $this->uploads->storeUpload($file, $workspaceId, $format);
+            } else {
+                $csv = $mode === 'paste'
+                    ? $this->csv([['email'], ...array_map(static fn (string $e): array => [$e], ImportPaste::entries((string) $request->input('emails')))])
+                    : $this->csv([
+                        ['email', 'first_name', 'last_name'],
+                        [(string) $request->input('email'), (string) $request->input('first_name'), (string) $request->input('last_name')],
+                    ]);
+                $path = $this->uploads->storeText($csv, $workspaceId);
+                $size = strlen($csv);
+                $hash = hash('sha256', $csv);
+            }
+
+            // A REKORD ELŐBB, mint a felmérés: ha a felmérés közben a folyamat meghal (fatal,
+            // OOM, időtúllépés), a fájl nem árva — a draft rekord hivatkozik rá, és a purge
+            // takarítja. (Fordított sorrendben a PII-fájl rekord nélkül maradt volna.)
+            $import = ContactImport::create([
+                'user_id' => $request->user()?->getKey(),
+                'source_type' => $mode === 'file' ? $format : $mode,
+                'file_name' => $name,
+                'file_hash' => $hash,
+                'file_size' => $size,
+                'storage_path' => $path,
+                'tags' => [],
+                'status' => ContactImport::STATUS_DRAFT,
+            ]);
+
+            try {
+                $profile = $this->inspector->inspect($this->uploads->absolute($path), $format);
+            } catch (ImportLimitExceeded $e) {
+                $this->uploads->delete($path);
+                $import->delete();
+
+                return back()->withErrors(['file' => (string) __('ventmail.audience.import.limit.'.$e->reason)]);
+            }
+
+            $import->update([
+                'profile' => $profile,
+                'mapping' => $this->mappings->initial($profile, $this->fieldList()),
+                'total_rows' => $profile['rows'],
+            ]);
+        } finally {
+            $lock->release();
         }
-
-        $import = ContactImport::create([
-            'user_id' => $request->user()?->getKey(),
-            'source_type' => $mode === 'file' ? $format : $mode,
-            'file_name' => $name,
-            'file_hash' => $hash,
-            'file_size' => $size,
-            'storage_path' => $path,
-            'profile' => $profile,
-            'mapping' => $this->mappings->initial($profile, $this->fieldList()),
-            'tags' => [],
-            'total_rows' => $profile['rows'],
-            'status' => ContactImport::STATUS_DRAFT,
-        ]);
 
         return redirect()->route('audience.import.show', $import->uuid);
     }
@@ -137,10 +157,18 @@ final class ContactImportController
             return back()->withErrors(['sheet' => (string) __('ventmail.audience.import.limit.sheet')]);
         }
 
+        $lock = Cache::lock('import-inspect:'.$this->context->workspaceId(), (int) config('audience.import.inspect_budget_seconds') + 15);
+
+        if (! $lock->get()) {
+            return back()->withErrors(['sheet' => (string) __('ventmail.audience.import.inspectBusy')]);
+        }
+
         try {
-            $fresh = $this->inspector->inspect($this->uploads->absolute((string) $import->storage_path), 'xlsx', (string) $request->input('sheet'), verifyZip: false);
+            $fresh = $this->inspector->inspect($this->uploads->absolute((string) $import->storage_path), 'xlsx', (string) $request->input('sheet'));
         } catch (ImportLimitExceeded $e) {
             return back()->withErrors(['sheet' => (string) __('ventmail.audience.import.limit.'.$e->reason)]);
+        } finally {
+            $lock->release();
         }
 
         $import->update([
@@ -185,7 +213,24 @@ final class ContactImportController
     /** Egyéni mező felvétele helyben (a leképezés lépésből). */
     public function storeField(StoreContactFieldRequest $request): RedirectResponse
     {
-        ContactField::create($request->safe()->only(['key', 'label', 'type']));
+        // A mezőszám-korlát ellenőrzése és a létrehozás egy zárban (két párhuzamos kérés ne léphesse át).
+        try {
+            $created = Cache::lock('import-fields:'.$this->context->workspaceId(), 10)->block(5, function () use ($request): bool {
+                if (ContactField::query()->count() >= (int) config('audience.import.max_fields')) {
+                    return false;
+                }
+
+                ContactField::create($request->safe()->only(['key', 'label', 'type']));
+
+                return true;
+            });
+        } catch (LockTimeoutException) {
+            $created = false;
+        }
+
+        if (! $created) {
+            return back()->withErrors(['key' => (string) __('ventmail.audience.import.fieldLimit')]);
+        }
 
         return back()->with('success', __('ventmail.audience.import.fieldCreated'));
     }
@@ -195,11 +240,13 @@ final class ContactImportController
     {
         $import = $this->find($uuid);
 
-        if ($this->activeRuns() >= (int) config('audience.import.max_concurrent')) {
+        // A korlát-ellenőrzés ÉS a státuszváltás egy zárban: két párhuzamos kérés nem láthatja
+        // egyszerre „szabadnak” a helyet (TOCTOU).
+        $import = $this->withRunCap(fn (): ContactImport => $this->lock($import, ContactImport::STATUS_PREVIEWING));
+
+        if ($import === null) {
             return back()->withErrors(['import' => (string) __('ventmail.audience.import.concurrency')]);
         }
-
-        $import = $this->lock($import, ContactImport::STATUS_PREVIEWING);
 
         $basis = ImportLegalBasis::from((string) $request->input('legalBasis'));
         $source = trim((string) $request->input('consentSource', ''));
@@ -231,22 +278,22 @@ final class ContactImportController
 
         $import = $this->find($uuid);
 
-        if ($import->status === ContactImport::STATUS_PREVIEWED && $this->activeRuns() >= (int) config('audience.import.max_concurrent')) {
-            return back()->withErrors(['import' => (string) __('ventmail.audience.import.concurrency')]);
-        }
-
-        // ATOMI ÁTVITEL: az `UPDATE … WHERE status = previewed` pontosan egy kérésnek ad 1-et.
-        // A dupla kattintás, az újratöltött POST és a párhuzamos fül a másodiknál 0-t kap, és
-        // nem indít második futást.
-        $claimed = ContactImport::query()
+        // ATOMI ÁTVITEL a korláttal EGY zárban: az `UPDATE … WHERE status = previewed` pontosan egy
+        // kérésnek ad 1-et, és a futó-szám ellenőrzése nem versenyezhet egy másik indítással.
+        $claimed = $this->withRunCap(static fn (): int => ContactImport::query()
             ->whereKey($import->getKey())
             ->where('status', ContactImport::STATUS_PREVIEWED)
-            ->update(['status' => ContactImport::STATUS_QUEUED, 'updated_at' => now()]);
+            ->update(['status' => ContactImport::STATUS_QUEUED, 'updated_at' => now()]));
+
+        if ($claimed === null) {
+            return back()->withErrors(['import' => (string) __('ventmail.audience.import.concurrency')]);
+        }
 
         if ($claimed === 1) {
             $this->audit->log('audience.import.started', $import, context: [
                 'import' => (string) $import->uuid,
-                'file_name' => $import->file_name,
+                'file_ext' => $import->fileExtension(),
+                'file_size' => $import->file_size,
                 'source_type' => $import->source_type,
                 'legal_basis' => $import->legal_basis,
                 'consent_source' => $import->consent_source,
@@ -302,7 +349,7 @@ final class ContactImportController
 
         $this->uploads->delete($import->storage_path);
         $this->uploads->delete($import->error_report_path);
-        $this->audit->log('audience.import.cancelled', $import, context: ['import' => (string) $import->uuid, 'file_name' => $import->file_name]);
+        $this->audit->log('audience.import.cancelled', $import, context: ['import' => (string) $import->uuid, 'file_ext' => $import->fileExtension(), 'file_size' => $import->file_size]);
 
         return redirect('/audience');
     }
@@ -328,6 +375,30 @@ final class ContactImportController
         abort_if($moved === 0, 409);
 
         return $import->fresh();
+    }
+
+    /**
+     * A futó-korlát ellenőrzése és a végrehajtás EGY cache-zárban (workspace-enként). Ha a korlát
+     * betelt, `null`; egyébként a hívott művelet eredménye (a `start()` 0 = már átvitt kérés).
+     *
+     * @template T
+     *
+     * @param  callable(): T  $action
+     * @return T|null
+     */
+    private function withRunCap(callable $action): mixed
+    {
+        try {
+            return Cache::lock('import-run-cap:'.$this->context->workspaceId(), 10)->block(5, function () use ($action): mixed {
+                if ($this->activeRuns() >= (int) config('audience.import.max_concurrent')) {
+                    return null;
+                }
+
+                return $action();
+            });
+        } catch (LockTimeoutException) {
+            return null; // a zár nem szabadult fel időben: „foglalt” — a hívó 429-szerű hibát mutat
+        }
     }
 
     /** A workspace-ben éppen futó előnézetek és importok száma. */

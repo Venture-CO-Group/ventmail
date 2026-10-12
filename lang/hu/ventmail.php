@@ -62,6 +62,7 @@ return [
                 'sheet' => 'Ismeretlen munkalap.',
                 'mapping' => 'Az e-mail oszlop nincs hozzárendelve.',
             ],
+            'inspectBusy' => 'Már folyik egy másik fájl felmérése ebben a workspace-ben — próbáld újra pár másodperc múlva.',
             'concurrency' => 'Már fut elég import ebben a workspace-ben — várd meg, amíg valamelyik befejeződik.',
             'fieldLimit' => 'Elérted az egyéni mezők számának korlátját.',
             'pasteEmpty' => 'Illessz be legalább egy e-mail-címet.',
