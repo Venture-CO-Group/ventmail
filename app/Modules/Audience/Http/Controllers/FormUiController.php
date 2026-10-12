@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace App\Modules\Audience\Http\Controllers;
 
+use App\Modules\Audience\Models\ContactField;
 use App\Modules\Audience\Models\ContactList;
 use App\Modules\Audience\Models\Form;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -69,6 +71,21 @@ final class FormUiController
                 // és a felhasználó azt hinné, hogy űrlaponkénti adatot lát.
                 'listContacts' => $form->list === null ? null : (int) $form->list->contacts_count,
                 'snippet' => $this->snippet($form),
+                // v1.1 · ŰRLAP-ÉPÍTŐ: a mezők, az oldal-szövegek, a hosztolt link és az iframe-kód.
+                'fields' => array_values(array_map(static fn (array $field) => [
+                    'key' => in_array($field['name'] ?? '', ['first_name', 'last_name'], true) ? (string) $field['name'] : 'attr:'.($field['name'] ?? ''),
+                    'label' => (string) ($field['label'] ?? ''),
+                    'required' => (bool) ($field['required'] ?? false),
+                ], array_filter((array) $form->fields, 'is_array'))),
+                'page' => (object) (array) $form->page,
+                'hostedUrl' => route('forms.page', ['slug' => $form->slug]),
+                'iframe' => '<iframe src="'.e(route('forms.page', ['slug' => $form->slug])).'" title="'.e((string) $form->name).'" loading="lazy" style="width:100%;min-height:560px;border:0"></iframe>',
+            ])->values()->all(),
+            // A választható egyéni mezők (a „Közönség → egyéni mezők" definíciói).
+            'customFields' => ContactField::query()->orderBy('label')->get(['key', 'label', 'type'])->map(fn (ContactField $field) => [
+                'key' => 'attr:'.$field->key,
+                'label' => (string) $field->label,
+                'type' => (string) $field->type,
             ])->values()->all(),
         ]);
     }
@@ -136,7 +153,7 @@ final class FormUiController
         return implode("\n", [
             '<form id="'.$id.'" method="post" action="'.$action.'">',
             '  <input type="email" name="email" required>',
-            '  <input type="text" name="first_name">',
+            ...$this->snippetFields($form),
             '  <div style="position:absolute;left:-5000px" aria-hidden="true">',
             '    <input type="text" name="'.e((string) $form->honeypot_field).'" tabindex="-1" autocomplete="off">',
             '  </div>',
@@ -159,6 +176,31 @@ final class FormUiController
         ]);
     }
 
+    /**
+     * A beágyazott kód mezői az építő definíciójából (régi, mező nélküli űrlapnál a keresztnév).
+     *
+     * @return list<string>
+     */
+    private function snippetFields(Form $form): array
+    {
+        $fields = array_filter((array) $form->fields, 'is_array');
+
+        if ($fields === []) {
+            return ['  <input type="text" name="first_name">'];
+        }
+
+        return array_values(array_map(static function (array $field): string {
+            $type = match ((string) ($field['type'] ?? 'text')) {
+                'number' => 'number',
+                'date' => 'date',
+                default => 'text',
+            };
+
+            return '  <label>'.e((string) ($field['label'] ?? $field['name'])).' <input type="'.$type.'" name="'.e((string) $field['name']).'"'
+                .(($field['required'] ?? false) ? ' required' : '').'></label>';
+        }, $fields));
+    }
+
     /** @return array<string, mixed> */
     private function validated(Request $request): array
     {
@@ -173,6 +215,18 @@ final class FormUiController
             // mert egy hatósági kérdésre nem a „consent=true", hanem a LÁTOTT SZÖVEG a válasz.
             'consentText' => ['required', 'string', 'max:2000'],
             'redirectUrl' => ['nullable', 'string', 'url', 'max:2048', 'starts_with:https://'],
+            // v1.1 · ŰRLAP-ÉPÍTŐ: a mezők (név-oszlopok és a workspace egyéni mezői) és az
+            // oldal-szövegek. Az e-mail-cím és a hozzájárulás mindig rajta van — nem kapcsolható.
+            'fields' => ['nullable', 'array', 'max:15'],
+            'fields.*.key' => ['required', 'string', 'max:70', 'distinct'],
+            'fields.*.label' => ['nullable', 'string', 'max:120'],
+            'fields.*.required' => ['boolean'],
+            'page' => ['nullable', 'array'],
+            'page.title' => ['nullable', 'string', 'max:120'],
+            'page.intro' => ['nullable', 'string', 'max:500'],
+            'page.button' => ['nullable', 'string', 'max:40'],
+            'page.successTitle' => ['nullable', 'string', 'max:120'],
+            'page.successMessage' => ['nullable', 'string', 'max:1000'],
         ]);
 
         $list = $validated['listUuid'] ?? null;
@@ -186,6 +240,63 @@ final class FormUiController
             'policy_version' => $validated['policyVersion'] ?? null,
             'consent_text' => $validated['consentText'],
             'redirect_url' => $validated['redirectUrl'] ?? null,
+            // A MEZŐK és az OLDAL-szövegek csak akkor íródnak, ha a kérés hozza őket — egy régi
+            // kliens (vagy a régi API-alak) mentése nem törli az építőben összerakott mezőket.
+            ...($request->has('fields') ? ['fields' => $this->fields((array) ($validated['fields'] ?? []))] : []),
+            ...($request->has('page') ? ['page' => $this->page((array) ($validated['page'] ?? []))] : []),
         ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $page
+     * @return array<string, string>
+     */
+    private function page(array $page): array
+    {
+        return array_map(
+            static fn ($value) => is_string($value) ? trim($value) : '',
+            array_intersect_key($page, array_flip(['title', 'intro', 'button', 'successTitle', 'successMessage'])),
+        );
+    }
+
+    /**
+     * A mezők normalizálása: `first_name` / `last_name`, vagy `attr:<kulcs>` egy LÉTEZŐ egyéni
+     * mezőre (a global scope-on át — idegen workspace mezője nem található). Minden más
+     * kulcs validációs hiba: egy ismeretlen név a publikus végponton tetszőleges attribútumot
+     * engedne írni.
+     *
+     * @param  list<array<string, mixed>>  $input
+     * @return list<array{name: string, label: string, type: string, required: bool}>
+     */
+    private function fields(array $input): array
+    {
+        $custom = ContactField::query()->get(['key', 'label', 'type'])->keyBy('key');
+        $rows = [];
+
+        foreach ($input as $index => $field) {
+            $key = (string) ($field['key'] ?? '');
+            $label = trim((string) ($field['label'] ?? ''));
+
+            if (in_array($key, ['first_name', 'last_name'], true)) {
+                $rows[] = ['name' => $key, 'label' => $label, 'type' => 'text', 'required' => (bool) ($field['required'] ?? false)];
+
+                continue;
+            }
+
+            $definition = str_starts_with($key, 'attr:') ? $custom->get(substr($key, 5)) : null;
+
+            if ($definition === null) {
+                throw ValidationException::withMessages(["fields.{$index}.key" => __('studio.forms.unknownField', ['key' => $key])]);
+            }
+
+            $rows[] = [
+                'name' => (string) $definition->key,
+                'label' => $label !== '' ? $label : (string) $definition->label,
+                'type' => (string) $definition->type,
+                'required' => (bool) ($field['required'] ?? false),
+            ];
+        }
+
+        return $rows;
     }
 }

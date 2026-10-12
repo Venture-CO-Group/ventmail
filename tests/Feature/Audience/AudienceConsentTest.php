@@ -187,8 +187,9 @@ it('az űrlap-beiratkozás double opt-innal MEGERŐSÍTETT consentet ad — de c
         ->issue((int) $this->workspace->getKey(), 'anna@pelda.hu', 'marketing', $list->uuid);
 
     // A GET megerősítő oldalt ad, az ÍRÁS a POST — a link-előtöltés így nem teremt jogalapot.
-    $this->get('/c/'.$token)->assertOk()->assertSee('megerősítése', false);
-    $this->post('/c/'.$token)->assertOk()->assertSee('megerősítve', false);
+    // v1.1 · a hosztolt oldalak a böngésző nyelvén szólnak (Accept-Language) — itt magyarul.
+    $this->withHeader('Accept-Language', 'hu')->get('/c/'.$token)->assertOk()->assertSee('megerősítése', false);
+    $this->withHeader('Accept-Language', 'hu')->post('/c/'.$token)->assertOk()->assertSee('megerősítve', false);
 
     app(WorkspaceContext::class)->set($this->workspace);
 
@@ -842,7 +843,7 @@ it('a REDIRECT-es űrlap nem ad 500-at, és csak VERIFIKÁLT domainre visz', fun
         ->assertRedirect('https://pelda.hu/koszonjuk');
 
     // A NEM verifikált domainre nem irányítunk: a köszönő oldalt adjuk.
-    $this->post('/f/'.$idegen->slug, ['email' => 'b@pelda.hu', '_elapsed' => 12])
+    $this->withHeader('Accept-Language', 'hu')->post('/f/'.$idegen->slug, ['email' => 'b@pelda.hu', '_elapsed' => 12])
         ->assertOk()
         ->assertSee('Köszönjük', false);
 });

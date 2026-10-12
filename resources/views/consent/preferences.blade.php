@@ -1,53 +1,67 @@
-{{-- PREFERENCE CENTER. Szándékosan MINIMÁLIS és keretrendszer-mentes: ez az oldal a
-     levélből nyílik meg, gyakran mobilon, és nem tartozik a bejelentkezett felülethez —
-     ezért nincs benne @venture/ui komponens sem. --}}
-<!doctype html>
-<html lang="hu">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="robots" content="noindex, nofollow">
-    <meta name="referrer" content="no-referrer">
-    <title>Levélbeállítások</title>
-</head>
-<body>
-    <main>
-        <h1>Levélbeállítások</h1>
+{{-- PREFERENCE CENTER (v1.1: profil-mezőkkel). A levélből nyílik meg, gyakran mobilon; nem
+     tartozik a bejelentkezett felülethez — szkript nincs, a stílus a token-alapú `hosted.css`.
 
-        {{-- A GET NEM ÍR: a védelmi átjárók (SafeLinks, vírusszűrő proxy) link-előtöltése
-             különben csendben módosítaná a beállításokat. Minden változás POST. --}}
-        <form method="post" action="{{ route('preferences.update', ['token' => $token]) }}">
-            @if ($lists === [])
-                <p>Ez a link már nem érvényes. Kérj újat a levelünk alján lévő linkkel.</p>
-            @else
-                <p>Válaszd ki, miről szeretnél levelet kapni:</p>
-                <ul>
-                    @foreach ($lists as $list)
-                        <li>
-                            <label>
-                                <input type="checkbox" name="lists[]" value="{{ $list['uuid'] }}"
-                                       @checked($list['subscribed'])>
-                                {{ $list['name'] }}
-                            </label>
-                            @if ($list['description'] !== '')
-                                <br><small>{{ $list['description'] }}</small>
-                            @endif
-                        </li>
-                    @endforeach
-                </ul>
+     Csak a kontakt SAJÁT adatai látszanak (a saját listái és a saját mezőértékei) — a
+     tenant teljes listastruktúrája vagy más személyes adat nem. A GET NEM ÍR: a védelmi
+     átjárók link-előtöltése különben csendben módosítaná a beállításokat. --}}
+@extends('hosted.layout')
 
-                <button type="submit">Beállítások mentése</button>
+@section('title', __('studio.hosted.preferencesTitle'))
+
+@section('content')
+    <h1>{{ __('studio.hosted.preferencesTitle') }}</h1>
+
+    <form class="hp-form" method="post" action="{{ route('preferences.update', ['token' => $token]) }}" data-testid="preferences-form">
+        @if ($lists === [] && $profile === [])
+            <p>{{ __('studio.hosted.preferencesInvalid') }}</p>
+        @else
+            @if ($lists !== [])
+                <fieldset class="hp-section">
+                    <legend class="hp-legend">{{ __('studio.hosted.preferencesLists') }}</legend>
+                    <ul class="hp-list">
+                        @foreach ($lists as $list)
+                            <li>
+                                <label class="hp-check">
+                                    <input type="checkbox" name="lists[]" value="{{ $list['uuid'] }}" @checked($list['subscribed'])>
+                                    <span>
+                                        {{ $list['name'] }}
+                                        @if ($list['description'] !== '')
+                                            <br><span class="hp-muted">{{ $list['description'] }}</span>
+                                        @endif
+                                    </span>
+                                </label>
+                            </li>
+                        @endforeach
+                    </ul>
+                </fieldset>
             @endif
 
-            <hr>
+            @if ($profile !== [])
+                <fieldset class="hp-section">
+                    <legend class="hp-legend">{{ __('studio.hosted.preferencesProfile') }}</legend>
+                    @foreach ($profile as $field)
+                        <div class="hp-field">
+                            <label for="pf-{{ $field['name'] }}">{{ $field['label'] }}</label>
+                            <input id="pf-{{ $field['name'] }}" type="{{ $field['input'] }}" name="profile[{{ $field['name'] }}]" value="{{ $field['value'] }}" maxlength="200">
+                        </div>
+                    @endforeach
+                </fieldset>
+            @endif
 
-            {{-- A TELJES leiratkozás külön, EGY kattintással is elérhető: aki ezt akarja,
-                 annak ne kelljen pipákat kivenni. --}}
-            <button type="submit" name="unsubscribe_all" value="1">
-                Leiratkozom minden marketing levélről
+            <div class="hp-actions">
+                <button type="submit" class="hp-button" data-testid="preferences-save">{{ __('studio.hosted.preferencesSave') }}</button>
+            </div>
+        @endif
+
+        <hr class="hp-divider">
+
+        {{-- A TELJES leiratkozás külön, EGY kattintással is elérhető: aki ezt akarja, annak ne
+             kelljen pipákat kivenni. Ugyanaz a hatása, mint a one-click (RFC 8058) linknek. --}}
+        <div class="hp-actions">
+            <button type="submit" name="unsubscribe_all" value="1" class="hp-button hp-button--ghost" data-testid="preferences-unsubscribe-all">
+                {{ __('studio.hosted.unsubscribeAll') }}
             </button>
-            <p><small>A számlákat és a fiókodhoz tartozó értesítéseket ez nem érinti.</small></p>
-        </form>
-    </main>
-</body>
-</html>
+        </div>
+        <p class="hp-muted">{{ __('studio.hosted.transactionalNote') }}</p>
+    </form>
+@endsection

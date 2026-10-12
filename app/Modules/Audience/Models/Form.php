@@ -30,9 +30,11 @@ final class Form extends Model
     protected $fillable = [
         'contact_list_id', 'name', 'slug', 'fields', 'honeypot_field', 'min_seconds',
         'policy_version', 'consent_text', 'redirect_url', 'active',
+        // v1.1 · a hosztolt oldal és a köszönő oldal szövegei.
+        'page',
     ];
 
-    protected $attributes = ['fields' => '[]', 'min_seconds' => 3, 'active' => true];
+    protected $attributes = ['fields' => '[]', 'page' => '{}', 'min_seconds' => 3, 'active' => true];
 
     public function uniqueIds(): array
     {
@@ -43,6 +45,7 @@ final class Form extends Model
     {
         return [
             'fields' => 'array',
+            'page' => 'array',
             'min_seconds' => 'integer',
             'active' => 'boolean',
         ];

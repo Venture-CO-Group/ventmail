@@ -7,6 +7,8 @@ namespace App\Modules\Audience\Http\Controllers;
 use App\Modules\Audience\Actions\SubmitForm;
 use App\Modules\Audience\Data\FormSubmission;
 use App\Modules\Audience\Models\Form;
+use App\Modules\Audience\Services\FormRenderTokens;
+use App\Modules\Audience\Services\Import\AttributeCoercer;
 use App\Modules\Domains\Models\Domain;
 use App\Modules\Tenancy\Models\Workspace;
 use App\Modules\Tenancy\Services\WorkspaceContext;
@@ -65,7 +67,7 @@ final class PublicFormController
             ->get();
 
         if ($matches->count() !== 1) {
-            return $this->done();
+            return $this->done(null);
         }
 
         $form = $matches->first();
@@ -73,7 +75,7 @@ final class PublicFormController
         $workspace = Workspace::query()->whereKey($form->workspace_id)->first();
 
         if ($workspace === null) {
-            return $this->done();
+            return $this->done(null);
         }
 
         $previous = $context->hasWorkspace() ? $context->workspace() : null;
@@ -83,6 +85,12 @@ final class PublicFormController
         $redirect = null;
 
         try {
+            // v1.1 · KÖTELEZŐ mező hiánya: nincs beiratkozás, de a válasz UGYANAZ (a hosztolt
+            // oldal `required` attribútuma a valódi kitöltőt előbb megállítja).
+            if (! $this->requiredPresent($request, $form)) {
+                return $this->done($form);
+            }
+
             $submit($form, new FormSubmission(
                 // MINDEN BEMENET HOSSZ- ÉS TÍPUS-KORLÁTOS.
                 //
@@ -99,7 +107,7 @@ final class PublicFormController
                 // A KITÖLTÉSI IDŐ a kliens szava, tehát nem bizonyíték — de a bot
                 // jellemzően nem is küldi, vagy nullát küld. A hiányzó érték NEM bukik el
                 // a time-trapen: egy régi integráció különben csendben megszűnne működni.
-                elapsedSeconds: $request->filled('_elapsed') ? (int) $request->input('_elapsed') : null,
+                elapsedSeconds: $this->elapsed($request, $form),
                 // A VALÓDI TCP-partner, nem a `request->ip()`.
                 //
                 // A `request->ip()` a `TRUSTED_PROXIES=*` miatt a KÉRŐ által beírt
@@ -131,7 +139,113 @@ final class PublicFormController
             return redirect()->away($redirect);
         }
 
-        return $this->done();
+        return $this->done($form);
+    }
+
+    /**
+     * A HOSZTOLT ŰRLAP-OLDAL (v1.1 · 5. modul) — link vagy iframe.
+     *
+     * Csak AKTÍV űrlap jelenik meg (az inaktív és az ismeretlen 404 — a slug a publikus link
+     * része, tehát a létezése nem titok). A mezők az űrlap-építő definíciójából jönnek; a
+     * honeypot és a renderelési token (`_rt`, szkript nélküli time-trap) minden kiszolgáláskor
+     * friss.
+     */
+    public function show(string $slug, FormRenderTokens $tokens, WorkspaceContext $context): Response
+    {
+        $matches = Form::query()
+            ->withoutGlobalScopes()
+            ->where('slug', $slug)
+            ->where('active', true)
+            ->limit(2)
+            ->get();
+
+        $form = $matches->count() === 1 ? $matches->first() : null;
+        $workspace = $form === null ? null : Workspace::query()->whereKey($form->workspace_id)->first();
+
+        abort_if($form === null || $workspace === null, 404);
+
+        $page = (array) $form->page;
+
+        return response(view('audience.form-page', [
+            'workspaceName' => (string) $workspace->name,
+            'title' => (string) (($page['title'] ?? '') !== '' ? $page['title'] : $form->name),
+            'intro' => (string) ($page['intro'] ?? ''),
+            'button' => (string) (($page['button'] ?? '') !== '' ? $page['button'] : __('studio.hosted.subscribe')),
+            'consentText' => (string) $form->consent_text,
+            'fields' => $this->renderFields($form),
+            'honeypot' => (string) $form->honeypot_field,
+            'renderToken' => $tokens->issue((string) $form->uuid),
+            'action' => route('forms.submit', ['slug' => $form->slug]),
+        ])->render(), 200);
+    }
+
+    /**
+     * A megjelenítendő mezők (a kötelező e-mail-cím mellett).
+     *
+     * @return list<array{name: string, label: string, input: string, required: bool}>
+     */
+    private function renderFields(Form $form): array
+    {
+        $rows = [];
+
+        foreach ((array) $form->fields as $field) {
+            if (! is_array($field) || ! is_string($field['name'] ?? null)) {
+                continue;
+            }
+
+            $name = (string) $field['name'];
+
+            $rows[] = [
+                'name' => $name,
+                'label' => (string) (($field['label'] ?? '') !== '' ? $field['label'] : match ($name) {
+                    'first_name' => __('studio.hosted.firstName'),
+                    'last_name' => __('studio.hosted.lastName'),
+                    default => $name,
+                }),
+                'input' => match ((string) ($field['type'] ?? 'text')) {
+                    'number' => 'number',
+                    'date' => 'date',
+                    default => 'text',
+                },
+                'required' => (bool) ($field['required'] ?? false),
+            ];
+        }
+
+        return $rows;
+    }
+
+    /** A kötelezőnek jelölt mezők mind kitöltöttek-e? */
+    private function requiredPresent(Request $request, Form $form): bool
+    {
+        foreach ((array) $form->fields as $field) {
+            if (is_array($field) && ($field['required'] ?? false) && is_string($field['name'] ?? null)) {
+                $value = $request->input($field['name']);
+
+                if (! is_scalar($value) || trim((string) $value) === '') {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * A KITÖLTÉSI IDŐ: a hosztolt oldal aláírt renderelési tokenjéből (`_rt`), különben a
+     * beágyazott kód `_elapsed` mezőjéből.
+     *
+     * A MEGLÉVŐ, de érvénytelen token (hamis, más űrlapé, lejárt) NULLA másodperc: bukik a
+     * time-trapen — a hamisított token nem kaphat „hiányzó mérés" felmentést.
+     */
+    private function elapsed(Request $request, Form $form): ?int
+    {
+        if ($request->filled('_rt')) {
+            $token = $request->input('_rt');
+
+            return is_string($token) ? (app(FormRenderTokens::class)->elapsed($token, (string) $form->uuid) ?? 0) : 0;
+        }
+
+        return $request->filled('_elapsed') ? (int) $request->input('_elapsed') : null;
     }
 
     /**
@@ -150,8 +264,19 @@ final class PublicFormController
         foreach ((array) $form->fields as $field) {
             $name = is_array($field) ? (string) ($field['name'] ?? '') : (string) $field;
 
+            // A NÉV-mezők a kontakt saját oszlopai (v1.1 űrlap-építő), nem attribútumok.
+            if (in_array($name, ['email', 'first_name', 'last_name'], true)) {
+                continue;
+            }
+
             if ($name !== '' && preg_match('/^[A-Za-z0-9_-]{1,64}$/', $name) === 1 && $request->filled($name)) {
                 $value = $this->text($request->input($name), self::MAX_ATTRIBUTE_LENGTH);
+
+                // v1.1 · TÍPUSOS egyéni mező: a típusba nem illő érték kimarad (nem ír szemetet
+                // a szám- vagy dátummezőbe, amire a szegmens-motor szűr).
+                if ($value !== null && $value !== '' && is_array($field) && in_array($field['type'] ?? 'text', ['number', 'date', 'boolean'], true)) {
+                    $value = app(AttributeCoercer::class)->coerce((string) $field['type'], $value);
+                }
 
                 if ($value !== null && $value !== '') {
                     $allowed[$name] = $value;
@@ -211,8 +336,17 @@ final class PublicFormController
         return mb_substr(trim((string) $value), 0, $limit);
     }
 
-    private function done(): Response
+    /**
+     * A KÖSZÖNŐ OLDAL — űrlaponként az űrlap saját szövegével, ismeretlen űrlapnál általános.
+     * Botra és érvényes beküldésre UGYANAZ (ugyanannak az űrlapnak).
+     */
+    private function done(?Form $form): Response
     {
-        return response(view('audience.form-submitted')->render(), 200);
+        $page = $form === null ? [] : (array) $form->page;
+
+        return response(view('audience.form-submitted', [
+            'title' => ($page['successTitle'] ?? '') !== '' ? (string) $page['successTitle'] : null,
+            'message' => ($page['successMessage'] ?? '') !== '' ? (string) $page['successMessage'] : null,
+        ])->render(), 200);
     }
 }

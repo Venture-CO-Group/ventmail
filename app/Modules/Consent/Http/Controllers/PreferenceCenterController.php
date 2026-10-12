@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace App\Modules\Consent\Http\Controllers;
 
 use App\Modules\Audience\Models\Contact;
+use App\Modules\Audience\Models\ContactField;
 use App\Modules\Audience\Models\ContactList;
+use App\Modules\Audience\Services\Import\AttributeCoercer;
 use App\Modules\Consent\Models\Consent;
 use App\Modules\Consent\Services\ConsentRecorder;
 use App\Modules\Consent\Services\PreferenceTokens;
@@ -60,6 +62,8 @@ final class PreferenceCenterController
                         ->wherePivot('status', 'subscribed')
                         ->exists(),
                 ])->all(),
+                // v1.1 · PROFIL: a kontakt SAJÁT mezőértékei — más személyes adat nem.
+                'profile' => $this->profileFields($contact),
             ];
         });
 
@@ -68,6 +72,7 @@ final class PreferenceCenterController
         return response(view('consent.preferences', [
             'token' => $token,
             'lists' => $state['lists'] ?? [],
+            'profile' => $state['profile'] ?? [],
         ])->render(), 200);
     }
 
@@ -83,20 +88,118 @@ final class PreferenceCenterController
             (array) $request->input('lists', []),
         )));
 
-        $this->resolve($token, $context, function (Contact $contact) use ($unsubscribeAll, $keep): array {
+        $profile = is_array($request->input('profile')) ? (array) $request->input('profile') : null;
+
+        $this->resolve($token, $context, function (Contact $contact) use ($unsubscribeAll, $keep, $profile): array {
             // EGY TRANZAKCIÓ: a három írás (suppression / consent / kontakt+pivot) vagy
             // mind megtörténik, vagy egyik sem. Részleges hibánál a három igazság
             // szétcsúszna — és a leghangosabb (a kampány) nyerne.
-            DB::transaction(function () use ($contact, $unsubscribeAll, $keep): void {
-                $unsubscribeAll
-                    ? $this->unsubscribeEverything($contact)
-                    : $this->applySelection($contact, $keep);
+            DB::transaction(function () use ($contact, $unsubscribeAll, $keep, $profile): void {
+                if ($unsubscribeAll) {
+                    $this->unsubscribeEverything($contact);
+
+                    return;
+                }
+
+                if ($profile !== null) {
+                    $this->applyProfile($contact, $profile);
+                }
+
+                $this->applySelection($contact, $keep);
             });
 
             return [];
         });
 
         return response(view('consent.preferences-saved')->render(), 200);
+    }
+
+    /**
+     * A PROFIL-mezők: keresztnév, vezetéknév és a workspace egyéni mezői (szöveg / szám /
+     * dátum) a kontakt SAJÁT értékével. A logikai mező kimarad (szkript nélküli oldalon a
+     * jelölőnégyzet „nem küldött" állapota nem különböztethető meg a „nem módosítottól").
+     *
+     * @return list<array{name: string, label: string, input: string, value: string}>
+     */
+    private function profileFields(Contact $contact): array
+    {
+        $fields = [
+            ['name' => 'first_name', 'label' => (string) __('studio.hosted.firstName'), 'input' => 'text', 'value' => (string) $contact->first_name],
+            ['name' => 'last_name', 'label' => (string) __('studio.hosted.lastName'), 'input' => 'text', 'value' => (string) $contact->last_name],
+        ];
+
+        $attributes = (array) $contact->attributes;
+
+        foreach ($this->editableFields() as $field) {
+            $value = $attributes[$field->key] ?? '';
+
+            $fields[] = [
+                'name' => (string) $field->key,
+                'label' => (string) $field->label,
+                'input' => match ((string) $field->type) {
+                    'number' => 'number',
+                    'date' => 'date',
+                    default => 'text',
+                },
+                'value' => is_scalar($value) ? (string) $value : '',
+            ];
+        }
+
+        return $fields;
+    }
+
+    /**
+     * A PROFIL mentése — csak a felajánlott mezőkre, típus szerint ellenőrizve.
+     *
+     * Ismeretlen kulcs nem kerülhet az attribútumok közé (a szegmens-motor ezekre szűr); a
+     * típusba nem illő érték kimarad (nem ír szemetet); az üres érték törli a mezőt.
+     *
+     * @param  array<mixed>  $input
+     */
+    private function applyProfile(Contact $contact, array $input): void
+    {
+        // A `null` az ÜRES mező (a `ConvertEmptyStringsToNull` middleware alakja): törlést jelent.
+        $text = static fn ($value): ?string => $value === null ? '' : (is_scalar($value) ? mb_substr(trim((string) $value), 0, 200) : null);
+
+        foreach (['first_name', 'last_name'] as $column) {
+            if (array_key_exists($column, $input) && ($value = $text($input[$column])) !== null) {
+                $contact->{$column} = $value === '' ? null : $value;
+            }
+        }
+
+        $attributes = (array) $contact->attributes;
+        $coercer = app(AttributeCoercer::class);
+
+        foreach ($this->editableFields() as $field) {
+            if (! array_key_exists((string) $field->key, $input) || ($value = $text($input[$field->key])) === null) {
+                continue;
+            }
+
+            if ($value === '') {
+                unset($attributes[$field->key]);
+
+                continue;
+            }
+
+            $coerced = $coercer->coerce((string) $field->type, $value);
+
+            if ($coerced !== null) {
+                $attributes[$field->key] = $coerced;
+            }
+        }
+
+        $contact->attributes = $attributes;
+        $contact->save();
+    }
+
+    /** @return Collection<int, ContactField> */
+    private function editableFields(): Collection
+    {
+        return ContactField::query()
+            ->whereIn('type', ['text', 'number', 'date'])
+            ->orderBy('label')
+            ->limit(20)
+            ->get(['key', 'label', 'type']);
     }
 
     /**
@@ -121,7 +224,15 @@ final class PreferenceCenterController
             $keep = [];
         }
 
-        foreach ($this->visibleLists($contact) as $list) {
+        $lists = $this->visibleLists($contact);
+
+        // v1.1 · LISTA NÉLKÜLI kontakt (pl. csak a profilját menti): nincs mit kiválasztani,
+        // és a „minden listáról lekerült" szabály itt NEM jelenthet teljes leiratkozást.
+        if ($lists->isEmpty()) {
+            return;
+        }
+
+        foreach ($lists as $list) {
             $wanted = in_array((string) $list->uuid, $keep, true);
 
             $before = (string) ($contact->lists()->where('contact_lists.id', $list->getKey())

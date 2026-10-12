@@ -10,8 +10,13 @@ use App\Modules\Audience\Http\Controllers\FormUiController;
 use App\Modules\Audience\Http\Controllers\PublicFormController;
 use App\Modules\Audience\Http\Controllers\SegmentController;
 use App\Modules\Audience\Http\Controllers\TagController;
+use App\Modules\Audience\Http\Middleware\HostedPageHeaders;
+use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
+use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
+use Illuminate\Session\Middleware\StartSession;
 use Illuminate\Support\Facades\Route;
+use Illuminate\View\Middleware\ShareErrorsFromSession;
 
 /*
  | PUBLIKUS ŰRLAP-BEKÜLDÉS (54. kritérium).
@@ -26,12 +31,38 @@ use Illuminate\Support\Facades\Route;
  | hogy a válasz MINDIG ugyanaz.
  */
 Route::post('/f/{slug}', PublicFormController::class)
+    // v1.1 · állapotmentes: session és süti sincs (a beküldőnek nincs mit megjegyezni rólunk).
     ->withoutMiddleware([
+        StartSession::class,
+        ShareErrorsFromSession::class,
+        EncryptCookies::class,
+        AddQueuedCookiesToResponse::class,
         VerifyCsrfToken::class,
     ])
-    ->middleware('throttle:public-form')
+    // v1.1 · a válasz (köszönő oldal) hosztolt oldal: szigorú CSP, süti nélkül. Keretezhető,
+    // mert az iframe-be ágyazott űrlap ide küld.
+    ->middleware(['throttle:public-form', HostedPageHeaders::class.':framable'])
     ->where('slug', '[A-Za-z0-9\-]{1,128}')
     ->name('forms.submit');
+
+/*
+ | v1.1 · 5. modul — a HOSZTOLT űrlap-oldal (`GET /f/{slug}`): link vagy iframe.
+ |
+ | Állapotmentes (session, süti és CSRF nélkül, mint a megerősítő és a preference oldal):
+ | a time-trap ideje az aláírt renderelési tokenből jön, nem munkamenetből. Szigorú CSP,
+ | szkript nélkül; partnerenként és űrlaponként limitált.
+ */
+Route::get('/f/{slug}', [PublicFormController::class, 'show'])
+    ->withoutMiddleware([
+        StartSession::class,
+        ShareErrorsFromSession::class,
+        EncryptCookies::class,
+        AddQueuedCookiesToResponse::class,
+        VerifyCsrfToken::class,
+    ])
+    ->middleware(['throttle:hosted-form', HostedPageHeaders::class.':framable'])
+    ->where('slug', '[A-Za-z0-9\-]{1,128}')
+    ->name('forms.page');
 
 /*
  | A KÖZÖNSÉG FELÜLETE — a fentiek ellentéte.
