@@ -69,7 +69,7 @@ it('idegen issuert hirdető discovery esetén nincs belépés', function () {
         'https://tamado.example/.well-known/jwks.json' => Http::response(['keys' => [$attacker->jwk()]]),
     ]);
 
-    $this->get('/auth/callback?code=c&state='.session('oidc.state'))->assertForbidden();
+    $this->get('/auth/callback?code=c&state='.session('oidc.state'))->assertRedirect('/')->assertSessionHas('error', __('ventmail.auth.retry'));
 
     expect(Auth::check())->toBeFalse();
 });
@@ -83,7 +83,7 @@ it('nem https végpontot hirdető discovery esetén nincs belépés', function (
         'jwks_uri' => 'http://ventsso.test/.well-known/jwks.json',
     ]);
 
-    $response->assertForbidden();
+    $response->assertRedirect('/')->assertSessionHas('error', __('ventmail.auth.retry'));
     expect(Auth::check())->toBeFalse();
 });
 
@@ -99,7 +99,7 @@ it('alg=none tokent elutasít', function () {
     $unsigned = JWT::urlsafeB64Encode(json_encode(['alg' => 'none', 'typ' => 'JWT']))
         .'.'.JWT::urlsafeB64Encode(json_encode($payload)).'.';
 
-    attemptLogin($unsigned)->assertForbidden();
+    attemptLogin($unsigned)->assertRedirect('/')->assertSessionHas('error', __('ventmail.auth.retry'));
     expect(Auth::check())->toBeFalse();
 });
 
@@ -115,7 +115,7 @@ it('HS256-konfúziót a JWKS RSA kulcsával elutasít', function () {
 
     $forged = JWT::encode($payload, $this->sso->publicKeyPem(), 'HS256', $this->sso->kid);
 
-    attemptLogin($forged)->assertForbidden();
+    attemptLogin($forged)->assertRedirect('/')->assertSessionHas('error', __('ventmail.auth.retry'));
     expect(Auth::check())->toBeFalse();
 });
 
@@ -132,7 +132,7 @@ it('másik kliensnek szánt tokent (azp) elutasít', function () {
 
     $this->sso->fakeHttp(['id_token' => $token]);
 
-    $this->get('/auth/callback?code=c&state='.session('oidc.state'))->assertForbidden();
+    $this->get('/auth/callback?code=c&state='.session('oidc.state'))->assertRedirect('/')->assertSessionHas('error', __('ventmail.auth.retry'));
     expect(Auth::check())->toBeFalse();
 });
 
@@ -143,7 +143,9 @@ it('sub nélküli tokent elutasít', function () {
     $token = $this->sso->idToken(['sub' => '', 'nonce' => session('oidc.nonce')]);
     $this->sso->fakeHttp(['id_token' => $token]);
 
-    $this->get('/auth/callback?code=c&state='.session('oidc.state'))->assertForbidden();
+    $this->get('/auth/callback?code=c&state='.session('oidc.state'))->assertRedirect('/')->assertSessionHas('error', __('ventmail.auth.retry'));
+
+    expect(Auth::check())->toBeFalse();
 });
 
 it('lejárt token nem indít JWKS-újratöltést', function () {
@@ -168,7 +170,8 @@ it('lejárt token nem indít JWKS-újratöltést', function () {
         'nonce' => session('oidc.nonce'),
     ])]);
 
-    $this->get('/auth/callback?code=c&state='.session('oidc.state'))->assertForbidden();
+    $this->get('/auth/callback?code=c&state='.session('oidc.state'))->assertRedirect('/')->assertSessionHas('error', __('ventmail.auth.retry'));
 
+    expect(Auth::check())->toBeFalse();
     expect($this->sso->jwksRequests)->toBe($before, 'a lejárt token JWKS-újratöltést indított');
 });

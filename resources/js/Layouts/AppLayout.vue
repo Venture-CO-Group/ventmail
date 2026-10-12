@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { Link, router, usePage } from '@inertiajs/vue3';
-import { VtButton, VtGlowLine, VtSelect } from '@venture/ui';
+import { VtButton, VtSelect } from '@venture/ui';
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
+import BrandLogo from '../Components/BrandLogo.vue';
 import { loadLocaleMessages } from '../i18n';
 
 /**
@@ -127,13 +128,12 @@ async function switchLocale(code: string): Promise<void> {
         <a class="vm-visually-hidden" href="#main">{{ t('shell.skipToContent') }}</a>
 
         <nav class="vm-shell__nav" data-testid="app-nav" :aria-label="t('nav.platform')">
-            <div>
-                <strong class="vt-text-display">ventMail</strong>
-                <VtGlowLine />
+            <div class="vm-glow-hairline vm-shell__brand">
+                <BrandLogo href="/dashboard" />
             </div>
 
             <div class="vm-nav-group">
-                <Link class="vm-nav-link" href="/dashboard" :aria-current="$page.url.startsWith('/dashboard') ? 'page' : undefined">
+                <Link class="vm-nav-link vm-glow-indicator" href="/dashboard" :aria-current="$page.url.startsWith('/dashboard') ? 'page' : undefined">
                     {{ t('nav.dashboard') }}
                 </Link>
             </div>
@@ -143,7 +143,7 @@ async function switchLocale(code: string): Promise<void> {
                 <Link
                     v-for="item in platform"
                     :key="item.href"
-                    class="vm-nav-link"
+                    class="vm-nav-link vm-glow-indicator"
                     :href="item.href"
                     :data-testid="item.id"
                     :aria-current="$page.url.startsWith(item.href) ? 'page' : undefined"
@@ -157,7 +157,7 @@ async function switchLocale(code: string): Promise<void> {
                 <Link
                     v-for="item in studio"
                     :key="item.href"
-                    class="vm-nav-link"
+                    class="vm-nav-link vm-glow-indicator"
                     :href="item.href"
                     :data-testid="item.id"
                     :aria-current="$page.url.startsWith(item.href) ? 'page' : undefined"
@@ -171,7 +171,7 @@ async function switchLocale(code: string): Promise<void> {
                 <Link
                     v-for="item in settings"
                     :key="item.href"
-                    class="vm-nav-link"
+                    class="vm-nav-link vm-glow-indicator"
                     :href="item.href"
                     :data-testid="item.id"
                     :aria-current="$page.url.startsWith(item.href) ? 'page' : undefined"
@@ -185,7 +185,7 @@ async function switchLocale(code: string): Promise<void> {
             <div v-if="page.props.auth.user?.platformAdmin" class="vm-nav-group" data-testid="nav-console">
                 <span class="vm-nav-group__title vt-eyebrow">{{ t('nav.console') }}</span>
                 <Link
-                    class="vm-nav-link"
+                    class="vm-nav-link vm-glow-indicator"
                     href="/platform"
                     data-testid="nav-platform-console"
                     :aria-current="$page.url === '/platform' ? 'page' : undefined"
@@ -193,7 +193,7 @@ async function switchLocale(code: string): Promise<void> {
                     {{ t('platform.title') }}
                 </Link>
                 <Link
-                    class="vm-nav-link"
+                    class="vm-nav-link vm-glow-indicator"
                     href="/platform/audit"
                     data-testid="nav-platform-audit"
                     :aria-current="$page.url.startsWith('/platform/audit') ? 'page' : undefined"

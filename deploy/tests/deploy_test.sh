@@ -25,7 +25,7 @@ exit 0
 STUB
     chmod +x "$WORK/bin/docker"
     cp "$HERE/../compose.prod.yml" "$HERE/../compose.data.yml" "$WORK/app/"
-    printf 'DB_DATABASE=ventmail\n' >"$WORK/app/.env"
+    printf 'DB_DATABASE=ventmail\nTRUSTED_HOSTS=app.ventmail.app,api.ventmail.app,ventmail.app,ventmail-web\n' >"$WORK/app/.env"
     export PATH="$WORK/bin:$PATH" CALLS="$WORK/calls" APP_DIR="$WORK/app" BACKUP_DIR="$WORK/backups"
     export WAIT_TIMEOUT=5 DRAIN_SECONDS=0
     unset FAKE_FAIL FAKE_RUNNING
@@ -57,6 +57,21 @@ order() { # order <regex>... : the calls appear in this order
 }
 
 echo "deploy.sh"
+
+setup
+printf 'DB_DATABASE=ventmail\nTRUSTED_HOSTS=app.ventmail.app,api.ventmail.app,ventmail-web\n' >"$APP_DIR/.env"
+rc=0; out="$("$DEPLOY" v1.0.0 2>&1)" || rc=$?
+expect "refuses to deploy when the landing host (default ventmail.app) is not in TRUSTED_HOSTS" '[ "$rc" -ne 0 ] && [[ "$out" == *set-env.sh* ]] && [ ! -s "$CALLS" ]'
+printf 'DB_DATABASE=ventmail\nLANDING_HOST=site.example\nTRUSTED_HOSTS=app.ventmail.app,site.example\n' >"$APP_DIR/.env"
+rc=0; "$DEPLOY" v1.0.0 >/dev/null 2>&1 || rc=$?
+expect "accepts an explicit LANDING_HOST that is trusted" '[ "$rc" -eq 0 ]'
+teardown
+
+setup
+printf 'DB_DATABASE=ventmail\nTRUSTED_HOSTS="app.ventmail.app api.ventmail.app ventmail.app ventmail-web"\n' >"$APP_DIR/.env"
+rc=0; "$DEPLOY" v1.0.0 >/dev/null 2>&1 || rc=$?
+expect "accepts a whitespace-separated TRUSTED_HOSTS that contains the landing host" '[ "$rc" -eq 0 ]'
+teardown
 
 setup
 rc=0; "$DEPLOY" latest >/dev/null 2>&1 || rc=$?
@@ -120,13 +135,13 @@ expect "a failed preflight cache stops before the dump and the migration" '[ "$r
 teardown
 
 setup
-printf 'APP_ENV=production\n' >"$APP_DIR/.env"
+printf 'APP_ENV=production\nTRUSTED_HOSTS=app.ventmail.app,ventmail.app\n' >"$APP_DIR/.env"
 rc=0; "$DEPLOY" v1.0.0 >/dev/null 2>&1 || rc=$?
 expect "refuses to migrate without knowing which database to dump" '[ "$rc" -ne 0 ] && ! called migrate'
 teardown
 
 setup
-printf 'DB_DATABASE="ventmail"\n' >"$APP_DIR/.env"
+printf 'DB_DATABASE="ventmail"\nTRUSTED_HOSTS=app.ventmail.app,ventmail.app\n' >"$APP_DIR/.env"
 "$DEPLOY" v1.0.0 >/dev/null 2>&1
 expect "reads a quoted DB_DATABASE" 'called "pg_dump -U postgres -Fc ventmail$"'
 teardown
@@ -193,7 +208,7 @@ expect "lists every key the production example lists" \
     'missing=0; for k in $(sed -n "s/^\([A-Z][A-Z0-9_]*\)=$/\1/p" "$HERE/../.env.production.example"); do grep -q "^$k=" "$APP_DIR/.env" || { echo "missing $k"; missing=1; }; done; [ "$missing" = 0 ]'
 expect "production values" 'grep -qx "APP_ENV=production" "$APP_DIR/.env" && grep -qx "APP_DEBUG=false" "$APP_DIR/.env" && grep -qx "LOG_CHANNEL=stderr" "$APP_DIR/.env" && grep -qx "IDENTITY_DEV_LOGIN=false" "$APP_DIR/.env" && grep -qx "OIDC_PROVIDER_URL=https://sso.ventureco.app" "$APP_DIR/.env"'
 expect "the sending switches start CLOSED (deploy rule 3)" 'grep -qx "SENDING_LIVE=false" "$APP_DIR/.env" && grep -qx "SENDING_MARKETING_ENABLED=false" "$APP_DIR/.env" && grep -qx "SEND_ALLOWLIST_ENFORCED=true" "$APP_DIR/.env" && grep -qx "SEND_ALLOWLIST=seed-a@example.test,seed-b@example.test" "$APP_DIR/.env"'
-expect "a __Host- session cookie and both trusted hosts" 'grep -qx "SESSION_COOKIE=__Host-ventmail_session" "$APP_DIR/.env" && grep -qx "TRUSTED_HOSTS=app.ventmail.app,api.ventmail.app,ventmail-web" "$APP_DIR/.env"'
+expect "a __Host- session cookie and the app, api and apex trusted hosts" 'grep -qx "SESSION_COOKIE=__Host-ventmail_session" "$APP_DIR/.env" && grep -qx "TRUSTED_HOSTS=app.ventmail.app,api.ventmail.app,ventmail.app,ventmail-web" "$APP_DIR/.env"'
 expect "two separate Postal instances" 'grep -qx "POSTAL_TX_ENDPOINT=http://postal-tx-web:5000" "$APP_DIR/.env" && grep -qx "POSTAL_MK_ENDPOINT=http://postal-mk-web:5000" "$APP_DIR/.env"'
 expect "takes the database credentials from db.env" 'grep -qx "DB_PASSWORD=$DB_PW" "$APP_DIR/.env"'
 expect "generates a Redis password" 'redis_password_is_64_hex "$APP_DIR/.env"'

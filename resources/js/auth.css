@@ -1,0 +1,168 @@
+/*
+ | A BELÉPŐ-HÉJ (ventSSO `auth/layout.blade.php` portja): középre igazított üveg-kártya a
+ | glow-keretben, sugaras akcent-háttéren. Minden érték token; a töréspont nélküli, folyékony
+ | méretezés `min()`-nel megy (a media query nem olvas `var()`-t).
+ */
+.auth {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: var(--vt-space-6);
+    background:
+        radial-gradient(55% 55% at 50% 0%, color-mix(in srgb, var(--vt-accent) 18%, transparent), transparent 70%),
+        var(--vt-bg);
+    color: var(--vt-text);
+    font-family: var(--vt-font-body);
+}
+
+.auth__rim {
+    width: min(calc(var(--vt-space-32) * 3.25), 100%);
+}
+
+.auth__rim > .auth__card {
+    width: 100%;
+}
+
+.auth__card {
+    position: relative;
+    box-sizing: border-box;
+    padding: var(--vt-space-8);
+    border-radius: var(--vt-radius-xl);
+}
+
+.auth__brand {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--vt-space-4);
+    margin-bottom: var(--vt-space-8);
+}
+
+.auth__venture {
+    display: inline-flex;
+}
+
+/* A ventSSO kártyájával azonos logó-magasság (--vt-space-8). */
+.auth__venture-logo {
+    display: block;
+    height: var(--vt-space-8);
+    width: auto;
+}
+
+.auth__product {
+    font-size: var(--vt-fs-body-sm);
+}
+
+.auth__title {
+    font-family: var(--vt-font-display);
+    font-weight: var(--vt-weight-semibold);
+    letter-spacing: var(--vt-tracking-tight);
+    font-size: var(--vt-fs-h3);
+    margin: var(--vt-space-2) 0;
+}
+
+.auth__lede {
+    color: var(--vt-text-muted);
+    margin: 0 0 var(--vt-space-6);
+    line-height: var(--vt-leading-relaxed);
+}
+
+.auth__btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    width: 100%;
+    min-height: calc(var(--vt-space-10) + var(--vt-space-1));
+    padding: 0 var(--vt-space-4);
+    border: 0;
+    border-radius: var(--vt-radius-md);
+    background-color: var(--vt-accent);
+    color: var(--vt-on-accent);
+    font-family: var(--vt-font-body);
+    font-weight: var(--vt-weight-semibold);
+    font-size: var(--vt-fs-body);
+    text-decoration: none;
+    cursor: pointer;
+    box-shadow: var(--vt-glow-line-bloom);
+}
+
+.auth__btn:hover {
+    background-color: var(--vt-accent-hover);
+}
+
+.auth__btn--ghost {
+    background: transparent;
+    color: var(--vt-text);
+    border: thin solid var(--vt-border-strong);
+    box-shadow: none;
+}
+
+.auth__btn--ghost:hover {
+    background: var(--vt-glass-thin-fill);
+}
+
+.auth__btn:focus-visible {
+    outline: thin solid transparent; /* kényszerített színeknél (High Contrast) a fókusz így is látszik */
+    box-shadow: 0 0 0 var(--vt-space-1) var(--vt-ring);
+}
+
+.auth__error {
+    margin: 0 0 var(--vt-space-4);
+    font-size: var(--vt-fs-body-sm);
+    color: var(--vt-color-danger);
+}
+
+.auth__note {
+    margin: var(--vt-space-5) 0 0;
+    font-family: var(--vt-font-mono);
+    font-size: var(--vt-fs-caption);
+    color: var(--vt-text-muted);
+}
+
+.auth__foot {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--vt-space-3);
+    margin-top: var(--vt-space-6);
+    font-family: var(--vt-font-mono);
+    font-size: var(--vt-fs-caption);
+    color: var(--vt-text-subtle);
+}
+
+.auth__legal {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: var(--vt-space-5);
+    margin-top: var(--vt-space-5);
+    font-size: var(--vt-fs-body-sm);
+}
+
+.auth__legal a {
+    color: var(--vt-text-muted);
+}
+
+.auth__legal a:hover {
+    color: var(--vt-text);
+}
+
+.auth__legal a:focus-visible {
+    outline: thin solid transparent; /* kényszerített színeknél (High Contrast) a fókusz így is látszik */
+    box-shadow: 0 0 0 var(--vt-space-1) var(--vt-ring);
+    border-radius: var(--vt-radius-sm);
+}
+
+.auth__product .brand-logo__mark {
+    width: var(--vt-space-6);
+    height: var(--vt-space-6);
+}
+
+.auth__venture:focus-visible {
+    outline: thin solid transparent;
+    box-shadow: 0 0 0 var(--vt-space-1) var(--vt-ring);
+    border-radius: var(--vt-radius-sm);
+}

@@ -1,3 +1,0 @@
-# Dev és staging: teljes tiltás (golden rule 11). A Caddy X-Robots-Tag fejléce ezt kíséri.
-User-agent: *
-Disallow: /

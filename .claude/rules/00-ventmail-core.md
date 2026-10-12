@@ -11,6 +11,7 @@ paths: ["**"]
   stubot használ, saját SMTP/MX/template réteget nem épít.
 - ventMail NEM épít saját: identity (→ ventSSO) · consent-banner (→ ventCookie) · fájltár (→ ventVault) ·
   számlázó (→ ventPay) · **landing page (→ ventStudio)** · social (→ ventPost) réteget.
+  Kivétel: a ventMail saját STATIKUS termékoldala az apexen (`ventmail.app`) itt él — nem landing-page-builder, az a ventStudióé.
 - Stack: Laravel 12 modulmonolit `app/Modules/<Name>`, Vue 3 + TS + Inertia, PG17 + Timescale,
   Redis+Horizon, Reverb, Meili, Caddy, Docker Compose, Vultr EU, Wasabi EU. MTA: Postal (kimenő) +
   MX-fogadó (bejövő) + SMTP submission 587/465.

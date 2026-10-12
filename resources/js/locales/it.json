@@ -511,5 +511,22 @@
         "accept": "Accetto",
         "decline": "Rifiuto",
         "empty": "Non hai inviti in sospeso."
+    },
+    "auth": {
+        "legalNav": "Informazioni legali",
+        "terms": "Termini di utilizzo",
+        "privacy": "Informativa sulla privacy",
+        "login": {
+            "title": "Accedi",
+            "lede": "Accedi con il tuo account Venture per aprire ventMail.",
+            "button": "Continua con l'account Venture",
+            "note": "L'accesso è gestito da ventSSO (sso.ventureco.app)."
+        },
+        "denied": {
+            "title": "Nessun accesso",
+            "lede": "Questo account Venture non ha accesso a ventMail.",
+            "hint": "Chiedi al proprietario del workspace di invitarti o di assegnare un ruolo ventMail al tuo account.",
+            "back": "Torna all'accesso"
+        }
     }
 }

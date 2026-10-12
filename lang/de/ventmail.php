@@ -153,4 +153,7 @@ return [
         'suppressionAdded' => 'Globale Sperre hinzugefügt.',
         'suppressionRemoved' => 'Globale Sperre aufgehoben.',
     ],
+    'auth' => [
+        'retry' => 'Die Anmeldung ist fehlgeschlagen. Bitte versuche es erneut.',
+    ],
 ];

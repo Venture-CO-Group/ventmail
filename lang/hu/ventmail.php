@@ -153,4 +153,7 @@ return [
         'suppressionAdded' => 'A globális tiltás felvéve.',
         'suppressionRemoved' => 'A globális tiltás feloldva.',
     ],
+    'auth' => [
+        'retry' => 'A bejelentkezés nem sikerült. Próbáld újra.',
+    ],
 ];

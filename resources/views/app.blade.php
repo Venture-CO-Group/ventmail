@@ -1,5 +1,6 @@
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+{{-- Sötét téma kényszerítve: a ventMail egyetlen, "liquid glass" sötét arculatot visel (mint a ventSSO). --}}
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" data-theme="dark">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -7,6 +8,7 @@
 
     <title inertia>{{ config('app.name', 'ventMail') }}</title>
 
+    @include('partials.brand-head')
     @vite(['resources/css/app.css', 'resources/js/app.ts'])
     @inertiaHead
 </head>

@@ -511,5 +511,22 @@
         "accept": "Aceptar",
         "decline": "Rechazar",
         "empty": "No tienes invitaciones pendientes."
+    },
+    "auth": {
+        "legalNav": "Información legal",
+        "terms": "Términos de uso",
+        "privacy": "Política de privacidad",
+        "login": {
+            "title": "Iniciar sesión",
+            "lede": "Inicia sesión con tu cuenta Venture para abrir ventMail.",
+            "button": "Continuar con la cuenta Venture",
+            "note": "El inicio de sesión lo gestiona ventSSO (sso.ventureco.app)."
+        },
+        "denied": {
+            "title": "Sin acceso",
+            "lede": "Esta cuenta Venture no tiene acceso a ventMail.",
+            "hint": "Pide al propietario del workspace que te invite o que asigne un rol de ventMail a tu cuenta.",
+            "back": "Volver al inicio de sesión"
+        }
     }
 }

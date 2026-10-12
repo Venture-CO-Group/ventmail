@@ -5,6 +5,9 @@ import '@venture/ui/style.css';
 import { createPinia } from 'pinia';
 import { createApp, h, type DefineComponent } from 'vue';
 import { createVentmailI18n, loadLocaleMessages } from './i18n';
+import './auth.css';
+import './brand.css';
+import './glow.css';
 import './shell.css';
 
 /*

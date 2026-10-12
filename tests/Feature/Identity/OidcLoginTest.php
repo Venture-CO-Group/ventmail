@@ -91,7 +91,7 @@ it('hamis state esetén elutasít', function () {
     $this->get('/auth/redirect');
 
     $this->get('/auth/callback?code=auth-code&state=hamisitott')
-        ->assertForbidden();
+        ->assertRedirect('/')->assertSessionHas('error', __('ventmail.auth.retry'));
 
     expect(Auth::check())->toBeFalse();
 });
@@ -102,7 +102,7 @@ it('nem egyező nonce esetén elutasít', function () {
     $this->sso->fakeHttp(['id_token' => $this->sso->idToken(['nonce' => 'masik-nonce'])]);
 
     $this->get('/auth/callback?code=auth-code&state='.session('oidc.state'))
-        ->assertForbidden();
+        ->assertRedirect('/')->assertSessionHas('error', __('ventmail.auth.retry'));
 
     expect(Auth::check())->toBeFalse();
 });
@@ -116,7 +116,7 @@ it('lejárt vagy idegen kibocsátójú tokent elutasít', function () {
     ])]);
 
     $this->get('/auth/callback?code=auth-code&state='.session('oidc.state'))
-        ->assertForbidden();
+        ->assertRedirect('/')->assertSessionHas('error', __('ventmail.auth.retry'));
 
     expect(Auth::check())->toBeFalse();
 });

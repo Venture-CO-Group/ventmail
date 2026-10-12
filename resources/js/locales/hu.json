@@ -511,5 +511,22 @@
         "accept": "Elfogadom",
         "decline": "Elutasítom",
         "empty": "Nincs függőben lévő meghívód."
+    },
+    "auth": {
+        "legalNav": "Jogi információk",
+        "terms": "Felhasználási feltételek",
+        "privacy": "Adatkezelési tájékoztató",
+        "login": {
+            "title": "Bejelentkezés",
+            "lede": "Lépj be a Venture-fiókoddal a ventMail felületére.",
+            "button": "Belépés a Venture-fiókkal",
+            "note": "A belépést a ventSSO végzi (sso.ventureco.app)."
+        },
+        "denied": {
+            "title": "Nincs hozzáférésed",
+            "lede": "Ezzel a Venture-fiókkal nincs ventMail-hozzáférés.",
+            "hint": "Kérd meg a workspace tulajdonosát, hogy hívjon meg, vagy adjon ventMail-szerepet a fiókodnak.",
+            "back": "Vissza a bejelentkezéshez"
+        }
     }
 }

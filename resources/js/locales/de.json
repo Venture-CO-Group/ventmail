@@ -511,5 +511,22 @@
         "accept": "Annehmen",
         "decline": "Ablehnen",
         "empty": "Du hast keine offenen Einladungen."
+    },
+    "auth": {
+        "legalNav": "Rechtliche Hinweise",
+        "terms": "Nutzungsbedingungen",
+        "privacy": "Datenschutzerklärung",
+        "login": {
+            "title": "Anmelden",
+            "lede": "Melde dich mit deinem Venture-Konto an, um ventMail zu öffnen.",
+            "button": "Mit dem Venture-Konto fortfahren",
+            "note": "Die Anmeldung übernimmt ventSSO (sso.ventureco.app)."
+        },
+        "denied": {
+            "title": "Kein Zugriff",
+            "lede": "Dieses Venture-Konto hat keinen Zugriff auf ventMail.",
+            "hint": "Bitte den Workspace-Inhaber, dich einzuladen oder deinem Konto eine ventMail-Rolle zu geben.",
+            "back": "Zurück zur Anmeldung"
+        }
     }
 }

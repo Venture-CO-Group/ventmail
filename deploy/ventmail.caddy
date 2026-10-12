@@ -1,5 +1,6 @@
 # ventMail on the mail-box edge (venture-infra boxes/mail/edge/sites/).
-# app.  : the web UI     api. : the /v1 API     apex : 301 to app.
+# app.  : the web UI     api. : the /v1 API     apex : the static product landing
+# (served by the same app; the app refuses every other path on the apex host).
 #
 # Traffic only goes to a colour that passes its health check (blue/green, see
 # deploy.sh). /internal/* is the Postal webhook path: reachable only from the
@@ -36,6 +37,5 @@ api.ventmail.app {
 }
 
 ventmail.app {
-	import security_headers
-	redir https://app.ventmail.app{uri} 301
+	import ventmail_site ventmail.app
 }

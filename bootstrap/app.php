@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Http\Middleware\RestrictLandingHost;
 use App\Http\Middleware\TrustConfiguredHosts;
 use App\Http\Middleware\TrustEdgeProxies;
 use App\Modules\Api\Http\Middleware\AuthenticateApiKey;
@@ -10,9 +11,11 @@ use App\Modules\Api\Http\Middleware\AuthorizeChannel;
 use App\Modules\Api\Http\Middleware\RequireApiScope;
 use App\Modules\Api\Http\Middleware\RequireIdempotencyKey;
 use App\Modules\Billing\Http\Middleware\EnsureEntitlement;
+use App\Modules\Identity\Exceptions\SsoAccessDenied;
 use App\Modules\Identity\Http\Middleware\SetLocale;
 use App\Modules\SuperAdmin\Http\Middleware\EnforceImpersonation;
 use App\Modules\Tenancy\Http\Middleware\ResolveWorkspace;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -21,6 +24,8 @@ use Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets;
 use Illuminate\Http\Middleware\TrustProxies;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
+use Inertia\Inertia;
+use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -94,6 +99,10 @@ return Application::configure(basePath: dirname(__DIR__))
         // hiszünk, élesben csak az edge-proxy `/32`-jének. A Host-fejlécet élesben a
         // megbízható hostlista szűri.
         $middleware->replace(TrustProxies::class, TrustEdgeProxies::class);
+        // Az apex (landing) host csak a termékoldalt szolgálja ki — minden mást 404-gyel zár. GLOBÁLIS,
+        // közvetlenül a host-ellenőrzés után: a /v1, horizon, /internal sem kerülheti meg.
+        // A TrustEdgeProxies UTÁN fut (append): a `getHost()` így a trusted proxy továbbított hostját adja.
+        $middleware->append(RestrictLandingHost::class);
         $middleware->prepend(TrustConfiguredHosts::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
@@ -123,6 +132,29 @@ return Application::configure(basePath: dirname(__DIR__))
                     'details' => $e->errors(),
                 ],
             ], 422);
+        });
+
+        // A ventSSO-belépés megtagadása (nincs ventMail-szerep/tagság/meghívó): barátságos oldal,
+        // de a 403 marad — a státusz a kontraktus, az oldal csak a felhasználónak szól.
+        // (A Laravel a render-callbackek ELŐTT az AuthorizationException-t AccessDeniedHttpException-re
+        // fordítja — ezért az az elfogott típus, az eredeti a `getPrevious()`-ben van.)
+        $exceptions->render(function (AccessDeniedHttpException $e, Request $request) {
+            if (! $e->getPrevious() instanceof AuthorizationException || ! $request->routeIs('auth.callback')) {
+                return null;
+            }
+
+            // JSON-ra is generikus válasz: a belső ok (state/nonce/aud/szerep) validációs orákulum lenne.
+            if ($request->expectsJson()) {
+                return response()->json(['message' => __('ventmail.auth.retry')], 403);
+            }
+
+            // Csak a szerep/tagság-megtagadás kap „nincs hozzáférésed" oldalt; a többi hiba
+            // (state, token, impersonáció) újrabejelentkezés — a belső okot nem mutatjuk.
+            if (! $e->getPrevious() instanceof SsoAccessDenied) {
+                return redirect('/')->with('error', __('ventmail.auth.retry'));
+            }
+
+            return Inertia::render('Auth/Denied')->toResponse($request)->setStatusCode(403);
         });
 
         // Titok soha nem kerülhet naplóba vagy exception-kontextusba.
