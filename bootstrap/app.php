@@ -23,8 +23,8 @@ use Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets;
 use Illuminate\Http\Middleware\TrustProxies;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
-use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Inertia\Inertia;
+use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(

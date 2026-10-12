@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Support\FakeSsoProvider;
 
 uses(RefreshDatabase::class);
 
@@ -115,7 +116,7 @@ it('a robots.txt hostonként más: a landing engedett, az app tiltott', function
 });
 
 it('a megtagadott belépés barátságos oldalt ad, 403-mal', function () {
-    $sso = new Tests\Support\FakeSsoProvider;
+    $sso = new FakeSsoProvider;
     config([
         'oidc.provider_url' => $sso->issuer,
         'oidc.client_id' => 'ventmail',
