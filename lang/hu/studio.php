@@ -21,4 +21,8 @@ return [
         'bulkUntagged' => 'A(z) „:name” címke lekerült :count kontaktról.',
         'nameRequired' => 'Adj nevet az új címkének.',
     ],
+    'checklist' => [
+        'notReady' => 'A kampány még nem küldhető — hiányzik: :blockers.',
+        'canceled' => 'A kampány megszakítva.',
+    ],
 ];

@@ -12,7 +12,12 @@ use App\Modules\Campaign\Services\CampaignLifecycle;
 use App\Modules\Sending\Actions\SendMessage;
 use App\Modules\Sending\Gate\GateReason;
 use App\Modules\Sending\Models\Message;
+use App\Modules\StoredTemplates\Services\TemplateRenderer;
+use App\Modules\Template\Models\Template;
 use App\Modules\Template\Services\MergeVariables;
+use App\Modules\Template\Services\MjmlCompiler;
+use App\Modules\Template\Services\MjmlWriter;
+use App\Modules\Template\Services\PlainTextWriter;
 use App\Modules\Tenancy\Models\Workspace;
 use App\Modules\Tenancy\Services\WorkspaceContext;
 use Illuminate\Bus\Batchable;
@@ -180,6 +185,55 @@ final class SendCampaignChunk implements ShouldQueue
         }
     }
 
+    /** @var array<int, array{html: string, text: string}> sablon-id → a kampány-preheaderrel fordított törzs */
+    private array $bodies = [];
+
+    /**
+     * v1.1 · A TÁRGY merge-tagjei címzettenként (`{{ contact.first_name || … }}`).
+     *
+     * Ugyanaz a renderelő és ugyanazok a változók, mint a törzsé, de ESCAPE NÉLKÜL (a tárgy
+     * nem HTML), és a sortörés szóközzé válik — egy változó-értékből nem lehet fejléc-
+     * injekció. Merge-tag nélküli tárgyhoz nem nyúlunk.
+     *
+     * @param  array<string, mixed>  $variables
+     */
+    private function subjectFor(string $subject, array $variables): string
+    {
+        if (! str_contains($subject, '{{')) {
+            return $subject;
+        }
+
+        $rendered = app(TemplateRenderer::class)->render($subject, $variables, escape: false);
+
+        return trim((string) preg_replace('/[\r\n\t]+/', ' ', $rendered));
+    }
+
+    /**
+     * v1.1 · A KAMPÁNY PREHEADERE felülírja a sablonét (a checklist „Tárgy és preheader"
+     * szakasza). A törzs sablononként EGYSZER fordul újra a kötegben — a forrás továbbra is
+     * a sablon blokk-fája, tehát a lábléc és a leiratkozó link érintetlen.
+     *
+     * @return array{html: string, text: string}
+     */
+    private function bodyFor(Campaign $campaign, Template $template): array
+    {
+        $preheader = trim((string) $campaign->preheader);
+
+        if ($preheader === '' || $preheader === trim((string) $template->preheader)) {
+            return ['html' => (string) $template->html, 'text' => (string) $template->text];
+        }
+
+        return $this->bodies[(int) $template->getKey()] ??= (function () use ($template, $preheader): array {
+            $blocks = (array) $template->blocks;
+            $styles = is_array($template->styles) ? $template->styles : null;
+
+            return [
+                'html' => app(MjmlCompiler::class)->compile(app(MjmlWriter::class)->write($blocks, $preheader, $styles)),
+                'text' => app(PlainTextWriter::class)->write($blocks, $preheader),
+            ];
+        })();
+    }
+
     /** @return Collection<int, CampaignRecipient> */
     private function recipients(Campaign $campaign): Collection
     {
@@ -244,12 +298,14 @@ final class SendCampaignChunk implements ShouldQueue
                 // A `campaign` csatorna: legalacsonyabb sor-prioritás, de a
                 // consent-követelmény ugyanaz (`Channel::requiresConsent()`).
                 'channel' => 'campaign',
-                'from_email' => (string) $campaign->from_email,
-                'from_name' => $campaign->from_name,
+                // v1.1 · FELADÓ-variáns (A/B): a variáns feladója, ha van — különben a kampányé.
+                // A feladó-domain hitelesítését a PreSendGate 1. kapuja itt is ellenőrzi.
+                'from_email' => (string) ($variant?->from_email ?: $campaign->from_email),
+                'from_name' => $variant?->from_email ? ($variant->from_name ?: $campaign->from_name) : $campaign->from_name,
                 'to' => [(string) $recipient->email],
-                'subject' => (string) ($variant?->subject ?? $campaign->subject),
-                'html' => (string) $template->html,
-                'text' => (string) $template->text,
+                'subject' => $this->subjectFor((string) ($variant?->subject ?: $campaign->subject), $renderVariables),
+                'html' => $this->bodyFor($campaign, $template)['html'],
+                'text' => $this->bodyFor($campaign, $template)['text'],
                 // v1.1 — a merge-tagek és a feltételes blokkok adata (titkosítva tárolódik,
                 // a kézbesítés után törlődik; az esemény-naplóba nem kerül).
                 'render_variables' => $renderVariables,

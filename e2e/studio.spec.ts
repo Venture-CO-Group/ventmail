@@ -81,12 +81,15 @@ test('a szerkesztő blokkot ad hozzá, és a mentés után is ott van', async ({
 test('a kampány célzása a becsült közönséggel jelenik meg', async ({ page }) => {
     await page.goto('/campaigns');
 
+    // v1.1 · az új kampány űrlapja a fejléc gombjával nyílik (üres listán magától látszik).
+    await page.getByTestId('campaign-new').click();
     await page.getByTestId('campaign-name').fill(`E2E kampány ${run}`);
     await page.getByTestId('campaign-subject').fill('E2E tárgy');
     await page.getByTestId('campaign-submit').click();
 
+    // A checklist első (hiányos) szakasza, a címzettek, nyitva van — benne a becslés.
     await expect(page.getByTestId('campaign-estimate')).toBeVisible();
-    await expect(page.getByTestId('campaign-status')).toContainText('draft');
+    await expect(page.getByTestId('campaign-status')).toHaveAttribute('data-status', 'draft');
 });
 
 test('a journey a felületről aktiválható, ha a lánca érvényes', async ({ page }) => {

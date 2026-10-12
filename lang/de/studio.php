@@ -21,4 +21,8 @@ return [
         'bulkUntagged' => 'Der Tag „:name“ wurde von :count Kontakten entfernt.',
         'nameRequired' => 'Gib dem neuen Tag einen Namen.',
     ],
+    'checklist' => [
+        'notReady' => 'Die Kampagne kann noch nicht gesendet werden — es fehlt: :blockers.',
+        'canceled' => 'Kampagne abgebrochen.',
+    ],
 ];

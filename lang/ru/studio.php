@@ -21,4 +21,8 @@ return [
         'bulkUntagged' => 'Метка «:name» снята с :count контактов.',
         'nameRequired' => 'Укажите название новой метки.',
     ],
+    'checklist' => [
+        'notReady' => 'Кампанию ещё нельзя отправить — не хватает: :blockers.',
+        'canceled' => 'Кампания отменена.',
+    ],
 ];

@@ -21,4 +21,8 @@ return [
         'bulkUntagged' => 'L\'étiquette « :name » a été retirée de :count contacts.',
         'nameRequired' => 'Donnez un nom à la nouvelle étiquette.',
     ],
+    'checklist' => [
+        'notReady' => 'La campagne ne peut pas encore être envoyée — il manque : :blockers.',
+        'canceled' => 'Campagne annulée.',
+    ],
 ];

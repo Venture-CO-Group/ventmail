@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { seedStudio, type StudioSeed } from './support/studio';
 
 /*
  * v1.1 · 5. modul — SZEGMENSÉPÍTŐ és TÖMEGES CÍMKÉZÉS a böngészőben.
@@ -10,22 +11,8 @@ import { expect, test, type Page } from '@playwright/test';
  */
 const run = `a${Date.now().toString(36)}`;
 
-interface Seed {
-    emails: { confirmed: string; pending: string; none: string };
-    list: { uuid: string; name: string };
-}
-
-async function seed(page: Page): Promise<Seed> {
-    // A BÖNGÉSZŐBŐL kérjük (a `page.request` a `__Host-` sütit http-n nem küldi vissza).
-    const result = await page.evaluate(async (target) => {
-        const response = await fetch(target, { credentials: 'same-origin', headers: { Accept: 'application/json' } });
-
-        return { status: response.status, body: response.ok ? await response.json() : null };
-    }, `/dev/seed-studio?run=${run}`);
-
-    expect(result.status).toBe(200);
-
-    return result.body as Seed;
+async function seed(page: Page): Promise<StudioSeed> {
+    return seedStudio(page, run);
 }
 
 test('a szegmensépítő ÉS/VAGY csoportokkal élő számot ad, és a mentett szegmens ugyanazt tartja', async ({ page }) => {
