@@ -14,6 +14,8 @@ uses(RefreshDatabase::class);
  */
 
 it('az apex host a statikus landinget adja, indexelhetően', function () {
+    config(['app.url' => 'https://app.ventmail.app']);
+
     $response = $this->withHeaders(['Accept-Language' => 'hu'])->get('http://ventmail.app/');
 
     $response->assertOk()
@@ -54,9 +56,51 @@ it('a bejelentkezett felhasználót a /-ről a dashboardra viszi', function () {
     $this->actingAs($user)->get('http://app.ventmail.app/')->assertRedirect('/dashboard');
 });
 
-it('az apex hoston az app útvonalai nem érhetők el', function () {
+it('az apex hoston az app, az API és az üzemeltetési útvonalak nem érhetők el', function () {
+    // A kapu GLOBÁLIS middleware: a /v1, a horizon és a webhook-útvonal sem a web-csoporton át jön.
+    $this->postJson('http://ventmail.app/v1/messages', [])->assertNotFound();
+    $this->get('http://ventmail.app/horizon')->assertNotFound();
+    $this->post('http://ventmail.app/internal/mta/postal/x')->assertNotFound();
     $this->get('http://ventmail.app/auth/redirect')->assertNotFound();
     $this->get('http://ventmail.app/dashboard')->assertNotFound();
+
+    $this->get('http://ventmail.app/')->assertOk();
+    $this->get('http://ventmail.app/up')->assertOk();
+});
+
+it('az api host / útvonala nem a belépő, hanem 404', function () {
+    $this->get('http://api.ventmail.app/')->assertNotFound();
+});
+
+it('a landing nem indít munkamenetet és nem állít sütit', function () {
+    $this->get('http://ventmail.app/')
+        ->assertOk()
+        ->assertCookieMissing('XSRF-TOKEN')
+        ->assertCookieMissing(config('session.cookie'));
+    $this->get('http://ventmail.app/robots.txt')
+        ->assertCookieMissing('XSRF-TOKEN')
+        ->assertCookieMissing(config('session.cookie'));
+});
+
+it('a landing a hostjait a konfigból veszi, és nem hirdet kitalált docs-oldalt', function () {
+    config(['app.landing_host' => 'ventmail.app', 'app.url' => 'https://app.ventmail.app']);
+    $html = $this->withHeaders(['Accept-Language' => 'hu'])->get('http://ventmail.app/')->getContent();
+
+    expect($html)->toContain('href="https://app.ventmail.app"')
+        ->and($html)->not->toContain('api.ventmail.app');
+});
+
+it('a helyileg épített glow-utilityk vm- előtagot kapnak', function () {
+    $css = file_get_contents(resource_path('js/glow.css'));
+
+    expect($css)->toContain('.vm-glow-rim')->toContain('--vm-rim-angle')
+        ->and($css)->not->toContain('.vt-glow');
+});
+
+it('a fókusz kényszerített színeknél is látszik (átlátszó körvonal marad)', function () {
+    foreach (['css/landing.css', 'js/auth.css', 'js/brand.css', 'js/shell.css'] as $file) {
+        expect(file_get_contents(resource_path($file)))->not->toMatch('/outline:\s*none/');
+    }
 });
 
 it('a robots.txt hostonként más: a landing engedett, az app tiltott', function () {

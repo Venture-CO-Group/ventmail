@@ -14,7 +14,6 @@ return [
     'skip' => 'Saltar al contenido',
     'nav' => [
         'login' => 'Iniciar sesión',
-        'docs' => 'Documentación de la API',
     ],
     'hero' => [
         'eyebrow' => 'Infraestructura de correo',

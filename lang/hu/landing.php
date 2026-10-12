@@ -14,7 +14,6 @@ return [
     'skip' => 'Ugrás a tartalomra',
     'nav' => [
         'login' => 'Belépés',
-        'docs' => 'API dokumentáció',
     ],
     'hero' => [
         'eyebrow' => 'E-mail infrastruktúra',

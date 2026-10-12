@@ -14,7 +14,6 @@ return [
     'skip' => 'Skip to content',
     'nav' => [
         'login' => 'Sign in',
-        'docs' => 'API documentation',
     ],
     'hero' => [
         'eyebrow' => 'Email infrastructure',

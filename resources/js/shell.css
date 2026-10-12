@@ -96,12 +96,12 @@
 }
 
 /* A glow-jelölő CSAK az aktív menüponton látszik. */
-.vm-nav-link.vt-glow-indicator:not([aria-current='page'])::before {
+.vm-nav-link.vm-glow-indicator:not([aria-current='page'])::before {
     content: none;
 }
 
 .vm-nav-link:focus-visible {
-    outline: none;
+    outline: thin solid transparent; /* kényszerített színeknél (High Contrast) a fókusz így is látszik */
     box-shadow: 0 0 0 var(--vt-space-1) var(--vt-ring);
 }
 

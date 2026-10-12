@@ -49,6 +49,15 @@ cd "$APP_DIR"
 if [ ! -f compose.prod.yml ] || [ ! -f compose.data.yml ]; then
     die "compose files missing in $APP_DIR"
 fi
+# The apex landing host must be a trusted host, or production answers it with 400.
+# Existing boxes predate the key: refuse early instead of shipping a broken apex.
+env_value() { sed -n "s/^$1=//p" .env | tail -1 | tr -d "\"'"; }
+landing_host="$(env_value LANDING_HOST)"
+landing_host="${landing_host:-ventmail.app}"
+case ",$(env_value TRUSTED_HOSTS)," in
+    *",$landing_host,"*) ;;
+    *) die "LANDING_HOST ($landing_host) is not in TRUSTED_HOSTS in $APP_DIR/.env; run set-env.sh to add it (and LANDING_HOST) before deploying" ;;
+esac
 # Compose interpolation prefers the caller's environment over .env; the values
 # the colours and the data stack read must come from .env alone.
 unset APP_URL TRUSTED_PROXIES REDIS_PASSWORD

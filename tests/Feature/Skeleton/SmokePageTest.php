@@ -22,7 +22,7 @@ it('a belépő a ventSSO-val azonos üveg-kártya + glow-keret nyelvet használj
     $shell = file_get_contents(resource_path('js/Components/AuthShell.vue'));
     $login = file_get_contents(resource_path('js/Pages/Auth/Login.vue'));
 
-    expect($shell)->toContain('vt-glass')->toContain('vt-glow-rim')
+    expect($shell)->toContain('vt-glass')->toContain('vm-glow-rim')
         ->and($login)->toContain('href="/auth/redirect"')
         ->and($login)->not->toContain('<Link');
 });

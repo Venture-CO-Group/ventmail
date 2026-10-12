@@ -102,6 +102,9 @@ return [
      | A STATIKUS termékoldal hostja (apex). Ez NEM a landing-page-builder képesség (az a
      | ventStudióé): egyetlen, a ventMailt bemutató oldal. Az apexen az app semmi mást nem szolgál ki.
      */
+    // Az API hostja: a `/` ott nem a belépő (404).
+    'api_host' => env('API_HOST', 'api.ventmail.app'),
+
     'landing_host' => env('LANDING_HOST', 'ventmail.app'),
 
     'supported_locales' => ['hu', 'en', 'de', 'it', 'es', 'ru'],

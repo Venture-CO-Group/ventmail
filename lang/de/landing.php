@@ -14,7 +14,6 @@ return [
     'skip' => 'Zum Inhalt springen',
     'nav' => [
         'login' => 'Anmelden',
-        'docs' => 'API-Dokumentation',
     ],
     'hero' => [
         'eyebrow' => 'E-Mail-Infrastruktur',

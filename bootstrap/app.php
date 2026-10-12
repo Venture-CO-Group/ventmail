@@ -38,9 +38,6 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        // Az apex (landing) host csak a termékoldalt szolgálja ki — minden mást 404-gyel zár.
-        $middleware->web(prepend: [RestrictLandingHost::class]);
-
         $middleware->web(append: [
             HandleInertiaRequests::class,
             AddLinkHeadersForPreloadedAssets::class,
@@ -101,6 +98,9 @@ return Application::configure(basePath: dirname(__DIR__))
         // hiszünk, élesben csak az edge-proxy `/32`-jének. A Host-fejlécet élesben a
         // megbízható hostlista szűri.
         $middleware->replace(TrustProxies::class, TrustEdgeProxies::class);
+        // Az apex (landing) host csak a termékoldalt szolgálja ki — minden mást 404-gyel zár. GLOBÁLIS,
+        // közvetlenül a host-ellenőrzés után: a /v1, horizon, /internal sem kerülheti meg.
+        $middleware->prepend(RestrictLandingHost::class);
         $middleware->prepend(TrustConfiguredHosts::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

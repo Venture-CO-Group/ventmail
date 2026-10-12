@@ -25,7 +25,7 @@
 }
 
 .brand-logo:focus-visible {
-    outline: none;
+    outline: thin solid transparent; /* kényszerített színeknél (High Contrast) a fókusz így is látszik */
     box-shadow: 0 0 0 var(--vt-space-1) var(--vt-ring);
     border-radius: var(--vt-radius-sm);
 }

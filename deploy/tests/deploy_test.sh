@@ -25,7 +25,7 @@ exit 0
 STUB
     chmod +x "$WORK/bin/docker"
     cp "$HERE/../compose.prod.yml" "$HERE/../compose.data.yml" "$WORK/app/"
-    printf 'DB_DATABASE=ventmail\n' >"$WORK/app/.env"
+    printf 'DB_DATABASE=ventmail\nTRUSTED_HOSTS=app.ventmail.app,api.ventmail.app,ventmail.app,ventmail-web\n' >"$WORK/app/.env"
     export PATH="$WORK/bin:$PATH" CALLS="$WORK/calls" APP_DIR="$WORK/app" BACKUP_DIR="$WORK/backups"
     export WAIT_TIMEOUT=5 DRAIN_SECONDS=0
     unset FAKE_FAIL FAKE_RUNNING
@@ -57,6 +57,15 @@ order() { # order <regex>... : the calls appear in this order
 }
 
 echo "deploy.sh"
+
+setup
+printf 'DB_DATABASE=ventmail\nTRUSTED_HOSTS=app.ventmail.app,api.ventmail.app,ventmail-web\n' >"$APP_DIR/.env"
+rc=0; out="$("$DEPLOY" v1.0.0 2>&1)" || rc=$?
+expect "refuses to deploy when the landing host (default ventmail.app) is not in TRUSTED_HOSTS" '[ "$rc" -ne 0 ] && [[ "$out" == *set-env.sh* ]] && [ ! -s "$CALLS" ]'
+printf 'DB_DATABASE=ventmail\nLANDING_HOST=site.example\nTRUSTED_HOSTS=app.ventmail.app,site.example\n' >"$APP_DIR/.env"
+rc=0; "$DEPLOY" v1.0.0 >/dev/null 2>&1 || rc=$?
+expect "accepts an explicit LANDING_HOST that is trusted" '[ "$rc" -eq 0 ]'
+teardown
 
 setup
 rc=0; "$DEPLOY" latest >/dev/null 2>&1 || rc=$?

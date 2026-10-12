@@ -1,3 +1,7 @@
+@php
+    $landingUrl = 'https://'.config('app.landing_host').'/';
+    $appUrl = rtrim((string) config('app.url'), '/');
+@endphp
 <!DOCTYPE html>
 {{-- Statikus termékoldal az apexen (ventmail.app). NEM landing-page-builder: az a ventStudio képessége.
      Nincs Inertia, nincs app-JS; indexelhető (az app-oldalak noindex-ek maradnak). --}}
@@ -8,14 +12,14 @@
 
     <title>{{ __('landing.meta.title') }}</title>
     <meta name="description" content="{{ __('landing.meta.description') }}">
-    <link rel="canonical" href="https://ventmail.app/">
+    <link rel="canonical" href="{{ $landingUrl }}">
 
     <meta property="og:type" content="website">
     <meta property="og:site_name" content="ventMail">
     <meta property="og:title" content="{{ __('landing.meta.title') }}">
     <meta property="og:description" content="{{ __('landing.meta.description') }}">
-    <meta property="og:url" content="https://ventmail.app/">
-    <meta property="og:image" content="https://ventmail.app/brand/og-image.png">
+    <meta property="og:url" content="{{ $landingUrl }}">
+    <meta property="og:image" content="{{ $landingUrl }}brand/og-image.png">
     <meta name="twitter:card" content="summary_large_image">
 
     @include('partials.brand-head')
@@ -30,12 +34,12 @@
         <span class="landing__blob landing__blob--c"></span>
     </div>
 
-    <header class="landing__header vt-glow-hairline">
+    <header class="landing__header vm-glow-hairline">
         <a class="brand-logo" href="/" aria-label="ventMail">
             <img class="brand-logo__mark" src="/brand/logomark.svg" alt="">
             <span class="brand-logo__word vt-text-display">vent<strong>Mail</strong></span>
         </a>
-        <a class="landing__btn landing__btn--ghost" href="https://app.ventmail.app">{{ __('landing.nav.login') }}</a>
+        <a class="landing__btn landing__btn--ghost" href="{{ $appUrl }}">{{ __('landing.nav.login') }}</a>
     </header>
 
     <main id="main">
@@ -44,8 +48,7 @@
             <h1 class="landing__title">{{ __('landing.hero.title') }}</h1>
             <p class="landing__lede">{{ __('landing.hero.lede') }}</p>
             <div class="landing__cta">
-                <a class="landing__btn" href="https://app.ventmail.app">{{ __('landing.nav.login') }}</a>
-                <a class="landing__btn landing__btn--ghost" href="https://api.ventmail.app">{{ __('landing.nav.docs') }}</a>
+                <a class="landing__btn" href="{{ $appUrl }}">{{ __('landing.nav.login') }}</a>
             </div>
         </section>
 

@@ -106,7 +106,7 @@
 }
 
 .auth__btn:focus-visible {
-    outline: none;
+    outline: thin solid transparent; /* kényszerített színeknél (High Contrast) a fókusz így is látszik */
     box-shadow: 0 0 0 var(--vt-space-1) var(--vt-ring);
 }
 
@@ -151,7 +151,7 @@
 }
 
 .auth__legal a:focus-visible {
-    outline: none;
+    outline: thin solid transparent; /* kényszerített színeknél (High Contrast) a fókusz így is látszik */
     box-shadow: 0 0 0 var(--vt-space-1) var(--vt-ring);
     border-radius: var(--vt-radius-sm);
 }
@@ -159,4 +159,10 @@
 .auth__product .brand-logo__mark {
     width: var(--vt-space-6);
     height: var(--vt-space-6);
+}
+
+.auth__venture:focus-visible {
+    outline: thin solid transparent;
+    box-shadow: 0 0 0 var(--vt-space-1) var(--vt-ring);
+    border-radius: var(--vt-radius-sm);
 }
