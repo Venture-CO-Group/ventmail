@@ -1003,5 +1003,409 @@
         "name": "Name",
         "value": "Wert",
         "rowStatus": "Status"
+    },
+    "editor": {
+        "common": {
+            "apply": "Übernehmen",
+            "cancel": "Abbrechen",
+            "close": "Schließen",
+            "name": "Name",
+            "none": "Keine",
+            "save": "Speichern"
+        },
+        "top": {
+            "name": "Vorlagenname",
+            "undo": "Rückgängig",
+            "redo": "Wiederholen",
+            "versions": "Versionsverlauf",
+            "preview": "Vorschau",
+            "saveExit": "Speichern & schließen",
+            "more": "Weitere Speicheroptionen",
+            "saveAs": "Speichern unter…",
+            "saveTemplate": "Als Vorlage speichern",
+            "sendTest": "Test senden"
+        },
+        "status": {
+            "saved": "Gespeichert",
+            "dirty": "Ungespeicherte Änderungen",
+            "saving": "Wird gespeichert…",
+            "error": "Nicht gespeichert"
+        },
+        "rail": {
+            "label": "Editor-Werkzeuge",
+            "add": "Hinzufügen",
+            "styles": "Stile",
+            "optimize": "Optimieren",
+            "properties": "Einstellungen"
+        },
+        "palette": {
+            "content": "Inhalt",
+            "layouts": "Layouts",
+            "hint": "Ziehen Sie einen Block auf die Fläche — die blaue Linie zeigt, wo er landet. Oder klicken Sie, um ihn nach der Auswahl einzufügen.",
+            "saved": "Gespeicherte Blöcke",
+            "columns": "Spalten",
+            "patterns": "Muster"
+        },
+        "blocks": {
+            "heading": "Überschrift",
+            "text": "Absatz",
+            "button": "Button",
+            "divider": "Trennlinie",
+            "spacer": "Abstand",
+            "image": "Bild",
+            "logo": "Logo",
+            "social_follow": "Social Follow",
+            "social_share": "Social Share",
+            "video": "Video",
+            "html": "Code",
+            "product": "Produkt",
+            "survey": "Umfrage",
+            "footer": "Fußzeile",
+            "unsubscribe": "Abmelden"
+        },
+        "layouts": {
+            "c1": "1 Spalte",
+            "c2": "2 Spalten",
+            "c3": "3 Spalten",
+            "c4": "4 Spalten",
+            "c1_2": "1/3 – 2/3",
+            "c2_1": "2/3 – 1/3"
+        },
+        "patterns": {
+            "header": "Kopfzeile",
+            "hero": "Hero",
+            "footer": "Fußzeile"
+        },
+        "device": {
+            "label": "Ansicht",
+            "desktop": "Desktop",
+            "mobile": "Mobil",
+            "dark": "Dunkel"
+        },
+        "canvas": {
+            "empty": "Ziehen Sie ein Layout oder einen Block hierher, um zu beginnen.",
+            "emptyColumn": "Block hier ablegen"
+        },
+        "blockTools": {
+            "label": "Block-Aktionen",
+            "drag": "Zum Verschieben ziehen",
+            "up": "Nach oben",
+            "down": "Nach unten",
+            "duplicate": "Duplizieren",
+            "save": "Als Block speichern",
+            "delete": "Löschen"
+        },
+        "sectionTools": {
+            "label": "Abschnitt-Aktionen"
+        },
+        "text": {
+            "toolbar": "Textformatierung",
+            "bold": "Fett",
+            "italic": "Kursiv",
+            "link": "Link",
+            "list": "Aufzählung",
+            "color": "Textfarbe",
+            "linkInvalid": "Nur https://, mailto: oder ein Merge-Tag."
+        },
+        "align": {
+            "left": "Linksbündig",
+            "center": "Zentriert",
+            "right": "Rechtsbündig"
+        },
+        "mergeTags": {
+            "title": "Merge-Tag einfügen",
+            "button": "Merge-Tag",
+            "fallback": "Standardwert",
+            "contact_first_name": "Vorname",
+            "contact_last_name": "Nachname",
+            "contact_company": "Firma",
+            "contact_email": "E-Mail-Adresse",
+            "unsubscribe_url": "Abmeldelink",
+            "preferences_url": "Link zu den Einstellungen",
+            "browser_url": "Im Browser ansehen",
+            "current_year": "Aktuelles Jahr",
+            "workspace_name": "Workspace-Name",
+            "workspace_address": "Workspace-Adresse"
+        },
+        "footer": {
+            "unsubscribe": "Abmelden",
+            "preferences": "E-Mail-Einstellungen"
+        },
+        "networks": {
+            "facebook": "Facebook",
+            "x": "X",
+            "twitter": "Twitter",
+            "instagram": "Instagram",
+            "linkedin": "LinkedIn",
+            "youtube": "YouTube",
+            "tiktok": "TikTok"
+        },
+        "fonts": {
+            "sans": "Serifenlos (Helvetica, Arial)",
+            "humanist": "Humanistisch (Verdana)",
+            "rounded": "Abgerundet (Trebuchet)",
+            "serif": "Serif (Georgia)",
+            "mono": "Monospace (Courier)"
+        },
+        "styles": {
+            "typography": "Typografie",
+            "font": "Schriftart",
+            "fontSize": "Fließtextgröße — {value} px",
+            "colors": "Farben",
+            "textColor": "Text",
+            "headingColor": "Überschriften",
+            "linkColor": "Links",
+            "contentBackground": "Hintergrund (E-Mail)",
+            "background": "Hintergrund (außen)",
+            "button": "Button",
+            "buttonBackground": "Buttonfarbe",
+            "buttonColor": "Buttontext",
+            "buttonRadius": "Eckenradius — {value} px",
+            "layout": "Layout",
+            "width": "E-Mail-Breite — {value} px"
+        },
+        "props": {
+            "label": "Beschriftung",
+            "selected": "Ausgewählt",
+            "settings": "E-Mail-Einstellungen",
+            "message": "Betreff und Vorschautext",
+            "section": "Abschnitt",
+            "subject": "Betreff",
+            "preheader": "Vorschautext",
+            "preheaderHint": "Wird in der Posteingangsliste nach dem Betreff angezeigt.",
+            "addFirstName": "Vorname einfügen",
+            "marketingNote": "Kampagnenfähige Vorlage: Die Fußzeile mit Postanschrift, Abmelde- und Einstellungslink ist Pflicht.",
+            "selectHint": "Wählen Sie einen Block oder Abschnitt auf der Fläche aus, um ihn zu bearbeiten.",
+            "layout": "Spalten",
+            "background": "Hintergrund",
+            "padding": "Innenabstand (px)",
+            "sides": {
+                "top": "Oben",
+                "right": "Rechts",
+                "bottom": "Unten",
+                "left": "Links"
+            },
+            "hideMobile": "Auf Mobilgeräten ausblenden",
+            "display": "Anzeige",
+            "level": "Überschriftenebene",
+            "levelOption": "Überschrift {level}",
+            "fontSize": "Größe (px)",
+            "lineHeight": "Zeilenhöhe",
+            "textColor": "Textfarbe",
+            "inlineHint": "Bearbeiten Sie den Text direkt auf der Fläche; die Werkzeugleiste erscheint beim Hineinklicken.",
+            "link": "Link",
+            "buttonBackground": "Buttonfarbe",
+            "buttonColor": "Buttontext",
+            "radius": "Eckenradius (px)",
+            "lineColor": "Linienfarbe",
+            "height": "Höhe (px)",
+            "image": "Bild",
+            "alt": "Alternativtext",
+            "altHint": "Die meisten E-Mail-Programme blockieren Bilder zunächst — das sehen die Leser.",
+            "width": "Breite (px)",
+            "thumbnail": "Vorschaubild",
+            "videoLink": "Video-Link",
+            "playLabel": "Abspiel-Beschriftung",
+            "networks": "Profile",
+            "addNetwork": "Profil hinzufügen",
+            "shareUrl": "Zu teilende Seite",
+            "shareHint": "Die Teilen-Links werden aus dieser Adresse erzeugt.",
+            "html": "HTML",
+            "htmlHint": "Unsichere Elemente (Skripte, Formulare, Frames) werden beim Speichern entfernt.",
+            "productName": "Produktname",
+            "description": "Beschreibung",
+            "price": "Preis",
+            "oldPrice": "Alter Preis",
+            "question": "Frage",
+            "surveyUrl": "Antwortseite",
+            "surveyHint": "Jede Antwort verlinkt hierher mit answer=1, 2, …",
+            "answers": "Antworten",
+            "addAnswer": "Antwort hinzufügen",
+            "newAnswer": "Neue Antwort",
+            "company": "Firma",
+            "address": "Postanschrift",
+            "addressHint": "In Marketing-E-Mails gesetzlich vorgeschrieben.",
+            "addressRequired": "Die Postanschrift ist Pflicht.",
+            "footerText": "Zusatztext",
+            "unsubscribeLabel": "Beschriftung Abmelden",
+            "preferencesLabel": "Beschriftung Einstellungen",
+            "footerLocked": "Abmelde- und Einstellungslink sind immer enthalten und können nicht entfernt werden.",
+            "align": "Ausrichtung"
+        },
+        "condition": {
+            "title": "Bedingter Block",
+            "hint": "Nur für ein Segment oder nach Feldwert anzeigen",
+            "kind": "Anzeigen, wenn",
+            "kindSegment": "Segment",
+            "kindField": "Feld",
+            "segment": "Segment",
+            "field": "Feld",
+            "op": "Bedingung",
+            "value": "Wert",
+            "ops": {
+                "in": "ist Mitglied",
+                "not_in": "ist kein Mitglied",
+                "equals": "ist gleich",
+                "not_equals": "ist ungleich",
+                "contains": "enthält",
+                "is_set": "ist ausgefüllt",
+                "is_not_set": "ist leer"
+            },
+            "badgeSegment": "Nur: {name}",
+            "badgeNotSegment": "Nicht: {name}",
+            "badgeField": "Wenn {field} {op} {value}",
+            "sectionBadge": "Bedingter Abschnitt",
+            "complianceLocked": "Fußzeile und Abmeldeelement sind immer sichtbar — sie können nicht bedingt sein."
+        },
+        "image": {
+            "upload": "Hochladen",
+            "library": "Hochgeladene Bilder"
+        },
+        "optimize": {
+            "preview": "Vorschau",
+            "rerun": "Erneut prüfen",
+            "failed": "Die Prüfung konnte nicht ausgeführt werden.",
+            "links": "Links · {count}",
+            "linksSummary": "{broken} fehlerhaft, {utm} ohne UTM-Parameter.",
+            "addUtm": "UTM hinzufügen",
+            "issues": {
+                "empty": "leer",
+                "unsafe": "nicht erlaubt",
+                "malformed": "fehlerhaft",
+                "placeholder": "Beispieladresse",
+                "missing_utm": "kein UTM"
+            },
+            "images": "Bilder · {count}",
+            "imagesSummary": "{missing} ohne Alternativtext. Größter Upload: {largest}.",
+            "missingAlt": "Bild ohne Alternativtext",
+            "weight": "Größe: {size} / {limit}",
+            "clipHint": "Gmail kürzt E-Mails über 102 KB.",
+            "clipped": "Gmail wird diese E-Mail kürzen — kürzen Sie sie oder entfernen Sie Blöcke.",
+            "spam": "Spam-Score: {score} / {max}",
+            "spamClean": "Gut — keine riskanten Muster gefunden.",
+            "spamFindings": "Vorschläge:",
+            "spamRules": {
+                "EMPTY_SUBJECT": "Fügen Sie einen Betreff hinzu.",
+                "LONG_SUBJECT": "Halten Sie den Betreff unter 90 Zeichen.",
+                "SHOUTING_SUBJECT": "Vermeiden Sie einen Betreff in Großbuchstaben.",
+                "EXCESSIVE_PUNCTUATION": "Weniger Ausrufe- und Fragezeichen im Betreff.",
+                "EMPTY_BODY": "Die E-Mail braucht Textinhalt.",
+                "NO_PLAIN_TEXT": "Fügen Sie eine Nur-Text-Version hinzu.",
+                "IMAGE_HEAVY": "Mehr Text — reine Bild-E-Mails wirken verdächtig.",
+                "URL_SHORTENER": "Ersetzen Sie gekürzte Links durch vollständige Adressen.",
+                "BLOCKLISTED_DOMAIN": "Eine verlinkte Domain steht auf einer Sperrliste — entfernen Sie den Link.",
+                "MANY_LINKS": "Reduzieren Sie die Anzahl der Links."
+            },
+            "compliance": "Pflichtelemente",
+            "complianceOk": "Postanschrift, Abmelde- und Einstellungslink: alles vorhanden.",
+            "complianceMissing": "Es fehlt: {items}.",
+            "complianceItems": {
+                "postal_address": "Postanschrift",
+                "unsubscribe": "Abmeldelink",
+                "preferences": "Einstellungslink"
+            }
+        },
+        "testSend": {
+            "title": "Test senden",
+            "hint": "Test-E-Mails gehen nur an Workspace-Mitglieder und Seed-Adressen — durch dieselben Versandprüfungen wie jede E-Mail.",
+            "recipients": "Empfänger",
+            "noRecipients": "Es gibt keinen zulässigen Testempfänger.",
+            "kinds": {
+                "member": "Mitglied",
+                "seed": "Seed"
+            },
+            "from": "Absender",
+            "noDomain": "Verifizieren Sie zuerst eine Versanddomain.",
+            "submit": "Test senden",
+            "sent": "Test an {count} Empfänger gesendet.",
+            "failed": "Der Test wurde nicht gesendet.",
+            "saveFirst": "Beheben Sie die Fehler und speichern Sie vor dem Testversand.",
+            "reasons": {
+                "SENDING_RESTRICTED": "Seed-Modus: Derzeit können nur freigegebene Adressen E-Mails erhalten.",
+                "CHANNEL_DISABLED": "Der Versand ist auf diesem Kanal deaktiviert.",
+                "DOMAIN_UNVERIFIED": "Die Absenderdomain ist nicht verifiziert.",
+                "SUPPRESSED": "Der Empfänger steht auf der Sperrliste.",
+                "NO_CONSENT": "Für diesen Empfänger liegt keine Einwilligung vor.",
+                "QUOTA_EXCEEDED": "Das Versandkontingent ist aufgebraucht.",
+                "RATE_LIMITED": "Zu viele E-Mails gleichzeitig — versuchen Sie es in einer Minute erneut.",
+                "VALIDATION_RISK": "Die Adresse wirkt riskant.",
+                "INVALID_REQUEST": "Die Anfrage war ungültig.",
+                "GATE_ERROR": "Eine Versandprüfung ist fehlgeschlagen — bitte erneut versuchen."
+            }
+        },
+        "preview": {
+            "title": "Vorschau",
+            "plain": "Nur Text",
+            "failed": "Die Vorschau konnte nicht erstellt werden.",
+            "size": "HTML-Größe: {size} KB"
+        },
+        "versions": {
+            "title": "Versionsverlauf",
+            "current": "Aktuell",
+            "restore": "Wiederherstellen",
+            "restored": "Version wiederhergestellt — als neue Version gespeichert.",
+            "failed": "Die Version konnte nicht wiederhergestellt werden.",
+            "system": "System",
+            "hint": "Beim Wiederherstellen entsteht eine neue Version; frühere bleiben erhalten.",
+            "reasons": {
+                "save": "Gespeichert",
+                "autosave": "Automatisch gespeichert",
+                "restore": "Wiederhergestellt aus v{from}",
+                "create": "Erstellt"
+            }
+        },
+        "save": {
+            "copyName": "{name} (Kopie)",
+            "templateDone": "In der Bibliothek gespeichert: „{name}“."
+        },
+        "saveBlock": {
+            "defaultName": "Mein Block",
+            "done": "„{name}“ wurde zu Ihren Blöcken hinzugefügt."
+        },
+        "nameModal": {
+            "saveAs": "Speichern unter",
+            "saveTemplate": "Als Vorlage speichern",
+            "saveBlock": "Als Block speichern"
+        }
+    },
+    "library": {
+        "eyebrow": "Studio · Vorlagen",
+        "title": "Vorlagenbibliothek",
+        "lead": "Ihre Vorlagen, gespeicherte Blöcke und sechs Startvorlagen — alle in der Venture-Designsprache.",
+        "search": "Vorlagen suchen",
+        "new": "Neue Vorlage",
+        "filter": "Filter",
+        "filters": {
+            "all": "Alle",
+            "own": "Meine Vorlagen · {count}",
+            "blocks": "Gespeicherte Blöcke · {count}",
+            "starters": "Startvorlagen · {count}"
+        },
+        "own": "Meine Vorlagen",
+        "ownEmpty": "Noch keine Vorlagen — starten Sie unten mit einer Startvorlage.",
+        "edit": "{name} bearbeiten",
+        "marketing": "Marketing",
+        "transactional": "transaktional",
+        "duplicate": "Duplizieren",
+        "delete": "Löschen",
+        "deleteTitle": "Vorlage löschen",
+        "deleteConfirm": "„{name}“ löschen? Kampagnen, die sie bereits verwendet haben, behalten ihren Inhalt.",
+        "blocks": "Gespeicherte Blöcke",
+        "blocksEmpty": "Speichern Sie im Editor einen Abschnitt oder Block, um ihn hier wiederzuverwenden.",
+        "savedSection": "gespeicherter Abschnitt",
+        "savedBlock": "gespeicherter Block",
+        "starters": "Startvorlagen",
+        "startersHint": "Sie öffnen sich als Kopie; das Original bleibt unverändert.",
+        "create": {
+            "title": "Neue Vorlage",
+            "source": "Ausgangspunkt",
+            "blank": "Leer",
+            "copyOf": "Kopie von „{name}“",
+            "name": "Name",
+            "subject": "Betreff",
+            "subjectHint": "Optional — die Startvorlage schlägt einen vor.",
+            "marketing": "Marketing-E-Mail (Fußzeile mit Postanschrift und Abmeldung erforderlich)",
+            "submit": "Vorlage erstellen"
+        }
     }
 }

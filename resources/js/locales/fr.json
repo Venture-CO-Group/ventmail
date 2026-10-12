@@ -1003,5 +1003,409 @@
         "name": "Nom",
         "value": "Valeur",
         "rowStatus": "Statut"
+    },
+    "editor": {
+        "common": {
+            "apply": "Appliquer",
+            "cancel": "Annuler",
+            "close": "Fermer",
+            "name": "Nom",
+            "none": "Aucune",
+            "save": "Enregistrer"
+        },
+        "top": {
+            "name": "Nom du modèle",
+            "undo": "Annuler",
+            "redo": "Rétablir",
+            "versions": "Historique des versions",
+            "preview": "Aperçu",
+            "saveExit": "Enregistrer et quitter",
+            "more": "Autres options d’enregistrement",
+            "saveAs": "Enregistrer sous…",
+            "saveTemplate": "Enregistrer comme modèle",
+            "sendTest": "Envoyer un test"
+        },
+        "status": {
+            "saved": "Enregistré",
+            "dirty": "Modifications non enregistrées",
+            "saving": "Enregistrement…",
+            "error": "Non enregistré"
+        },
+        "rail": {
+            "label": "Outils de l’éditeur",
+            "add": "Ajouter",
+            "styles": "Styles",
+            "optimize": "Optimiser",
+            "properties": "Réglages"
+        },
+        "palette": {
+            "content": "Contenu",
+            "layouts": "Mises en page",
+            "hint": "Faites glisser un bloc sur le canevas — la ligne bleue indique où il sera placé. Ou cliquez pour l’insérer après la sélection.",
+            "saved": "Blocs enregistrés",
+            "columns": "Colonnes",
+            "patterns": "Modèles de section"
+        },
+        "blocks": {
+            "heading": "Titre",
+            "text": "Paragraphe",
+            "button": "Bouton",
+            "divider": "Séparateur",
+            "spacer": "Espacement",
+            "image": "Image",
+            "logo": "Logo",
+            "social_follow": "Suivre (réseaux)",
+            "social_share": "Partager (réseaux)",
+            "video": "Vidéo",
+            "html": "Code",
+            "product": "Produit",
+            "survey": "Sondage",
+            "footer": "Pied de page",
+            "unsubscribe": "Désabonnement"
+        },
+        "layouts": {
+            "c1": "1 colonne",
+            "c2": "2 colonnes",
+            "c3": "3 colonnes",
+            "c4": "4 colonnes",
+            "c1_2": "1/3 – 2/3",
+            "c2_1": "2/3 – 1/3"
+        },
+        "patterns": {
+            "header": "En-tête",
+            "hero": "Bannière",
+            "footer": "Pied de page"
+        },
+        "device": {
+            "label": "Vue du canevas",
+            "desktop": "Ordinateur",
+            "mobile": "Mobile",
+            "dark": "Sombre"
+        },
+        "canvas": {
+            "empty": "Faites glisser une mise en page ou un bloc ici pour commencer.",
+            "emptyColumn": "Déposez un bloc ici"
+        },
+        "blockTools": {
+            "label": "Actions du bloc",
+            "drag": "Glisser pour déplacer",
+            "up": "Monter",
+            "down": "Descendre",
+            "duplicate": "Dupliquer",
+            "save": "Enregistrer comme bloc",
+            "delete": "Supprimer"
+        },
+        "sectionTools": {
+            "label": "Actions de la section"
+        },
+        "text": {
+            "toolbar": "Mise en forme du texte",
+            "bold": "Gras",
+            "italic": "Italique",
+            "link": "Lien",
+            "list": "Liste à puces",
+            "color": "Couleur du texte",
+            "linkInvalid": "Uniquement https://, mailto: ou une balise de fusion."
+        },
+        "align": {
+            "left": "Aligner à gauche",
+            "center": "Centrer",
+            "right": "Aligner à droite"
+        },
+        "mergeTags": {
+            "title": "Insérer une balise de fusion",
+            "button": "Balise de fusion",
+            "fallback": "Valeur par défaut",
+            "contact_first_name": "Prénom",
+            "contact_last_name": "Nom",
+            "contact_company": "Entreprise",
+            "contact_email": "Adresse e-mail",
+            "unsubscribe_url": "Lien de désabonnement",
+            "preferences_url": "Lien des préférences",
+            "browser_url": "Voir dans le navigateur",
+            "current_year": "Année en cours",
+            "workspace_name": "Nom de l’espace",
+            "workspace_address": "Adresse de l’espace"
+        },
+        "footer": {
+            "unsubscribe": "Se désabonner",
+            "preferences": "Préférences e-mail"
+        },
+        "networks": {
+            "facebook": "Facebook",
+            "x": "X",
+            "twitter": "Twitter",
+            "instagram": "Instagram",
+            "linkedin": "LinkedIn",
+            "youtube": "YouTube",
+            "tiktok": "TikTok"
+        },
+        "fonts": {
+            "sans": "Sans empattement (Helvetica, Arial)",
+            "humanist": "Humaniste (Verdana)",
+            "rounded": "Arrondie (Trebuchet)",
+            "serif": "Avec empattement (Georgia)",
+            "mono": "Chasse fixe (Courier)"
+        },
+        "styles": {
+            "typography": "Typographie",
+            "font": "Police",
+            "fontSize": "Taille du texte — {value} px",
+            "colors": "Couleurs",
+            "textColor": "Texte",
+            "headingColor": "Titres",
+            "linkColor": "Liens",
+            "contentBackground": "Fond (e-mail)",
+            "background": "Fond (extérieur)",
+            "button": "Bouton",
+            "buttonBackground": "Couleur du bouton",
+            "buttonColor": "Texte du bouton",
+            "buttonRadius": "Arrondi des coins — {value} px",
+            "layout": "Mise en page",
+            "width": "Largeur de l’e-mail — {value} px"
+        },
+        "props": {
+            "label": "Libellé",
+            "selected": "Sélection",
+            "settings": "Réglages de l’e-mail",
+            "message": "Objet et texte d’aperçu",
+            "section": "Section",
+            "subject": "Objet",
+            "preheader": "Texte d’aperçu",
+            "preheaderHint": "Affiché après l’objet dans la liste de la boîte de réception.",
+            "addFirstName": "Ajouter le prénom",
+            "marketingNote": "Modèle utilisable en campagne : le pied de page avec adresse postale, lien de désabonnement et préférences est obligatoire.",
+            "selectHint": "Sélectionnez un bloc ou une section sur le canevas pour le modifier.",
+            "layout": "Colonnes",
+            "background": "Fond",
+            "padding": "Marge intérieure (px)",
+            "sides": {
+                "top": "Haut",
+                "right": "Droite",
+                "bottom": "Bas",
+                "left": "Gauche"
+            },
+            "hideMobile": "Masquer sur mobile",
+            "display": "Affichage",
+            "level": "Niveau de titre",
+            "levelOption": "Titre {level}",
+            "fontSize": "Taille (px)",
+            "lineHeight": "Interligne",
+            "textColor": "Couleur du texte",
+            "inlineHint": "Modifiez le texte directement sur le canevas ; la barre d’outils apparaît quand vous cliquez dedans.",
+            "link": "Lien",
+            "buttonBackground": "Couleur du bouton",
+            "buttonColor": "Texte du bouton",
+            "radius": "Arrondi des coins (px)",
+            "lineColor": "Couleur de la ligne",
+            "height": "Hauteur (px)",
+            "image": "Image",
+            "alt": "Texte alternatif",
+            "altHint": "La plupart des messageries bloquent d’abord les images — c’est ce que voient les lecteurs.",
+            "width": "Largeur (px)",
+            "thumbnail": "Miniature",
+            "videoLink": "Lien de la vidéo",
+            "playLabel": "Libellé de lecture",
+            "networks": "Profils",
+            "addNetwork": "Ajouter un profil",
+            "shareUrl": "Page à partager",
+            "shareHint": "Les liens de partage sont construits à partir de cette adresse.",
+            "html": "HTML",
+            "htmlHint": "Les éléments dangereux (scripts, formulaires, cadres) sont supprimés à l’enregistrement.",
+            "productName": "Nom du produit",
+            "description": "Description",
+            "price": "Prix",
+            "oldPrice": "Ancien prix",
+            "question": "Question",
+            "surveyUrl": "Page de réponse",
+            "surveyHint": "Chaque réponse renvoie ici avec answer=1, 2, …",
+            "answers": "Réponses",
+            "addAnswer": "Ajouter une réponse",
+            "newAnswer": "Nouvelle réponse",
+            "company": "Entreprise",
+            "address": "Adresse postale",
+            "addressHint": "Obligatoire dans les e-mails marketing.",
+            "addressRequired": "L’adresse postale est obligatoire.",
+            "footerText": "Texte supplémentaire",
+            "unsubscribeLabel": "Libellé du désabonnement",
+            "preferencesLabel": "Libellé des préférences",
+            "footerLocked": "Les liens de désabonnement et de préférences sont toujours inclus et ne peuvent pas être retirés.",
+            "align": "Alignement"
+        },
+        "condition": {
+            "title": "Bloc conditionnel",
+            "hint": "Afficher seulement pour un segment ou selon un champ",
+            "kind": "Afficher si",
+            "kindSegment": "Segment",
+            "kindField": "Champ",
+            "segment": "Segment",
+            "field": "Champ",
+            "op": "Condition",
+            "value": "Valeur",
+            "ops": {
+                "in": "est membre",
+                "not_in": "n’est pas membre",
+                "equals": "est égal à",
+                "not_equals": "est différent de",
+                "contains": "contient",
+                "is_set": "est renseigné",
+                "is_not_set": "est vide"
+            },
+            "badgeSegment": "Uniquement : {name}",
+            "badgeNotSegment": "Sauf : {name}",
+            "badgeField": "Si {field} {op} {value}",
+            "sectionBadge": "Section conditionnelle",
+            "complianceLocked": "Le pied de page et le désabonnement sont toujours affichés — ils ne peuvent pas être conditionnels."
+        },
+        "image": {
+            "upload": "Importer",
+            "library": "Images importées"
+        },
+        "optimize": {
+            "preview": "Aperçu",
+            "rerun": "Revérifier",
+            "failed": "La vérification n’a pas pu s’exécuter.",
+            "links": "Liens · {count}",
+            "linksSummary": "{broken} cassé(s), {utm} sans paramètres UTM.",
+            "addUtm": "Ajouter les UTM",
+            "issues": {
+                "empty": "vide",
+                "unsafe": "non autorisé",
+                "malformed": "mal formé",
+                "placeholder": "adresse d’exemple",
+                "missing_utm": "sans UTM"
+            },
+            "images": "Images · {count}",
+            "imagesSummary": "{missing} sans texte alternatif. Plus gros import : {largest}.",
+            "missingAlt": "Image sans texte alternatif",
+            "weight": "Taille : {size} / {limit}",
+            "clipHint": "Gmail tronque les e-mails au-delà de 102 KB.",
+            "clipped": "Gmail va tronquer cet e-mail — raccourcissez-le ou retirez des blocs.",
+            "spam": "Score de spam : {score} / {max}",
+            "spamClean": "Bien — aucun motif à risque détecté.",
+            "spamFindings": "Suggestions :",
+            "spamRules": {
+                "EMPTY_SUBJECT": "Ajoutez un objet.",
+                "LONG_SUBJECT": "Gardez l’objet sous 90 caractères.",
+                "SHOUTING_SUBJECT": "Évitez un objet tout en majuscules.",
+                "EXCESSIVE_PUNCTUATION": "Moins de points d’exclamation et d’interrogation dans l’objet.",
+                "EMPTY_BODY": "L’e-mail doit contenir du texte.",
+                "NO_PLAIN_TEXT": "Ajoutez une version texte brut.",
+                "IMAGE_HEAVY": "Ajoutez du texte — un e-mail uniquement en images paraît suspect.",
+                "URL_SHORTENER": "Remplacez les liens raccourcis par des adresses complètes.",
+                "BLOCKLISTED_DOMAIN": "Un domaine lié figure sur une liste noire — retirez le lien.",
+                "MANY_LINKS": "Réduisez le nombre de liens."
+            },
+            "compliance": "Éléments obligatoires",
+            "complianceOk": "Adresse postale, liens de désabonnement et de préférences : tout est présent.",
+            "complianceMissing": "Manquant : {items}.",
+            "complianceItems": {
+                "postal_address": "adresse postale",
+                "unsubscribe": "lien de désabonnement",
+                "preferences": "lien des préférences"
+            }
+        },
+        "testSend": {
+            "title": "Envoyer un test",
+            "hint": "Les e-mails de test ne vont qu’aux membres de l’espace et aux adresses seed, avec les mêmes contrôles d’envoi que tout e-mail.",
+            "recipients": "Destinataires",
+            "noRecipients": "Aucun destinataire de test autorisé.",
+            "kinds": {
+                "member": "membre",
+                "seed": "seed"
+            },
+            "from": "Expéditeur",
+            "noDomain": "Vérifiez d’abord un domaine d’envoi.",
+            "submit": "Envoyer le test",
+            "sent": "Test envoyé à {count} destinataire(s).",
+            "failed": "Le test n’a pas été envoyé.",
+            "saveFirst": "Corrigez les erreurs et enregistrez avant d’envoyer un test.",
+            "reasons": {
+                "SENDING_RESTRICTED": "Mode seed : seules les adresses autorisées peuvent recevoir des e-mails pour l’instant.",
+                "CHANNEL_DISABLED": "L’envoi est désactivé sur ce canal.",
+                "DOMAIN_UNVERIFIED": "Le domaine de l’expéditeur n’est pas vérifié.",
+                "SUPPRESSED": "Le destinataire figure sur la liste d’exclusion.",
+                "NO_CONSENT": "Aucun consentement pour ce destinataire.",
+                "QUOTA_EXCEEDED": "Le quota d’envoi est épuisé.",
+                "RATE_LIMITED": "Trop d’e-mails en même temps — réessayez dans une minute.",
+                "VALIDATION_RISK": "L’adresse semble risquée.",
+                "INVALID_REQUEST": "La requête était invalide.",
+                "GATE_ERROR": "Un contrôle d’envoi a échoué — réessayez."
+            }
+        },
+        "preview": {
+            "title": "Aperçu",
+            "plain": "Texte brut",
+            "failed": "L’aperçu n’a pas pu être généré.",
+            "size": "Taille HTML : {size} KB"
+        },
+        "versions": {
+            "title": "Historique des versions",
+            "current": "Actuelle",
+            "restore": "Restaurer",
+            "restored": "Version restaurée — enregistrée comme nouvelle version.",
+            "failed": "La version n’a pas pu être restaurée.",
+            "system": "système",
+            "hint": "La restauration crée une nouvelle version ; les précédentes sont conservées.",
+            "reasons": {
+                "save": "Enregistrement",
+                "autosave": "Enregistrement automatique",
+                "restore": "Restaurée depuis v{from}",
+                "create": "Création"
+            }
+        },
+        "save": {
+            "copyName": "{name} (copie)",
+            "templateDone": "Enregistré dans la bibliothèque : « {name} »."
+        },
+        "saveBlock": {
+            "defaultName": "Mon bloc",
+            "done": "« {name} » a été ajouté à vos blocs."
+        },
+        "nameModal": {
+            "saveAs": "Enregistrer sous",
+            "saveTemplate": "Enregistrer comme modèle",
+            "saveBlock": "Enregistrer comme bloc"
+        }
+    },
+    "library": {
+        "eyebrow": "Studio · Modèles",
+        "title": "Bibliothèque de modèles",
+        "lead": "Vos modèles, vos blocs enregistrés et six modèles de départ — tous dans le langage visuel Venture.",
+        "search": "Rechercher un modèle",
+        "new": "Nouveau modèle",
+        "filter": "Filtrer",
+        "filters": {
+            "all": "Tout",
+            "own": "Mes modèles · {count}",
+            "blocks": "Blocs enregistrés · {count}",
+            "starters": "Modèles de départ · {count}"
+        },
+        "own": "Mes modèles",
+        "ownEmpty": "Aucun modèle pour l’instant — commencez avec un modèle de départ ci-dessous.",
+        "edit": "Modifier {name}",
+        "marketing": "marketing",
+        "transactional": "transactionnel",
+        "duplicate": "Dupliquer",
+        "delete": "Supprimer",
+        "deleteTitle": "Supprimer le modèle",
+        "deleteConfirm": "Supprimer « {name} » ? Les campagnes qui l’ont déjà utilisé conservent leur contenu.",
+        "blocks": "Blocs enregistrés",
+        "blocksEmpty": "Enregistrez une section ou un bloc depuis l’éditeur pour le réutiliser ici.",
+        "savedSection": "section enregistrée",
+        "savedBlock": "bloc enregistré",
+        "starters": "Modèles de départ",
+        "startersHint": "Ils s’ouvrent en copie ; l’original ne change jamais.",
+        "create": {
+            "title": "Nouveau modèle",
+            "source": "Point de départ",
+            "blank": "Vierge",
+            "copyOf": "Copie de « {name} »",
+            "name": "Nom",
+            "subject": "Objet",
+            "subjectHint": "Facultatif — le modèle de départ en propose un.",
+            "marketing": "E-mail marketing (pied de page avec adresse postale et désabonnement requis)",
+            "submit": "Créer le modèle"
+        }
     }
 }

@@ -1,0 +1,1105 @@
+/*
+ | A SABLONSZERKESZTŐ (v1.1 · 4. modul) — kizárólag @venture/design tokenekből.
+ |
+ | Elrendezés: felső sáv (név, mentés-állapot, visszavonás, előnézet, mentés) · bal sín
+ | (Hozzáadás / Stílusok / Optimalizálás) · bal panel · vászon · jobb tulajdonságpanel.
+ | Kompakt nézetben (a `useCompactNav` küszöbe alatt) a sín alsó fülsávvá, a panelek alsó
+ | lappá (`VtDrawer side="bottom"`) válnak — media query nélkül (lásd shell.css).
+ |
+ | A VÁSZON a levél színeit a BLOKK-ADATBÓL kapja (`:style` kötés) — azok a levél értékei,
+ | nem a felületé. A felület maga csak tokent használ.
+ |
+ | JELENTÉS a @venture/ui felé: vászon / húzható lista, színválasztó, eszköztár (toolbar),
+ | csúszka (range), kapcsoló (switch), fájlfeltöltő mező — itt lokális `vm-ed-*` elemek.
+ */
+
+.vm-editor {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    min-inline-size: 0;
+    block-size: calc(100dvh - var(--vt-space-16));
+    min-block-size: calc(var(--vt-space-32) * 4);
+    background: var(--vt-bg);
+}
+
+/* ------------------------------------------------------------------ felső sáv */
+
+.vm-ed-top {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--vt-space-3);
+    padding: var(--vt-space-3) var(--vt-space-4);
+    border-block-end: thin solid var(--vt-border);
+    background: var(--vt-surface);
+}
+
+.vm-ed-top__name {
+    display: flex;
+    align-items: center;
+    gap: var(--vt-space-2);
+    flex: 1 1 calc(var(--vt-space-32) * 2);
+    flex-wrap: wrap;
+    min-inline-size: 0;
+}
+
+.vm-ed-top__name input {
+    flex: 1 1 auto;
+    min-inline-size: 0;
+    padding: var(--vt-space-1) var(--vt-space-2);
+    border: thin solid transparent;
+    border-radius: var(--vt-radius-sm);
+    background: transparent;
+    color: var(--vt-text);
+    font-family: var(--vt-font-display);
+    font-size: var(--vt-fs-h5);
+    font-weight: var(--vt-weight-semibold);
+}
+
+.vm-ed-top__name input:hover,
+.vm-ed-top__name input:focus-visible {
+    border-color: var(--vt-border-strong);
+    outline: none;
+}
+
+.vm-ed-status {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--vt-space-2);
+    color: var(--vt-text-muted);
+    font-size: var(--vt-fs-caption);
+    white-space: nowrap;
+}
+
+.vm-ed-status__dot {
+    inline-size: var(--vt-space-2);
+    block-size: var(--vt-space-2);
+    border-radius: var(--vt-radius-full);
+    background: var(--vt-color-success);
+}
+
+.vm-ed-status--dirty .vm-ed-status__dot,
+.vm-ed-status--saving .vm-ed-status__dot {
+    background: var(--vt-color-warning);
+}
+
+.vm-ed-status--error {
+    color: var(--vt-color-danger);
+}
+
+.vm-ed-status--error .vm-ed-status__dot {
+    background: var(--vt-color-danger);
+}
+
+.vm-ed-error {
+    flex: 1 1 100%;
+    margin: 0;
+}
+
+.vm-ed-top__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--vt-space-2);
+}
+
+.vm-ed-split {
+    position: relative;
+    display: inline-flex;
+}
+
+.vm-ed-split__menu {
+    position: absolute;
+    inset-inline-end: 0;
+    inset-block-start: calc(100% + var(--vt-space-1));
+    z-index: var(--vt-z-dropdown);
+    display: flex;
+    flex-direction: column;
+    min-inline-size: calc(var(--vt-space-32) * 2);
+    padding: var(--vt-space-1);
+    border: thin solid var(--vt-border-strong);
+    border-radius: var(--vt-radius-md);
+    background: var(--vt-bg-elevated);
+    box-shadow: var(--vt-shadow-lg);
+}
+
+.vm-ed-menuitem {
+    display: flex;
+    align-items: center;
+    gap: var(--vt-space-2);
+    padding: var(--vt-space-2) var(--vt-space-3);
+    border: 0;
+    border-radius: var(--vt-radius-sm);
+    background: transparent;
+    color: var(--vt-text);
+    font: inherit;
+    text-align: start;
+    cursor: pointer;
+}
+
+.vm-ed-menuitem:hover,
+.vm-ed-menuitem:focus-visible {
+    background: var(--vt-surface-2);
+    outline: none;
+}
+
+.vm-ed-iconbtn {
+    display: inline-grid;
+    place-items: center;
+    inline-size: var(--vt-control-height);
+    block-size: var(--vt-control-height);
+    padding: 0;
+    border: thin solid transparent;
+    border-radius: var(--vt-radius-sm);
+    background: transparent;
+    color: var(--vt-text-muted);
+    cursor: pointer;
+}
+
+.vm-ed-iconbtn:hover:not(:disabled),
+.vm-ed-iconbtn:focus-visible {
+    border-color: var(--vt-border-strong);
+    color: var(--vt-text);
+    outline: none;
+}
+
+.vm-ed-iconbtn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.vm-ed-iconbtn[aria-pressed='true'] {
+    background: var(--vt-surface-2);
+    color: var(--vt-accent);
+}
+
+/* ------------------------------------------------------------------ törzs */
+
+.vm-ed-body {
+    display: grid;
+    grid-template-columns: auto calc(var(--vt-space-32) * 3) minmax(0, 1fr) calc(var(--vt-space-32) * 3);
+    min-block-size: 0;
+}
+
+.vm-ed-body--narrow {
+    grid-template-columns: auto calc(var(--vt-space-32) * 2.5) minmax(0, 1fr);
+}
+
+.vm-ed-body--compact {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+}
+
+.vm-ed-rail {
+    display: flex;
+    flex-direction: column;
+    gap: var(--vt-space-2);
+    padding: var(--vt-space-3) var(--vt-space-2);
+    border-inline-end: thin solid var(--vt-border);
+    background: var(--vt-surface);
+}
+
+.vm-ed-body--compact .vm-ed-rail {
+    flex-direction: row;
+    justify-content: space-around;
+    order: 2;
+    border-inline-end: 0;
+    border-block-start: thin solid var(--vt-border);
+}
+
+.vm-ed-rail__btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--vt-space-1);
+    padding: var(--vt-space-2);
+    border: thin solid transparent;
+    border-radius: var(--vt-radius-md);
+    background: transparent;
+    color: var(--vt-text-muted);
+    font: inherit;
+    font-size: var(--vt-fs-caption);
+    cursor: pointer;
+}
+
+.vm-ed-rail__btn:hover,
+.vm-ed-rail__btn:focus-visible {
+    color: var(--vt-text);
+    outline: none;
+    border-color: var(--vt-border-strong);
+}
+
+.vm-ed-rail__btn[aria-pressed='true'] {
+    background: var(--vt-surface-2);
+    color: var(--vt-text);
+    border-color: var(--vt-border-strong);
+}
+
+.vm-ed-panel {
+    display: flex;
+    flex-direction: column;
+    gap: var(--vt-space-4);
+    min-block-size: 0;
+    overflow: auto;
+    padding: var(--vt-space-4);
+    border-inline-end: thin solid var(--vt-border);
+    background: var(--vt-surface);
+}
+
+.vm-ed-props {
+    border-inline-end: 0;
+    border-inline-start: thin solid var(--vt-border);
+}
+
+.vm-ed-heading {
+    margin: 0;
+    color: var(--vt-text-muted);
+    font-size: var(--vt-fs-caption);
+    font-weight: var(--vt-weight-semibold);
+    letter-spacing: var(--vt-tracking-wider);
+    text-transform: uppercase;
+}
+
+.vm-ed-hint {
+    margin: 0;
+    color: var(--vt-text-subtle);
+    font-size: var(--vt-fs-caption);
+}
+
+/* ------------------------------------------------------------------ paletta */
+
+.vm-ed-palette {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(calc(var(--vt-space-20) + var(--vt-space-2)), 1fr));
+    gap: var(--vt-space-2);
+}
+
+.vm-ed-tile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--vt-space-2);
+    min-block-size: var(--vt-space-20);
+    padding: var(--vt-space-2);
+    border: thin solid var(--vt-border);
+    border-radius: var(--vt-radius-md);
+    background: var(--vt-bg-elevated);
+    color: var(--vt-text-muted);
+    font: inherit;
+    font-size: var(--vt-fs-caption);
+    text-align: center;
+    min-inline-size: 0;
+    cursor: grab;
+    user-select: none;
+}
+
+.vm-ed-tile > span {
+    max-inline-size: 100%;
+    min-inline-size: 0;
+    overflow-wrap: anywhere;
+}
+
+.vm-ed-tile:hover,
+.vm-ed-tile:focus-visible {
+    border-color: var(--vt-accent);
+    color: var(--vt-text);
+    outline: none;
+}
+
+.vm-ed-tile:active {
+    cursor: grabbing;
+}
+
+.vm-ed-layout {
+    display: flex;
+    gap: var(--vt-space-1);
+    inline-size: 100%;
+    block-size: var(--vt-space-6);
+}
+
+.vm-ed-layout span {
+    border-radius: var(--vt-radius-sm);
+    background: var(--vt-surface-2);
+    border: thin solid var(--vt-border-strong);
+}
+
+.vm-ed-tabs {
+    display: flex;
+    border-block-end: thin solid var(--vt-border);
+}
+
+.vm-ed-tabs button {
+    flex: 1 1 0;
+    padding: var(--vt-space-2) var(--vt-space-3);
+    border: 0;
+    border-block-end: medium solid transparent;
+    background: transparent;
+    color: var(--vt-text-muted);
+    font: inherit;
+    cursor: pointer;
+}
+
+.vm-ed-tabs button[aria-selected='true'] {
+    border-block-end-color: var(--vt-accent);
+    color: var(--vt-text);
+}
+
+/* ------------------------------------------------------------------ vászon */
+
+.vm-ed-stage {
+    display: flex;
+    min-inline-size: 0;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--vt-space-4);
+    min-block-size: 0;
+    overflow: auto;
+    padding: var(--vt-space-6) var(--vt-space-4) var(--vt-space-16);
+    background:
+        radial-gradient(circle, var(--vt-border) calc(var(--vt-space-1) * 0.25), transparent calc(var(--vt-space-1) * 0.4)) 0 0 / var(--vt-space-6) var(--vt-space-6),
+        var(--vt-bg);
+}
+
+.vm-ed-canvas {
+    position: relative;
+    inline-size: 100%;
+    border-radius: var(--vt-radius-md);
+    box-shadow: var(--vt-shadow-lg);
+    overflow: hidden;
+    transition: max-inline-size var(--vt-duration-base) var(--vt-ease-standard);
+}
+
+.vm-ed-canvas--mobile {
+    max-inline-size: calc(var(--vt-space-24) * 4);
+}
+
+.vm-ed-canvas--dark {
+    filter: invert(1) hue-rotate(180deg);
+}
+
+.vm-ed-canvas--dark img {
+    filter: invert(1) hue-rotate(180deg);
+}
+
+.vm-ed-section {
+    position: relative;
+    outline: thin dashed transparent;
+}
+
+.vm-ed-section:hover {
+    outline-color: var(--vt-border-strong);
+}
+
+.vm-ed-section--selected,
+.vm-ed-section--selected:hover {
+    outline: medium solid var(--vt-accent-2);
+}
+
+.vm-ed-section__bar {
+    position: absolute;
+    inset-block-start: 0;
+    inset-inline-end: 0;
+    z-index: var(--vt-z-base);
+    display: none;
+    gap: var(--vt-space-1);
+    padding: var(--vt-space-1);
+    border-end-start-radius: var(--vt-radius-sm);
+    background: var(--vt-accent-2);
+    color: var(--vt-on-accent-2);
+}
+
+.vm-ed-section:hover > .vm-ed-section__bar,
+.vm-ed-section--selected > .vm-ed-section__bar,
+.vm-ed-section:focus-within > .vm-ed-section__bar {
+    display: flex;
+}
+
+.vm-ed-section__bar .vm-ed-iconbtn {
+    inline-size: var(--vt-space-6);
+    block-size: var(--vt-space-6);
+    color: inherit;
+}
+
+.vm-ed-columns {
+    display: flex;
+    gap: var(--vt-space-2);
+}
+
+.vm-ed-canvas--mobile .vm-ed-columns {
+    flex-direction: column;
+}
+
+.vm-ed-canvas--mobile .vm-ed-column {
+    flex-basis: auto !important;
+}
+
+.vm-ed-canvas--mobile .vm-ed-hide-mobile {
+    opacity: 0.35;
+}
+
+.vm-ed-column {
+    display: flex;
+    flex-direction: column;
+    min-inline-size: 0;
+    min-block-size: var(--vt-space-12);
+}
+
+.vm-ed-column--empty {
+    align-items: center;
+    justify-content: center;
+    border: thin dashed currentColor;
+    border-radius: var(--vt-radius-sm);
+    opacity: 0.55;
+    font-size: var(--vt-fs-caption);
+    font-family: var(--vt-font-body);
+}
+
+.vm-ed-block {
+    position: relative;
+    outline: thin solid transparent;
+    outline-offset: calc(var(--vt-space-1) * -1);
+}
+
+.vm-ed-block:hover {
+    outline-color: var(--vt-accent);
+}
+
+.vm-ed-block--selected,
+.vm-ed-block--selected:hover {
+    outline: medium solid var(--vt-accent);
+}
+
+.vm-ed-block__label {
+    position: absolute;
+    inset-block-end: 100%;
+    inset-inline-start: 0;
+    z-index: calc(var(--vt-z-base) + 1);
+    padding: 0 var(--vt-space-2);
+    border-start-start-radius: var(--vt-radius-sm);
+    border-start-end-radius: var(--vt-radius-sm);
+    background: var(--vt-accent);
+    color: var(--vt-on-accent);
+    font-family: var(--vt-font-body);
+    font-size: var(--vt-fs-caption);
+}
+
+.vm-ed-block__tools {
+    position: absolute;
+    inset-block-end: 100%;
+    inset-inline-end: 0;
+    z-index: calc(var(--vt-z-base) + 1);
+    display: flex;
+    gap: var(--vt-space-1);
+    padding: 0 var(--vt-space-1);
+    border-start-start-radius: var(--vt-radius-sm);
+    border-start-end-radius: var(--vt-radius-sm);
+    background: var(--vt-accent);
+    color: var(--vt-on-accent);
+}
+
+.vm-ed-block__tools .vm-ed-iconbtn {
+    inline-size: var(--vt-space-6);
+    block-size: var(--vt-space-6);
+    color: inherit;
+}
+
+.vm-ed-block__tools .vm-ed-iconbtn .vm-icon,
+.vm-ed-section__bar .vm-ed-iconbtn .vm-icon {
+    inline-size: var(--vt-space-4);
+    block-size: var(--vt-space-4);
+}
+
+.vm-ed-grip {
+    cursor: grab;
+}
+
+.vm-ed-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--vt-space-1);
+    margin: var(--vt-space-1) 0;
+    padding: 0 var(--vt-space-2);
+    border: thin solid var(--vt-color-violet-400);
+    border-radius: var(--vt-radius-full);
+    color: var(--vt-color-violet-600);
+    background: var(--vt-color-violet-50);
+    font-family: var(--vt-font-body);
+    font-size: var(--vt-fs-caption);
+}
+
+.vm-ed-badge .vm-icon {
+    inline-size: var(--vt-space-3);
+    block-size: var(--vt-space-3);
+}
+
+/* A BESZÚRÁSI JELZŐ: a húzott elem ide kerül. */
+.vm-ed-drop {
+    block-size: var(--vt-space-1);
+    margin-block: calc(var(--vt-space-1) * -0.5);
+    border-radius: var(--vt-radius-full);
+    background: transparent;
+}
+
+.vm-ed-drop--active {
+    background: var(--vt-accent);
+    box-shadow: 0 0 var(--vt-space-2) var(--vt-accent);
+}
+
+.vm-ed-drop--section {
+    block-size: var(--vt-space-2);
+}
+
+.vm-ed-dropzone {
+    display: grid;
+    place-items: center;
+    inline-size: 100%;
+    min-block-size: var(--vt-space-16);
+    border: thin dashed var(--vt-border-strong);
+    border-radius: var(--vt-radius-md);
+    color: var(--vt-text-subtle);
+    font-size: var(--vt-fs-body-sm);
+}
+
+.vm-ed-dropzone--active {
+    border-color: var(--vt-accent);
+    color: var(--vt-text);
+}
+
+.vm-ed-richwrap {
+    position: relative;
+}
+
+/* A VÁSZON TARTALMA: a levél tipográfiája az adatból, a szerkeszthető szöveg kerete tokenből. */
+.vm-ed-rich {
+    outline: none;
+    overflow-wrap: anywhere;
+}
+
+.vm-ed-rich:focus {
+    box-shadow: inset 0 0 0 calc(var(--vt-space-1) * 0.5) var(--vt-accent-2);
+}
+
+.vm-ed-rich :where(p, ul, ol) {
+    margin: 0;
+}
+
+.vm-ed-rich :where(ul, ol) {
+    padding-inline-start: var(--vt-space-6);
+}
+
+.vm-ed-merge {
+    padding: 0 var(--vt-space-1);
+    border: thin dashed var(--vt-color-violet-400);
+    border-radius: var(--vt-radius-sm);
+    font-family: var(--vt-font-mono);
+    font-size: smaller;
+}
+
+.vm-ed-img {
+    display: block;
+    max-inline-size: 100%;
+    block-size: auto;
+}
+
+.vm-ed-video {
+    position: relative;
+    display: block;
+}
+
+.vm-ed-pill {
+    display: inline-block;
+    margin: var(--vt-space-1);
+    padding: var(--vt-space-2) var(--vt-space-4);
+    border-radius: var(--vt-radius-full);
+    font-weight: var(--vt-weight-bold);
+    text-decoration: none;
+}
+
+.vm-ed-code {
+    padding: var(--vt-space-2);
+    border: thin dashed currentColor;
+    border-radius: var(--vt-radius-sm);
+}
+
+/* ------------------------------------------------------------------ inline eszköztár */
+
+.vm-ed-toolbar {
+    position: absolute;
+    inset-block-start: calc(100% + var(--vt-space-1));
+    inset-inline-start: 0;
+    z-index: var(--vt-z-dropdown);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--vt-space-1);
+    padding: var(--vt-space-1);
+    border: thin solid var(--vt-border-strong);
+    border-radius: var(--vt-radius-md);
+    background: var(--vt-bg-elevated);
+    box-shadow: var(--vt-shadow-lg);
+    color: var(--vt-text);
+    font-family: var(--vt-font-body);
+    font-size: var(--vt-fs-body-sm);
+}
+
+.vm-ed-toolbar .vm-ed-iconbtn {
+    inline-size: var(--vt-space-8);
+    block-size: var(--vt-space-8);
+}
+
+.vm-ed-toolbar__sep {
+    inline-size: calc(var(--vt-space-1) * 0.25);
+    align-self: stretch;
+    background: var(--vt-border);
+}
+
+.vm-ed-popover {
+    position: absolute;
+    inset-block-start: calc(100% + var(--vt-space-1));
+    inset-inline-start: 0;
+    z-index: var(--vt-z-dropdown);
+    display: flex;
+    flex-direction: column;
+    gap: var(--vt-space-2);
+    min-inline-size: calc(var(--vt-space-32) * 2.5);
+    padding: var(--vt-space-3);
+    border: thin solid var(--vt-border-strong);
+    border-radius: var(--vt-radius-md);
+    background: var(--vt-bg-elevated);
+    box-shadow: var(--vt-shadow-lg);
+    color: var(--vt-text);
+    font-family: var(--vt-font-body);
+}
+
+.vm-ed-taglist {
+    display: flex;
+    flex-direction: column;
+}
+
+.vm-ed-taglist button {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--vt-space-3);
+    padding: var(--vt-space-2);
+    border: 0;
+    border-radius: var(--vt-radius-sm);
+    background: transparent;
+    color: var(--vt-text);
+    font: inherit;
+    text-align: start;
+    cursor: pointer;
+}
+
+.vm-ed-taglist button:hover,
+.vm-ed-taglist button:focus-visible {
+    background: var(--vt-surface-2);
+    outline: none;
+}
+
+.vm-ed-taglist code {
+    color: var(--vt-accent);
+    font-family: var(--vt-font-mono);
+    font-size: var(--vt-fs-caption);
+}
+
+/* ------------------------------------------------------------------ mezők */
+
+.vm-ed-fields {
+    display: flex;
+    flex-direction: column;
+    gap: var(--vt-space-4);
+}
+
+.vm-ed-grid2 {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--vt-space-3);
+}
+
+.vm-ed-swatches {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--vt-space-2);
+}
+
+.vm-ed-swatch {
+    inline-size: var(--vt-space-8);
+    block-size: var(--vt-space-8);
+    padding: 0;
+    border: thin solid var(--vt-border-strong);
+    border-radius: var(--vt-radius-sm);
+    cursor: pointer;
+}
+
+.vm-ed-swatch[aria-pressed='true'] {
+    outline: medium solid var(--vt-accent-2);
+    outline-offset: calc(var(--vt-space-1) * 0.5);
+}
+
+.vm-ed-swatch--none {
+    background: repeating-linear-gradient(45deg, var(--vt-surface-2) 0 var(--vt-space-1), var(--vt-bg) var(--vt-space-1) var(--vt-space-2));
+}
+
+.vm-ed-range {
+    inline-size: 100%;
+    accent-color: var(--vt-accent);
+}
+
+.vm-ed-switch {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--vt-space-3);
+}
+
+.vm-ed-switch input {
+    inline-size: var(--vt-space-5);
+    block-size: var(--vt-space-5);
+    accent-color: var(--vt-accent);
+}
+
+.vm-ed-segment {
+    display: inline-flex;
+    flex-wrap: wrap;
+    max-inline-size: 100%;
+    padding: var(--vt-space-1);
+    border: thin solid var(--vt-border);
+    border-radius: var(--vt-radius-md);
+    background: var(--vt-bg-elevated);
+}
+
+.vm-ed-segment button {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--vt-space-2);
+    padding: var(--vt-space-1) var(--vt-space-3);
+    border: 0;
+    border-radius: var(--vt-radius-sm);
+    background: transparent;
+    color: var(--vt-text-muted);
+    font: inherit;
+    font-size: var(--vt-fs-body-sm);
+    cursor: pointer;
+}
+
+.vm-ed-segment button[aria-pressed='true'] {
+    background: var(--vt-surface-2);
+    color: var(--vt-text);
+}
+
+.vm-ed-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--vt-space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.vm-ed-list li {
+    display: flex;
+    align-items: center;
+    gap: var(--vt-space-2);
+}
+
+.vm-ed-assets {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(var(--vt-space-16), 1fr));
+    gap: var(--vt-space-2);
+}
+
+.vm-ed-asset {
+    padding: 0;
+    border: thin solid var(--vt-border);
+    border-radius: var(--vt-radius-sm);
+    background: var(--vt-bg-elevated);
+    cursor: pointer;
+    aspect-ratio: 1;
+    overflow: hidden;
+}
+
+.vm-ed-asset img {
+    inline-size: 100%;
+    block-size: 100%;
+    object-fit: cover;
+}
+
+/* ------------------------------------------------------------------ optimalizálás */
+
+.vm-ed-card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--vt-space-2);
+    padding: var(--vt-space-4);
+    border: thin solid var(--vt-border);
+    border-radius: var(--vt-radius-md);
+    background: var(--vt-bg-elevated);
+}
+
+.vm-ed-card__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--vt-space-2);
+}
+
+.vm-ed-card__title {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--vt-space-2);
+    margin: 0;
+    font-size: var(--vt-fs-body);
+    font-weight: var(--vt-weight-semibold);
+}
+
+.vm-ed-card--ok .vm-ed-card__title .vm-icon {
+    color: var(--vt-color-success);
+}
+
+.vm-ed-card--warn .vm-ed-card__title .vm-icon {
+    color: var(--vt-color-warning);
+}
+
+.vm-ed-card--bad .vm-ed-card__title .vm-icon {
+    color: var(--vt-color-danger);
+}
+
+.vm-ed-meter {
+    block-size: var(--vt-space-2);
+    border-radius: var(--vt-radius-full);
+    background: var(--vt-surface-2);
+    overflow: hidden;
+}
+
+.vm-ed-meter span {
+    display: block;
+    block-size: 100%;
+    border-radius: inherit;
+    background: var(--vt-color-success);
+}
+
+.vm-ed-meter--warn span {
+    background: var(--vt-color-warning);
+}
+
+.vm-ed-meter--bad span {
+    background: var(--vt-color-danger);
+}
+
+.vm-ed-issues {
+    display: flex;
+    flex-direction: column;
+    gap: var(--vt-space-1);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: var(--vt-fs-caption);
+    color: var(--vt-text-muted);
+}
+
+.vm-ed-issues button {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--vt-accent);
+    font: inherit;
+    text-align: start;
+    cursor: pointer;
+    overflow-wrap: anywhere;
+}
+
+/* ------------------------------------------------------------------ előnézet */
+
+.vm-ed-preview {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--vt-space-4);
+}
+
+.vm-ed-preview iframe {
+    inline-size: 100%;
+    block-size: calc(100dvh - var(--vt-space-32) * 2);
+    min-block-size: calc(var(--vt-space-32) * 3);
+    border: thin solid var(--vt-border);
+    border-radius: var(--vt-radius-md);
+    background: var(--vt-color-neutral-0);
+}
+
+.vm-ed-preview--mobile iframe {
+    max-inline-size: calc(var(--vt-space-24) * 4);
+}
+
+.vm-ed-preview--dark iframe {
+    filter: invert(1) hue-rotate(180deg);
+}
+
+.vm-ed-plain {
+    inline-size: 100%;
+    max-block-size: calc(100dvh - var(--vt-space-32) * 2);
+    overflow: auto;
+    margin: 0;
+    padding: var(--vt-space-4);
+    border: thin solid var(--vt-border);
+    border-radius: var(--vt-radius-md);
+    background: var(--vt-bg-elevated);
+    white-space: pre-wrap;
+    font-family: var(--vt-font-mono);
+    font-size: var(--vt-fs-body-sm);
+}
+
+/* ------------------------------------------------------------------ verziók */
+
+.vm-ed-versions {
+    display: flex;
+    flex-direction: column;
+    gap: var(--vt-space-4);
+    margin: 0;
+    padding: 0 0 0 var(--vt-space-4);
+    border-inline-start: thin solid var(--vt-border-strong);
+    list-style: none;
+}
+
+.vm-ed-versions li {
+    display: flex;
+    flex-direction: column;
+    gap: var(--vt-space-1);
+}
+
+.vm-ed-versions small {
+    color: var(--vt-text-muted);
+}
+
+/* ------------------------------------------------------------------ könyvtár */
+
+.vm-lib-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(calc(var(--vt-space-32) * 2), 1fr));
+    gap: var(--vt-space-4);
+}
+
+.vm-lib-card {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: thin solid var(--vt-border);
+    border-radius: var(--vt-radius-lg);
+    background: var(--vt-surface);
+    color: var(--vt-text);
+    text-decoration: none;
+    text-align: start;
+    font: inherit;
+    padding: 0;
+    cursor: pointer;
+}
+
+.vm-lib-card a {
+    color: inherit;
+    text-decoration: none;
+}
+
+.vm-lib-card:hover,
+.vm-lib-card:focus-visible {
+    border-color: var(--vt-accent);
+    outline: none;
+}
+
+.vm-lib-card[aria-pressed='true'] {
+    border-color: var(--vt-accent);
+    box-shadow: 0 0 0 calc(var(--vt-space-1) * 0.25) var(--vt-accent);
+}
+
+.vm-lib-thumb {
+    display: flex;
+    justify-content: center;
+    padding: var(--vt-space-4);
+    background: var(--vt-surface-2);
+}
+
+.vm-lib-thumb__mail {
+    display: flex;
+    flex-direction: column;
+    gap: var(--vt-space-1);
+    inline-size: 70%;
+    padding: var(--vt-space-2);
+    border-radius: var(--vt-radius-sm);
+    background: var(--vt-color-neutral-0);
+    box-shadow: var(--vt-shadow-sm);
+}
+
+.vm-lib-thumb__row {
+    display: flex;
+    gap: var(--vt-space-1);
+    min-block-size: var(--vt-space-4);
+    border-radius: var(--vt-radius-sm);
+}
+
+.vm-lib-thumb__row span {
+    flex: 1 1 0;
+    border-radius: var(--vt-radius-sm);
+    background: var(--vt-color-neutral-100);
+}
+
+.vm-lib-thumb__row--tall {
+    min-block-size: var(--vt-space-10);
+}
+
+.vm-lib-card__body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--vt-space-1);
+    padding: var(--vt-space-3) var(--vt-space-4);
+}
+
+.vm-lib-card__body small {
+    color: var(--vt-text-muted);
+}
+
+.vm-lib-blocks {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(calc(var(--vt-space-32) * 1.75), 1fr));
+    gap: var(--vt-space-3);
+}
+
+.vm-lib-block {
+    display: flex;
+    align-items: center;
+    gap: var(--vt-space-3);
+    padding: var(--vt-space-3);
+    border: thin solid var(--vt-border);
+    border-radius: var(--vt-radius-md);
+    background: var(--vt-surface);
+}
+
+.vm-lib-block__icon {
+    display: grid;
+    place-items: center;
+    inline-size: var(--vt-space-8);
+    block-size: var(--vt-space-8);
+    border-radius: var(--vt-radius-sm);
+    background: var(--vt-surface-2);
+}
+
+.vm-lib-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--vt-space-2);
+}
+
+.vm-lib-filters button {
+    padding: var(--vt-space-1) var(--vt-space-3);
+    border: thin solid var(--vt-border);
+    border-radius: var(--vt-radius-full);
+    background: transparent;
+    color: var(--vt-text-muted);
+    font: inherit;
+    font-size: var(--vt-fs-body-sm);
+    cursor: pointer;
+}
+
+.vm-lib-filters button[aria-pressed='true'] {
+    border-color: var(--vt-accent);
+    color: var(--vt-text);
+}

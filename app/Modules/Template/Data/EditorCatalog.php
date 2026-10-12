@@ -42,6 +42,7 @@ final class EditorCatalog
                 ->map(fn (Segment $segment) => ['uuid' => (string) $segment->uuid, 'name' => (string) $segment->name])
                 ->values()->all(),
             'fonts' => array_keys(TemplateStyles::FONTS),
+            'fontStacks' => TemplateStyles::FONTS,
             'styleDefaults' => TemplateStyles::DEFAULTS,
             'styleRanges' => TemplateStyles::RANGES,
             'swatches' => self::SWATCHES,
@@ -108,17 +109,17 @@ final class EditorCatalog
     /**
      * Az OSZLOP-ELRENDEZÉSEK (az oszlopok szélessége százalékban).
      *
-     * @return list<array{key: string, columns: list<string>}>
+     * @return list<array{key: string, columns: list<string>, padding: string}>
      */
     public static function layouts(): array
     {
         return [
-            ['key' => '1', 'columns' => ['100%']],
-            ['key' => '2', 'columns' => ['50%', '50%']],
-            ['key' => '3', 'columns' => ['33.33%', '33.33%', '33.34%']],
-            ['key' => '4', 'columns' => ['25%', '25%', '25%', '25%']],
-            ['key' => '1-2', 'columns' => ['33.33%', '66.67%']],
-            ['key' => '2-1', 'columns' => ['66.67%', '33.33%']],
+            ['key' => '1', 'columns' => ['100%'], 'padding' => '16px 24px'],
+            ['key' => '2', 'columns' => ['50%', '50%'], 'padding' => '16px 16px'],
+            ['key' => '3', 'columns' => ['33.33%', '33.33%', '33.34%'], 'padding' => '16px 16px'],
+            ['key' => '4', 'columns' => ['25%', '25%', '25%', '25%'], 'padding' => '16px 12px'],
+            ['key' => '1-2', 'columns' => ['33.33%', '66.67%'], 'padding' => '16px 16px'],
+            ['key' => '2-1', 'columns' => ['66.67%', '33.33%'], 'padding' => '16px 16px'],
         ];
     }
 

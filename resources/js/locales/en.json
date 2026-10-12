@@ -1003,5 +1003,409 @@
         "name": "Name",
         "value": "Value",
         "rowStatus": "Status"
+    },
+    "editor": {
+        "common": {
+            "apply": "Apply",
+            "cancel": "Cancel",
+            "close": "Close",
+            "name": "Name",
+            "none": "None",
+            "save": "Save"
+        },
+        "top": {
+            "name": "Template name",
+            "undo": "Undo",
+            "redo": "Redo",
+            "versions": "Version history",
+            "preview": "Preview",
+            "saveExit": "Save & exit",
+            "more": "More save options",
+            "saveAs": "Save as…",
+            "saveTemplate": "Save as template",
+            "sendTest": "Send test"
+        },
+        "status": {
+            "saved": "Saved",
+            "dirty": "Unsaved changes",
+            "saving": "Saving…",
+            "error": "Not saved"
+        },
+        "rail": {
+            "label": "Editor tools",
+            "add": "Add",
+            "styles": "Styles",
+            "optimize": "Optimize",
+            "properties": "Settings"
+        },
+        "palette": {
+            "content": "Content",
+            "layouts": "Layouts",
+            "hint": "Drag a block onto the canvas — the blue line shows where it lands. Or click it to insert after the selection.",
+            "saved": "Saved blocks",
+            "columns": "Columns",
+            "patterns": "Patterns"
+        },
+        "blocks": {
+            "heading": "Heading",
+            "text": "Paragraph",
+            "button": "Button",
+            "divider": "Divider",
+            "spacer": "Spacer",
+            "image": "Image",
+            "logo": "Logo",
+            "social_follow": "Social follow",
+            "social_share": "Social share",
+            "video": "Video",
+            "html": "Code",
+            "product": "Product",
+            "survey": "Survey",
+            "footer": "Footer",
+            "unsubscribe": "Unsubscribe"
+        },
+        "layouts": {
+            "c1": "1 column",
+            "c2": "2 columns",
+            "c3": "3 columns",
+            "c4": "4 columns",
+            "c1_2": "1/3 – 2/3",
+            "c2_1": "2/3 – 1/3"
+        },
+        "patterns": {
+            "header": "Header",
+            "hero": "Hero",
+            "footer": "Footer"
+        },
+        "device": {
+            "label": "Canvas view",
+            "desktop": "Desktop",
+            "mobile": "Mobile",
+            "dark": "Dark"
+        },
+        "canvas": {
+            "empty": "Drag a layout or a block here to start.",
+            "emptyColumn": "Drop a block here"
+        },
+        "blockTools": {
+            "label": "Block actions",
+            "drag": "Drag to move",
+            "up": "Move up",
+            "down": "Move down",
+            "duplicate": "Duplicate",
+            "save": "Save as block",
+            "delete": "Delete"
+        },
+        "sectionTools": {
+            "label": "Section actions"
+        },
+        "text": {
+            "toolbar": "Text formatting",
+            "bold": "Bold",
+            "italic": "Italic",
+            "link": "Link",
+            "list": "Bulleted list",
+            "color": "Text colour",
+            "linkInvalid": "Only https://, mailto: or a merge tag."
+        },
+        "align": {
+            "left": "Align left",
+            "center": "Centre",
+            "right": "Align right"
+        },
+        "mergeTags": {
+            "title": "Insert merge tag",
+            "button": "Merge tag",
+            "fallback": "Default value",
+            "contact_first_name": "First name",
+            "contact_last_name": "Last name",
+            "contact_company": "Company",
+            "contact_email": "Email address",
+            "unsubscribe_url": "Unsubscribe link",
+            "preferences_url": "Preferences link",
+            "browser_url": "View in browser",
+            "current_year": "Current year",
+            "workspace_name": "Workspace name",
+            "workspace_address": "Workspace address"
+        },
+        "footer": {
+            "unsubscribe": "Unsubscribe",
+            "preferences": "Email preferences"
+        },
+        "networks": {
+            "facebook": "Facebook",
+            "x": "X",
+            "twitter": "Twitter",
+            "instagram": "Instagram",
+            "linkedin": "LinkedIn",
+            "youtube": "YouTube",
+            "tiktok": "TikTok"
+        },
+        "fonts": {
+            "sans": "Sans-serif (Helvetica, Arial)",
+            "humanist": "Humanist (Verdana)",
+            "rounded": "Rounded (Trebuchet)",
+            "serif": "Serif (Georgia)",
+            "mono": "Monospace (Courier)"
+        },
+        "styles": {
+            "typography": "Typography",
+            "font": "Font",
+            "fontSize": "Body text size — {value} px",
+            "colors": "Colours",
+            "textColor": "Text",
+            "headingColor": "Headings",
+            "linkColor": "Links",
+            "contentBackground": "Background (email)",
+            "background": "Background (outer)",
+            "button": "Button",
+            "buttonBackground": "Button colour",
+            "buttonColor": "Button text",
+            "buttonRadius": "Corner radius — {value} px",
+            "layout": "Layout",
+            "width": "Email width — {value} px"
+        },
+        "props": {
+            "label": "Label",
+            "selected": "Selected",
+            "settings": "Email settings",
+            "message": "Subject and preview text",
+            "section": "Section",
+            "subject": "Subject",
+            "preheader": "Preview text",
+            "preheaderHint": "Shown after the subject in the inbox list.",
+            "addFirstName": "Add first name",
+            "marketingNote": "Campaign-ready template: the footer with postal address, unsubscribe and preferences links is required.",
+            "selectHint": "Select a block or section on the canvas to edit it.",
+            "layout": "Columns",
+            "background": "Background",
+            "padding": "Inner spacing (px)",
+            "sides": {
+                "top": "Top",
+                "right": "Right",
+                "bottom": "Bottom",
+                "left": "Left"
+            },
+            "hideMobile": "Hide on mobile",
+            "display": "Display",
+            "level": "Heading level",
+            "levelOption": "Heading {level}",
+            "fontSize": "Size (px)",
+            "lineHeight": "Line height",
+            "textColor": "Text colour",
+            "inlineHint": "Edit the text directly on the canvas; the toolbar appears when you click into it.",
+            "link": "Link",
+            "buttonBackground": "Button colour",
+            "buttonColor": "Button text",
+            "radius": "Corner radius (px)",
+            "lineColor": "Line colour",
+            "height": "Height (px)",
+            "image": "Image",
+            "alt": "Alt text",
+            "altHint": "Most email apps block images at first — this is what readers see.",
+            "width": "Width (px)",
+            "thumbnail": "Thumbnail",
+            "videoLink": "Video link",
+            "playLabel": "Play label",
+            "networks": "Profiles",
+            "addNetwork": "Add profile",
+            "shareUrl": "Page to share",
+            "shareHint": "The share links are built from this address.",
+            "html": "HTML",
+            "htmlHint": "Unsafe elements (scripts, forms, frames) are removed when saving.",
+            "productName": "Product name",
+            "description": "Description",
+            "price": "Price",
+            "oldPrice": "Old price",
+            "question": "Question",
+            "surveyUrl": "Answer page",
+            "surveyHint": "Each answer links here with answer=1, 2, …",
+            "answers": "Answers",
+            "addAnswer": "Add answer",
+            "newAnswer": "New answer",
+            "company": "Company",
+            "address": "Postal address",
+            "addressHint": "Required by law in marketing emails.",
+            "addressRequired": "The postal address is required.",
+            "footerText": "Extra text",
+            "unsubscribeLabel": "Unsubscribe label",
+            "preferencesLabel": "Preferences label",
+            "footerLocked": "The unsubscribe and preferences links are always included and cannot be removed.",
+            "align": "Alignment"
+        },
+        "condition": {
+            "title": "Conditional block",
+            "hint": "Show only to a segment or by a field value",
+            "kind": "Show if",
+            "kindSegment": "Segment",
+            "kindField": "Field",
+            "segment": "Segment",
+            "field": "Field",
+            "op": "Condition",
+            "value": "Value",
+            "ops": {
+                "in": "is a member",
+                "not_in": "is not a member",
+                "equals": "equals",
+                "not_equals": "does not equal",
+                "contains": "contains",
+                "is_set": "is filled in",
+                "is_not_set": "is empty"
+            },
+            "badgeSegment": "Only: {name}",
+            "badgeNotSegment": "Not: {name}",
+            "badgeField": "If {field} {op} {value}",
+            "sectionBadge": "Conditional section",
+            "complianceLocked": "Footer and unsubscribe elements are always shown — they cannot be conditional."
+        },
+        "image": {
+            "upload": "Upload",
+            "library": "Uploaded images"
+        },
+        "optimize": {
+            "preview": "Preview",
+            "rerun": "Check again",
+            "failed": "The check could not run.",
+            "links": "Links · {count}",
+            "linksSummary": "{broken} broken, {utm} without UTM parameters.",
+            "addUtm": "Add UTM",
+            "issues": {
+                "empty": "empty",
+                "unsafe": "not allowed",
+                "malformed": "malformed",
+                "placeholder": "example address",
+                "missing_utm": "no UTM"
+            },
+            "images": "Images · {count}",
+            "imagesSummary": "{missing} without alt text. Largest upload: {largest}.",
+            "missingAlt": "Image without alt text",
+            "weight": "Size: {size} / {limit}",
+            "clipHint": "Gmail clips emails above 102 KB.",
+            "clipped": "Gmail will clip this email — shorten it or remove blocks.",
+            "spam": "Spam score: {score} / {max}",
+            "spamClean": "Good — no risky patterns found.",
+            "spamFindings": "Suggestions:",
+            "spamRules": {
+                "EMPTY_SUBJECT": "Add a subject line.",
+                "LONG_SUBJECT": "Keep the subject under 90 characters.",
+                "SHOUTING_SUBJECT": "Avoid an all-caps subject.",
+                "EXCESSIVE_PUNCTUATION": "Use fewer exclamation and question marks in the subject.",
+                "EMPTY_BODY": "The email needs text content.",
+                "NO_PLAIN_TEXT": "Add a plain-text version.",
+                "IMAGE_HEAVY": "Add more text — image-only emails look suspicious.",
+                "URL_SHORTENER": "Replace shortened links with full addresses.",
+                "BLOCKLISTED_DOMAIN": "A linked domain is on a blocklist — remove the link.",
+                "MANY_LINKS": "Reduce the number of links."
+            },
+            "compliance": "Required elements",
+            "complianceOk": "Postal address, unsubscribe and preferences links: all present.",
+            "complianceMissing": "Missing: {items}.",
+            "complianceItems": {
+                "postal_address": "postal address",
+                "unsubscribe": "unsubscribe link",
+                "preferences": "preferences link"
+            }
+        },
+        "testSend": {
+            "title": "Send a test",
+            "hint": "Test emails go only to workspace members and seed addresses, through the same sending checks as any email.",
+            "recipients": "Recipients",
+            "noRecipients": "There is no allowed test recipient.",
+            "kinds": {
+                "member": "member",
+                "seed": "seed"
+            },
+            "from": "Sender",
+            "noDomain": "Verify a sending domain first.",
+            "submit": "Send test",
+            "sent": "Test sent to {count} recipient(s).",
+            "failed": "The test was not sent.",
+            "saveFirst": "Fix the errors and save before sending a test.",
+            "reasons": {
+                "SENDING_RESTRICTED": "Seed mode: only allowlisted addresses can receive email right now.",
+                "CHANNEL_DISABLED": "Sending is switched off on this channel.",
+                "DOMAIN_UNVERIFIED": "The sender domain is not verified.",
+                "SUPPRESSED": "The recipient is on the suppression list.",
+                "NO_CONSENT": "There is no consent for this recipient.",
+                "QUOTA_EXCEEDED": "The sending quota is used up.",
+                "RATE_LIMITED": "Too many emails right now — try again in a minute.",
+                "VALIDATION_RISK": "The address looks risky.",
+                "INVALID_REQUEST": "The request was invalid.",
+                "GATE_ERROR": "A sending check failed — try again."
+            }
+        },
+        "preview": {
+            "title": "Preview",
+            "plain": "Plain text",
+            "failed": "The preview could not be built.",
+            "size": "HTML size: {size} KB"
+        },
+        "versions": {
+            "title": "Version history",
+            "current": "Current",
+            "restore": "Restore",
+            "restored": "Version restored — saved as a new version.",
+            "failed": "The version could not be restored.",
+            "system": "system",
+            "hint": "Restoring creates a new version; earlier ones are kept.",
+            "reasons": {
+                "save": "Saved",
+                "autosave": "Autosave",
+                "restore": "Restored from v{from}",
+                "create": "Created"
+            }
+        },
+        "save": {
+            "copyName": "{name} (copy)",
+            "templateDone": "Saved to the library as “{name}”."
+        },
+        "saveBlock": {
+            "defaultName": "My block",
+            "done": "“{name}” saved to your blocks."
+        },
+        "nameModal": {
+            "saveAs": "Save as",
+            "saveTemplate": "Save as template",
+            "saveBlock": "Save as block"
+        }
+    },
+    "library": {
+        "eyebrow": "Studio · Templates",
+        "title": "Template library",
+        "lead": "Your templates, saved blocks and six starter templates — all in the Venture design language.",
+        "search": "Search templates",
+        "new": "New template",
+        "filter": "Filter",
+        "filters": {
+            "all": "All",
+            "own": "My templates · {count}",
+            "blocks": "Saved blocks · {count}",
+            "starters": "Starter templates · {count}"
+        },
+        "own": "My templates",
+        "ownEmpty": "No templates yet — start from a starter template below.",
+        "edit": "Edit {name}",
+        "marketing": "marketing",
+        "transactional": "transactional",
+        "duplicate": "Duplicate",
+        "delete": "Delete",
+        "deleteTitle": "Delete template",
+        "deleteConfirm": "Delete “{name}”? Campaigns that already used it keep their content.",
+        "blocks": "Saved blocks",
+        "blocksEmpty": "Save a section or block from the editor to reuse it here.",
+        "savedSection": "saved section",
+        "savedBlock": "saved block",
+        "starters": "Starter templates",
+        "startersHint": "They open as a copy; the original never changes.",
+        "create": {
+            "title": "New template",
+            "source": "Start from",
+            "blank": "Blank",
+            "copyOf": "Copy of “{name}”",
+            "name": "Name",
+            "subject": "Subject",
+            "subjectHint": "Optional — the starter template suggests one.",
+            "marketing": "Marketing email (requires the footer with postal address and unsubscribe)",
+            "submit": "Create template"
+        }
     }
 }

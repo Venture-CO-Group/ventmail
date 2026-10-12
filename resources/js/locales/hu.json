@@ -1003,5 +1003,409 @@
         "name": "Név",
         "value": "Érték",
         "rowStatus": "Állapot"
+    },
+    "editor": {
+        "common": {
+            "apply": "Alkalmaz",
+            "cancel": "Mégse",
+            "close": "Bezárás",
+            "name": "Név",
+            "none": "Nincs",
+            "save": "Mentés"
+        },
+        "top": {
+            "name": "Sablon neve",
+            "undo": "Visszavonás",
+            "redo": "Újra",
+            "versions": "Verziótörténet",
+            "preview": "Előnézet",
+            "saveExit": "Mentés és kilépés",
+            "more": "További mentési lehetőségek",
+            "saveAs": "Mentés másként…",
+            "saveTemplate": "Mentés sablonként",
+            "sendTest": "Teszt küldése"
+        },
+        "status": {
+            "saved": "Mentve",
+            "dirty": "Mentetlen változás",
+            "saving": "Mentés…",
+            "error": "Nincs mentve"
+        },
+        "rail": {
+            "label": "Szerkesztő eszközök",
+            "add": "Hozzáadás",
+            "styles": "Stílusok",
+            "optimize": "Optimalizálás",
+            "properties": "Beállítás"
+        },
+        "palette": {
+            "content": "Tartalom",
+            "layouts": "Elrendezés",
+            "hint": "Húzd a blokkot a vászonra — a kék jelző mutatja, hová kerül. Vagy kattints rá, és a kijelölés után kerül be.",
+            "saved": "Mentett blokkok",
+            "columns": "Oszlopok",
+            "patterns": "Minták"
+        },
+        "blocks": {
+            "heading": "Címsor",
+            "text": "Bekezdés",
+            "button": "Gomb",
+            "divider": "Elválasztó",
+            "spacer": "Térköz",
+            "image": "Kép",
+            "logo": "Logó",
+            "social_follow": "Közösségi követés",
+            "social_share": "Közösségi megosztás",
+            "video": "Videó",
+            "html": "Kód",
+            "product": "Termék",
+            "survey": "Kérdőív",
+            "footer": "Lábléc",
+            "unsubscribe": "Leiratkozás"
+        },
+        "layouts": {
+            "c1": "1 oszlop",
+            "c2": "2 oszlop",
+            "c3": "3 oszlop",
+            "c4": "4 oszlop",
+            "c1_2": "1/3 – 2/3",
+            "c2_1": "2/3 – 1/3"
+        },
+        "patterns": {
+            "header": "Fejléc",
+            "hero": "Hero",
+            "footer": "Lábléc"
+        },
+        "device": {
+            "label": "Vászon nézet",
+            "desktop": "Desktop",
+            "mobile": "Mobil",
+            "dark": "Sötét"
+        },
+        "canvas": {
+            "empty": "Húzz ide egy elrendezést vagy blokkot a kezdéshez.",
+            "emptyColumn": "Ide húzd a blokkot"
+        },
+        "blockTools": {
+            "label": "Blokk-műveletek",
+            "drag": "Húzd az áthelyezéshez",
+            "up": "Mozgatás fel",
+            "down": "Mozgatás le",
+            "duplicate": "Duplikálás",
+            "save": "Mentés blokként",
+            "delete": "Törlés"
+        },
+        "sectionTools": {
+            "label": "Szakasz-műveletek"
+        },
+        "text": {
+            "toolbar": "Szövegformázás",
+            "bold": "Félkövér",
+            "italic": "Dőlt",
+            "link": "Link",
+            "list": "Felsorolás",
+            "color": "Betűszín",
+            "linkInvalid": "Csak https://, mailto: vagy merge-tag lehet."
+        },
+        "align": {
+            "left": "Balra igazítás",
+            "center": "Középre",
+            "right": "Jobbra igazítás"
+        },
+        "mergeTags": {
+            "title": "Merge-tag beszúrása",
+            "button": "Merge-tag",
+            "fallback": "Alapérték",
+            "contact_first_name": "Keresztnév",
+            "contact_last_name": "Vezetéknév",
+            "contact_company": "Cég",
+            "contact_email": "E-mail-cím",
+            "unsubscribe_url": "Leiratkozás-link",
+            "preferences_url": "Beállítás-link",
+            "browser_url": "Böngészős nézet",
+            "current_year": "Aktuális év",
+            "workspace_name": "Workspace neve",
+            "workspace_address": "Workspace-cím"
+        },
+        "footer": {
+            "unsubscribe": "Leiratkozás",
+            "preferences": "Levélbeállítások"
+        },
+        "networks": {
+            "facebook": "Facebook",
+            "x": "X",
+            "twitter": "Twitter",
+            "instagram": "Instagram",
+            "linkedin": "LinkedIn",
+            "youtube": "YouTube",
+            "tiktok": "TikTok"
+        },
+        "fonts": {
+            "sans": "Talpatlan (Helvetica, Arial)",
+            "humanist": "Humanista (Verdana)",
+            "rounded": "Lekerekített (Trebuchet)",
+            "serif": "Talpas (Georgia)",
+            "mono": "Írógép (Courier)"
+        },
+        "styles": {
+            "typography": "Tipográfia",
+            "font": "Betűtípus",
+            "fontSize": "Törzsszöveg mérete — {value} px",
+            "colors": "Színek",
+            "textColor": "Szöveg",
+            "headingColor": "Címsorok",
+            "linkColor": "Linkek",
+            "contentBackground": "Háttér (levél)",
+            "background": "Háttér (külső)",
+            "button": "Gomb",
+            "buttonBackground": "Gombszín",
+            "buttonColor": "Gomb szövege",
+            "buttonRadius": "Sarok-lekerekítés — {value} px",
+            "layout": "Elrendezés",
+            "width": "Levél szélessége — {value} px"
+        },
+        "props": {
+            "label": "Felirat",
+            "selected": "Kijelölt elem",
+            "settings": "Levél beállításai",
+            "message": "Tárgy és előnézeti szöveg",
+            "section": "Szakasz",
+            "subject": "Tárgy",
+            "preheader": "Előnézeti szöveg",
+            "preheaderHint": "A tárgysor után látszik a postaláda-listában.",
+            "addFirstName": "Keresztnév hozzáadása",
+            "marketingNote": "Kampányra használható sablon: a lábléc postai címmel, leiratkozó és beállítás-linkkel kötelező.",
+            "selectHint": "Jelölj ki egy blokkot vagy szakaszt a vásznon a szerkesztéshez.",
+            "layout": "Oszlopok",
+            "background": "Háttér",
+            "padding": "Belső margó (px)",
+            "sides": {
+                "top": "Fent",
+                "right": "Jobbra",
+                "bottom": "Lent",
+                "left": "Balra"
+            },
+            "hideMobile": "Elrejtés mobilon",
+            "display": "Megjelenítés",
+            "level": "Címsor szintje",
+            "levelOption": "{level}. szintű címsor",
+            "fontSize": "Méret (px)",
+            "lineHeight": "Sormagasság",
+            "textColor": "Szövegszín",
+            "inlineHint": "A szöveget közvetlenül a vásznon szerkeszted; az eszköztár a szövegbe kattintva jelenik meg.",
+            "link": "Link",
+            "buttonBackground": "Gombszín",
+            "buttonColor": "Gomb szövege",
+            "radius": "Sarok-lekerekítés (px)",
+            "lineColor": "Vonal színe",
+            "height": "Magasság (px)",
+            "image": "Kép",
+            "alt": "Alt-szöveg",
+            "altHint": "A legtöbb levelező először blokkolja a képeket — az olvasó ezt látja.",
+            "width": "Szélesség (px)",
+            "thumbnail": "Bélyegkép",
+            "videoLink": "Videó linkje",
+            "playLabel": "Lejátszás felirata",
+            "networks": "Profilok",
+            "addNetwork": "Profil hozzáadása",
+            "shareUrl": "Megosztandó oldal",
+            "shareHint": "A megosztó linkek ebből a címből készülnek.",
+            "html": "HTML",
+            "htmlHint": "A veszélyes elemeket (szkript, űrlap, keret) a mentés eltávolítja.",
+            "productName": "Termék neve",
+            "description": "Leírás",
+            "price": "Ár",
+            "oldPrice": "Régi ár",
+            "question": "Kérdés",
+            "surveyUrl": "Válaszoldal",
+            "surveyHint": "Minden válasz ide mutat answer=1, 2, … paraméterrel.",
+            "answers": "Válaszok",
+            "addAnswer": "Válasz hozzáadása",
+            "newAnswer": "Új válasz",
+            "company": "Cég",
+            "address": "Postai cím",
+            "addressHint": "Marketing levélben jogszabály írja elő.",
+            "addressRequired": "A postai cím kötelező.",
+            "footerText": "Kiegészítő szöveg",
+            "unsubscribeLabel": "Leiratkozás felirata",
+            "preferencesLabel": "Beállítások felirata",
+            "footerLocked": "A leiratkozó és a beállítás-link mindig benne van, nem vehető ki.",
+            "align": "Igazítás"
+        },
+        "condition": {
+            "title": "Feltételes blokk",
+            "hint": "Szegmens vagy mező alapján jelenik meg",
+            "kind": "Megjelenik, ha",
+            "kindSegment": "Szegmens",
+            "kindField": "Mező",
+            "segment": "Szegmens",
+            "field": "Mező",
+            "op": "Feltétel",
+            "value": "Érték",
+            "ops": {
+                "in": "tagja",
+                "not_in": "nem tagja",
+                "equals": "egyenlő",
+                "not_equals": "nem egyenlő",
+                "contains": "tartalmazza",
+                "is_set": "ki van töltve",
+                "is_not_set": "üres"
+            },
+            "badgeSegment": "Csak: {name}",
+            "badgeNotSegment": "Nem: {name}",
+            "badgeField": "Ha {field} {op} {value}",
+            "sectionBadge": "Feltételes szakasz",
+            "complianceLocked": "A lábléc és a leiratkozó elem mindig látszik — nem lehet feltételes."
+        },
+        "image": {
+            "upload": "Feltöltés",
+            "library": "Feltöltött képek"
+        },
+        "optimize": {
+            "preview": "Előnézet",
+            "rerun": "Újraellenőrzés",
+            "failed": "Az ellenőrzés nem futott le.",
+            "links": "Linkek · {count} db",
+            "linksSummary": "{broken} törött, {utm} UTM nélkül.",
+            "addUtm": "UTM hozzáadása",
+            "issues": {
+                "empty": "üres",
+                "unsafe": "nem engedett",
+                "malformed": "hibás alak",
+                "placeholder": "példa-cím",
+                "missing_utm": "nincs UTM"
+            },
+            "images": "Képek · {count} db",
+            "imagesSummary": "{missing} kép alt-szöveg nélkül. Legnagyobb feltöltés: {largest}.",
+            "missingAlt": "Kép alt-szöveg nélkül",
+            "weight": "Méret: {size} / {limit}",
+            "clipHint": "A Gmail 102 KB felett levágja a levelet.",
+            "clipped": "A Gmail le fogja vágni a levelet — rövidítsd vagy vegyél ki blokkokat.",
+            "spam": "Spam-pontszám: {score} / {max}",
+            "spamClean": "Jó — nincs kockázatos minta.",
+            "spamFindings": "Javaslatok:",
+            "spamRules": {
+                "EMPTY_SUBJECT": "Adj tárgyat a levélnek.",
+                "LONG_SUBJECT": "A tárgy legyen 90 karakter alatt.",
+                "SHOUTING_SUBJECT": "Ne írd csupa nagybetűvel a tárgyat.",
+                "EXCESSIVE_PUNCTUATION": "Kevesebb felkiáltó- és kérdőjelet a tárgyba.",
+                "EMPTY_BODY": "A levélnek legyen szöveges tartalma.",
+                "NO_PLAIN_TEXT": "Adj sima szöveges változatot is.",
+                "IMAGE_HEAVY": "Több szöveget — a csak képből álló levél gyanús.",
+                "URL_SHORTENER": "A rövidített linkeket cseréld teljes címre.",
+                "BLOCKLISTED_DOMAIN": "Egy linkelt domain feketelistán van — vedd ki a linket.",
+                "MANY_LINKS": "Csökkentsd a linkek számát."
+            },
+            "compliance": "Kötelező elemek",
+            "complianceOk": "Postai cím, leiratkozás, preferenciák: rendben.",
+            "complianceMissing": "Hiányzik: {items}.",
+            "complianceItems": {
+                "postal_address": "postai cím",
+                "unsubscribe": "leiratkozó link",
+                "preferences": "beállítás-link"
+            }
+        },
+        "testSend": {
+            "title": "Teszt küldés",
+            "hint": "A teszt-levél csak a workspace tagjainak és a seed-címekre megy, ugyanazokon a küldési ellenőrzéseken át, mint bármely levél.",
+            "recipients": "Címzettek",
+            "noRecipients": "Nincs engedélyezett teszt-címzett.",
+            "kinds": {
+                "member": "tag",
+                "seed": "seed"
+            },
+            "from": "Feladó",
+            "noDomain": "Előbb hitelesíts egy küldő domaint.",
+            "submit": "Teszt küldése",
+            "sent": "A teszt elment {count} címzettnek.",
+            "failed": "A teszt nem ment el.",
+            "saveFirst": "Javítsd a hibákat és ments a teszt-küldés előtt.",
+            "reasons": {
+                "SENDING_RESTRICTED": "Seed-mód: most csak az allowlistes címek kaphatnak levelet.",
+                "CHANNEL_DISABLED": "Ezen a csatornán a küldés ki van kapcsolva.",
+                "DOMAIN_UNVERIFIED": "A feladó domainje nincs hitelesítve.",
+                "SUPPRESSED": "A címzett a tiltólistán van.",
+                "NO_CONSENT": "Ehhez a címzetthez nincs hozzájárulás.",
+                "QUOTA_EXCEEDED": "Elfogyott a küldési keret.",
+                "RATE_LIMITED": "Túl sok levél egyszerre — próbáld újra egy perc múlva.",
+                "VALIDATION_RISK": "A cím kockázatosnak tűnik.",
+                "INVALID_REQUEST": "Érvénytelen kérés.",
+                "GATE_ERROR": "Egy küldési ellenőrzés hibázott — próbáld újra."
+            }
+        },
+        "preview": {
+            "title": "Előnézet",
+            "plain": "Sima szöveg",
+            "failed": "Az előnézet nem készült el.",
+            "size": "HTML-méret: {size} KB"
+        },
+        "versions": {
+            "title": "Verziótörténet",
+            "current": "Jelenlegi",
+            "restore": "Visszaállít",
+            "restored": "Visszaállítva — új verzióként mentve.",
+            "failed": "A verzió nem állítható vissza.",
+            "system": "rendszer",
+            "hint": "Visszaállításkor új verzió jön létre — a korábbiak megmaradnak.",
+            "reasons": {
+                "save": "Mentés",
+                "autosave": "Automatikus mentés",
+                "restore": "Visszaállítva a v{from} verzióból",
+                "create": "Létrehozva"
+            }
+        },
+        "save": {
+            "copyName": "{name} (másolat)",
+            "templateDone": "A könyvtárba mentve: „{name}”."
+        },
+        "saveBlock": {
+            "defaultName": "Saját blokk",
+            "done": "„{name}” a mentett blokkok közé került."
+        },
+        "nameModal": {
+            "saveAs": "Mentés másként",
+            "saveTemplate": "Mentés sablonként",
+            "saveBlock": "Mentés blokként"
+        }
+    },
+    "library": {
+        "eyebrow": "Studio · Sablonok",
+        "title": "Sablonkönyvtár",
+        "lead": "Saját sablonok, mentett blokkok és hat induló sablon — mind a Venture designnyelvén.",
+        "search": "Sablon keresése",
+        "new": "Új sablon",
+        "filter": "Szűrés",
+        "filters": {
+            "all": "Mind",
+            "own": "Saját sablonok · {count}",
+            "blocks": "Mentett blokkok · {count}",
+            "starters": "Indulósablonok · {count}"
+        },
+        "own": "Saját sablonok",
+        "ownEmpty": "Még nincs sablon — kezdj egy indulósablonból lent.",
+        "edit": "{name} szerkesztése",
+        "marketing": "marketing",
+        "transactional": "tranzakciós",
+        "duplicate": "Duplikálás",
+        "delete": "Törlés",
+        "deleteTitle": "Sablon törlése",
+        "deleteConfirm": "Törlöd: „{name}”? A kampányok, amelyek már használták, megtartják a tartalmukat.",
+        "blocks": "Mentett blokkok",
+        "blocksEmpty": "Ments egy szakaszt vagy blokkot a szerkesztőből, és itt újrahasználhatod.",
+        "savedSection": "mentett szakasz",
+        "savedBlock": "mentett blokk",
+        "starters": "Indulósablonok",
+        "startersHint": "Másolatként nyílnak meg, az eredeti nem módosul.",
+        "create": {
+            "title": "Új sablon",
+            "source": "Kiindulás",
+            "blank": "Üres",
+            "copyOf": "„{name}” másolata",
+            "name": "Név",
+            "subject": "Tárgy",
+            "subjectHint": "Nem kötelező — az indulósablon javasol egyet.",
+            "marketing": "Marketing levél (kötelező a lábléc postai címmel és leiratkozással)",
+            "submit": "Sablon létrehozása"
+        }
     }
 }
