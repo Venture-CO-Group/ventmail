@@ -1,5 +1,6 @@
 # ventMail on the mail-box edge (venture-infra boxes/mail/edge/sites/).
 # app.  : the web UI     api. : the /v1 API     apex : the static product landing
+# www.  : permanent redirect to the apex (no app traffic)
 # (served by the same app; the app refuses every other path on the apex host).
 #
 # Traffic only goes to a colour that passes its health check (blue/green, see
@@ -38,4 +39,9 @@ api.ventmail.app {
 
 ventmail.app {
 	import ventmail_site ventmail.app
+}
+
+www.ventmail.app {
+	import security_headers
+	redir https://ventmail.app{uri} 308
 }
