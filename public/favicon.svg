@@ -1,12 +1,14 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="ventMail">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 946.4 946.4"><svg x="55.55000000000001" y="0" width="835.3" height="946.4" viewBox="0 0 835.3 946.4">
   <defs>
-    <linearGradient id="g" x1="48" y1="32" x2="464" y2="480" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#46D6FF"/>
-      <stop offset="0.5" stop-color="#5B7CFF"/>
-      <stop offset="1" stop-color="#9670FF"/>
+    <style>
+      .cls-1 {
+        fill: url(#linear-gradient);
+      }
+    </style>
+    <linearGradient id="linear-gradient" x1="72.9" y1="514.7" x2="762.3" y2="514.7" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#7427c6"/>
+      <stop offset="1" stop-color="#310b59"/>
     </linearGradient>
   </defs>
-  <rect width="512" height="512" rx="120" fill="url(#g)"/>
-  <rect x="104" y="146" width="304" height="220" rx="40" fill="none" stroke="#080B16" stroke-width="34" stroke-linejoin="round"/>
-  <path d="M116 176 256 286 396 176" fill="none" stroke="#080B16" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/>
-</svg>
+  <path class="cls-1" d="M383.5,249.1v134.7s12.7,0,12.7,0h12s132.9-182.5,132.9-182.5h221.2v118.6l-373.9,508.2h-162.6v-237.3c0-75.6-61.3-137-137-137h-15.9v-252.5h262.8c26.4,0,47.8,21.4,47.8,47.8Z"/>
+</svg></svg>

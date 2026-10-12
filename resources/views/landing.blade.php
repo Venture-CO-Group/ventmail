@@ -92,7 +92,10 @@
             <a href="https://sso.ventureco.app/terms" rel="noopener">{{ __('landing.footer.terms') }}</a>
             <a href="https://sso.ventureco.app/privacy-policy" rel="noopener">{{ __('landing.footer.privacy') }}</a>
         </nav>
-        <p class="landing__copy">&copy; Venture CO Group</p>
+        <div class="landing__venture">
+            <img src="/brand/venture-logo-light.svg" alt="Venture CO Group" width="51" height="24">
+            <p class="landing__copy">&copy; {{ date('Y') }} Venture CO Group</p>
+        </div>
     </footer>
 </body>
 </html>

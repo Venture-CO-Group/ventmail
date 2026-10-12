@@ -139,7 +139,7 @@ main,
 }
 
 .landing__hero {
-    padding-block: var(--vt-space-16) var(--vt-space-12);
+    padding-block: var(--vt-space-16) var(--vt-space-10);
 }
 
 .landing__title {
@@ -170,7 +170,7 @@ main,
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(min(calc(var(--vt-space-32) * 2.5), 100%), 1fr));
     gap: var(--vt-space-6);
-    padding-block: var(--vt-space-8);
+    padding-block: 0 var(--vt-space-12);
 }
 
 .landing__card {
@@ -212,10 +212,25 @@ main,
     border-top: thin solid var(--vt-border);
 }
 
+/*
+ | EGYSÉGES FÜGGŐLEGES RITMUS: minden szakasz ugyanakkora térközzel jön, és a szakasz
+ | utolsó szövegének nincs alsó margója — különben a térközök összeadódnak, és egy rövid
+ | szakasz („Egy motor, két oldal") lebegni látszik.
+ */
 .landing__engine,
 .landing__deliver,
 .landing__eu {
-    padding-block: var(--vt-space-8);
+    padding-block: 0 var(--vt-space-12);
+}
+
+.landing__engine > :last-child,
+.landing__eu > :last-child,
+.landing__card > :last-child {
+    margin-bottom: 0;
+}
+
+.landing__deliver .landing__lede {
+    margin-bottom: var(--vt-space-6);
 }
 
 .landing__grid {
@@ -234,6 +249,7 @@ main,
 }
 
 .landing__eu {
+    padding-top: var(--vt-space-10);
     border-top: thin solid var(--vt-border);
 }
 
@@ -260,6 +276,18 @@ main,
 
 .landing__legal a:hover {
     color: var(--vt-text);
+}
+
+.landing__venture {
+    display: flex;
+    align-items: center;
+    gap: var(--vt-space-3);
+}
+
+.landing__venture img {
+    display: block;
+    height: var(--vt-space-6);
+    width: auto;
 }
 
 .landing__copy {

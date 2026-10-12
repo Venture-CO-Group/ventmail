@@ -14,6 +14,9 @@ interface SharedProps {
     app: { version: string };
 }
 
+// Kötött `src`: a public/ mappából szolgált eszköz (a ventSSO brand-készletéből).
+const ventureLogo = '/brand/venture-logo-light.svg';
+
 const page = usePage<SharedProps>();
 const { t } = useI18n({ useScope: 'global' });
 
@@ -25,7 +28,13 @@ const version = computed(() => page.props.app?.version ?? 'dev');
     <main class="auth" data-testid="auth-shell">
         <div class="vt-glow-rim auth__rim">
             <div class="vt-glass vt-glass--thick auth__card vt-glow-rim__card">
-                <BrandLogo class="auth__brand" />
+                <!-- A ventSSO-kártya mintájára: a Venture CO Group logó vezet, a termék mellette. -->
+                <div class="auth__brand">
+                    <a href="https://ventureco.app" rel="noopener" class="auth__venture">
+                        <img :src="ventureLogo" alt="Venture CO Group" class="auth__venture-logo" />
+                    </a>
+                    <BrandLogo class="auth__product" />
+                </div>
                 <slot />
                 <div class="auth__foot">
                     <span data-testid="auth-host">{{ host }}</span>

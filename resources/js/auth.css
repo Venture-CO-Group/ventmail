@@ -33,8 +33,27 @@
 }
 
 .auth__brand {
-    display: inline-block;
-    margin-bottom: var(--vt-space-6);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--vt-space-4);
+    margin-bottom: var(--vt-space-8);
+}
+
+.auth__venture {
+    display: inline-flex;
+}
+
+/* A ventSSO kártyájával azonos logó-magasság (--vt-space-8). */
+.auth__venture-logo {
+    display: block;
+    height: var(--vt-space-8);
+    width: auto;
+}
+
+.auth__product {
+    font-size: var(--vt-fs-body-sm);
 }
 
 .auth__title {
@@ -135,4 +154,9 @@
     outline: none;
     box-shadow: 0 0 0 var(--vt-space-1) var(--vt-ring);
     border-radius: var(--vt-radius-sm);
+}
+
+.auth__product .brand-logo__mark {
+    width: var(--vt-space-6);
+    height: var(--vt-space-6);
 }
