@@ -129,13 +129,13 @@ expect "a failed preflight cache stops before the dump and the migration" '[ "$r
 teardown
 
 setup
-printf 'APP_ENV=production\n' >"$APP_DIR/.env"
+printf 'APP_ENV=production\nTRUSTED_HOSTS=app.ventmail.app,ventmail.app\n' >"$APP_DIR/.env"
 rc=0; "$DEPLOY" v1.0.0 >/dev/null 2>&1 || rc=$?
 expect "refuses to migrate without knowing which database to dump" '[ "$rc" -ne 0 ] && ! called migrate'
 teardown
 
 setup
-printf 'DB_DATABASE="ventmail"\n' >"$APP_DIR/.env"
+printf 'DB_DATABASE="ventmail"\nTRUSTED_HOSTS=app.ventmail.app,ventmail.app\n' >"$APP_DIR/.env"
 "$DEPLOY" v1.0.0 >/dev/null 2>&1
 expect "reads a quoted DB_DATABASE" 'called "pg_dump -U postgres -Fc ventmail$"'
 teardown
