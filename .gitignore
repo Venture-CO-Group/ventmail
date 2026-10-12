@@ -45,3 +45,6 @@ Thumbs.db
 
 # A Playwright mentett munkamenete (bejelentkezett állapot) — gépenként más, nem verziózzuk.
 e2e/.auth/
+
+# A production env-PÉLDA csak kulcsokat tartalmaz (DeployArtifactsTest őrzi) — verziózott.
+!deploy/.env.production.example
