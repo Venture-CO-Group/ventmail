@@ -23,6 +23,21 @@ final class ImportFileInspector
     public function __construct(private readonly EmailSyntax $syntax) {}
 
     /**
+     * OLCSÓ ŐRÖK a KÉRÉSBEN (D71): zip-szerkezet + valós bájt- és csomópont-számlálás streamen. Az
+     * openspout NEM fut; a teljes felmérés a háttérjobban (`inspect()`).
+     *
+     * @throws ImportLimitExceeded
+     */
+    public function guard(string $path, string $format): void
+    {
+        $this->deadline = microtime(true) + (int) config('audience.import.inspect_budget_seconds');
+
+        if ($format === 'xlsx') {
+            $this->assertSafeZip($path);
+        }
+    }
+
+    /**
      * @return array{
      *     format: string, delimiter: string, encoding: string, sheets: list<string>,
      *     sheet: string|null, hasHeader: bool, columns: list<string>, width: int,
@@ -31,9 +46,9 @@ final class ImportFileInspector
      *
      * @throws ImportLimitExceeded
      */
-    public function inspect(string $path, string $format, ?string $sheet = null): array
+    public function inspect(string $path, string $format, ?string $sheet = null, ?int $budget = null): array
     {
-        $this->deadline = microtime(true) + (int) config('audience.import.inspect_budget_seconds');
+        $this->deadline = microtime(true) + ($budget ?? (int) config('audience.import.inspect_budget_seconds'));
 
         return $format === 'xlsx' ? $this->xlsx($path, $sheet) : $this->csv($path);
     }
@@ -348,6 +363,11 @@ final class ImportFileInspector
             }
 
             $isSheet = str_starts_with($stat['name'], 'xl/worksheets/') && str_ends_with($stat['name'], '.xml');
+            $isXml = str_ends_with($stat['name'], '.xml') || str_ends_with($stat['name'], '.rels');
+            // A sharedStrings és a többi meta-rész az openspout által TELJESEN beolvasott: kisebb plafon.
+            $partCap = str_contains($stat['name'], 'sharedStrings')
+                ? (int) config('audience.import.xlsx_max_part_nodes')
+                : (int) config('audience.import.xlsx_max_meta_nodes');
             $entry = 0;
             $nodes = 0;
             $rows = 0;
@@ -390,6 +410,14 @@ final class ImportFileInspector
                             || ($rows < 6 && $nodes > $beforeData)
                             || ($sixthRowNodes !== null && $sixthRowNodes > $beforeData)
                         ) {
+                            throw new ImportLimitExceeded('zip');
+                        }
+                    }
+
+                    if ($isXml && ! $isSheet) {
+                        $nodes += substr_count($chunk, '<');
+
+                        if ($nodes > $partCap) {
                             throw new ImportLimitExceeded('zip');
                         }
                     }

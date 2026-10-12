@@ -588,7 +588,11 @@
                 "source": "Source",
                 "status": "Status"
             },
-            "tooLarge": "The file is too large (at most {mb} MB)."
+            "tooLarge": "The file is too large (at most {mb} MB).",
+            "inspecting": {
+                "title": "Analysing the file…",
+                "hint": "The file is being analysed in the background — the columns appear in a few seconds. You do not need to refresh the page."
+            }
         },
         "contact": {
             "back": "Back to the audience",

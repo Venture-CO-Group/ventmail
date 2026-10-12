@@ -36,6 +36,8 @@ function stepFor(state: ImportState | null): number {
     switch (state?.status) {
         case undefined:
             return 0;
+        case 'inspecting':
+            return 0;
         case 'draft':
             return 1;
         case 'previewing':
@@ -62,14 +64,16 @@ const steps = computed<VtStep[]>(() =>
 // a felhasználó szabadon lapozhat a korábbi lépésekre.
 watch(
     () => props.import?.status,
-    (status) => {
-        if (status === 'queued' || status === 'processing') step.value = 4;
+    (status, previous) => {
+        // A háttér-felmérés (D71) véget ért: a varázsló folytatódik az oszlopokkal.
+        if (previous === 'inspecting' && status === 'draft') step.value = 1;
+        else if (status === 'queued' || status === 'processing') step.value = 4;
         else if (status === 'completed' || status === 'failed') step.value = 5;
         else if (status === undefined) step.value = 0;
     },
 );
 
-const polling = computed(() => ['previewing', 'queued', 'processing'].includes(props.import?.status ?? ''));
+const polling = computed(() => ['inspecting', 'previewing', 'queued', 'processing'].includes(props.import?.status ?? ''));
 let timer: ReturnType<typeof setInterval> | null = null;
 
 onMounted(() => {
@@ -131,7 +135,12 @@ function leave(): void {
 
             <p v-if="errors.import" class="vm-banner vm-banner--warning" role="alert" data-testid="import-error">{{ errors.import }}</p>
 
-            <VmCard>
+            <VmCard v-if="run?.status === 'inspecting'" data-testid="import-inspecting">
+                <h2>{{ t('audience.import.inspecting.title') }}</h2>
+                <p class="vm-import-counter" role="status">{{ t('audience.import.inspecting.hint') }}</p>
+            </VmCard>
+
+            <VmCard v-else>
                 <ImportStepUpload
                     v-if="step === 0"
                     :state="run"

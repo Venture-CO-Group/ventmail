@@ -29,6 +29,9 @@ final class ContactImport extends Model
 
     public const STATUS_DRAFT = 'draft';
 
+    /** A feltöltés után a háttérjob még felmér (fejléc, minta, leképezés-javaslat). */
+    public const STATUS_INSPECTING = 'inspecting';
+
     public const STATUS_PREVIEWING = 'previewing';
 
     public const STATUS_PREVIEWED = 'previewed';

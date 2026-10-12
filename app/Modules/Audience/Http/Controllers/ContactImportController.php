@@ -11,6 +11,7 @@ use App\Modules\Audience\Http\Requests\ImportSettingsRequest;
 use App\Modules\Audience\Http\Requests\ImportSheetRequest;
 use App\Modules\Audience\Http\Requests\StoreContactFieldRequest;
 use App\Modules\Audience\Http\Requests\UploadImportRequest;
+use App\Modules\Audience\Jobs\InspectContactImport;
 use App\Modules\Audience\Jobs\RunContactImport;
 use App\Modules\Audience\Models\ContactField;
 use App\Modules\Audience\Models\ContactImport;
@@ -27,6 +28,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -79,69 +81,22 @@ final class ContactImportController
         $workspaceId = $this->context->workspaceId();
         $mode = (string) $request->input('mode');
 
-        // Workspace-enként EGY egyidejű felmérés: a felmérés kérésen belül fut (időkerettel), és
-        // párhuzamos feltöltésekkel egy tag az összes FPM-workert lefoglalhatná.
-        $lock = Cache::lock('import-inspect:'.$workspaceId, (int) config('audience.import.inspect_budget_seconds') + 15);
+        // Workspace-enként EGY egyidejű felmérés (D71): a „van-e már futó?” ellenőrzés és a rekord
+        // létrehozása egy zárban, hogy két párhuzamos feltöltés ne lásson egyszerre szabad helyet.
+        try {
+            $import = Cache::lock('import-inspect-slot:'.$workspaceId, 10)->block(3, function () use ($request, $workspaceId, $mode): ?ContactImport {
+                if ($this->inspectingNow() > 0) {
+                    return null;
+                }
 
-        if (! $lock->get()) {
-            return back()->withErrors(['file' => (string) __('ventmail.audience.import.inspectBusy')]);
+                return $this->storeDraft($request, $workspaceId, $mode);
+            });
+        } catch (LockTimeoutException) {
+            $import = null;
         }
 
-        try {
-            $name = null;
-            $hash = null;
-            $size = null;
-            $format = 'csv';
-
-            if ($mode === 'file') {
-                $file = $request->file('file');
-                $format = strtolower($file->getClientOriginalExtension()) === 'xlsx' ? 'xlsx' : 'csv';
-                $name = mb_substr($file->getClientOriginalName(), 0, 255);
-                $hash = hash_file('sha256', (string) $file->getRealPath());
-                $size = (int) $file->getSize();
-                $path = $this->uploads->storeUpload($file, $workspaceId, $format);
-            } else {
-                $csv = $mode === 'paste'
-                    ? $this->csv([['email'], ...array_map(static fn (string $e): array => [$e], ImportPaste::entries((string) $request->input('emails')))])
-                    : $this->csv([
-                        ['email', 'first_name', 'last_name'],
-                        [(string) $request->input('email'), (string) $request->input('first_name'), (string) $request->input('last_name')],
-                    ]);
-                $path = $this->uploads->storeText($csv, $workspaceId);
-                $size = strlen($csv);
-                $hash = hash('sha256', $csv);
-            }
-
-            // A REKORD ELŐBB, mint a felmérés: ha a felmérés közben a folyamat meghal (fatal,
-            // OOM, időtúllépés), a fájl nem árva — a draft rekord hivatkozik rá, és a purge
-            // takarítja. (Fordított sorrendben a PII-fájl rekord nélkül maradt volna.)
-            $import = ContactImport::create([
-                'user_id' => $request->user()?->getKey(),
-                'source_type' => $mode === 'file' ? $format : $mode,
-                'file_name' => $name,
-                'file_hash' => $hash,
-                'file_size' => $size,
-                'storage_path' => $path,
-                'tags' => [],
-                'status' => ContactImport::STATUS_DRAFT,
-            ]);
-
-            try {
-                $profile = $this->inspector->inspect($this->uploads->absolute($path), $format);
-            } catch (ImportLimitExceeded $e) {
-                $this->uploads->delete($path);
-                $import->delete();
-
-                return back()->withErrors(['file' => (string) __('ventmail.audience.import.limit.'.$e->reason)]);
-            }
-
-            $import->update([
-                'profile' => $profile,
-                'mapping' => $this->mappings->initial($profile, $this->fieldList()),
-                'total_rows' => $profile['rows'],
-            ]);
-        } finally {
-            $lock->release();
+        if ($import === null) {
+            return back()->withErrors(['file' => (string) __('ventmail.audience.import.inspectBusy')]);
         }
 
         return redirect()->route('audience.import.show', $import->uuid);
@@ -150,33 +105,22 @@ final class ContactImportController
     /** XLSX: másik munkalap választása — újra felmérjük, és a leképezést újraépítjük. */
     public function sheet(ImportSheetRequest $request, string $uuid): RedirectResponse
     {
-        $import = $this->lock($this->find($uuid), ContactImport::STATUS_DRAFT);
+        $import = $this->find($uuid);
         $profile = (array) $import->profile;
 
+        // A munkalap érvényességét a LOCK ELŐTT ellenőrizzük: érvénytelen kérés nem viheti a köteget
+        // `inspecting` állapotba.
         if (($profile['format'] ?? 'csv') !== 'xlsx' || ! in_array($request->input('sheet'), (array) ($profile['sheets'] ?? []), true)) {
             return back()->withErrors(['sheet' => (string) __('ventmail.audience.import.limit.sheet')]);
         }
 
-        $lock = Cache::lock('import-inspect:'.$this->context->workspaceId(), (int) config('audience.import.inspect_budget_seconds') + 15);
-
-        if (! $lock->get()) {
+        if ($this->inspectingNow() > 0) {
             return back()->withErrors(['sheet' => (string) __('ventmail.audience.import.inspectBusy')]);
         }
 
-        try {
-            $fresh = $this->inspector->inspect($this->uploads->absolute((string) $import->storage_path), 'xlsx', (string) $request->input('sheet'));
-        } catch (ImportLimitExceeded $e) {
-            return back()->withErrors(['sheet' => (string) __('ventmail.audience.import.limit.'.$e->reason)]);
-        } finally {
-            $lock->release();
-        }
-
-        $import->update([
-            'profile' => $fresh,
-            'mapping' => $this->mappings->initial($fresh, $this->fieldList()),
-            'total_rows' => $fresh['rows'],
-            'status' => ContactImport::STATUS_DRAFT,
-        ]);
+        // Az újrafelmérés a HÁTTÉRBEN fut (D71); a köteg addig `inspecting`, a leképezés 409.
+        $this->lock($import, ContactImport::STATUS_INSPECTING);
+        InspectContactImport::dispatch($this->context->workspaceId(), (string) $import->uuid, (string) $request->input('sheet'));
 
         return redirect()->route('audience.import.show', $import->uuid);
     }
@@ -352,6 +296,74 @@ final class ContactImportController
         $this->audit->log('audience.import.cancelled', $import, context: ['import' => (string) $import->uuid, 'file_ext' => $import->fileExtension(), 'file_size' => $import->file_size]);
 
         return redirect('/audience');
+    }
+
+    /**
+     * A feltöltés TÁROLÁSA + draft rekord + OLCSÓ őrök + dispatch — az openspout NEM fut a kérésben.
+     *
+     * A REKORD előbb jön, mint az őrök: ha a folyamat az őrök közben meghal, a fájl nem árva (a
+     * rekord hivatkozik rá, a purge takarítja). Az őrök hibájánál a fájl és a rekord törlődik, a
+     * hibát a felhasználó azonnal látja (zip-bomba, túl sok csomópont).
+     *
+     * @throws ValidationException ha az olcsó őrök elutasítják a fájlt (azonnali hibaüzenet)
+     */
+    private function storeDraft(UploadImportRequest $request, int $workspaceId, string $mode): ContactImport
+    {
+        $name = null;
+        $format = 'csv';
+
+        if ($mode === 'file') {
+            $file = $request->file('file');
+            $format = strtolower($file->getClientOriginalExtension()) === 'xlsx' ? 'xlsx' : 'csv';
+            $name = mb_substr($file->getClientOriginalName(), 0, 255);
+            $hash = hash_file('sha256', (string) $file->getRealPath());
+            $size = (int) $file->getSize();
+            $path = $this->uploads->storeUpload($file, $workspaceId, $format);
+        } else {
+            $csv = $mode === 'paste'
+                ? $this->csv([['email'], ...array_map(static fn (string $e): array => [$e], ImportPaste::entries((string) $request->input('emails')))])
+                : $this->csv([
+                    ['email', 'first_name', 'last_name'],
+                    [(string) $request->input('email'), (string) $request->input('first_name'), (string) $request->input('last_name')],
+                ]);
+            $path = $this->uploads->storeText($csv, $workspaceId);
+            $size = strlen($csv);
+            $hash = hash('sha256', $csv);
+        }
+
+        $import = ContactImport::create([
+            'user_id' => $request->user()?->getKey(),
+            'source_type' => $mode === 'file' ? $format : $mode,
+            'file_name' => $name,
+            'file_hash' => $hash,
+            'file_size' => $size,
+            'storage_path' => $path,
+            'profile' => ['format' => $format],
+            'tags' => [],
+            'status' => ContactImport::STATUS_INSPECTING,
+        ]);
+
+        try {
+            $this->inspector->guard($this->uploads->absolute($path), $format);
+        } catch (ImportLimitExceeded $e) {
+            $this->uploads->delete($path);
+            $import->delete();
+
+            throw ValidationException::withMessages(['file' => (string) __('ventmail.audience.import.limit.'.$e->reason)]);
+        }
+
+        InspectContactImport::dispatch($workspaceId, (string) $import->uuid);
+
+        return $import;
+    }
+
+    /** Éppen futó (friss) felmérések száma a workspace-ben; az elakadt (5 percnél régebbi) nem számít. */
+    private function inspectingNow(): int
+    {
+        return ContactImport::query()
+            ->where('status', ContactImport::STATUS_INSPECTING)
+            ->where('updated_at', '>=', now()->subMinutes(5))
+            ->count();
     }
 
     private function find(string $uuid): ContactImport

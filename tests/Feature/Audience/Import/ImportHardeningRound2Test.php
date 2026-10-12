@@ -17,7 +17,6 @@ use App\Modules\Tenancy\Services\WorkspaceContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
@@ -122,17 +121,14 @@ it('a valódi XLSX felmérése a sorszámot a <row> elemekből adja, a mintát k
 });
 
 it('workspace-enként egyszerre egy felmérés fut', function () {
-    $lock = Cache::lock('import-inspect:'.$this->ws->id, 30);
-    expect($lock->get())->toBeTrue();
+    r2In($this->ws, fn () => ContactImport::create(['source_type' => 'csv', 'status' => 'inspecting', 'profile' => []]));
 
     r2As($this->user, $this->ws)
         ->post('/audience/import', ['mode' => 'file', 'file' => UploadedFile::fake()->createWithContent('f.csv', "email\na@pelda.hu\n")])
         ->assertSessionHasErrors('file');
 
-    expect(r2In($this->ws, fn () => ContactImport::query()->count()))->toBe(0)
+    expect(r2In($this->ws, fn () => ContactImport::query()->count()))->toBe(1)
         ->and(Storage::disk('local')->allFiles('imports'))->toBe([]);
-
-    $lock->release();
 });
 
 it('a /sheet végpont külön, szigorú limitert kap (5/perc)', function () {
@@ -283,14 +279,16 @@ it('a purge a rekord nélküli, lejárt árva fájlt is söpri, de a hivatkozott
         ->and(Storage::disk('local')->exists('imports/'.$this->ws->id.'/hivatkozott.csv'))->toBeTrue();
 });
 
-it('az inspect hibája után sem marad fájl vagy rekord', function () {
+it('a felmérő job hibája (túl sok oszlop) után nincs fájl és nincs minta, a rekord failed', function () {
     config()->set('audience.import.max_columns', 1);
 
     r2As($this->user, $this->ws)
         ->post('/audience/import', ['mode' => 'file', 'file' => UploadedFile::fake()->createWithContent('f.csv', "a,b,c\n1,2,3\n")])
-        ->assertSessionHasErrors('file');
+        ->assertRedirect();
 
-    expect(r2In($this->ws, fn () => ContactImport::query()->count()))->toBe(0)
+    $import = r2In($this->ws, fn () => ContactImport::query()->firstOrFail());
+
+    expect($import->status)->toBe('failed')->and($import->failure_reason)->toBe('columns')->and($import->storage_path)->toBeNull()
         ->and(Storage::disk('local')->allFiles('imports'))->toBe([]);
 });
 

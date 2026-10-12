@@ -43,6 +43,12 @@ folyamat → eredmény. Négy bevitel: kézi egyedi, beillesztett lista, CSV, XL
   128M, `post_max_size` 132M, `max_execution_time` 120) ≤ a Caddy `request_body max_size` (140MB). A
   felület a konfig és a PHP tényleges limitjének MINIMUMÁT mutatja; az összhangot teszt őrzi. A
   publikus edge (venture-infra) body-limitje is legyen ≥ 140MB.
+- **Felmérés a háttérben (D71):** a kérés CSAK tárol, draft rekordot (`inspecting`) készít, olcsó
+  őröket futtat (zip-szerkezet + valós bájt- és csomópont-számlálás minden XML-részre:
+  munkalapok, sharedStrings, styles, workbook) és dispatch-el. A fejléc/minta/leképezés-javaslat az
+  `InspectContactImport` jobban készül (`imports` queue, 60 mp timeout, `inspecting` → `draft`
+  feltételes átmenet; hibánál/timeoutnál `abandon()`: fájl, minta törlődik, `failed`). A
+  munkalap-váltás is ez. Az openspout a kérésben NEM fut. Workspace-enként 1 egyidejű felmérés.
 - **Zip-bomba:** a központi jegyzék mérete hamisítható, ezért a feltöltéskor a VALÓS kitömörített
   bájtokat számoljuk streamen (megszakítás a deklarált méretnél / plafonnál / időkeretnél). A
   felmérés kérésen belül fut (`inspect_budget_seconds`, alap 25 mp): a képernyőnek a fejléc és a

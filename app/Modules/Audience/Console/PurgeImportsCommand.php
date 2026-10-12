@@ -43,7 +43,7 @@ final class PurgeImportsCommand extends Command
                     $context->set($workspace);
 
                     ContactImport::query()
-                        ->whereIn('status', [ContactImport::STATUS_DRAFT, ContactImport::STATUS_PREVIEWING, ContactImport::STATUS_PREVIEWED, ContactImport::STATUS_FAILED])
+                        ->whereIn('status', [ContactImport::STATUS_DRAFT, ContactImport::STATUS_INSPECTING, ContactImport::STATUS_PREVIEWING, ContactImport::STATUS_PREVIEWED, ContactImport::STATUS_FAILED])
                         ->where('updated_at', '<=', $cutoff)
                         ->each(function (ContactImport $import) use ($uploads, &$drafts): void {
                             $uploads->delete($import->storage_path);

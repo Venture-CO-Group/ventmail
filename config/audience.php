@@ -60,6 +60,13 @@ return [
         // feldolgozónak percekbe kerülne (mérve: 52 M csomópont ≈ 50 mp).
         'xlsx_max_nodes' => (int) env('AUDIENCE_IMPORT_XLSX_MAX_NODES', 100_000_000),
         'xlsx_max_nodes_before_data' => (int) env('AUDIENCE_IMPORT_XLSX_MAX_NODES_BEFORE_DATA', 2_000_000),
+        // A többi, az openspout által TELJESEN beolvasott XML-rész (sharedStrings, styles, workbook…)
+        // csomópont-plafonja: a sharedStrings legfeljebb ennyi, a többi (meta) kevesebb.
+        'xlsx_max_part_nodes' => (int) env('AUDIENCE_IMPORT_XLSX_MAX_PART_NODES', 20_000_000),
+        'xlsx_max_meta_nodes' => (int) env('AUDIENCE_IMPORT_XLSX_MAX_META_NODES', 1_000_000),
+        // A háttér-felmérés időkerete (a job `$timeout`-ja 60 mp; ez ALATT van, hogy a belső
+        // ellenőrzések még a worker-kill előtt tiszta hibát adjanak).
+        'inspect_job_budget_seconds' => (int) env('AUDIENCE_IMPORT_INSPECT_JOB_BUDGET', 50),
         'xlsx_max_entries' => (int) env('AUDIENCE_IMPORT_XLSX_MAX_ENTRIES', 500),
         'manual_max_rows' => (int) env('AUDIENCE_IMPORT_MANUAL_MAX_ROWS', 20_000),
         // Egy fizikai sor (és egy CSV-rekord egy olvasása) legfeljebb ennyi bájt: sor-határ nélkül

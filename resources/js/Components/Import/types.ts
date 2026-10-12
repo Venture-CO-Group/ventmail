@@ -29,7 +29,7 @@ export interface ImportSample {
 
 export interface ImportState {
     uuid: string;
-    status: 'draft' | 'previewing' | 'previewed' | 'queued' | 'processing' | 'completed' | 'failed';
+    status: 'draft' | 'inspecting' | 'previewing' | 'previewed' | 'queued' | 'processing' | 'completed' | 'failed';
     phase: string | null;
     sourceType: 'manual' | 'paste' | 'csv' | 'xlsx';
     fileName: string | null;

@@ -588,7 +588,11 @@
                 "source": "Source",
                 "status": "Statut"
             },
-            "tooLarge": "Le fichier est trop volumineux ({mb} Mo maximum)."
+            "tooLarge": "Le fichier est trop volumineux ({mb} Mo maximum).",
+            "inspecting": {
+                "title": "Analyse du fichier…",
+                "hint": "Le fichier est analysé en arrière-plan — les colonnes apparaissent dans quelques secondes. Inutile d’actualiser la page."
+            }
         },
         "contact": {
             "back": "Retour à l’audience",

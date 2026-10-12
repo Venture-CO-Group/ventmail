@@ -722,6 +722,15 @@ final class ContactImportProcessor
      */
     public function abandon(ContactImport $import, string $reason): void
     {
+        // ELŐBB a feltételes átmenet: ha a köteg már lezárt (completed/failed) vagy törölt, SEMMIT nem
+        // írunk és nem törlünk — egy elkésett `failed()` nem rombolhat le kész eredményt. Csak a
+        // sikeres átmenet után takarítunk és írunk mezőket.
+        if (! $this->transition($import, [
+            ContactImport::STATUS_INSPECTING, ContactImport::STATUS_PREVIEWING, ContactImport::STATUS_PROCESSING, ContactImport::STATUS_QUEUED,
+        ], ContactImport::STATUS_FAILED)) {
+            return;
+        }
+
         $this->uploads->delete($this->uploads->reportPath($import));
         $this->uploads->delete($import->error_report_path);
         $this->uploads->delete($import->storage_path);
@@ -742,10 +751,6 @@ final class ContactImportProcessor
             'profile' => $profile,
             'stats' => $stats,
         ])->saveQuietly();
-
-        if (! $this->transition($import, [ContactImport::STATUS_PREVIEWING, ContactImport::STATUS_PROCESSING, ContactImport::STATUS_QUEUED], ContactImport::STATUS_FAILED)) {
-            return;
-        }
 
         $this->audit->log(
             'audience.import.failed',

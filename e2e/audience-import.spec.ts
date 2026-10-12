@@ -43,7 +43,8 @@ async function openWizard(page: Page): Promise<void> {
 
 /** 2. lépés: a javasolt leképezés elfogadása. */
 async function acceptMapping(page: Page): Promise<void> {
-    await expect(page.getByTestId('import-step-columns')).toBeVisible();
+    // A felmérés a HÁTTÉRBEN fut (D71): előbb az „Elemzés…” állapot, majd az oszlopok lépés.
+    await expect(page.getByTestId('import-step-columns')).toBeVisible({ timeout: 60_000 });
     await page.getByTestId('import-next').click();
     await expect(page.getByTestId('import-step-settings')).toBeVisible();
 }
@@ -184,8 +185,8 @@ test('CSV (Windows-1250, pontosvessző): egyéni mező helyben, hibariport, kép
     await page.getByRole('tab').nth(2).click();
     await page.getByTestId('import-file-input').setInputFiles(file);
 
-    // Az oszlopok lépésnél vagyunk, és a kódolás-felismerés látszik a 2. lépésben a mintán.
-    await expect(page.getByTestId('import-step-columns')).toBeVisible();
+    // A felmérés a háttérben fut: az „Elemzés…” állapot után az oszlopok lépés következik.
+    await expect(page.getByTestId('import-step-columns')).toBeVisible({ timeout: 60_000 });
     await expect(page.getByTestId('mapping-select-0').locator('select')).toHaveValue('email');
     await expect(page.getByTestId('import-mapping')).toContainText('Törzsvendég-kód');
     await expect(page.getByTestId('import-mapping')).toContainText('Kovács');
@@ -251,11 +252,12 @@ test('XLSX: munkalap-választás, majd ugyanaz a folyamat', async ({ page }) => 
     await page.getByRole('tab').nth(3).click();
     await page.getByTestId('import-file-input').setInputFiles(file);
 
-    await expect(page.getByTestId('import-step-columns')).toBeVisible();
+    await expect(page.getByTestId('import-step-columns')).toBeVisible({ timeout: 60_000 });
 
-    // Alapból az első munkalap (Üres) — átváltunk a másodikra, a leképezés újraépül.
+    // Alapból az első munkalap (Üres) — átváltunk a másodikra: az újrafelmérés is a háttérben fut
+    // („Elemzés…”), a leképezés utána épül újra.
     await page.getByTestId('import-sheet').locator('select').selectOption('Vendégek');
-    await expect(page.getByTestId('import-mapping')).toContainText('Keresztnév');
+    await expect(page.getByTestId('import-mapping')).toContainText('Keresztnév', { timeout: 60_000 });
     await expect(page.getByTestId('mapping-select-0').locator('select')).toHaveValue('email');
     await expect(page.getByTestId('mapping-select-2').locator('select')).toHaveValue('attr:company');
 

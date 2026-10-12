@@ -588,7 +588,11 @@
                 "source": "Forrás",
                 "status": "Státusz"
             },
-            "tooLarge": "A fájl túl nagy (legfeljebb {mb} MB)."
+            "tooLarge": "A fájl túl nagy (legfeljebb {mb} MB).",
+            "inspecting": {
+                "title": "Fájl elemzése…",
+                "hint": "A fájl felmérése a háttérben fut — az oszlopok pár másodperc múlva megjelennek. Az oldalt nem kell frissíteni."
+            }
         },
         "contact": {
             "back": "Vissza a közönséghez",

@@ -588,7 +588,11 @@
                 "source": "Fonte",
                 "status": "Stato"
             },
-            "tooLarge": "Il file è troppo grande (al massimo {mb} MB)."
+            "tooLarge": "Il file è troppo grande (al massimo {mb} MB).",
+            "inspecting": {
+                "title": "Analisi del file…",
+                "hint": "Il file viene analizzato in background — le colonne compaiono tra pochi secondi. Non serve aggiornare la pagina."
+            }
         },
         "contact": {
             "back": "Torna al pubblico",
