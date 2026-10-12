@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { clickNav } from './support/shell';
 
 /*
  * M4-1 · A PLATFORM ÜZEMELTETŐI KÉPERNYŐI a böngészőben.
@@ -27,7 +28,7 @@ test('a menüből minden platform-képernyő elérhető', async ({ page }) => {
         ['nav-deliverability', '/deliverability'],
         ['nav-billing', '/billing'],
     ] as const) {
-        await page.getByTestId(testid).click();
+        await clickNav(page, 'platform', testid);
         await expect(page).toHaveURL(new RegExp(`${url}$`));
         // A héj minden képernyőn ott van: enélkül a felhasználó zsákutcába kerülne.
         await expect(page.getByTestId('app-nav')).toBeVisible();

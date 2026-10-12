@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { clickNav } from './support/shell';
 
 /*
  * M4-6 · TAGOK, ŰRLAPOK, TÁROLT SABLONOK a böngészőben.
@@ -16,12 +17,12 @@ const run = Date.now().toString(36);
 test('a beállítások és az új menüpontok elérhetők', async ({ page }) => {
     await page.goto('/dashboard');
 
-    for (const [testid, url] of [
-        ['nav-members', '/members'],
-        ['nav-forms', '/forms'],
-        ['nav-stored-templates', '/stored-templates'],
+    for (const [group, testid, url] of [
+        ['settings', 'nav-members', '/members'],
+        ['studio', 'nav-forms', '/forms'],
+        ['platform', 'nav-stored-templates', '/stored-templates'],
     ] as const) {
-        await page.getByTestId(testid).click();
+        await clickNav(page, group, testid);
         await expect(page).toHaveURL(new RegExp(`${url}$`));
         await expect(page.getByTestId('app-nav')).toBeVisible();
     }

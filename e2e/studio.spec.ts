@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { clickNav } from './support/shell';
 
 /*
  * M4-3 · A STUDIO FELÜLETE a böngészőben.
@@ -27,7 +28,7 @@ test('a Studio menüpontjai elérhetők', async ({ page }) => {
         ['nav-journeys', '/journeys'],
         ['nav-analytics', '/analytics'],
     ] as const) {
-        await page.getByTestId(testid).click();
+        await clickNav(page, 'studio', testid);
         await expect(page).toHaveURL(new RegExp(`${url}$`));
         await expect(page.getByTestId('app-nav')).toBeVisible();
     }

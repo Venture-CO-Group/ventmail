@@ -63,7 +63,7 @@ export default defineConfig({
                | volt. A `--no-reload` a workerek előfeltétele is (az `artisan serve`
                | különben figyelmeztet, és egy folyamattal indul).
                */
-              command: 'SESSION_DRIVER=file CACHE_STORE=array QUEUE_CONNECTION=sync PHP_CLI_SERVER_WORKERS=4 php artisan serve --port=8000 --no-reload',
+              command: 'SESSION_DRIVER=file CACHE_STORE=array QUEUE_CONNECTION=sync TENANCY_WORKSPACE_MAX_OWNED=1000 PHP_CLI_SERVER_WORKERS=4 php artisan serve --port=8000 --no-reload',
               url: 'http://127.0.0.1:8000/up',
               reuseExistingServer: !process.env.CI,
               timeout: 60_000,

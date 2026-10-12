@@ -9,6 +9,8 @@ import './auth.css';
 import './brand.css';
 import './glow.css';
 import './shell.css';
+import './nav.css';
+import './profile.css';
 
 /*
  | A KEZDŐ NYELVET a szerver adja (`SetLocale` middleware → Inertia shared prop). A
