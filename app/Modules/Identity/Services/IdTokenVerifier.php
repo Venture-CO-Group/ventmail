@@ -56,20 +56,62 @@ final class IdTokenVerifier
      */
     public function roleClaimsFromAccessToken(string $accessToken, array $idClaims): array
     {
+        // CSAK a token-endpoint (TLS, kliens-hitelesített back-channel) válaszára hívható.
         try {
             $header = $this->header($accessToken);
             $this->assertAlgorithm($header);
-            $claims = $this->decode($accessToken, $this->needsRefresh($header));
+
+            // A Passport access tokenjének fejlécében NINCS `kid`: ilyenkor a publikált,
+            // allowlistázott aláíró kulcsokat egyenként próbáljuk — JWKS-újratöltés nélkül.
+            $claims = (string) ($header['kid'] ?? '') === ''
+                ? $this->decodeWithoutKid($accessToken, (string) $header['alg'])
+                : $this->decode($accessToken, $this->needsRefresh($header));
+
             $this->assertAudience($claims);
-        } catch (AuthorizationException) {
+        } catch (Throwable) {
             return [];
         }
 
-        if (($claims['sub'] ?? null) === null || (string) $claims['sub'] !== (string) ($idClaims['sub'] ?? '')) {
+        if (trim((string) ($claims['sub'] ?? '')) === '' || (string) $claims['sub'] !== (string) ($idClaims['sub'] ?? '')) {
             return [];
         }
 
         return array_intersect_key($claims, array_flip(['resource_access', 'realm_access']));
+    }
+
+    /** @return array<string, mixed> */
+    private function decodeWithoutKid(string $token, string $alg): array
+    {
+        $previousLeeway = JWT::$leeway;
+        JWT::$leeway = (int) config('oidc.leeway');
+
+        try {
+            foreach ($this->discovery->keys() as $jwk) {
+                if (($jwk['use'] ?? 'sig') !== 'sig' || ($jwk['kty'] ?? '') !== 'RSA' && ($jwk['kty'] ?? '') !== 'EC') {
+                    continue;
+                }
+
+                try {
+                    $key = JWK::parseKey([...$jwk, 'alg' => $jwk['alg'] ?? $alg]);
+                } catch (Throwable) {
+                    continue;
+                }
+
+                if ($key === null || $key->getAlgorithm() !== $alg) {
+                    continue;
+                }
+
+                try {
+                    return (array) json_decode(json_encode(JWT::decode($token, $key)), associative: true);
+                } catch (Throwable) {
+                    continue;
+                }
+            }
+        } finally {
+            JWT::$leeway = $previousLeeway;
+        }
+
+        throw new AuthorizationException('Az access token aláírása egyik publikált kulccsal sem ellenőrizhető.');
     }
 
     /** @return array<string, mixed> */

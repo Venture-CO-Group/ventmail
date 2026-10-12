@@ -101,10 +101,24 @@ final class OidcClient
 
             // A SZEREPEK a ventSSO-nál az access tokenben vannak: ellenőrzötten átvesszük
             // őket, ha az ID-token nem hozza (identitás-claimet onnan SOHA).
+            // ventSSO-IMPERSONÁCIÓ (`act`): itt nem engedjük be — a ventMail saját, csak
+            // olvasó, auditált támogatói nézete a helyes út (a teljes jogú belépés az
+            // impersonáló adminnak minden szerepet és írást adna, a megszemélyesített
+            // nevében).
+            if (isset($claims['act'])) {
+                throw new AuthorizationException('Megszemélyesített (act) ventSSO-munkamenettel nem lehet belépni.');
+            }
+
             $accessToken = (string) $response->json('access_token', '');
 
-            if ($accessToken !== '' && ! isset($claims['resource_access'])) {
-                $claims = [...$claims, ...$this->verifier->roleClaimsFromAccessToken($accessToken, $claims)];
+            if ($accessToken !== '' && (! isset($claims['resource_access']) || ! isset($claims['realm_access']))) {
+                $fromAccess = $this->verifier->roleClaimsFromAccessToken($accessToken, $claims);
+
+                foreach (['resource_access', 'realm_access'] as $key) {
+                    if (! isset($claims[$key]) && isset($fromAccess[$key])) {
+                        $claims[$key] = $fromAccess[$key];
+                    }
+                }
             }
         } finally {
             // Egyszer használatos tranziensek — a HIBAÁGON is eldobjuk.

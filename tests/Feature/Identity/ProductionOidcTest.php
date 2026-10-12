@@ -2,10 +2,13 @@
 
 declare(strict_types=1);
 
+use App\Modules\Audit\Models\AuditLog;
 use App\Modules\Identity\Enums\Role;
+use Firebase\JWT\JWT;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Factory;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Testing\TestResponse;
 use Tests\Support\FakeSsoProvider;
 
 uses(RefreshDatabase::class);
@@ -141,43 +144,82 @@ it('az app-héjból (Inertia) indított kijelentkezés is eljut a ventSSO-ig', f
 /*
  | A ventSSO a szerepeket az ACCESS TOKENBE teszi (Passport JWT, spec §5.7), az ID-tokenbe
  | nem — élesben mérve: a szerep nélkülinek látott alany 403-at kapott a callbacken.
- | Az access token ugyanazzal a JWKS-szel ellenőrzött; csak a szerep-claimek jönnek belőle.
+ | Az access token Passport-alakú: `kid` és `iss` nélkül (FakeSsoProvider::accessToken).
  */
-function accessToken(FakeSsoProvider $sso, array $claims): string
+function loginWithTokens(object $t, array $idClaims, string $accessToken): TestResponse
 {
-    return $sso->idToken(array_merge(['aud' => PROD_CLIENT, 'scopes' => ['openid', 'profile', 'email']], $claims));
-}
-
-it('a szerepeket az ellenőrzött access tokenből is átveszi', function () {
-    $this->get('/auth/redirect');
-
-    $this->sso->fakeHttp([
-        'id_token' => $this->sso->idToken(['aud' => PROD_CLIENT, 'nonce' => session('oidc.nonce')]),
-        'access_token' => accessToken($this->sso, ['resource_access' => ['ventmail' => ['roles' => ['owner']]]]),
+    $t->get('/auth/redirect');
+    $t->sso->fakeHttp([
+        'id_token' => $t->sso->idToken(array_merge(['aud' => PROD_CLIENT, 'nonce' => session('oidc.nonce')], $idClaims)),
+        'access_token' => $accessToken,
     ]);
 
-    $this->get('/auth/callback?code=auth-code&state='.session('oidc.state'))->assertRedirect();
+    return $t->get('/auth/callback?code=auth-code&state='.session('oidc.state'));
+}
+
+it('a szerepeket a kid nélküli, ellenőrzött access tokenből veszi át', function () {
+    loginWithTokens($this, [], $this->sso->accessToken([
+        'aud' => PROD_CLIENT,
+        'resource_access' => ['ventmail' => ['roles' => ['owner']]],
+        'realm_access' => ['roles' => ['staff']],
+    ]))->assertRedirect();
 
     expect(Auth::check())->toBeTrue();
     expect(session('oidc.roles_diagnostic'))->toBe([Role::Owner->value]);
 });
 
-it('hamis aláírású, idegen alanyú vagy más kliensnek szóló access tokenből NEM vesz át szerepet', function (string $case) {
-    $this->get('/auth/redirect');
+it('az access tokenből identitás-claim SOHA nem jön át', function () {
+    loginWithTokens($this, ['email' => 'valodi@example.test', 'name' => 'Valódi'], $this->sso->accessToken([
+        'aud' => PROD_CLIENT,
+        'email' => 'tamado@example.test', 'name' => 'Támadó', 'act' => ['sub' => 'x'],
+        'resource_access' => ['ventmail' => ['roles' => ['owner']]],
+    ]))->assertRedirect();
+
+    expect(Auth::user()->email)->toBe('valodi@example.test')
+        ->and(Auth::user()->name)->toBe('Valódi');
+});
+
+it('ha az ID-token hoz szerepet, az access token nem írja felül', function () {
+    loginWithTokens($this, ['resource_access' => ['ventmail' => ['roles' => ['analyst']]]], $this->sso->accessToken([
+        'aud' => PROD_CLIENT, 'resource_access' => ['ventmail' => ['roles' => ['owner']]],
+    ]))->assertRedirect();
+
+    expect(session('oidc.roles_diagnostic'))->toBe([Role::Analyst->value]);
+});
+
+it('a platform-admin jog az access tokenből is megadódik, auditáltan', function () {
+    loginWithTokens($this, [], $this->sso->accessToken([
+        'aud' => PROD_CLIENT,
+        'resource_access' => ['ventmail' => ['roles' => ['owner']], 'ventmail-platform' => ['roles' => ['platform_admin']]],
+    ]))->assertRedirect();
+
+    expect(Auth::user()->isPlatformAdmin())->toBeTrue();
+    expect(AuditLog::query()->withoutGlobalScopes()->where('action', 'platform.admin_granted')->exists())->toBeTrue();
+});
+
+it('hamis, idegen, lejárt vagy sérült access tokenből NEM vesz át szerepet', function (string $case) {
+    $roles = ['resource_access' => ['ventmail' => ['roles' => ['owner']]]];
 
     $token = match ($case) {
-        'idegen kulcs' => accessToken(new FakeSsoProvider('mas-kulcs'), ['resource_access' => ['ventmail' => ['roles' => ['owner']]]]),
-        'más alany' => accessToken($this->sso, ['sub' => 'mas-alany', 'resource_access' => ['ventmail' => ['roles' => ['owner']]]]),
-        'más kliens' => accessToken($this->sso, ['aud' => 'mas-kliens', 'resource_access' => ['ventmail' => ['roles' => ['owner']]]]),
-        'lejárt' => accessToken($this->sso, ['iat' => time() - 7200, 'exp' => time() - 3600, 'resource_access' => ['ventmail' => ['roles' => ['owner']]]]),
+        'idegen kulcs' => (new FakeSsoProvider('mas-kulcs'))->accessToken(['aud' => PROD_CLIENT, ...$roles]),
+        'más alany' => $this->sso->accessToken(['aud' => PROD_CLIENT, 'sub' => 'mas-alany', ...$roles]),
+        'üres alany' => $this->sso->accessToken(['aud' => PROD_CLIENT, 'sub' => '', ...$roles]),
+        'más kliens' => $this->sso->accessToken(['aud' => 'mas-kliens', ...$roles]),
+        'lejárt' => $this->sso->accessToken(['aud' => PROD_CLIENT, 'iat' => time() - 7200, 'nbf' => time() - 7200, 'exp' => time() - 3600, ...$roles]),
+        'alg none' => rtrim(strtr(base64_encode('{"alg":"none","typ":"JWT"}'), '+/', '-_'), '=').'.'.rtrim(strtr(base64_encode(json_encode(['aud' => PROD_CLIENT, 'sub' => 'sso-subject-1', 'exp' => time() + 300, ...$roles])), '+/', '-_'), '=').'.',
+        'HS256 a publikus kulccsal' => JWT::encode(['aud' => PROD_CLIENT, 'sub' => 'sso-subject-1', 'exp' => time() + 300, ...$roles], $this->sso->publicKeyPem(), 'HS256'),
+        'nem JWT' => 'opaque-access-token',
     };
 
-    $this->sso->fakeHttp([
-        'id_token' => $this->sso->idToken(['aud' => PROD_CLIENT, 'nonce' => session('oidc.nonce')]),
-        'access_token' => $token,
-    ]);
-
-    $this->get('/auth/callback?code=auth-code&state='.session('oidc.state'))->assertForbidden();
+    loginWithTokens($this, [], $token)->assertForbidden();
 
     expect(Auth::check())->toBeFalse();
-})->with(['idegen kulcs', 'más alany', 'más kliens', 'lejárt']);
+})->with(['idegen kulcs', 'más alany', 'üres alany', 'más kliens', 'lejárt', 'alg none', 'HS256 a publikus kulccsal', 'nem JWT']);
+
+it('ventSSO-impersonációval (act) érkező belépést elutasít — a ventMail saját, csak olvasó támogatói nézete a helyes út', function () {
+    loginWithTokens($this, ['act' => ['sub' => 'admin-alany']], $this->sso->accessToken([
+        'aud' => PROD_CLIENT, 'act' => ['sub' => 'admin-alany'], 'resource_access' => ['ventmail' => ['roles' => ['owner']]],
+    ]))->assertForbidden();
+
+    expect(Auth::check())->toBeFalse();
+});
