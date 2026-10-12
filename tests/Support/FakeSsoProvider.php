@@ -107,6 +107,26 @@ final class FakeSsoProvider
         ]);
     }
 
+    /**
+     * Passport-ALAKÚ access token, ahogy a ventSSO kiadja (AccessToken::toString): `kid`
+     * NINCS a fejlécben, `iss` és `nonce` NINCS a claimekben; `aud`, `sub`, `jti`,
+     * `scopes`, `iat`/`nbf`/`exp`, és a szerep-claimek (spec §5.7).
+     */
+    public function accessToken(array $claims = [], ?string $alg = 'RS256'): string
+    {
+        $payload = array_merge([
+            'aud' => config('oidc.client_id'),
+            'sub' => 'sso-subject-1',
+            'jti' => bin2hex(random_bytes(8)),
+            'scopes' => ['openid', 'profile', 'email'],
+            'iat' => time(),
+            'nbf' => time(),
+            'exp' => time() + 300,
+        ], $claims);
+
+        return JWT::encode($payload, $this->privateKey, $alg);
+    }
+
     /** @return array<string, mixed> a publikus JWK */
     public function jwk(): array
     {
