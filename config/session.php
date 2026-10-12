@@ -1,7 +1,5 @@
 <?php
 
-use Illuminate\Support\Str;
-
 return [
 
     /*
@@ -129,10 +127,9 @@ return [
     |
     */
 
-    'cookie' => env(
-        'SESSION_COOKIE',
-        Str::slug((string) env('APP_NAME', 'laravel')).'-session'
-    ),
+    // `__Host-` előtag (deploy-ovh): a böngésző MAGA utasítja el a sütit, ha nem Secure,
+    // nem `Path=/`, vagy van `Domain`-je — testvér-aldomain nem írhatja és nem olvashatja.
+    'cookie' => $sessionCookie = (string) env('SESSION_COOKIE', '__Host-ventmail_session'),
 
     /*
     |--------------------------------------------------------------------------
@@ -145,7 +142,7 @@ return [
     |
     */
 
-    'path' => env('SESSION_PATH', '/'),
+    'path' => str_starts_with($sessionCookie, '__Host-') ? '/' : env('SESSION_PATH', '/'),
 
     /*
     |--------------------------------------------------------------------------
@@ -158,7 +155,7 @@ return [
     |
     */
 
-    'domain' => env('SESSION_DOMAIN'),
+    'domain' => str_starts_with($sessionCookie, '__Host-') ? null : env('SESSION_DOMAIN'),
 
     /*
     |--------------------------------------------------------------------------
@@ -171,7 +168,7 @@ return [
     |
     */
 
-    'secure' => env('SESSION_SECURE_COOKIE'),
+    'secure' => str_starts_with($sessionCookie, '__Host-') ? true : env('SESSION_SECURE_COOKIE'),
 
     /*
     |--------------------------------------------------------------------------
@@ -184,7 +181,7 @@ return [
     |
     */
 
-    'http_only' => env('SESSION_HTTP_ONLY', true),
+    'http_only' => str_starts_with($sessionCookie, '__Host-') ? true : env('SESSION_HTTP_ONLY', true),
 
     /*
     |--------------------------------------------------------------------------

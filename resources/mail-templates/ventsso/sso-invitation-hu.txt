@@ -1,0 +1,9 @@
+Meghívást kaptál
+
+Meghívtak a(z) {{ organization }} szervezetbe ({{ role }} szerepkörrel). A meghívót az alábbi linkkel fogadhatod el:
+
+{{ url }}
+
+Ha nem számítottál a meghívóra, hagyd figyelmen kívül ezt a levelet.
+
+— Venture

@@ -1,0 +1,9 @@
+Confirm your email address
+
+Click the link below to confirm the email address of your Venture account:
+
+{{ url }}
+
+If you did not sign up, you can ignore this email.
+
+— Venture

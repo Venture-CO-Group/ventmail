@@ -6,6 +6,7 @@ namespace App\Modules\IpPools\Models;
 
 use App\Modules\Audit\Concerns\Auditable;
 use App\Modules\Domains\Models\Domain;
+use App\Modules\Sending\Enums\Channel;
 use App\Modules\Tenancy\Concerns\BelongsToWorkspaceOrPlatform;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
@@ -48,6 +49,16 @@ final class IpPool extends Model
     /** Használható-e ezen a csatornán? A marketing IP nem vihet tranzakciós forgalmat. */
     public function servesChannel(string $channel): bool
     {
-        return $this->channel === null || $this->channel === $channel;
+        if ($this->channel === null) {
+            return true;
+        }
+
+        // OSZTÁLY szerinti egyezés: a `marketing` pool viszi a `campaign` és a `journey`
+        // levelet is (korábban pontos sztring-egyezés volt, így egy kampány SOHA nem talált
+        // marketing IP-t). A tranzakciós osztály viszont csak önmagával egyezik.
+        $own = Channel::tryFrom((string) $this->channel);
+        $wanted = Channel::tryFrom($channel);
+
+        return $own !== null && $wanted !== null && $own->poolClass() === $wanted->poolClass();
     }
 }

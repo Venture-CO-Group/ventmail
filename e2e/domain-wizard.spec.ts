@@ -26,7 +26,7 @@ test('a hitelesítendő rekordok táblázata a @venture/ui táblát használja',
     await expect(table).toBeVisible();
 
     /*
-     * MIND A HÉT rekord látszik. A darabszám nem formalitás: ha egy rekord csendben
+     * MIND A KILENC rekord látszik (deploy-ovh óta a két poolonkénti Return-Path is). A darabszám nem formalitás: ha egy rekord csendben
      * kiesik a generátorból, az ügyfél olyan zónát állít be, amivel a domain SOSEM lesz
      * `verified` — és ezt a képernyőn kell észrevenni, nem egy support-ticketből.
      *
@@ -34,7 +34,7 @@ test('a hitelesítendő rekordok táblázata a @venture/ui táblát használja',
      * négyet várt, és mivel a CI-ban a Playwright-kapu a hiányzó privát csomagok miatt
      * SOHA nem futott le, a hiba fél éve csendben állt itt.
      */
-    await expect(page.locator('.vt-table__row')).toHaveCount(7);
+    await expect(page.locator('.vt-table__row')).toHaveCount(9);
 
     // KÜLDÉS: a hitelesítés három rekordja + a saját domainen futó tracking.
     await expect(page.getByText('v=spf1', { exact: false })).toBeVisible();

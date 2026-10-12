@@ -1,0 +1,9 @@
+Biztonsági értesítés
+
+Biztonsági esemény történt a Venture-fiókodban: {{ event }} ({{ provider }}).
+
+{{ code }}
+
+Ha nem te voltál, azonnal változtasd meg a jelszavad, és ellenőrizd a fiókod beállításait.
+
+— Venture

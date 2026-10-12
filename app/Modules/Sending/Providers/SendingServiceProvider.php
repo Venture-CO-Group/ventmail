@@ -28,6 +28,9 @@ use RuntimeException;
  */
 final class SendingServiceProvider extends ModuleServiceProvider
 {
+    // A modul EGYETLEN web-route-ja a Postal aláírt webhookja: gép hívja, nem böngésző.
+    protected bool $routesPrecedeAuthentication = true;
+
     /**
      * A kapuk SORRENDJE — ez maga is szabály (spec 6.2).
      *
@@ -46,6 +49,8 @@ final class SendingServiceProvider extends ModuleServiceProvider
      */
     private const GATES = [
         Gates\RecipientSanityGate::class,
+        // Éles küldési mód (seed-allowlist, marketing-főkapcsoló) — deploy-ovh.
+        Gates\SendingModeGate::class,
         Gates\HeaderSafetyGate::class,
         Gates\RateLimitGate::class,
         Gates\EntitlementGate::class,
@@ -88,13 +93,15 @@ final class SendingServiceProvider extends ModuleServiceProvider
                 'Éles környezetben nincs valódi ventPay kliens bekötve (C1). '
                 .'A fake a kvóta-kaput kinyitná.'
             ));
-
-            return;
+        } else {
+            $this->app->bind(ConsentChecker::class, FakeConsentChecker::class);
+            $this->app->bind(AddressRiskScorer::class, FakeAddressRiskScorer::class);
+            $this->app->bind(VentPayClient::class, FakeVentPayClient::class);
         }
 
-        $this->app->bind(ConsentChecker::class, FakeConsentChecker::class);
-        $this->app->bind(AddressRiskScorer::class, FakeAddressRiskScorer::class);
-        $this->app->bind(VentPayClient::class, FakeVentPayClient::class);
+        // A PreSendGate kötése MINDKÉT ágon kell: korábban a fenti ág `return`-nel kilépett,
+        // és a lánc kötés nélkül maradt — fake-mentes élesben a küldés nem hibára futott a
+        // hiányzó ventPay miatt (ahogy kell), hanem a container nem tudta felépíteni a kaput.
 
         $this->app->bind(PreSendGate::class, fn ($app) => new PreSendGate(
             array_map(fn (string $gate) => $app->make($gate), self::GATES),

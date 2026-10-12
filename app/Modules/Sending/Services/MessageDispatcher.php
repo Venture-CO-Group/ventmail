@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Sending\Services;
 
+use App\Modules\Audit\Services\KeyedHash;
 use App\Modules\Domains\Models\Domain;
 use App\Modules\Events\Models\MessageEvent;
 use App\Modules\Events\Services\TrackingBaseUrl;
@@ -59,6 +60,7 @@ final class MessageDispatcher
         private readonly TemplateRenderer $renderer = new TemplateRenderer,
         private readonly TrackingRewriter $tracking = new TrackingRewriter(new TrackingTokens),
         private readonly TrackingBaseUrl $trackingBase = new TrackingBaseUrl,
+        private readonly SendingMode $mode = new SendingMode,
     ) {}
 
     /**
@@ -116,6 +118,15 @@ final class MessageDispatcher
                 $message->uuid,
                 (string) $message->gate_decided_at
             ));
+        }
+
+        // A KÜLDÉSI MÓD a küldés pillanatában is számít: ha a tulajdonos a gate-döntés óta
+        // visszazárta (seed-mód, marketing ki), a sorban álló levél sem mehet ki.
+        if (($restriction = $this->mode->restriction($message)) !== null) {
+            $message->forceFill(['status' => 'rejected', 'reason' => $restriction->value, 'render_variables' => null])->save();
+            $this->events($message, 'rejected', [], ['reason' => $restriction->value]);
+
+            return;
         }
 
         if (! $this->claim($message)) {
@@ -286,6 +297,8 @@ final class MessageDispatcher
             'reason' => $result->accepted ? null : 'DRIVER_REJECTED',
             'sent_at' => now(),
             'options' => [...$message->options, 'delivered_recipients' => $delivered],
+            // A titkos render-változók csak addig élnek, amíg újrapróbálás jöhet.
+            ...($status === 'deferred' ? [] : ['render_variables' => null]),
         ])->save();
 
         // A fogadó VÁLASZA feldolgozva: hard bounce → azonnali suppression, soft → N próba
@@ -339,8 +352,10 @@ final class MessageDispatcher
         ]);
 
         $attempt = (int) $message->attempts;
+        $final = $this->retry->shouldGiveUp($attempt);
 
         $message->forceFill([
+            ...($final ? ['render_variables' => null] : []),
             // A `failed` VÉGLEGES: a korlátlan újrapróbálás a sort sosem ürítené ki, és a
             // fogadó felé is agresszió lenne.
             'status' => $this->retry->shouldGiveUp($attempt) ? 'failed' : 'deferred',
@@ -388,7 +403,8 @@ final class MessageDispatcher
                     ...$payload,
                     // Tartalom helyett LENYOMAT: bizonyítja, hogy melyik törzs ment ki,
                     // de nem őrzi meg a titkokat.
-                    'body_sha256' => $body === null ? null : hash('sha256', $body),
+                    // Kulcsolt: a renderelt törzsben `t:variables` (rövid kód) is lehet.
+                    'body_sha256' => $body === null ? null : KeyedHash::of('body', $body),
                 ],
             ]);
         }
@@ -408,7 +424,8 @@ final class MessageDispatcher
         $html = (string) ($message->options['body_html'] ?? '');
         $text = (string) ($message->options['body_text'] ?? '');
         $recipientVariables = (array) ($message->variables['recipient-variables'] ?? []);
-        $shared = collect($message->variables)->except('recipient-variables')->all();
+        // A `t:variables` CSAK itt, a renderelésben él (és felülírja az azonos nevű `v:*`-t).
+        $shared = [...collect($message->variables)->except('recipient-variables')->all(), ...(array) $message->render_variables];
 
         // A nyomkövetés a TENANT SAJÁT hosztján fut (`email.<domain>`), nem a miénken —
         // különben minden ügyfél link-reputációja egy közös hosztra folyna össze, és a

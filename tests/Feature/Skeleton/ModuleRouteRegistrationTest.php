@@ -135,6 +135,13 @@ it('egyetlen modul-route sem hitelesítetlen', function () {
          | meghívóit sorolja fel, a meghívó tenantról egyedül a workspace nevét mutatja.
          */
         'invitations', 'invitations/{uuid}/accept', 'invitations/{uuid}',
+        /*
+         | A POSTAL KÉZBESÍTÉSI WEBHOOKJA (deploy-ovh). Gép hívja a belső docker-hálózatról:
+         | nincs se session, se API-kulcs. A hitelességet a poolonkénti RSA-aláírás adja
+         | (kulcs nélkül 503, rossz aláírásra 401), az edge kívülről nem engedi az
+         | `/internal/*` útvonalat, és rate-limit van rajta.
+         */
+        'internal/mta/postal/{pool}',
     ];
 
     $offenders = [];

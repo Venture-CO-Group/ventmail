@@ -33,10 +33,15 @@ it('egyetlen rate-limiter sem kulcsol a `request->ip()`-re', function () {
     expect($limiters)->toContain('self::peer($request)');
 });
 
-it('a `peer()` a REMOTE_ADDR-t adja, nem a proxy-fejlécet', function () {
-    $source = (string) file_get_contents(app_path('Providers/AppServiceProvider.php'));
+it('a `peer()` a ClientAddress-t adja: TCP-partner, vagy CSAK a szűkített edge-től a továbbított cím', function () {
+    $provider = (string) file_get_contents(app_path('Providers/AppServiceProvider.php'));
+    $client = (string) file_get_contents(app_path('Support/ClientAddress.php'));
 
-    expect($source)->toContain("server('REMOTE_ADDR')");
+    expect($provider)->toContain('ClientAddress::bucket($request)');
+    expect($client)->toContain("server('REMOTE_ADDR')");
+    // A továbbított címet csak a megbízható proxytól veszi át — a `*` bizalom mellett sem.
+    expect($client)->toContain('isFromTrustedProxy()');
+    expect($client)->toContain("=== ['*']");
 });
 
 it('az API-kulcs brute-force plafonja sem a kérő szavára kulcsol', function () {
@@ -46,7 +51,7 @@ it('az API-kulcs brute-force plafonja sem a kérő szavára kulcsol', function (
         app_path('Modules/Api/Http/Middleware/AuthenticateApiKey.php')
     );
 
-    expect($source)->toContain("server('REMOTE_ADDR')");
+    expect($source)->toContain('sourceBucket(ClientAddress::of($request))');
     expect($source)->not->toContain('sourceBucket((string) $request->ip())');
 });
 

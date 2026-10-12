@@ -1,0 +1,97 @@
+name: Release
+
+# main push -> ghcr.io/venture-co-group/ventmail:<sha>
+# v* tag      -> ghcr.io/venture-co-group/ventmail:<sha> and :<tag>
+#
+# The image is built only after the full CI gate passed for that same commit,
+# from the frontend assets that gate built. Production pulls a version tag;
+# nothing is ever pushed as :latest.
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+# Third-party actions are pinned to commit SHAs: the image job can write packages.
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    name: CI gate
+    uses: ./.github/workflows/ci.yml
+    secrets: inherit
+    # A called workflow gets at most the caller's permissions; the frontend
+    # job reads the private @venture-co-group packages.
+    permissions:
+      contents: read
+      packages: read
+
+  image:
+    name: image (linux/amd64 -> GHCR)
+    needs: gate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Built by the gate's frontend job from this commit (vue-tsc + vite).
+      - name: Download built assets
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: public-build
+          path: public/build
+
+      - name: Image tags
+        id: meta
+        run: |
+          image="ghcr.io/venture-co-group/ventmail"
+          tags="${image}:${GITHUB_SHA}"
+          version="${GITHUB_SHA}"
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            tags="${tags},${image}:${GITHUB_REF_NAME}"
+            version="${GITHUB_REF_NAME}"
+          fi
+          echo "tags=${tags}" >> "$GITHUB_OUTPUT"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Log in to GHCR
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          build-args: |
+            VERSION=${{ steps.meta.outputs.version }}
+            REVISION=${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Summary
+        run: |
+          {
+            echo "### ventMail image"
+            echo
+            echo "Tags: \`${{ steps.meta.outputs.tags }}\`"
+            echo
+            echo "Digest: \`${{ steps.build.outputs.digest }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"

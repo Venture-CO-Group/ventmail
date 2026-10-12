@@ -1,0 +1,9 @@
+You have been invited
+
+You have been invited to {{ organization }} (role: {{ role }}). Accept the invitation with the link below:
+
+{{ url }}
+
+If you were not expecting this invitation, you can ignore this email.
+
+— Venture

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Sending\Actions;
 
 use App\Modules\Audit\Services\AuditLogger;
+use App\Modules\Audit\Services\KeyedHash;
 use App\Modules\Billing\Enums\UsageDimension;
 use App\Modules\Billing\Services\Metering;
 use App\Modules\Events\Models\MessageEvent;
@@ -105,6 +106,8 @@ final class SendMessage
             $message->forceFill([
                 'status' => 'rejected',
                 'reason' => $decision->reason,
+                // Az elutasított levél titkos render-változóira soha nem lesz szükség.
+                'render_variables' => null,
                 'options' => [...$message->options, 'gate_trace' => $decision->trace()],
             ])->save();
 
@@ -376,6 +379,7 @@ final class SendMessage
             ),
             'tags' => Arr::get($attributes, 'tags', []),
             'variables' => Arr::get($attributes, 'variables', []),
+            'render_variables' => Arr::get($attributes, 'render_variables') ?: null,
             'headers' => Arr::get($attributes, 'headers', []),
             // A törzs EGYETLEN kanonikus helyen él (`body_html` / `body_text`), nem
             // duplikálva: 100 KB-os levélnél a kettős tárolás 200 KB/sor lenne.
@@ -425,7 +429,7 @@ final class SendMessage
     {
         $canonical = Arr::only($attributes, [
             'channel', 'from_email', 'from_name', 'subject', 'to', 'html', 'text',
-            'tags', 'variables', 'headers', 'deliverytime', 'testmode', 'rendered_html',
+            'tags', 'variables', 'render_variables', 'headers', 'deliverytime', 'testmode', 'rendered_html',
             // A MIME-úton a TARTALOM kizárólag itt van: `options` (vezérlők) és a nyers
             // levél lenyomata. Enélkül ugyanaz a kulcs KÉT különböző MIME-levéllel replayt
             // adott, és a második soha nem ment ki.
@@ -437,7 +441,9 @@ final class SendMessage
         // Érvénytelen UTF-8 (latin-1 törzsű legacy integráció) esetén a `json_encode`
         // `false`-t adott, tehát MINDEN ilyen kérés lenyomata `hash('')` lett — két
         // különböző levél ütközött, a második csendben elveszett.
-        return hash('sha256', json_encode($canonical, JSON_INVALID_UTF8_SUBSTITUTE) ?: serialize($canonical));
+        // KULCSOLT lenyomat: a `t:variables` (pl. egy 6 jegyű OTP) a kérés része, és a
+        // többi mező ismert — kulcs nélküli SHA-256-ból offline visszafejthető lenne.
+        return KeyedHash::of('request_fingerprint', json_encode($canonical, JSON_INVALID_UTF8_SUBSTITUTE) ?: serialize($canonical));
     }
 
     /**
@@ -458,7 +464,7 @@ final class SendMessage
                 'reason' => $reason,
                 'tags' => $message->tags,
                 'variables' => $shared,
-                'payload' => ['body_sha256' => $body === '' ? null : hash('sha256', $body)],
+                'payload' => ['body_sha256' => $body === '' ? null : KeyedHash::of('body', $body)],
             ]);
         }
     }

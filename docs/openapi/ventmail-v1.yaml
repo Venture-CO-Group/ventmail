@@ -1071,6 +1071,13 @@ components:
         template:
           type: string
           description: 'Tárolt sablon neve; a `v:*` változókkal helyettesítődik be.'
+        t:variables:
+          type: string
+          description: |
+            JSON objektum (skalár értékekkel), CSAK a sablon rendereléséhez — titkos linkek,
+            kódok. A `v:*`-gal ellentétben NEM visszhangzik: nem kerül eseménybe, webhookba
+            vagy API-válaszba, titkosítva várja a küldést, és a küldés végén törlődik.
+            Azonos kulcsnál felülírja a `v:*` értéket.
         recipient-variables:
           type: string
           description: |
@@ -1359,6 +1366,10 @@ components:
         - VALIDATION_RISK
         - INVALID_REQUEST
         - GATE_ERROR
+        # Éles küldési mód: seed-allowlist, illetve kikapcsolt marketing-csatorna.
+        - SENDING_RESTRICTED
+        - INVALID_TEMPLATE_VARIABLES
+        - CHANNEL_DISABLED
         - ENTITLEMENT_REQUIRED
         - IP_POOL_CHANNEL_MISMATCH
         - UNSUPPORTED_MIME_OPTION

@@ -12,6 +12,26 @@ declare(strict_types=1);
 return [
     'driver' => env('SENDING_DRIVER', 'fake'),
 
+    /*
+     | ÉLES KÜLDÉSI MÓD (deploy-ovh, kemény szabály 3). Mindhárom kapcsolót KIZÁRÓLAG a
+     | tulajdonos fordítja át — az alapérték az, amivel egy friss éles gép biztonságosan indul.
+     |
+     | - `live = false`: SEED-MÓD. Csak az allowlistes címzett kaphat levelet, akkor is, ha az
+     |   allowlist kötelezőségét valaki kikapcsolta (a kettő együtt sem nyit ki semmit).
+     | - `allowlist_enforced`: élesben is csak az allowlist — a warm-up első lépcsőjéhez.
+     | - `marketing_enabled = false`: minden consent-köteles csatorna (marketing, campaign,
+     |   journey) tiltott, allowlistes címre is.
+     |
+     | Az allowlist bejegyzése teljes cím (`a@b.hu`) vagy domain (`@b.hu`, aldomain nélkül).
+     */
+    'live' => (bool) env('SENDING_LIVE', false),
+    'marketing_enabled' => (bool) env('SENDING_MARKETING_ENABLED', false),
+    'allowlist_enforced' => (bool) env('SEND_ALLOWLIST_ENFORCED', true),
+    'allowlist' => array_values(array_filter(array_map(
+        static fn (string $entry) => strtolower(trim($entry)),
+        explode(',', (string) env('SEND_ALLOWLIST', ''))
+    ))),
+
     // 0. kapu — bemenet-épség. A spec 8.1 hívásonként max 1000 címzettet enged.
     'max_recipients' => (int) env('SENDING_MAX_RECIPIENTS', 1000),
 
@@ -34,8 +54,36 @@ return [
     'decision_max_age_seconds' => (int) env('SENDING_DECISION_MAX_AGE', 900),
 
     'postal' => [
+        // Egy-végpontos (régi) beállítás: KIZÁRÓLAG tranzakciós forgalomra esik vissza rá a
+        // driver, ha a `pools.transactional` üres. Marketing-forgalmat SOSEM visz.
         'endpoint' => env('POSTAL_ENDPOINT', ''),
         'api_key' => env('POSTAL_API_KEY', ''),
+
+        /*
+         | POOLONKÉNT KÜLÖN POSTAL-PÉLDÁNY (deploy-ovh, kemény szabály 5). Mindegyik a saját
+         | IP-jéről, a saját HELO-jával és a saját Return-Path domainjével küld; a csatorna
+         | pool-osztálya (`Channel::poolClass()`) dönti el, melyiket hívjuk. A két példány
+         | végpontja és Return-Path domainje nem egyezhet — a driver ellenőrzi.
+         |
+         | A végpont `https://`, vagy `http://` EGYCÍMKÉS hostnévvel (docker belső hálózat).
+         */
+        'pools' => [
+            'transactional' => [
+                'endpoint' => env('POSTAL_TX_ENDPOINT', ''),
+                'api_key' => env('POSTAL_TX_API_KEY', ''),
+                'return_path_prefix' => env('POSTAL_TX_RETURN_PATH_PREFIX', 'psrp-tx'),
+                'return_path_domain' => env('POSTAL_TX_RETURN_PATH_DOMAIN', 'rp-tx.ventmail.app'),
+                // A példány webhook-aláíró PUBLIKUS kulcsa (PEM). Nem titok, de példányonként más.
+                'webhook_public_key' => str_replace('\\n', "\n", (string) env('POSTAL_TX_WEBHOOK_PUBLIC_KEY', '')),
+            ],
+            'marketing' => [
+                'endpoint' => env('POSTAL_MK_ENDPOINT', ''),
+                'api_key' => env('POSTAL_MK_API_KEY', ''),
+                'return_path_prefix' => env('POSTAL_MK_RETURN_PATH_PREFIX', 'psrp-mk'),
+                'return_path_domain' => env('POSTAL_MK_RETURN_PATH_DOMAIN', 'rp-mk.ventmail.app'),
+                'webhook_public_key' => str_replace('\\n', "\n", (string) env('POSTAL_MK_WEBHOOK_PUBLIC_KEY', '')),
+            ],
+        ],
     ],
 
     // A kézbesítési kísérletek (fogadó válasza, címzett) megőrzése — PII, tehát lejár.

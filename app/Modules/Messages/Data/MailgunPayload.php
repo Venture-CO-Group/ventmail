@@ -41,6 +41,8 @@ final readonly class MailgunPayload
         public array $tags,
         /** @var array<string, mixed> */
         public array $variables,
+        /** `t:variables` — csak renderelésre; sosem visszhangzik (lásd RenderVariablesTest). */
+        public array $renderVariables,
         /** @var array<string, string> */
         public array $headers,
         /** @var array<string, mixed> */
@@ -93,6 +95,7 @@ final readonly class MailgunPayload
             text: self::scalarField($input, 'text'),
             tags: $tags,
             variables: self::parseVariables($input),
+            renderVariables: self::parseRenderVariables($input),
             headers: self::parsePrefixed($input, 'h:'),
             options: self::parseOptions($input),
             deliverytime: self::parseDeliverytime($input['o:deliverytime'] ?? null),
@@ -186,6 +189,35 @@ final readonly class MailgunPayload
             static fn ($value) => is_scalar($value) ? strtolower(trim((string) $value)) : '',
             $values
         ), static fn (string $value) => $value !== ''));
+    }
+
+    /**
+     * `t:variables` — JSON objektum, SKALÁR értékekkel. Csak a rendereléshez kell (titkos
+     * linkek, kódok); a `v:*`-gal szemben nem tárolódik olvashatóan és nem kerül eseménybe.
+     *
+     * @param  array<string, mixed>  $input
+     * @return array<string, scalar>
+     */
+    private static function parseRenderVariables(array $input): array
+    {
+        if (! array_key_exists('t:variables', $input) || $input['t:variables'] === null || $input['t:variables'] === '') {
+            return [];
+        }
+
+        $decoded = is_array($input['t:variables'])
+            ? $input['t:variables']
+            : json_decode((string) $input['t:variables'], true);
+
+        $valid = is_array($decoded) && ($decoded === [] || ! array_is_list($decoded))
+            && array_reduce($decoded, static fn (bool $ok, mixed $value) => $ok && (is_scalar($value) || $value === null), true);
+
+        if (! $valid) {
+            throw new InvalidArgumentException(
+                'INVALID_TEMPLATE_VARIABLES|A `t:variables` JSON objektum legyen, skalár értékekkel.'
+            );
+        }
+
+        return array_map(static fn ($value) => $value === null ? '' : $value, $decoded);
     }
 
     /** @param array<string, mixed> $input */

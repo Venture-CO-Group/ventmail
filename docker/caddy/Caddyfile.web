@@ -1,0 +1,41 @@
+# In-image web tier (the `web` role). Plain HTTP on :8080 inside the ventMail
+# stack; TLS, HSTS and the public hostnames belong to the mail-box edge.
+# Two callers: the edge (public traffic; it never forwards /internal/*) and the
+# Postal instances on the internal postal-api network (signed delivery webhooks).
+{
+	admin off
+	auto_https off
+	persist_config off
+	servers {
+		# Keep the edge's X-Forwarded-* (client IP, https); believed from the
+		# edge proxy address only.
+		trusted_proxies static {$TRUSTED_PROXIES}
+	}
+}
+
+import snippets/security-headers.caddy
+
+:8080 {
+	# deploy.sh drains a colour before stopping it by creating /tmp/ventmail-draining:
+	# /up then answers 503, the edge moves traffic to the other colour.
+	@draining {
+		path /up
+		file {
+			root /tmp
+			try_files /ventmail-draining
+		}
+	}
+	respond @draining "draining" 503
+
+	root * /app/public
+	encode zstd gzip
+	import security_headers
+
+	php_fastcgi unix//run/php/fpm.sock
+	file_server
+
+	log {
+		output stdout
+		format json
+	}
+}
