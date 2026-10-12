@@ -77,3 +77,11 @@ test('a workspace-váltó CSAK a saját tagságokat kínálja', async ({ page })
     await expect(options).toHaveCount(1);
     await expect(options.first()).toHaveText('Dev workspace');
 });
+
+test('a héjban ott a kijelentkezés (RP-initiated logout a ventSSO felé)', async ({ page }) => {
+    await page.goto('/dashboard');
+
+    // A gombot csak látjuk — megnyomni nem itt kell: a sorosan futó suite egyetlen
+    // dev-munkamenetet használ, a valódi kilépést az éles ellenőrzés méri (e2e-prod).
+    await expect(page.getByTestId('logout')).toBeVisible();
+});

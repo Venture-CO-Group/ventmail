@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Link, router, usePage } from '@inertiajs/vue3';
-import { VtGlowLine, VtSelect } from '@venture/ui';
+import { VtButton, VtGlowLine, VtSelect } from '@venture/ui';
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { loadLocaleMessages } from '../i18n';
@@ -220,6 +220,11 @@ async function switchLocale(code: string): Promise<void> {
                     :options="localeOptions"
                     @update:model-value="void switchLocale(String($event))"
                 />
+
+                <!-- RP-initiated logout: a ventSSO munkamenete is záródik (LogoutController). -->
+                <VtButton variant="ghost" data-testid="logout" @click="router.post('/auth/logout')">
+                    {{ t('shell.logout') }}
+                </VtButton>
             </div>
         </nav>
 
