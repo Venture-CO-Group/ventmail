@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { router } from '@inertiajs/vue3';
+import { Link, router } from '@inertiajs/vue3';
 import { VtButton, VtField, VtInput, type VtColumn } from '@venture/ui';
 import VmTable from '../../Components/Form/VmTable.vue';
 import VmCard from '../../Components/Form/VmCard.vue';
@@ -51,7 +51,7 @@ const listName = ref('');
 const editingList = ref<string | null>(null);
 const listForm = ref({ name: '', description: '', fromEmail: '', fromName: '' });
 
-type Row = { email: string; name: string; status: string; consent: string; validation: string };
+type Row = { uuid: string; email: string; name: string; status: string; consent: string; validation: string };
 
 const columns: VtColumn<Row>[] = [
     { key: 'email', label: t('audience.email'), mono: true },
@@ -63,6 +63,7 @@ const columns: VtColumn<Row>[] = [
 
 const rows = computed<Row[]>(() =>
     props.contacts.items.map((contact) => ({
+        uuid: contact.uuid,
         email: contact.email,
         name: contact.name || '—',
         status: contact.status,
@@ -114,7 +115,10 @@ function createList(): void {
 
 <template>
     <AppLayout>
-        <h1 class="vt-text-display">{{ t('audience.title') }}</h1>
+        <header class="vm-audience-head">
+            <h1 class="vt-text-display">{{ t('audience.title') }}</h1>
+            <VtButton data-testid="audience-import" @click="router.visit('/audience/import')">{{ t('audience.importAction') }}</VtButton>
+        </header>
 
         <p v-if="unconfirmed" class="vm-banner vm-banner--warning" role="status" data-testid="audience-unconfirmed">
             {{ t('audience.unconfirmedWarning', { count: unconfirmed }) }}
@@ -216,7 +220,33 @@ function createList(): void {
             </VmForm>
 
             <p v-if="!rows.length" data-testid="contacts-empty">{{ t('audience.noContacts') }}</p>
-            <VmTable v-else :columns="columns" :rows="rows" :caption="t('audience.contacts')" data-testid="contacts-table" />
+            <VmTable v-else :columns="columns" :rows="rows" :caption="t('audience.contacts')" data-testid="contacts-table">
+                <!-- Az e-mail az ADATLAPRA linkel: mezők, listák, hozzájárulás-történet (import-forrással). -->
+                <template #cell="{ column, row, value }">
+                    <Link
+                        v-if="column.key === 'email'"
+                        :href="`/audience/contacts/${row.uuid}`"
+                        class="vm-truncate"
+                        :title="String(value)"
+                        data-testid="contact-link"
+                    >{{ value }}</Link>
+                    <span v-else class="vm-truncate" :title="String(value ?? '')">{{ value }}</span>
+                </template>
+            </VmTable>
         </VmCard>
     </AppLayout>
 </template>
+
+<style scoped>
+.vm-audience-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--vt-space-4);
+}
+
+.vm-audience-head h1 {
+    margin: 0;
+}
+</style>

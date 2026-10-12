@@ -149,6 +149,10 @@ it('a Tenancy modulon kívül senki nem kerüli meg a global scope-ot', function
             'Sending/Models/PostalMessageRef.php',
             'Smtp/Models/SmtpCredential.php',
             'IpPools/Console/UpdateIpReputationCommand.php',
+            // v1.1 · Az `ANALYZE contacts/consents` KARBANTARTÁSI nyelv, nem tenant-lekérdezés:
+            // az import közben frissíti a tervező statisztikáját (különben az `email IN (…)`
+            // keresés a workspace összes kontaktján végigmegy). Adatot nem olvas és nem ír.
+            'Audience/Services/Import/ImportTableStats.php',
         ];
 
         if (str_starts_with($relative, 'Tenancy/') || in_array($relative, $exceptions, true)) {

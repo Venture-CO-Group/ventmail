@@ -108,6 +108,11 @@ jobs:
       - name: php artisan test (timescale)
         run: php artisan test --group=timescale
 
+      # A 300 000 soros kontakt-import teszt (streamelt feldolgozás, memória-plafon): percekig
+      # fut, ezért KÜLÖN, soros lépésben — de a CI-ban mindig lefut (v1.1 · 6. közönség-import).
+      - name: php artisan test (heavy)
+        run: php artisan test --group=heavy
+
       - name: composer audit
         run: composer audit --no-interaction
 

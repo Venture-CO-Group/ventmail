@@ -319,7 +319,304 @@
         "listDescription": "Descripción",
         "listDescriptionHint": "Los destinatarios lo ven en el centro de preferencias.",
         "listFromEmail": "Remitente",
-        "saveList": "Guardar"
+        "saveList": "Guardar",
+        "importAction": "Importar",
+        "import": {
+            "eyebrow": "Studio · Audiencia · Importación",
+            "title": "Importar contactos",
+            "subtitle": "Entrada manual, CSV o XLSX — en seis pasos, con base legal y validación.",
+            "exit": "Salir",
+            "steps": {
+                "upload": "Carga",
+                "columns": "Columnas",
+                "settings": "Ajustes",
+                "preview": "Vista previa",
+                "progress": "Progreso",
+                "result": "Resultado"
+            },
+            "stepDone": "completado",
+            "stepCurrent": "paso actual",
+            "stepCounter": "{current} / {total}",
+            "next": "Siguiente",
+            "back": "Atrás",
+            "makePreview": "Crear vista previa",
+            "start": "Iniciar importación",
+            "required": "obligatorio",
+            "rowsCount": "{count} filas",
+            "columnN": "Columna {n}",
+            "uploaded": "cargado",
+            "replace": "Reemplazar",
+            "step1": {
+                "title": "1. Carga o entrada",
+                "subtitle": "Elige de dónde proceden los contactos."
+            },
+            "tab": {
+                "manual": "Entrada manual",
+                "paste": "Pegar una lista",
+                "csv": "CSV",
+                "xlsx": "XLSX"
+            },
+            "source": {
+                "manual": "Entrada manual",
+                "paste": "Lista pegada",
+                "csv": "Archivo CSV",
+                "xlsx": "Archivo XLSX"
+            },
+            "manual": {
+                "email": "Dirección de correo",
+                "firstName": "Nombre",
+                "lastName": "Apellido"
+            },
+            "paste": {
+                "label": "Direcciones de correo",
+                "hint": "Una dirección por línea, o separadas por comas o punto y coma."
+            },
+            "drop": {
+                "title": "Suelta el archivo aquí o elígelo",
+                "hint": "CSV o XLSX · hasta {rows} filas · como máximo {mb} MB"
+            },
+            "fact": {
+                "delimiter": "Delimitador (auto)",
+                "encoding": "Codificación (auto)",
+                "header": "Encabezado",
+                "headerYes": "presente (fila 1)",
+                "headerNo": "ausente",
+                "processing": "Procesamiento",
+                "streamed": "en flujo, en bloques de {size} filas",
+                "speed": "Velocidad",
+                "rate": "{rate} filas/s",
+                "eta": "Tiempo restante",
+                "seconds": "~{seconds} s",
+                "job": "Tarea",
+                "memory": "Memoria",
+                "memoryValue": "{mb} MB"
+            },
+            "delimiter": {
+                "comma": "coma ( , )",
+                "semicolon": "punto y coma ( ; )",
+                "tab": "tabulador",
+                "pipe": "barra vertical ( | )"
+            },
+            "step2": {
+                "title": "2. Asignación de columnas",
+                "subtitle": "La sugerencia automática se basa en el encabezado. Puedes cambiarla o crear un campo personalizado nuevo."
+            },
+            "sheet": "Hoja",
+            "hasHeader": "La primera fila es un encabezado",
+            "col": {
+                "file": "Columna del archivo",
+                "sample": "Muestra",
+                "target": "Campo en ventMail",
+                "suggestion": "Sugerencia",
+                "line": "Línea",
+                "email": "Correo",
+                "name": "Nombre",
+                "finding": "Hallazgo"
+            },
+            "target": {
+                "skip": "No importar",
+                "email": "Correo electrónico",
+                "first_name": "Nombre",
+                "last_name": "Apellido",
+                "company": "Empresa",
+                "phone": "Teléfono",
+                "newField": "+ Nuevo campo personalizado"
+            },
+            "badge": {
+                "auto": "Auto · {confidence} %",
+                "custom": "Nuevo campo personalizado",
+                "manual": "Elegido manualmente",
+                "none": "sin coincidencia"
+            },
+            "needEmail": "Asigna exactamente una columna a la dirección de correo.",
+            "newField": {
+                "title": "Nuevo campo personalizado — «{name}»",
+                "name": "Nombre del campo",
+                "key": "Clave",
+                "keyHint": "Minúsculas, dígitos y guiones bajos; empieza por una letra.",
+                "type": "Tipo",
+                "create": "Crear campo",
+                "hint": "El campo estará disponible en todo el workspace (segmentos, plantillas)."
+            },
+            "fieldType": {
+                "text": "Texto",
+                "number": "Número",
+                "date": "Fecha",
+                "boolean": "Sí/no"
+            },
+            "step3": {
+                "title": "3. Ajustes",
+                "subtitle": "La base legal o la fuente del consentimiento es obligatoria y se registra por contacto."
+            },
+            "targetList": "Lista de destino",
+            "noList": "— sin lista —",
+            "tags": "Etiquetas",
+            "tagsHint": "Añade con Intro o coma.",
+            "tagsPlaceholder": "+ etiqueta",
+            "removeTag": "Quitar etiqueta",
+            "updateExisting": "Si el contacto ya existe",
+            "update": {
+                "skip": {
+                    "title": "Omitir",
+                    "description": "Los datos existentes no se modifican.",
+                    "badge": "omitir"
+                },
+                "fill": {
+                    "title": "Rellenar campos vacíos",
+                    "description": "Solo se completan los datos que faltan.",
+                    "badge": "rellenar"
+                },
+                "overwrite": {
+                    "title": "Sobrescribir",
+                    "description": "Ganan los valores del archivo (una celda vacía no borra).",
+                    "badge": "sobrescribir"
+                }
+            },
+            "legal": {
+                "heading": "Base legal y consentimiento",
+                "verified_consent": {
+                    "title": "Consentimiento verificado",
+                    "description": "Doble confirmación documentada o consentimiento escrito."
+                },
+                "legitimate_interest": {
+                    "title": "Relación de cliente existente",
+                    "description": "Basada en interés legítimo o contrato — no es consentimiento de marketing."
+                },
+                "unknown": {
+                    "title": "No verificado / desconocido",
+                    "description": "Se necesita una campaña de re-permission."
+                },
+                "source": "Fuente del consentimiento",
+                "sourceHint": "Texto libre, se muestra en la ficha del contacto y en el registro de auditoría.",
+                "sourcePlaceholder": "Doble confirmación en la web, 2025-03",
+                "date": "Fecha del consentimiento",
+                "resultingStatus": "Estado de los contactos importados:",
+                "statusSubscribed": "Consentimiento verificado con fuente y fecha indicadas. Con otra base legal el estado sería pending (se necesita re-permission).",
+                "statusPending": "Non-subscribed · se necesita re-permission: los contactos pasan a pending y no reciben marketing hasta que confirmen."
+            },
+            "rolePolicy": "Direcciones de rol (p. ej. info)",
+            "rolePolicyHint": "No son personas sino buzones compartidos — alto riesgo de quejas.",
+            "disposablePolicy": "Dominios desechables",
+            "disposablePolicyHint": "Buzones temporales que nadie lee.",
+            "policy": {
+                "skip": "Omitir",
+                "import": "Importar"
+            },
+            "suppressionNotice": "Las direcciones de las listas de supresión global o del workspace nunca se reactivan con una importación — se omiten y se cuentan.",
+            "noMail": "La importación no envía correos: tampoco se envía automáticamente el correo de confirmación (DOI). La campaña de re-permission la inicias tú, a través de los controles de envío.",
+            "step4": {
+                "title": "4. Vista previa y validación",
+                "computing": "La comprobación se ejecuta en segundo plano — los números aparecen en unos segundos.",
+                "subtitle": "{count} filas comprobadas. En cada categoría ves lo que va a ocurrir.",
+                "sampleHeading": "Muestra de las filas problemáticas",
+                "nothing": "No hay nada que importar — corrige el archivo o los ajustes."
+            },
+            "stat": {
+                "importable": "Importable (nuevos + actualizados)",
+                "importableHint": "{new} nuevos · {updated} actualizaciones",
+                "invalid": "Correo no válido",
+                "skipBadge": "omitido",
+                "duplicate": "Duplicado en el archivo",
+                "firstStays": "el primero se queda",
+                "duplicateHint": "la misma dirección en varias filas",
+                "existing": "Contacto existente",
+                "existingHint": "se trata según el modo de actualización",
+                "suppressed": "Coincidencia en la lista de supresión",
+                "neverRevived": "nunca se reactiva",
+                "suppressedHint": "rebote, queja, baja, eliminado",
+                "role": "Dirección de rol",
+                "roleHint": "p. ej. info, oficina, pedidos",
+                "disposable": "Dominio desechable",
+                "disposableHint": "p. ej. mailinator"
+            },
+            "code": {
+                "invalid_email": "Correo no válido",
+                "missing_email": "Falta el correo",
+                "invalid_field": "Valor de campo no válido: {field}",
+                "duplicate": "Duplicado (línea {line})",
+                "suppression_global": "Lista de supresión global",
+                "suppression_workspace": "Lista de supresión del workspace",
+                "erased": "Dirección eliminada (RGPD)",
+                "revoked_consent": "Consentimiento retirado",
+                "deleted_contact": "Contacto eliminado",
+                "role_address": "Dirección de rol",
+                "disposable_domain": "Dominio desechable",
+                "existing_contact": "Contacto existente"
+            },
+            "step5": {
+                "title": "5. Importación en curso",
+                "subtitle": "Se ejecuta como tarea en segundo plano en la cola; puedes cerrar la página, el resultado aparecerá aquí."
+            },
+            "phase": {
+                "reading": "Lectura y detección de la codificación",
+                "validating": "Validación y comprobación de supresión",
+                "inserting": "Inserción — bloque {chunk} de {chunks} ({size} filas)",
+                "consent": "Registro de eventos de consentimiento (base legal por contacto)"
+            },
+            "step6": {
+                "title": "6. Resultado"
+            },
+            "statusDone": "Listo · {time}",
+            "statusFailed": "Fallido",
+            "failed": "La importación ha fallado: {reason}",
+            "failure": {
+                "error": "error interno — detalles en el registro",
+                "worker": "la tarea en segundo plano se interrumpió",
+                "mapping": "la columna de correo no está asignada",
+                "rows": "el archivo tiene más filas de las permitidas",
+                "columns": "el archivo tiene más columnas de las permitidas",
+                "zip": "el XLSX supera el límite de descompresión",
+                "format": "el contenido del archivo no coincide con la extensión",
+                "sheet": "hoja desconocida"
+            },
+            "result": {
+                "new": "Contactos nuevos",
+                "updated": "Actualizados",
+                "skipped": "Omitidos",
+                "skippedHint": "dup. {duplicate} · supresión {suppressed} · rol {role} · desechable {disposable} · existentes {existing}",
+                "errors": "Con errores",
+                "downloadReport": "Descargar informe de errores (CSV)",
+                "viewContacts": "Ver contactos",
+                "newImport": "Nueva importación"
+            },
+            "audit": {
+                "title": "Entrada de auditoría",
+                "who": "Quién",
+                "when": "Cuándo",
+                "legalBasis": "Base legal",
+                "source": "Fuente",
+                "status": "Estado"
+            },
+            "tooLarge": "El archivo es demasiado grande (como máximo {mb} MB)."
+        },
+        "contact": {
+            "back": "Volver a la audiencia",
+            "fields": "Datos",
+            "subscribedAt": "Suscrito el",
+            "createdAt": "Creado",
+            "listsAndTags": "Listas y etiquetas",
+            "none": "Ninguno.",
+            "consent": "Consentimiento de marketing",
+            "noConsent": "No hay registro de consentimiento para esta dirección.",
+            "history": {
+                "title": "Historial de consentimiento",
+                "empty": "Aún no hay eventos.",
+                "when": "Fecha y hora",
+                "type": "Evento",
+                "basis": "Base legal",
+                "source": "Fuente",
+                "file": "archivo"
+            },
+            "event": {
+                "imported": "Importado",
+                "requested": "Suscripción solicitada",
+                "confirmed": "Confirmado",
+                "revoked": "Revocado",
+                "list_subscribed": "Suscrito a una lista",
+                "list_unsubscribed": "Baja de una lista",
+                "bounced_out": "Retirado tras rebote"
+            }
+        }
     },
     "templates": {
         "title": "Plantillas",

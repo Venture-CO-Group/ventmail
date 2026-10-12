@@ -282,6 +282,18 @@ class AppServiceProvider extends ServiceProvider
             Limit::perDay(30)->by('user:'.($request->user()?->getAuthIdentifier() ?? self::peer($request))),
         ]);
 
+        /*
+         | KONTAKT-IMPORT FELTÖLTÉS (v1.1): a legdrágább kérés (akár 100 MB, háromszori felmérés).
+         |
+         | A kulcs a WORKSPACE: az import a workspace címlistáját írja, és a hitelesített, de
+         | rosszindulatú (vagy hibás ciklusban futó) tag ne tudja a közös lemezt és a CPU-t
+         | megtölteni. Valódi használat (percenként néhány feltöltés) nem éri el a plafont.
+         */
+        RateLimiter::for('audience-import', fn (Request $request) => [
+            Limit::perMinute(20)->by('ws:'.self::workspaceKey($request)),
+            Limit::perHour(200)->by('ws:'.self::workspaceKey($request)),
+        ]);
+
         RateLimiter::for('sub-accounts', fn (Request $request) => [
             Limit::perMinute(5)->by('ws:'.self::workspaceKey($request)),
             Limit::perDay(50)->by('ws:'.self::workspaceKey($request)),

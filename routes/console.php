@@ -57,6 +57,9 @@ Schedule::command('inbound:verify-mx')->hourly();
 // adat kevés van a rendszerben, és az ellenőrzés után nincs jogalapunk a megőrzésére.
 Schedule::command('validation:purge')->dailyAt('03:50');
 
+// A feltöltött import-fájlok és lejárt hibariportok takarítása (v1.1): a címlista személyes adat.
+Schedule::command('audience:purge-imports')->dailyAt('04:00');
+
 // BLOCKLIST-FIGYELÉS: ez az a hiba, amit MI veszünk észre utoljára — az ügyfél előbb, mert
 // nála hirtelen senki nem kapja meg a levelet. Az óránkénti futás a delisting-kérelemhez
 // szükséges időt adja meg.

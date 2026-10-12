@@ -1,0 +1,84 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Modules\Audience\Console;
+
+use App\Modules\Audience\Models\ContactImport;
+use App\Modules\Audience\Services\Import\ImportUploads;
+use App\Modules\Tenancy\Models\Workspace;
+use App\Modules\Tenancy\Services\WorkspaceContext;
+use Illuminate\Console\Command;
+
+/**
+ * Az import-fájlok MEGŐRZÉSI idejének betartatása (golden rule 10, v1.1).
+ *
+ * A feltöltött fájl az ügyfél címlistája — személyes adatok tömege, és a feldolgozás után nincs
+ * jogalapunk megőrizni. A sikeres futás maga törli (`ContactImportProcessor::finish`); ez a
+ * parancs a MARADÉKOT takarítja:
+ *
+ *  - a félbehagyott (`draft`, `previewing`, `previewed`) és a sikertelen kötegek fájlját és
+ *    rekordját — a varázsló elhagyása nem hagyhat örök nyomot;
+ *  - a lezárt kötegek lejárt HIBARIPORTJÁT — a rekord (jogalap, forrás, darabszámok) az
+ *    audit része, az megmarad.
+ *
+ * A futó (`queued`, `processing`) kötegekhez soha nem nyúl.
+ */
+final class PurgeImportsCommand extends Command
+{
+    protected $signature = 'audience:purge-imports';
+
+    protected $description = 'A lejárt import-fájlok és hibariportok törlése.';
+
+    public function handle(WorkspaceContext $context, ImportUploads $uploads): int
+    {
+        $drafts = 0;
+        $reports = 0;
+        $cutoff = now()->subDays((int) config('audience.import.retention_days'));
+
+        try {
+            Workspace::query()->withTrashed()->orderBy('id')->chunkById(100, function ($workspaces) use ($context, $uploads, $cutoff, &$drafts, &$reports): void {
+                foreach ($workspaces as $workspace) {
+                    $context->set($workspace);
+
+                    ContactImport::query()
+                        ->whereIn('status', [ContactImport::STATUS_DRAFT, ContactImport::STATUS_PREVIEWING, ContactImport::STATUS_PREVIEWED, ContactImport::STATUS_FAILED])
+                        ->where('updated_at', '<=', $cutoff)
+                        ->each(function (ContactImport $import) use ($uploads, &$drafts): void {
+                            $uploads->delete($import->storage_path);
+                            $uploads->delete($import->error_report_path);
+
+                            // A sikertelen köteg rekordja az audit része — csak a fájlokat töröljük;
+                            // a félbehagyott draftnak viszont nincs mit őriznie.
+                            if ($import->status === ContactImport::STATUS_FAILED) {
+                                $import->forceFill(['storage_path' => null, 'error_report_path' => null])->saveQuietly();
+                            } else {
+                                $import->delete();
+                            }
+
+                            $drafts++;
+                        });
+
+                    ContactImport::query()
+                        ->where('status', ContactImport::STATUS_COMPLETED)
+                        ->whereNotNull('error_report_path')
+                        // A hiányzó `completed_at`-et (modellt megkerülő írás) az `updated_at` pótolja.
+                        ->where(fn ($query) => $query
+                            ->where('completed_at', '<=', $cutoff)
+                            ->orWhere(fn ($missing) => $missing->whereNull('completed_at')->where('updated_at', '<=', $cutoff)))
+                        ->each(function (ContactImport $import) use ($uploads, &$reports): void {
+                            $uploads->delete($import->error_report_path);
+                            $import->forceFill(['error_report_path' => null])->saveQuietly();
+                            $reports++;
+                        });
+                }
+            });
+        } finally {
+            $context->forget();
+        }
+
+        $this->info("Törölve — félbehagyott import: {$drafts}, lejárt hibariport: {$reports}");
+
+        return self::SUCCESS;
+    }
+}

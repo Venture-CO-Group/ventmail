@@ -30,6 +30,7 @@
         <exclude>
             <group>smtp-socket</group>
             <group>timescale</group>
+            <group>heavy</group>
         </exclude>
     </groups>
     <source>

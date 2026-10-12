@@ -9,7 +9,9 @@ use App\Modules\Consent\Models\Consent;
 use App\Modules\Consent\Models\ConsentEvent;
 use App\Modules\Sending\Services\DomainNormalizer;
 use App\Modules\Suppression\Models\Suppression;
+use App\Modules\Tenancy\Services\WorkspaceContext;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 /**
  * A CONSENT EGYETLEN írási pontja (50., 53., 57. kritérium).
@@ -212,6 +214,74 @@ final class ConsentRecorder
         );
 
         return $consent;
+    }
+
+    /**
+     * IMPORTÁLT köteg — kontaktonként egy `imported` esemény, kötegelt írással (v1.1).
+     *
+     * Ugyanaz a szemantika, mint az `imported()`: a `consents` sor, ha még nincs, `pending`
+     * (SOHA nem `confirmed` — a bizonyíték nincs a kezünkben), a meglévőt pedig NEM érinti,
+     * így egy visszavont vagy megerősített consent állapotát az import nem írhatja át. Ami
+     * minden címre készül: egy append-only `imported` esemény a jogalappal, a forrással és az
+     * import-köteg azonosítójával.
+     *
+     * Miért külön, kötegelt metódus: százezres importnál a soronkénti `request()` +
+     * `event()` (tranzakció, SELECT, két INSERT) címenként ~6 lekérdezés — a 300 000 soros
+     * fájl percekről órákra nyúlna. A kötegelt írás 1000 címenként 3 lekérdezés, és UGYANAZT
+     * a két táblát írja ugyanazokkal az oszlopokkal; a consent-írás így is ebben az egy
+     * osztályban marad (az „egyetlen írási pont" elv).
+     *
+     * @param  list<array{email: string, hash: string, status: string}>  $recipients  NORMALIZÁLT cím + `email` hash + a kontakt státusza az import után
+     * @param  array<string, mixed>  $payload  a köteg-szintű bizonyíték (import uuid, forrás, dátum…)
+     */
+    public function importedBatch(
+        array $recipients,
+        string $channel,
+        string $legalBasis,
+        string $evidence,
+        array $payload,
+    ): void {
+        if ($recipients === []) {
+            return;
+        }
+
+        $workspaceId = app(WorkspaceContext::class)->workspaceId();
+        $now = now()->toDateTimeString();
+
+        Consent::query()->insertOrIgnore(array_map(static fn (array $recipient): array => [
+            'uuid' => (string) Str::uuid7(),
+            'workspace_id' => $workspaceId,
+            'email' => $recipient['email'],
+            'email_hash' => $recipient['hash'],
+            'channel' => $channel,
+            'status' => 'pending',
+            'legal_basis' => $legalBasis,
+            'source' => 'import',
+            'created_at' => $now,
+            'updated_at' => $now,
+        ], $recipients));
+
+        $ids = Consent::query()
+            ->whereIn('email_hash', array_column($recipients, 'hash'))
+            ->where('channel', $channel)
+            ->pluck('id', 'email_hash');
+
+        ConsentEvent::query()->insert(array_map(static fn (array $recipient): array => [
+            'uuid' => (string) Str::uuid7(),
+            'workspace_id' => $workspaceId,
+            'consent_id' => $ids[$recipient['hash']] ?? null,
+            // CSAK hash: a nyers cím a bizonyíték-táblába nem kerülhet (lásd a séma docblockját).
+            'email_hash' => $recipient['hash'],
+            'type' => 'imported',
+            'channel' => $channel,
+            'legal_basis' => $legalBasis,
+            'source' => 'import',
+            'form_text' => $evidence,
+            'payload' => json_encode($payload + ['resulting_status' => $recipient['status']], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
+            'occurred_at' => $now,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ], $recipients));
     }
 
     /** @param array<string, mixed> $payload */

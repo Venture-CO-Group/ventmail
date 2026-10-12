@@ -319,7 +319,304 @@
         "listDescription": "Descrizione",
         "listDescriptionHint": "I destinatari la vedono nel preference center.",
         "listFromEmail": "Mittente",
-        "saveList": "Salva"
+        "saveList": "Salva",
+        "importAction": "Importa",
+        "import": {
+            "eyebrow": "Studio · Pubblico · Importazione",
+            "title": "Importa contatti",
+            "subtitle": "Inserimento manuale, CSV o XLSX — in sei passaggi, con base giuridica e validazione.",
+            "exit": "Esci",
+            "steps": {
+                "upload": "Caricamento",
+                "columns": "Colonne",
+                "settings": "Impostazioni",
+                "preview": "Anteprima",
+                "progress": "Avanzamento",
+                "result": "Risultato"
+            },
+            "stepDone": "completato",
+            "stepCurrent": "passaggio corrente",
+            "stepCounter": "{current} / {total}",
+            "next": "Avanti",
+            "back": "Indietro",
+            "makePreview": "Crea anteprima",
+            "start": "Avvia importazione",
+            "required": "obbligatorio",
+            "rowsCount": "{count} righe",
+            "columnN": "Colonna {n}",
+            "uploaded": "caricato",
+            "replace": "Sostituisci",
+            "step1": {
+                "title": "1. Caricamento o inserimento",
+                "subtitle": "Scegli da dove arrivano i contatti."
+            },
+            "tab": {
+                "manual": "Inserimento manuale",
+                "paste": "Incolla un elenco",
+                "csv": "CSV",
+                "xlsx": "XLSX"
+            },
+            "source": {
+                "manual": "Inserimento manuale",
+                "paste": "Elenco incollato",
+                "csv": "File CSV",
+                "xlsx": "File XLSX"
+            },
+            "manual": {
+                "email": "Indirizzo e-mail",
+                "firstName": "Nome",
+                "lastName": "Cognome"
+            },
+            "paste": {
+                "label": "Indirizzi e-mail",
+                "hint": "Un indirizzo per riga, oppure separati da virgole o punti e virgola."
+            },
+            "drop": {
+                "title": "Trascina qui il file o sceglilo",
+                "hint": "CSV o XLSX · fino a {rows} righe · al massimo {mb} MB"
+            },
+            "fact": {
+                "delimiter": "Delimitatore (auto)",
+                "encoding": "Codifica (auto)",
+                "header": "Intestazione",
+                "headerYes": "presente (riga 1)",
+                "headerNo": "assente",
+                "processing": "Elaborazione",
+                "streamed": "in streaming, a blocchi di {size} righe",
+                "speed": "Velocità",
+                "rate": "{rate} righe/s",
+                "eta": "Tempo rimanente",
+                "seconds": "~{seconds} s",
+                "job": "Attività",
+                "memory": "Memoria",
+                "memoryValue": "{mb} MB"
+            },
+            "delimiter": {
+                "comma": "virgola ( , )",
+                "semicolon": "punto e virgola ( ; )",
+                "tab": "tabulazione",
+                "pipe": "barra verticale ( | )"
+            },
+            "step2": {
+                "title": "2. Associazione delle colonne",
+                "subtitle": "Il suggerimento automatico si basa sull’intestazione. Puoi modificarlo o creare un nuovo campo personalizzato."
+            },
+            "sheet": "Foglio",
+            "hasHeader": "La prima riga è un’intestazione",
+            "col": {
+                "file": "Colonna del file",
+                "sample": "Esempio",
+                "target": "Campo in ventMail",
+                "suggestion": "Suggerimento",
+                "line": "Riga",
+                "email": "E-mail",
+                "name": "Nome",
+                "finding": "Rilievo"
+            },
+            "target": {
+                "skip": "Non importare",
+                "email": "E-mail",
+                "first_name": "Nome",
+                "last_name": "Cognome",
+                "company": "Azienda",
+                "phone": "Telefono",
+                "newField": "+ Nuovo campo personalizzato"
+            },
+            "badge": {
+                "auto": "Auto · {confidence}%",
+                "custom": "Nuovo campo personalizzato",
+                "manual": "Scelto manualmente",
+                "none": "nessuna corrispondenza"
+            },
+            "needEmail": "Associa esattamente una colonna all’indirizzo e-mail.",
+            "newField": {
+                "title": "Nuovo campo personalizzato — “{name}”",
+                "name": "Nome del campo",
+                "key": "Chiave",
+                "keyHint": "Minuscole, cifre e trattini bassi; inizia con una lettera.",
+                "type": "Tipo",
+                "create": "Crea campo",
+                "hint": "Il campo sarà disponibile in tutto il workspace (segmenti, modelli)."
+            },
+            "fieldType": {
+                "text": "Testo",
+                "number": "Numero",
+                "date": "Data",
+                "boolean": "Sì/no"
+            },
+            "step3": {
+                "title": "3. Impostazioni",
+                "subtitle": "La base giuridica o la fonte del consenso è obbligatoria e viene registrata per ogni contatto."
+            },
+            "targetList": "Lista di destinazione",
+            "noList": "— nessuna lista —",
+            "tags": "Tag",
+            "tagsHint": "Aggiungi con Invio o virgola.",
+            "tagsPlaceholder": "+ tag",
+            "removeTag": "Rimuovi tag",
+            "updateExisting": "Se il contatto esiste già",
+            "update": {
+                "skip": {
+                    "title": "Salta",
+                    "description": "I dati esistenti restano invariati.",
+                    "badge": "salta"
+                },
+                "fill": {
+                    "title": "Compila i campi vuoti",
+                    "description": "Vengono integrati solo i dati mancanti.",
+                    "badge": "compila"
+                },
+                "overwrite": {
+                    "title": "Sovrascrivi",
+                    "description": "Prevalgono i valori del file (una cella vuota non cancella).",
+                    "badge": "sovrascrive"
+                }
+            },
+            "legal": {
+                "heading": "Base giuridica e consenso",
+                "verified_consent": {
+                    "title": "Consenso verificato",
+                    "description": "Double opt-in documentato o consenso scritto."
+                },
+                "legitimate_interest": {
+                    "title": "Rapporto cliente esistente",
+                    "description": "Su interesse legittimo o contratto — non è un consenso di marketing."
+                },
+                "unknown": {
+                    "title": "Non verificato / sconosciuto",
+                    "description": "È necessaria una campagna di re-permission."
+                },
+                "source": "Fonte del consenso",
+                "sourceHint": "Testo libero, mostrato nella scheda del contatto e nel registro di audit.",
+                "sourcePlaceholder": "Double opt-in sul sito, 2025-03",
+                "date": "Data del consenso",
+                "resultingStatus": "Stato dei contatti importati:",
+                "statusSubscribed": "Consenso verificato con fonte e data indicate. Con un’altra base giuridica lo stato sarebbe pending (serve re-permission).",
+                "statusPending": "Non-subscribed · serve re-permission: i contatti diventano pending e non ricevono marketing finché non confermano."
+            },
+            "rolePolicy": "Indirizzi di ruolo (es. info)",
+            "rolePolicyHint": "Non persone ma caselle condivise — alto rischio di reclami.",
+            "disposablePolicy": "Domini usa e getta",
+            "disposablePolicyHint": "Caselle temporanee che nessuno legge.",
+            "policy": {
+                "skip": "Salta",
+                "import": "Importa"
+            },
+            "suppressionNotice": "Gli indirizzi nelle liste di soppressione globale o del workspace non vengono mai riattivati da un’importazione — vengono saltati e contati.",
+            "noMail": "L’importazione non invia e-mail: nemmeno quella di conferma (DOI) parte in automatico. La campagna di re-permission la avvii tu, attraverso i controlli di invio.",
+            "step4": {
+                "title": "4. Anteprima e validazione",
+                "computing": "Il controllo è in corso in background — i numeri compaiono tra pochi secondi.",
+                "subtitle": "{count} righe controllate. Per ogni categoria vedi cosa succederà.",
+                "sampleHeading": "Campione delle righe problematiche",
+                "nothing": "Non c’è nulla da importare — correggi il file o le impostazioni."
+            },
+            "stat": {
+                "importable": "Importabile (nuovi + aggiornati)",
+                "importableHint": "{new} nuovi · {updated} aggiornamenti",
+                "invalid": "E-mail non valida",
+                "skipBadge": "saltato",
+                "duplicate": "Duplicato nel file",
+                "firstStays": "il primo resta",
+                "duplicateHint": "lo stesso indirizzo su più righe",
+                "existing": "Contatto già esistente",
+                "existingHint": "gestito in base alla modalità di aggiornamento",
+                "suppressed": "Presente nella lista di soppressione",
+                "neverRevived": "mai riattivato",
+                "suppressedHint": "rimbalzo, reclamo, disiscritto, cancellato",
+                "role": "Indirizzo di ruolo",
+                "roleHint": "es. info, ufficio, ordini",
+                "disposable": "Dominio usa e getta",
+                "disposableHint": "es. mailinator"
+            },
+            "code": {
+                "invalid_email": "E-mail non valida",
+                "missing_email": "E-mail mancante",
+                "invalid_field": "Valore del campo non valido: {field}",
+                "duplicate": "Duplicato (riga {line})",
+                "suppression_global": "Lista di soppressione globale",
+                "suppression_workspace": "Lista di soppressione del workspace",
+                "erased": "Indirizzo cancellato (GDPR)",
+                "revoked_consent": "Consenso revocato",
+                "deleted_contact": "Contatto eliminato",
+                "role_address": "Indirizzo di ruolo",
+                "disposable_domain": "Dominio usa e getta",
+                "existing_contact": "Contatto esistente"
+            },
+            "step5": {
+                "title": "5. Importazione in corso",
+                "subtitle": "Viene eseguito come attività in background nella coda; puoi chiudere la pagina, il risultato comparirà qui."
+            },
+            "phase": {
+                "reading": "Lettura e rilevamento della codifica",
+                "validating": "Validazione e controllo della soppressione",
+                "inserting": "Inserimento — blocco {chunk} di {chunks} ({size} righe)",
+                "consent": "Registrazione degli eventi di consenso (base giuridica per contatto)"
+            },
+            "step6": {
+                "title": "6. Risultato"
+            },
+            "statusDone": "Completato · {time}",
+            "statusFailed": "Non riuscito",
+            "failed": "L’importazione non è riuscita: {reason}",
+            "failure": {
+                "error": "errore interno — dettagli nel registro",
+                "worker": "l’attività in background è stata interrotta",
+                "mapping": "la colonna e-mail non è associata",
+                "rows": "il file ha più righe del consentito",
+                "columns": "il file ha più colonne del consentito",
+                "zip": "il file XLSX supera il limite di decompressione",
+                "format": "il contenuto del file non corrisponde all’estensione",
+                "sheet": "foglio sconosciuto"
+            },
+            "result": {
+                "new": "Nuovi contatti",
+                "updated": "Aggiornati",
+                "skipped": "Saltati",
+                "skippedHint": "dup. {duplicate} · soppressione {suppressed} · ruolo {role} · usa e getta {disposable} · esistenti {existing}",
+                "errors": "Errori",
+                "downloadReport": "Scarica il rapporto errori (CSV)",
+                "viewContacts": "Vedi i contatti",
+                "newImport": "Nuova importazione"
+            },
+            "audit": {
+                "title": "Voce di audit",
+                "who": "Chi",
+                "when": "Quando",
+                "legalBasis": "Base giuridica",
+                "source": "Fonte",
+                "status": "Stato"
+            },
+            "tooLarge": "Il file è troppo grande (al massimo {mb} MB)."
+        },
+        "contact": {
+            "back": "Torna al pubblico",
+            "fields": "Dati",
+            "subscribedAt": "Iscritto il",
+            "createdAt": "Creato",
+            "listsAndTags": "Liste e tag",
+            "none": "Nessuno.",
+            "consent": "Consenso di marketing",
+            "noConsent": "Non esiste alcun record di consenso per questo indirizzo.",
+            "history": {
+                "title": "Cronologia del consenso",
+                "empty": "Ancora nessun evento.",
+                "when": "Data e ora",
+                "type": "Evento",
+                "basis": "Base giuridica",
+                "source": "Fonte",
+                "file": "file"
+            },
+            "event": {
+                "imported": "Importato",
+                "requested": "Iscrizione richiesta",
+                "confirmed": "Confermato",
+                "revoked": "Revocato",
+                "list_subscribed": "Iscritto a una lista",
+                "list_unsubscribed": "Disiscritto da una lista",
+                "bounced_out": "Rimosso dopo rimbalzo"
+            }
+        }
     },
     "templates": {
         "title": "Modelli",

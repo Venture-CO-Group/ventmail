@@ -69,20 +69,43 @@ return [
             'timeout' => 300,
             'nice' => 0,
         ],
+
+        /*
+         | A KONTAKT-IMPORT (v1.1): külön supervisor, külön kapcsolat. Egy 300 000 soros fájl
+         | percekig fut — a `background` 300 mp-es timeoutja és a Redis alap 90 mp-es
+         | `retry_after`-e alatt megszakadna, illetve kétszer futna. Egyetlen folyamat elég:
+         | az import a saját tranzakcióiban ír, és egy workspace importjait úgysem érdemes
+         | párhuzamosítani.
+         */
+        'imports' => [
+            'connection' => 'redis_imports',
+            'queue' => ['imports'],
+            'balance' => 'simple',
+            'maxProcesses' => 1,
+            'maxTime' => 0,
+            'maxJobs' => 0,
+            'memory' => 512,
+            'tries' => 1,
+            'timeout' => 3600,
+            'nice' => 0,
+        ],
     ],
 
     'environments' => [
         'production' => [
             'sending' => ['maxProcesses' => 20, 'balanceMaxShift' => 3, 'balanceCooldown' => 3],
             'background' => ['maxProcesses' => 6],
+            'imports' => ['maxProcesses' => 2],
         ],
         'local' => [
             'sending' => ['maxProcesses' => 3],
             'background' => ['maxProcesses' => 2],
+            'imports' => ['maxProcesses' => 1],
         ],
         'testing' => [
             'sending' => ['maxProcesses' => 1],
             'background' => ['maxProcesses' => 1],
+            'imports' => ['maxProcesses' => 1],
         ],
     ],
 ];

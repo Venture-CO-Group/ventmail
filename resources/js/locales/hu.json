@@ -319,7 +319,304 @@
         "listDescription": "Leírás",
         "listDescriptionHint": "A címzett is látja a preference centerben.",
         "listFromEmail": "Feladó",
-        "saveList": "Mentés"
+        "saveList": "Mentés",
+        "importAction": "Import",
+        "import": {
+            "eyebrow": "Studio · Közönség · Import",
+            "title": "Kontaktok importálása",
+            "subtitle": "Kézi bevitel, CSV vagy XLSX — hat lépésben, jogalappal és validációval.",
+            "exit": "Kilépés",
+            "steps": {
+                "upload": "Feltöltés",
+                "columns": "Oszlopok",
+                "settings": "Beállítások",
+                "preview": "Előnézet",
+                "progress": "Folyamat",
+                "result": "Eredmény"
+            },
+            "stepDone": "kész",
+            "stepCurrent": "jelenlegi lépés",
+            "stepCounter": "{current} / {total}",
+            "next": "Tovább",
+            "back": "Vissza",
+            "makePreview": "Előnézet készítése",
+            "start": "Import indítása",
+            "required": "kötelező",
+            "rowsCount": "{count} sor",
+            "columnN": "{n}. oszlop",
+            "uploaded": "feltöltve",
+            "replace": "Csere",
+            "step1": {
+                "title": "1. Feltöltés vagy bevitel",
+                "subtitle": "Válaszd ki, honnan érkeznek a kontaktok."
+            },
+            "tab": {
+                "manual": "Kézi bevitel",
+                "paste": "Lista beillesztése",
+                "csv": "CSV",
+                "xlsx": "XLSX"
+            },
+            "source": {
+                "manual": "Kézi bevitel",
+                "paste": "Beillesztett lista",
+                "csv": "CSV-fájl",
+                "xlsx": "XLSX-fájl"
+            },
+            "manual": {
+                "email": "E-mail-cím",
+                "firstName": "Keresztnév",
+                "lastName": "Vezetéknév"
+            },
+            "paste": {
+                "label": "E-mail-címek",
+                "hint": "Soronként egy cím, vagy vesszővel, pontosvesszővel elválasztva."
+            },
+            "drop": {
+                "title": "Húzd ide a fájlt, vagy válaszd ki",
+                "hint": "CSV vagy XLSX · akár {rows} sor · legfeljebb {mb} MB"
+            },
+            "fact": {
+                "delimiter": "Elválasztó (auto)",
+                "encoding": "Kódolás (auto)",
+                "header": "Fejléc",
+                "headerYes": "van (1. sor)",
+                "headerNo": "nincs",
+                "processing": "Feldolgozás",
+                "streamed": "streamelve, {size} soros chunkokban",
+                "speed": "Sebesség",
+                "rate": "{rate} sor/mp",
+                "eta": "Hátralévő idő",
+                "seconds": "~{seconds} mp",
+                "job": "Feladat",
+                "memory": "Memória",
+                "memoryValue": "{mb} MB"
+            },
+            "delimiter": {
+                "comma": "vessző ( , )",
+                "semicolon": "pontosvessző ( ; )",
+                "tab": "tabulátor",
+                "pipe": "függőleges vonal ( | )"
+            },
+            "step2": {
+                "title": "2. Oszlop-hozzárendelés",
+                "subtitle": "Az automatikus javaslat a fejléc alapján készült. Módosíthatod, vagy új egyéni mezőt hozhatsz létre."
+            },
+            "sheet": "Munkalap",
+            "hasHeader": "Az első sor fejléc",
+            "col": {
+                "file": "Fájl oszlopa",
+                "sample": "Minta",
+                "target": "Mező a ventMailben",
+                "suggestion": "Javaslat",
+                "line": "Sor",
+                "email": "E-mail",
+                "name": "Név",
+                "finding": "Megállapítás"
+            },
+            "target": {
+                "skip": "Nem importálom",
+                "email": "E-mail",
+                "first_name": "Keresztnév",
+                "last_name": "Vezetéknév",
+                "company": "Cég",
+                "phone": "Telefon",
+                "newField": "+ Új egyéni mező"
+            },
+            "badge": {
+                "auto": "Auto · {confidence}%",
+                "custom": "Új egyéni mező",
+                "manual": "Kézzel választva",
+                "none": "nincs találat"
+            },
+            "needEmail": "Pontosan egy oszlopot rendelj az e-mail címhez.",
+            "newField": {
+                "title": "Új egyéni mező — „{name}”",
+                "name": "Mező neve",
+                "key": "Kulcs",
+                "keyHint": "Kisbetű, szám és alávonás; betűvel kezdődik.",
+                "type": "Típus",
+                "create": "Mező létrehozása",
+                "hint": "A mező a teljes workspace-ben elérhető lesz (szegmensek, sablonok)."
+            },
+            "fieldType": {
+                "text": "Szöveg",
+                "number": "Szám",
+                "date": "Dátum",
+                "boolean": "Igen/nem"
+            },
+            "step3": {
+                "title": "3. Beállítások",
+                "subtitle": "A jogalap vagy a hozzájárulás forrása kötelező, kontaktonként naplózzuk."
+            },
+            "targetList": "Cél lista",
+            "noList": "— nincs lista —",
+            "tags": "Címkék",
+            "tagsHint": "Enterrel vagy vesszővel adhatsz hozzá.",
+            "tagsPlaceholder": "+ címke",
+            "removeTag": "Címke eltávolítása",
+            "updateExisting": "Ha a kontakt már létezik",
+            "update": {
+                "skip": {
+                    "title": "Kihagyás",
+                    "description": "A meglévő adat érintetlen.",
+                    "badge": "kihagy"
+                },
+                "fill": {
+                    "title": "Üres mezők kitöltése",
+                    "description": "Csak a hiányzó adatokat pótoljuk.",
+                    "badge": "kitölt"
+                },
+                "overwrite": {
+                    "title": "Felülírás",
+                    "description": "A fájl értékei győznek (az üres cella nem töröl).",
+                    "badge": "felülír"
+                }
+            },
+            "legal": {
+                "heading": "Jogalap és hozzájárulás",
+                "verified_consent": {
+                    "title": "Igazolt hozzájárulás",
+                    "description": "Dokumentált double opt-in vagy írásos hozzájárulás."
+                },
+                "legitimate_interest": {
+                    "title": "Meglévő ügyfélkapcsolat",
+                    "description": "Jogos érdek vagy szerződés alapján — nem marketing-hozzájárulás."
+                },
+                "unknown": {
+                    "title": "Nem igazolt / ismeretlen",
+                    "description": "Re-permission kampány szükséges."
+                },
+                "source": "A hozzájárulás forrása",
+                "sourceHint": "Szabad szöveg, a kontakt adatlapján és az auditnaplóban is megjelenik.",
+                "sourcePlaceholder": "Double opt-in a weboldalon, 2025-03",
+                "date": "A hozzájárulás dátuma",
+                "resultingStatus": "Az importált kontaktok státusza:",
+                "statusSubscribed": "Igazolt hozzájárulás + megadott forrás és dátum. Másik jogalap esetén a státusz pending (re-permission szükséges) lenne.",
+                "statusPending": "Non-subscribed · re-permission szükséges: a kontaktok pending állapotba kerülnek, marketing nem megy nekik, amíg meg nem erősítik."
+            },
+            "rolePolicy": "Szerepalapú címek (pl. info)",
+            "rolePolicyHint": "Nem személyek, hanem csoportos postafiókok — a panaszrisk magas.",
+            "disposablePolicy": "Eldobható domainek",
+            "disposablePolicyHint": "Ideiglenes postafiókok, amiket sosem olvasnak.",
+            "policy": {
+                "skip": "Kihagy",
+                "import": "Importál"
+            },
+            "suppressionNotice": "A globális és a workspace-tiltólistán lévő címek importkor sem élednek fel — ezeket kihagyjuk és számláljuk.",
+            "noMail": "Az import nem küld levelet: megerősítő (DOI) levél sem megy automatikusan. A re-permission kampányt te indítod, a küldési kapukon át.",
+            "step4": {
+                "title": "4. Előnézet és validáció",
+                "computing": "Az ellenőrzés fut a háttérben — a szám pár másodperc múlva megjelenik.",
+                "subtitle": "{count} sor ellenőrizve. Minden kategóriánál látod, mi fog történni.",
+                "sampleHeading": "Minta a problémás sorokból",
+                "nothing": "Nincs importálható sor — javítsd a fájlt vagy a beállításokat."
+            },
+            "stat": {
+                "importable": "Importálható (új + frissítés)",
+                "importableHint": "{new} új · {updated} frissítés",
+                "invalid": "Hibás e-mail",
+                "skipBadge": "kihagy",
+                "duplicate": "Duplikátum a fájlban",
+                "firstStays": "első marad",
+                "duplicateHint": "ugyanaz a cím több sorban",
+                "existing": "Már létező kontakt",
+                "existingHint": "a frissítési mód szerint kezeljük",
+                "suppressed": "Tiltólista-találat",
+                "neverRevived": "sosem él fel",
+                "suppressedHint": "visszapattanó, panasz, leiratkozott, törölt",
+                "role": "Szerepalapú cím",
+                "roleHint": "pl. info, iroda, rendelés",
+                "disposable": "Eldobható domain",
+                "disposableHint": "pl. mailinator"
+            },
+            "code": {
+                "invalid_email": "Hibás e-mail",
+                "missing_email": "Hiányzó e-mail",
+                "invalid_field": "Hibás mezőérték: {field}",
+                "duplicate": "Duplikátum (sor: {line})",
+                "suppression_global": "Globális tiltólista",
+                "suppression_workspace": "Workspace-tiltólista",
+                "erased": "GDPR-törölt cím",
+                "revoked_consent": "Visszavont hozzájárulás",
+                "deleted_contact": "Törölt kontakt",
+                "role_address": "Szerepalapú",
+                "disposable_domain": "Eldobható domain",
+                "existing_contact": "Már létező kontakt"
+            },
+            "step5": {
+                "title": "5. Import folyamatban",
+                "subtitle": "Háttérfeladatként fut a queue-n; az oldal bezárható, az eredmény ide érkezik meg."
+            },
+            "phase": {
+                "reading": "Beolvasás és kódolás-felismerés",
+                "validating": "Validálás és tiltólista-ellenőrzés",
+                "inserting": "Beszúrás — {chunk}. chunk / {chunks} ({size} sor)",
+                "consent": "Hozzájárulás-események naplózása (jogalap kontaktonként)"
+            },
+            "step6": {
+                "title": "6. Eredmény"
+            },
+            "statusDone": "Kész · {time}",
+            "statusFailed": "Sikertelen",
+            "failed": "Az import nem sikerült: {reason}",
+            "failure": {
+                "error": "belső hiba — részletek a naplóban",
+                "worker": "a háttérfeladat megszakadt",
+                "mapping": "az e-mail oszlop nincs hozzárendelve",
+                "rows": "a fájlban több sor van a megengedettnél",
+                "columns": "a fájlban több oszlop van a megengedettnél",
+                "zip": "az XLSX túllépi a kitömörítési határt",
+                "format": "a fájl tartalma nem felel meg a kiterjesztésnek",
+                "sheet": "ismeretlen munkalap"
+            },
+            "result": {
+                "new": "Új kontakt",
+                "updated": "Frissített",
+                "skipped": "Kihagyott",
+                "skippedHint": "dup. {duplicate} · tiltólista {suppressed} · szerep {role} · eldobható {disposable} · létező {existing}",
+                "errors": "Hibás",
+                "downloadReport": "Hibariport letöltése (CSV)",
+                "viewContacts": "Kontaktok megtekintése",
+                "newImport": "Új import"
+            },
+            "audit": {
+                "title": "Audit-bejegyzés",
+                "who": "Ki",
+                "when": "Mikor",
+                "legalBasis": "Jogalap",
+                "source": "Forrás",
+                "status": "Státusz"
+            },
+            "tooLarge": "A fájl túl nagy (legfeljebb {mb} MB)."
+        },
+        "contact": {
+            "back": "Vissza a közönséghez",
+            "fields": "Adatok",
+            "subscribedAt": "Feliratkozás ideje",
+            "createdAt": "Létrehozva",
+            "listsAndTags": "Listák és címkék",
+            "none": "Nincs.",
+            "consent": "Marketing-hozzájárulás",
+            "noConsent": "Ehhez a címhez nincs hozzájárulás-rekord.",
+            "history": {
+                "title": "Hozzájárulás-történet",
+                "empty": "Még nincs esemény.",
+                "when": "Időpont",
+                "type": "Esemény",
+                "basis": "Jogalap",
+                "source": "Forrás",
+                "file": "fájl"
+            },
+            "event": {
+                "imported": "Importálva",
+                "requested": "Beiratkozási kérés",
+                "confirmed": "Megerősítve",
+                "revoked": "Visszavonva",
+                "list_subscribed": "Listára feliratkozott",
+                "list_unsubscribed": "Listáról leiratkozott",
+                "bounced_out": "Visszapattanás miatt kivéve"
+            }
+        }
     },
     "templates": {
         "title": "Sablonok",

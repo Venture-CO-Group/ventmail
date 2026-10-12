@@ -319,7 +319,304 @@
         "listDescription": "Description",
         "listDescriptionHint": "Recipients see this in the preference center.",
         "listFromEmail": "Sender",
-        "saveList": "Save"
+        "saveList": "Save",
+        "importAction": "Import",
+        "import": {
+            "eyebrow": "Studio · Audience · Import",
+            "title": "Import contacts",
+            "subtitle": "Manual entry, CSV or XLSX — in six steps, with a legal basis and validation.",
+            "exit": "Exit",
+            "steps": {
+                "upload": "Upload",
+                "columns": "Columns",
+                "settings": "Settings",
+                "preview": "Preview",
+                "progress": "Progress",
+                "result": "Result"
+            },
+            "stepDone": "completed",
+            "stepCurrent": "current step",
+            "stepCounter": "{current} / {total}",
+            "next": "Next",
+            "back": "Back",
+            "makePreview": "Create preview",
+            "start": "Start import",
+            "required": "required",
+            "rowsCount": "{count} rows",
+            "columnN": "Column {n}",
+            "uploaded": "uploaded",
+            "replace": "Replace",
+            "step1": {
+                "title": "1. Upload or input",
+                "subtitle": "Choose where the contacts come from."
+            },
+            "tab": {
+                "manual": "Manual entry",
+                "paste": "Paste a list",
+                "csv": "CSV",
+                "xlsx": "XLSX"
+            },
+            "source": {
+                "manual": "Manual entry",
+                "paste": "Pasted list",
+                "csv": "CSV file",
+                "xlsx": "XLSX file"
+            },
+            "manual": {
+                "email": "E-mail address",
+                "firstName": "First name",
+                "lastName": "Last name"
+            },
+            "paste": {
+                "label": "E-mail addresses",
+                "hint": "One address per line, or separated by commas or semicolons."
+            },
+            "drop": {
+                "title": "Drop the file here, or choose it",
+                "hint": "CSV or XLSX · up to {rows} rows · at most {mb} MB"
+            },
+            "fact": {
+                "delimiter": "Delimiter (auto)",
+                "encoding": "Encoding (auto)",
+                "header": "Header",
+                "headerYes": "present (row 1)",
+                "headerNo": "none",
+                "processing": "Processing",
+                "streamed": "streamed, in chunks of {size} rows",
+                "speed": "Speed",
+                "rate": "{rate} rows/s",
+                "eta": "Time remaining",
+                "seconds": "~{seconds} s",
+                "job": "Job",
+                "memory": "Memory",
+                "memoryValue": "{mb} MB"
+            },
+            "delimiter": {
+                "comma": "comma ( , )",
+                "semicolon": "semicolon ( ; )",
+                "tab": "tab",
+                "pipe": "pipe ( | )"
+            },
+            "step2": {
+                "title": "2. Column mapping",
+                "subtitle": "The automatic suggestion is based on the header. You can change it or create a new custom field."
+            },
+            "sheet": "Worksheet",
+            "hasHeader": "The first row is a header",
+            "col": {
+                "file": "File column",
+                "sample": "Sample",
+                "target": "Field in ventMail",
+                "suggestion": "Suggestion",
+                "line": "Line",
+                "email": "E-mail",
+                "name": "Name",
+                "finding": "Finding"
+            },
+            "target": {
+                "skip": "Do not import",
+                "email": "E-mail",
+                "first_name": "First name",
+                "last_name": "Last name",
+                "company": "Company",
+                "phone": "Phone",
+                "newField": "+ New custom field"
+            },
+            "badge": {
+                "auto": "Auto · {confidence}%",
+                "custom": "New custom field",
+                "manual": "Chosen manually",
+                "none": "no match"
+            },
+            "needEmail": "Map exactly one column to the e-mail address.",
+            "newField": {
+                "title": "New custom field — “{name}”",
+                "name": "Field name",
+                "key": "Key",
+                "keyHint": "Lowercase letters, digits and underscores; starts with a letter.",
+                "type": "Type",
+                "create": "Create field",
+                "hint": "The field will be available across the workspace (segments, templates)."
+            },
+            "fieldType": {
+                "text": "Text",
+                "number": "Number",
+                "date": "Date",
+                "boolean": "Yes/no"
+            },
+            "step3": {
+                "title": "3. Settings",
+                "subtitle": "The legal basis or the source of consent is required and is logged per contact."
+            },
+            "targetList": "Target list",
+            "noList": "— no list —",
+            "tags": "Tags",
+            "tagsHint": "Add with Enter or a comma.",
+            "tagsPlaceholder": "+ tag",
+            "removeTag": "Remove tag",
+            "updateExisting": "If the contact already exists",
+            "update": {
+                "skip": {
+                    "title": "Skip",
+                    "description": "The existing data stays untouched.",
+                    "badge": "skip"
+                },
+                "fill": {
+                    "title": "Fill empty fields",
+                    "description": "Only the missing data is filled in.",
+                    "badge": "fill"
+                },
+                "overwrite": {
+                    "title": "Overwrite",
+                    "description": "The file’s values win (an empty cell does not erase).",
+                    "badge": "overwrite"
+                }
+            },
+            "legal": {
+                "heading": "Legal basis and consent",
+                "verified_consent": {
+                    "title": "Verified consent",
+                    "description": "Documented double opt-in or written consent."
+                },
+                "legitimate_interest": {
+                    "title": "Existing customer relationship",
+                    "description": "Based on legitimate interest or a contract — not marketing consent."
+                },
+                "unknown": {
+                    "title": "Unverified / unknown",
+                    "description": "A re-permission campaign is required."
+                },
+                "source": "Source of consent",
+                "sourceHint": "Free text, shown on the contact page and in the audit log.",
+                "sourcePlaceholder": "Double opt-in on the website, 2025-03",
+                "date": "Date of consent",
+                "resultingStatus": "Status of the imported contacts:",
+                "statusSubscribed": "Verified consent plus a given source and date. With another legal basis the status would be pending (re-permission needed).",
+                "statusPending": "Non-subscribed · re-permission needed: contacts become pending and receive no marketing until they confirm."
+            },
+            "rolePolicy": "Role-based addresses (e.g. info)",
+            "rolePolicyHint": "Not people but shared mailboxes — high complaint risk.",
+            "disposablePolicy": "Disposable domains",
+            "disposablePolicyHint": "Temporary mailboxes that are never read.",
+            "policy": {
+                "skip": "Skip",
+                "import": "Import"
+            },
+            "suppressionNotice": "Addresses on the global or workspace suppression list are never revived by an import — they are skipped and counted.",
+            "noMail": "The import sends no e-mail: no confirmation (DOI) message goes out automatically. You start the re-permission campaign yourself, through the sending gates.",
+            "step4": {
+                "title": "4. Preview and validation",
+                "computing": "The check is running in the background — the numbers appear in a few seconds.",
+                "subtitle": "{count} rows checked. For every category you can see what will happen.",
+                "sampleHeading": "Sample of the problem rows",
+                "nothing": "There is nothing to import — fix the file or the settings."
+            },
+            "stat": {
+                "importable": "Importable (new + updated)",
+                "importableHint": "{new} new · {updated} updates",
+                "invalid": "Invalid e-mail",
+                "skipBadge": "skipped",
+                "duplicate": "Duplicate in the file",
+                "firstStays": "first one stays",
+                "duplicateHint": "the same address on several rows",
+                "existing": "Existing contact",
+                "existingHint": "handled according to the update mode",
+                "suppressed": "Suppression hit",
+                "neverRevived": "never revived",
+                "suppressedHint": "bounced, complaint, unsubscribed, erased",
+                "role": "Role-based address",
+                "roleHint": "e.g. info, office, orders",
+                "disposable": "Disposable domain",
+                "disposableHint": "e.g. mailinator"
+            },
+            "code": {
+                "invalid_email": "Invalid e-mail",
+                "missing_email": "Missing e-mail",
+                "invalid_field": "Invalid field value: {field}",
+                "duplicate": "Duplicate (line {line})",
+                "suppression_global": "Global suppression list",
+                "suppression_workspace": "Workspace suppression list",
+                "erased": "GDPR-erased address",
+                "revoked_consent": "Withdrawn consent",
+                "deleted_contact": "Deleted contact",
+                "role_address": "Role-based",
+                "disposable_domain": "Disposable domain",
+                "existing_contact": "Existing contact"
+            },
+            "step5": {
+                "title": "5. Import in progress",
+                "subtitle": "It runs as a background job on the queue; you can close the page, the result will appear here."
+            },
+            "phase": {
+                "reading": "Reading and encoding detection",
+                "validating": "Validation and suppression check",
+                "inserting": "Inserting — chunk {chunk} of {chunks} ({size} rows)",
+                "consent": "Logging consent events (legal basis per contact)"
+            },
+            "step6": {
+                "title": "6. Result"
+            },
+            "statusDone": "Done · {time}",
+            "statusFailed": "Failed",
+            "failed": "The import failed: {reason}",
+            "failure": {
+                "error": "internal error — see the log for details",
+                "worker": "the background job was interrupted",
+                "mapping": "the e-mail column is not mapped",
+                "rows": "the file has more rows than allowed",
+                "columns": "the file has more columns than allowed",
+                "zip": "the XLSX exceeds the decompression limit",
+                "format": "the file content does not match its extension",
+                "sheet": "unknown worksheet"
+            },
+            "result": {
+                "new": "New contacts",
+                "updated": "Updated",
+                "skipped": "Skipped",
+                "skippedHint": "dup. {duplicate} · suppression {suppressed} · role {role} · disposable {disposable} · existing {existing}",
+                "errors": "Errors",
+                "downloadReport": "Download error report (CSV)",
+                "viewContacts": "View contacts",
+                "newImport": "New import"
+            },
+            "audit": {
+                "title": "Audit entry",
+                "who": "Who",
+                "when": "When",
+                "legalBasis": "Legal basis",
+                "source": "Source",
+                "status": "Status"
+            },
+            "tooLarge": "The file is too large (at most {mb} MB)."
+        },
+        "contact": {
+            "back": "Back to the audience",
+            "fields": "Details",
+            "subscribedAt": "Subscribed at",
+            "createdAt": "Created",
+            "listsAndTags": "Lists and tags",
+            "none": "None.",
+            "consent": "Marketing consent",
+            "noConsent": "There is no consent record for this address.",
+            "history": {
+                "title": "Consent history",
+                "empty": "No events yet.",
+                "when": "Time",
+                "type": "Event",
+                "basis": "Legal basis",
+                "source": "Source",
+                "file": "file"
+            },
+            "event": {
+                "imported": "Imported",
+                "requested": "Subscription requested",
+                "confirmed": "Confirmed",
+                "revoked": "Revoked",
+                "list_subscribed": "Subscribed to a list",
+                "list_unsubscribed": "Unsubscribed from a list",
+                "bounced_out": "Removed after bouncing"
+            }
+        }
     },
     "templates": {
         "title": "Templates",

@@ -73,6 +73,20 @@ return [
             'after_commit' => false,
         ],
 
+        /*
+         | A KONTAKT-IMPORT hosszú jobjainak kapcsolata (v1.1): ugyanaz a Redis, de a
+         | `retry_after` meghaladja a Horizon `imports` supervisor `timeout`-ját (3600 mp) —
+         | különben a futó importot a sor újra kiadná, és kétszer futna.
+         */
+        'redis_imports' => [
+            'driver' => 'redis',
+            'connection' => env('REDIS_QUEUE_CONNECTION', 'default'),
+            'queue' => 'imports',
+            'retry_after' => (int) env('REDIS_IMPORTS_RETRY_AFTER', 3900),
+            'block_for' => null,
+            'after_commit' => false,
+        ],
+
         'deferred' => [
             'driver' => 'deferred',
         ],
