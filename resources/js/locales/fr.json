@@ -487,7 +487,7 @@
                     "description": "Une campagne de re-permission est nécessaire."
                 },
                 "source": "Source du consentement",
-                "sourceHint": "Texte libre, affiché sur la fiche du contact et dans le journal d’audit.",
+                "sourceHint": "Texte libre, affiché sur la fiche du contact et dans le journal d’audit — n’y saisissez pas de données personnelles.",
                 "sourcePlaceholder": "Double opt-in sur le site, 2025-03",
                 "date": "Date du consentement",
                 "resultingStatus": "Statut des contacts importés :",
@@ -534,14 +534,13 @@
                 "missing_email": "E-mail manquant",
                 "invalid_field": "Valeur de champ invalide : {field}",
                 "duplicate": "Doublon (ligne {line})",
-                "suppression_global": "Liste de suppression globale",
-                "suppression_workspace": "Liste de suppression du workspace",
                 "erased": "Adresse effacée (RGPD)",
                 "revoked_consent": "Consentement retiré",
                 "deleted_contact": "Contact supprimé",
                 "role_address": "Adresse de fonction",
                 "disposable_domain": "Domaine jetable",
-                "existing_contact": "Contact existant"
+                "existing_contact": "Contact existant",
+                "suppressed": "Présent sur une liste de suppression"
             },
             "step5": {
                 "title": "5. Import en cours",
@@ -567,7 +566,9 @@
                 "columns": "le fichier a plus de colonnes que autorisé",
                 "zip": "le XLSX dépasse la limite de décompression",
                 "format": "le contenu du fichier ne correspond pas à l’extension",
-                "sheet": "feuille inconnue"
+                "sheet": "feuille inconnue",
+                "timeout": "l’analyse du fichier a dépassé le délai",
+                "line": "une ligne du fichier est trop longue"
             },
             "result": {
                 "new": "Nouveaux contacts",

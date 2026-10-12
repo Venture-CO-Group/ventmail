@@ -40,7 +40,7 @@ final class CsvRowReader implements ImportRowReader
 
             // Az `escape` paraméter SZÁNDÉKOSAN üres: a PHP-s `\` escape nem CSV-szabvány, és
             // egy `\"`-re végződő mező egész sorokat nyelne el.
-            while (($record = fgetcsv($handle, 0, $this->delimiter, '"', '')) !== false) {
+            while (($record = fgetcsv($handle, (int) config('audience.import.max_line_bytes'), $this->delimiter, '"', '')) !== false) {
                 $line++;
 
                 if ($line > $maxRows + 1) {

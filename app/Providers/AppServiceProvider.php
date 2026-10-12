@@ -290,9 +290,20 @@ class AppServiceProvider extends ServiceProvider
          | rosszindulatú (vagy hibás ciklusban futó) tag ne tudja a közös lemezt és a CPU-t
          | megtölteni. Valódi használat (percenként néhány feltöltés) nem éri el a plafont.
          */
+        // KÜLÖN KULCS ablakonként: két `Limit` ugyanazzal a kulccsal EGY vödörbe esik (a
+        // vödör kulcsa a limiter neve + a `by()` érték), és a szigorúbb/tágabb ablak közül
+        // az utolsó felülírná az elsőt — az óránkénti plafon hatástalan maradt.
         RateLimiter::for('audience-import', fn (Request $request) => [
-            Limit::perMinute(20)->by('ws:'.self::workspaceKey($request)),
-            Limit::perHour(200)->by('ws:'.self::workspaceKey($request)),
+            Limit::perMinute(20)->by('ws-min:'.self::workspaceKey($request)),
+            Limit::perHour(200)->by('ws-hour:'.self::workspaceKey($request)),
+        ]);
+
+        // A VARÁZSLÓ többi lépése (munkalap-váltás, leképezés, beállítások, indítás, egyéni mező):
+        // olcsóbbak, mint a feltöltés, de a munkalap-váltás újra felmér, a beállítások pedig
+        // háttérfeladatot indít — korlát nélkül egy tag az FPM-workereket foglalná le.
+        RateLimiter::for('audience-import-step', fn (Request $request) => [
+            Limit::perMinute(60)->by('ws-min:'.self::workspaceKey($request)),
+            Limit::perHour(600)->by('ws-hour:'.self::workspaceKey($request)),
         ]);
 
         /*
@@ -326,9 +337,11 @@ class AppServiceProvider extends ServiceProvider
             );
         });
 
+        // Külön kulcs ablakonként (lásd az `audience-import` limiternél): a közös kulcs a napi
+        // plafont hatástalanná tette.
         RateLimiter::for('sub-accounts', fn (Request $request) => [
-            Limit::perMinute(5)->by('ws:'.self::workspaceKey($request)),
-            Limit::perDay(50)->by('ws:'.self::workspaceKey($request)),
+            Limit::perMinute(5)->by('ws-min:'.self::workspaceKey($request)),
+            Limit::perDay(50)->by('ws-day:'.self::workspaceKey($request)),
         ]);
 
         RateLimiter::for('consent-confirm', function (Request $request) {

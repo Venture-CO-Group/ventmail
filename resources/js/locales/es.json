@@ -487,7 +487,7 @@
                     "description": "Se necesita una campaña de re-permission."
                 },
                 "source": "Fuente del consentimiento",
-                "sourceHint": "Texto libre, se muestra en la ficha del contacto y en el registro de auditoría.",
+                "sourceHint": "Texto libre, se muestra en la ficha del contacto y en el registro de auditoría — no introduzcas datos personales.",
                 "sourcePlaceholder": "Doble confirmación en la web, 2025-03",
                 "date": "Fecha del consentimiento",
                 "resultingStatus": "Estado de los contactos importados:",
@@ -534,14 +534,13 @@
                 "missing_email": "Falta el correo",
                 "invalid_field": "Valor de campo no válido: {field}",
                 "duplicate": "Duplicado (línea {line})",
-                "suppression_global": "Lista de supresión global",
-                "suppression_workspace": "Lista de supresión del workspace",
                 "erased": "Dirección eliminada (RGPD)",
                 "revoked_consent": "Consentimiento retirado",
                 "deleted_contact": "Contacto eliminado",
                 "role_address": "Dirección de rol",
                 "disposable_domain": "Dominio desechable",
-                "existing_contact": "Contacto existente"
+                "existing_contact": "Contacto existente",
+                "suppressed": "En una lista de supresión"
             },
             "step5": {
                 "title": "5. Importación en curso",
@@ -567,7 +566,9 @@
                 "columns": "el archivo tiene más columnas de las permitidas",
                 "zip": "el XLSX supera el límite de descompresión",
                 "format": "el contenido del archivo no coincide con la extensión",
-                "sheet": "hoja desconocida"
+                "sheet": "hoja desconocida",
+                "timeout": "el análisis del archivo superó el tiempo límite",
+                "line": "una línea del archivo es demasiado larga"
             },
             "result": {
                 "new": "Contactos nuevos",

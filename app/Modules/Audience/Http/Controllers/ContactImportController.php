@@ -130,7 +130,7 @@ final class ContactImportController
     /** XLSX: másik munkalap választása — újra felmérjük, és a leképezést újraépítjük. */
     public function sheet(ImportSheetRequest $request, string $uuid): RedirectResponse
     {
-        $import = $this->editable($this->find($uuid));
+        $import = $this->lock($this->find($uuid), ContactImport::STATUS_DRAFT);
         $profile = (array) $import->profile;
 
         if (($profile['format'] ?? 'csv') !== 'xlsx' || ! in_array($request->input('sheet'), (array) ($profile['sheets'] ?? []), true)) {
@@ -138,7 +138,7 @@ final class ContactImportController
         }
 
         try {
-            $fresh = $this->inspector->inspect($this->uploads->absolute((string) $import->storage_path), 'xlsx', (string) $request->input('sheet'));
+            $fresh = $this->inspector->inspect($this->uploads->absolute((string) $import->storage_path), 'xlsx', (string) $request->input('sheet'), verifyZip: false);
         } catch (ImportLimitExceeded $e) {
             return back()->withErrors(['sheet' => (string) __('ventmail.audience.import.limit.'.$e->reason)]);
         }
@@ -156,7 +156,7 @@ final class ContactImportController
     /** 2. lépés: az oszlop-leképezés mentése. */
     public function mapping(ImportMappingRequest $request, string $uuid): RedirectResponse
     {
-        $import = $this->editable($this->find($uuid));
+        $import = $this->lock($this->find($uuid), ContactImport::STATUS_DRAFT);
         $profile = (array) $import->profile;
 
         $width = (int) ($profile['width'] ?? 0);
@@ -193,7 +193,13 @@ final class ContactImportController
     /** 3. lépés: beállítások + a jogalap; majd az előnézet háttérfeladata. */
     public function settings(ImportSettingsRequest $request, string $uuid): RedirectResponse
     {
-        $import = $this->editable($this->find($uuid));
+        $import = $this->find($uuid);
+
+        if ($this->activeRuns() >= (int) config('audience.import.max_concurrent')) {
+            return back()->withErrors(['import' => (string) __('ventmail.audience.import.concurrency')]);
+        }
+
+        $import = $this->lock($import, ContactImport::STATUS_PREVIEWING);
 
         $basis = ImportLegalBasis::from((string) $request->input('legalBasis'));
         $source = trim((string) $request->input('consentSource', ''));
@@ -202,7 +208,7 @@ final class ContactImportController
 
         $import->update([
             'contact_list_id' => $list?->getKey(),
-            'tags' => array_values(array_unique(array_map('trim', (array) $request->input('tags', [])))),
+            'tags' => array_values(array_unique(array_filter(array_map('trim', (array) $request->input('tags', [])), static fn (string $tag): bool => $tag !== ''))),
             'update_mode' => (string) $request->input('updateMode'),
             'legal_basis' => $basis->value,
             'consent_source' => $source === '' ? null : $source,
@@ -210,7 +216,6 @@ final class ContactImportController
             'resulting_status' => $basis->resultingStatus($source, $date),
             'role_policy' => (string) $request->input('rolePolicy', 'skip'),
             'disposable_policy' => (string) $request->input('disposablePolicy', 'skip'),
-            'status' => ContactImport::STATUS_PREVIEWING,
             'phase' => null,
         ]);
 
@@ -225,6 +230,10 @@ final class ContactImportController
         Gate::authorize('audience.manage');
 
         $import = $this->find($uuid);
+
+        if ($import->status === ContactImport::STATUS_PREVIEWED && $this->activeRuns() >= (int) config('audience.import.max_concurrent')) {
+            return back()->withErrors(['import' => (string) __('ventmail.audience.import.concurrency')]);
+        }
 
         // ATOMI ÁTVITEL: az `UPDATE … WHERE status = previewed` pontosan egy kérésnek ad 1-et.
         // A dupla kattintás, az újratöltött POST és a párhuzamos fül a másodiknál 0-t kap, és
@@ -264,26 +273,36 @@ final class ContactImportController
 
         abort_unless($this->uploads->exists($import->error_report_path), 404);
 
+        // A riport a feltöltő fájl címeit és neveit hordozza: a letöltés auditált.
+        $this->audit->log('audience.import.report_downloaded', $import, context: [
+            'import' => (string) $import->uuid,
+            'rows' => (int) $import->error_count + (int) $import->skipped_count,
+        ]);
+
         return $this->uploads->disk()->download((string) $import->error_report_path, 'import-'.$import->uuid.'-errors.csv', [
             'Content-Type' => 'text/csv; charset=UTF-8',
             'X-Content-Type-Options' => 'nosniff',
         ]);
     }
 
-    /** Mégse: a draft (és a fájlja) törlődik. */
+    /** Mégse: csak a még nem futtatott (draft / previewed) köteg törölhető — a lezárt rekord az audit része. */
     public function cancel(string $uuid): RedirectResponse
     {
         Gate::authorize('audience.manage');
 
         $import = $this->find($uuid);
 
-        if (in_array($import->status, [ContactImport::STATUS_QUEUED, ContactImport::STATUS_PROCESSING], true)) {
-            return back();
-        }
+        // FELTÉTELES törlés: a futó, lezárt vagy sikertelen köteghez nem nyúl (409).
+        $deleted = ContactImport::query()
+            ->whereKey($import->getKey())
+            ->whereIn('status', [ContactImport::STATUS_DRAFT, ContactImport::STATUS_PREVIEWED])
+            ->delete();
+
+        abort_if($deleted === 0, 409);
 
         $this->uploads->delete($import->storage_path);
         $this->uploads->delete($import->error_report_path);
-        $import->delete();
+        $this->audit->log('audience.import.cancelled', $import, context: ['import' => (string) $import->uuid, 'file_name' => $import->file_name]);
 
         return redirect('/audience');
     }
@@ -294,24 +313,41 @@ final class ContactImportController
         return ContactImport::query()->where('uuid', $uuid)->firstOrFail();
     }
 
-    /** Csak a még nem futó / nem lezárt köteg szerkeszthető. */
-    private function editable(ContactImport $import): ContactImport
+    /**
+     * FELTÉTELES zárolás: a `draft`/`previewed` köteget egyetlen `UPDATE … WHERE status IN (…)`
+     * viszi a megadott állapotba. Futó, sorba állított vagy lezárt köteg (vagy egy párhuzamos kérés
+     * által már átvitt) 409 — nincs olvasás-majd-írás ablak.
+     */
+    private function lock(ContactImport $import, string $to): ContactImport
     {
-        abort_if(in_array($import->status, [
-            ContactImport::STATUS_PREVIEWING, ContactImport::STATUS_QUEUED, ContactImport::STATUS_PROCESSING,
-            ContactImport::STATUS_COMPLETED, ContactImport::STATUS_FAILED,
-        ], true), 409);
+        $moved = ContactImport::query()
+            ->whereKey($import->getKey())
+            ->whereIn('status', [ContactImport::STATUS_DRAFT, ContactImport::STATUS_PREVIEWED])
+            ->update(['status' => $to, 'updated_at' => now()]);
 
-        return $import;
+        abort_if($moved === 0, 409);
+
+        return $import->fresh();
+    }
+
+    /** A workspace-ben éppen futó előnézetek és importok száma. */
+    private function activeRuns(): int
+    {
+        return ContactImport::query()
+            ->whereIn('status', [ContactImport::STATUS_PREVIEWING, ContactImport::STATUS_QUEUED, ContactImport::STATUS_PROCESSING])
+            ->count();
     }
 
     /** @return list<array{key: string, label: string}> */
     private function fieldList(): array
     {
-        return ContactField::query()->orderBy('label')->get(['key', 'label'])
+        return $this->fieldList ??= ContactField::query()->orderBy('label')->get(['key', 'label'])
             ->map(static fn (ContactField $field): array => ['key' => (string) $field->key, 'label' => (string) $field->label])
             ->all();
     }
+
+    /** @var list<array{key: string, label: string}>|null */
+    private ?array $fieldList = null;
 
     /** @param list<list<string>> $rows */
     private function csv(array $rows): string
@@ -331,23 +367,24 @@ final class ContactImportController
 
     private function page(?ContactImport $import): Response
     {
-        $fields = ContactField::query()->orderBy('label')->get();
-
+        // A statikus propok ZÁRLATBAN: a folyamat-képernyő másodpercenként `only: ['import']`
+        // részleges frissítést kér, és ezek a lekérdezések ilyenkor ki sem értékelődnek.
         return Inertia::render('Audience/Import', [
-            'import' => $import === null ? null : $this->state($import, $fields->map(static fn (ContactField $f): array => ['key' => (string) $f->key, 'label' => (string) $f->label])->all()),
-            'lists' => ContactList::query()->orderBy('name')->get()->map(static fn (ContactList $list): array => [
+            'import' => $import === null ? null : $this->state($import),
+            'lists' => fn () => ContactList::query()->withCount('contacts')->orderBy('name')->get()->map(static fn (ContactList $list): array => [
                 'uuid' => (string) $list->uuid,
                 'name' => (string) $list->name,
-                'contacts' => $list->contacts()->count(),
+                'contacts' => (int) $list->contacts_count,
             ])->values()->all(),
-            'fields' => $fields->map(static fn (ContactField $field): array => [
+            'fields' => fn () => ContactField::query()->orderBy('label')->get()->map(static fn (ContactField $field): array => [
                 'key' => (string) $field->key,
                 'label' => (string) $field->label,
                 'type' => (string) $field->type,
             ])->values()->all(),
-            'builtinFields' => ColumnSuggester::BUILTIN_ATTRIBUTES,
-            'limits' => [
-                'maxMegabytes' => (int) floor((int) config('audience.import.max_bytes') / 1048576),
+            'builtinFields' => fn () => ColumnSuggester::BUILTIN_ATTRIBUTES,
+            'limits' => fn () => [
+                // A HATÉKONY plafon: a konfigurált és a PHP tényleges feltöltési limitjének minimuma.
+                'maxMegabytes' => (int) floor(min((int) config('audience.import.max_bytes'), ImportUploads::phpUploadCeiling()) / 1048576),
                 'maxRows' => (int) config('audience.import.max_rows'),
             ],
         ]);
@@ -357,10 +394,9 @@ final class ContactImportController
      * A köteg állapota a képernyőnek. A `profile.sample` mintasorok személyes adatok — a
      * futás után a feldolgozó törli, és itt sem kerülnek ki lezárt kötegről.
      *
-     * @param  list<array{key: string, label: string}>  $fields
      * @return array<string, mixed>
      */
-    private function state(ContactImport $import, array $fields): array
+    private function state(ContactImport $import): array
     {
         $profile = (array) $import->profile;
         $stats = (array) $import->stats;
@@ -385,7 +421,7 @@ final class ContactImportController
                 'rows' => (int) ($profile['rows'] ?? 0),
             ],
             'mapping' => (object) (array) $import->mapping,
-            'suggestions' => $finished ? [] : $this->mappings->suggestions($profile, $fields),
+            'suggestions' => $finished ? [] : $this->mappings->suggestions($profile, $this->fieldList()),
             'settings' => [
                 'listUuid' => $import->list?->uuid,
                 'tags' => (array) $import->tags,

@@ -51,7 +51,13 @@ final class PurgeImportsCommand extends Command
                             // A sikertelen köteg rekordja az audit része — csak a fájlokat töröljük;
                             // a félbehagyott draftnak viszont nincs mit őriznie.
                             if ($import->status === ContactImport::STATUS_FAILED) {
-                                $import->forceFill(['storage_path' => null, 'error_report_path' => null])->saveQuietly();
+                                // A mintasorok (valódi címek) a sikertelen rekordon sem maradhatnak.
+                                $profile = (array) $import->profile;
+                                unset($profile['sample']);
+                                $stats = (array) $import->stats;
+                                $stats['samples'] = [];
+
+                                $import->forceFill(['storage_path' => null, 'error_report_path' => null, 'profile' => $profile, 'stats' => $stats])->saveQuietly();
                             } else {
                                 $import->delete();
                             }

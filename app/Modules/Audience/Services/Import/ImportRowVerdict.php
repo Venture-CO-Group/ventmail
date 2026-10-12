@@ -21,9 +21,8 @@ final class ImportRowVerdict
 
     public const DUPLICATE = 'duplicate';
 
-    public const SUPPRESSION_GLOBAL = 'suppression_global';
-
-    public const SUPPRESSION_WORKSPACE = 'suppression_workspace';
+    /** Tiltólista-találat — globális és workspace-szintű EGYETLEN kód (tenantközi orákulum ellen). */
+    public const SUPPRESSED = 'suppressed';
 
     public const ERASED = 'erased';
 
@@ -43,8 +42,7 @@ final class ImportRowVerdict
         self::MISSING_EMAIL => 'invalid',
         self::INVALID_FIELD => 'invalid',
         self::DUPLICATE => 'duplicate',
-        self::SUPPRESSION_GLOBAL => 'suppressed',
-        self::SUPPRESSION_WORKSPACE => 'suppressed',
+        self::SUPPRESSED => 'suppressed',
         self::ERASED => 'suppressed',
         self::REVOKED_CONSENT => 'suppressed',
         self::DELETED_CONTACT => 'suppressed',

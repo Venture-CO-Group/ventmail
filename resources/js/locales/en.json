@@ -487,7 +487,7 @@
                     "description": "A re-permission campaign is required."
                 },
                 "source": "Source of consent",
-                "sourceHint": "Free text, shown on the contact page and in the audit log.",
+                "sourceHint": "Free text, shown on the contact page and in the audit log — do not enter personal data.",
                 "sourcePlaceholder": "Double opt-in on the website, 2025-03",
                 "date": "Date of consent",
                 "resultingStatus": "Status of the imported contacts:",
@@ -534,14 +534,13 @@
                 "missing_email": "Missing e-mail",
                 "invalid_field": "Invalid field value: {field}",
                 "duplicate": "Duplicate (line {line})",
-                "suppression_global": "Global suppression list",
-                "suppression_workspace": "Workspace suppression list",
                 "erased": "GDPR-erased address",
                 "revoked_consent": "Withdrawn consent",
                 "deleted_contact": "Deleted contact",
                 "role_address": "Role-based",
                 "disposable_domain": "Disposable domain",
-                "existing_contact": "Existing contact"
+                "existing_contact": "Existing contact",
+                "suppressed": "Suppression-list hit"
             },
             "step5": {
                 "title": "5. Import in progress",
@@ -567,7 +566,9 @@
                 "columns": "the file has more columns than allowed",
                 "zip": "the XLSX exceeds the decompression limit",
                 "format": "the file content does not match its extension",
-                "sheet": "unknown worksheet"
+                "sheet": "unknown worksheet",
+                "timeout": "inspecting the file exceeded the time budget",
+                "line": "a line in the file is too long"
             },
             "result": {
                 "new": "New contacts",

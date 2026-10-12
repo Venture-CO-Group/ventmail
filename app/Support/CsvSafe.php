@@ -19,6 +19,22 @@ final class CsvSafe
 {
     public static function cell(string $value): string
     {
-        return preg_match('/^[=+\-@\t\r]/', $value) === 1 ? "'".$value : $value;
+        // Három támadási alak:
+        //  1. a cella ELEJÉN `= + - @` (vezető szóköz/tab után is — a táblázatkezelők levágják);
+        //  2. vezető tab / CR / újsor;
+        //  3. ELVÁLASZTÓ-ELTOLÁS: `x;=HYPERLINK(…)` — a magyar (pontosvesszős) Excel a `;` mentén
+        //     új cellára bontja, és a második cella `=`-lel kezdődik. Ezért az elválasztó (`, ; tab`)
+        //     utáni (szóközös) `= + - @` is képlet-gyanús.
+        $lead = preg_match('/^\s*[=+\-@]|^[\t\r\n]/', $value) === 1;
+
+        // A cella BELSEJÉBEN is semlegesítünk: a magyar Excel a `;` mentén (a lista-elválasztó)
+        // új cellára bont, és a második cella `=`-lel kezdődne — a cella elejére tett aposztróf
+        // ezt nem védi. Az elválasztó utáni (szóközös) jelet aposztróffal szakítjuk meg.
+        $inner = preg_replace('/([,;\t]\s*)([=+\-@])|([\r\n]\s*)([=+\-@])/', "$1$3'$2$4", $value) ?? $value;
+
+        $dangerous = $lead || $inner !== $value;
+        $value = $inner;
+
+        return $dangerous ? "'".$value : $value;
     }
 }

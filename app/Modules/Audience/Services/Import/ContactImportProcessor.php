@@ -23,7 +23,6 @@ use App\Modules\Suppression\Models\Suppression;
 use App\Modules\Tenancy\Services\WorkspaceContext;
 use App\Modules\Validation\Services\EmailSyntax;
 use Carbon\CarbonImmutable;
-use Illuminate\Database\Query\Expression;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -71,6 +70,7 @@ final class ContactImportProcessor
         private readonly AttributeCoercer $coercer,
         private readonly WorkspaceContext $context,
         private readonly ImportTableStats $tableStats,
+        private readonly ImportWriter $writer,
     ) {}
 
     /**
@@ -102,8 +102,9 @@ final class ContactImportProcessor
                 );
             }
 
+            // A STÁTUSZT a job vette át (feltételes UPDATE); a processzor státuszt csak feltételes
+            // átmenettel ír (lásd `transition()`), így egy közben lezárt köteget nem írhat felül.
             $import->forceFill([
-                'status' => $commit ? ContactImport::STATUS_PROCESSING : ContactImport::STATUS_PREVIEWING,
                 'phase' => 'inserting',
                 'processed_rows' => 0,
                 'new_count' => 0, 'updated_count' => 0, 'skipped_count' => 0, 'error_count' => 0,
@@ -247,31 +248,8 @@ final class ContactImportProcessor
     {
         $emails = array_column($candidates, 'email');
 
-        // TILTÓLISTA: a modell global scope-ja a workspace-sorokat ÉS a platform-sorokat is
-        // hozza; a lejárt tiltás nem tilt.
-        $suppressed = Suppression::query()
-            ->whereIn('email', $emails)
-            ->get(['email', 'workspace_id', 'expires_at'])
-            ->filter(fn (Suppression $suppression): bool => $suppression->isActive())
-            ->mapWithKeys(fn (Suppression $suppression): array => [
-                (string) $suppression->email => $suppression->workspace_id === null
-                    ? ImportRowVerdict::SUPPRESSION_GLOBAL
-                    : ImportRowVerdict::SUPPRESSION_WORKSPACE,
-            ]);
-
-        // VISSZAVONT consent: aki visszavonta, azt az import nem „hozza vissza".
-        $revoked = Consent::query()
-            ->whereIn('email', $emails)
-            ->where('channel', 'marketing')
-            ->where('status', 'revoked')
-            ->pluck('email')
-            ->flip();
-
-        // GDPR-sírkő: a törlési kérés erősebb minden importnál.
-        $erased = ErasedRecipient::query()
-            ->whereIn('recipient_hash', array_map(static fn (string $email): string => ErasedRecipient::hash($email), $emails))
-            ->pluck('recipient_hash')
-            ->flip();
+        // TILTÓLISTA, GDPR-sírkő, visszavont consent — egységes kódokkal (lásd `blocked()`).
+        $blocked = $this->blocked($emails);
 
         // LÉTEZŐ kontakt — a törölteket (soft delete) is, mert az egyedi kulcs rájuk is vonatkozik.
         $existing = Contact::query()
@@ -295,9 +273,7 @@ final class ContactImportProcessor
             $current = $existing->get($email);
 
             $verdict = match (true) {
-                $suppressed->has($email) => $suppressed->get($email),
-                isset($erased[ErasedRecipient::hash($email)]) => ImportRowVerdict::ERASED,
-                isset($revoked[$email]) => ImportRowVerdict::REVOKED_CONSENT,
+                isset($blocked[$email]) => $blocked[$email],
                 $current?->trashed() === true => ImportRowVerdict::DELETED_CONTACT,
                 $run->skipRoles && in_array($local, $roles, true) => ImportRowVerdict::ROLE_ADDRESS,
                 $run->skipDisposable && in_array($domain, $disposable, true) => ImportRowVerdict::DISPOSABLE_DOMAIN,
@@ -347,65 +323,80 @@ final class ContactImportProcessor
         $stamp = $now->toDateTimeString();
         $subscribedAt = $run->status === 'subscribed' ? ($run->consentDate ?? $now)->toDateTimeString() : null;
 
-        $make = static fn (array $candidate, string $status, ?string $subscribed): array => [
-            'uuid' => (string) Str::uuid7(),
-            'workspace_id' => $workspaceId,
-            'email' => $candidate['email'],
-            'email_hash' => $candidate['hash'],
-            'first_name' => $candidate['first'],
-            'last_name' => $candidate['last'],
-            'attributes' => $candidate['attributes'] === [] ? '{}' : json_encode($candidate['attributes'], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
-            'status' => $status,
-            'subscribed_at' => $subscribed,
-            'created_at' => $stamp,
-            'updated_at' => $stamp,
-        ];
-
         $recipients = [];
         $touched = [];
         $uuids = [];
 
-        DB::transaction(function () use ($run, $new, $update, $make, $subscribedAt, &$recipients, &$touched, &$uuids): void {
+        DB::transaction(function () use ($run, $new, $update, $workspaceId, $stamp, $subscribedAt, &$recipients, &$touched, &$uuids): void {
+            // A TILTÁS ÚJRAELLENŐRZÉSE a tranzakción BELÜL, közvetlenül az írás előtt: az osztályozás
+            // és az írás között keletkezett GDPR-sírkő / tiltás / visszavonás így sem kerülhet át.
+            [$new, $update] = $this->dropLateBlocked($run, $new, $update);
+
             if ($new !== []) {
-                $rows = array_map(fn (array $candidate): array => $make($candidate, $run->status, $subscribedAt), $new);
-                $inserted = Contact::query()->insertOrIgnore($rows);
+                $rows = array_map(static fn (array $candidate): array => [
+                    'uuid' => (string) Str::uuid7(),
+                    'workspace_id' => $workspaceId,
+                    'email' => $candidate['email'],
+                    'email_hash' => $candidate['hash'],
+                    'first_name' => $candidate['first'],
+                    'last_name' => $candidate['last'],
+                    'attributes' => $candidate['attributes'] === [] ? '{}' : json_encode($candidate['attributes'], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
+                    'status' => $run->status,
+                    'subscribed_at' => $subscribedAt,
+                    'created_at' => $stamp,
+                    'updated_at' => $stamp,
+                ], $new);
 
-                // Versenyhelyzet: közben létrejött címet az `ON CONFLICT DO NOTHING` kihagyott;
-                // a számlálókat az igazsághoz igazítjuk (a sor nem „új", hanem „létező").
-                $lost = count($new) - $inserted;
+                Contact::query()->insertOrIgnore($rows);
 
-                if ($lost > 0) {
-                    $run->new -= $lost;
-                    $run->skipped += $lost;
-                    $run->buckets['existing'] += $lost;
-                }
-
-                $uuids = array_column($rows, 'uuid');
+                // MELY sorokat szúrta be ténylegesen az `ON CONFLICT DO NOTHING`? A saját (frissen
+                // generált) uuid-jaink alapján kérdezzük vissza: aki közben létrejött, annak a sora
+                // NEM a miénk — nem kap consent-eseményt, listatagságot, és nem „új".
+                $inserted = Contact::query()->whereIn('uuid', array_column($rows, 'uuid'))->pluck('uuid', 'email');
 
                 foreach ($new as $candidate) {
+                    if (! $inserted->has($candidate['email'])) {
+                        $run->new--;
+                        $run->skipped++;
+                        $run->buckets['existing']++;
+
+                        continue;
+                    }
+
                     $recipients[] = ['email' => $candidate['email'], 'hash' => $candidate['hash'], 'status' => $run->status];
                     $touched[$candidate['email']] = $run->status;
                 }
+
+                $uuids = $inserted->values()->all();
             }
 
             if ($update !== []) {
-                Contact::query()->upsert(
-                    array_map(fn (array $candidate): array => $make($candidate, 'pending', null), $update),
-                    ['workspace_id', 'email'],
-                    $this->updateColumns($run->updateMode),
-                );
+                // UPDATE … FROM VALUES, `deleted_at IS NULL` feltétellel: upsert helyett, mert az
+                // `ON CONFLICT DO UPDATE` a közben soft-delete-elt (GDPR-anonimizált) sort is
+                // átírná. Csak a TÉNYLEGESEN frissült címek kapnak consent-eseményt.
+                $updated = array_flip($this->writer->updateExisting($update, $run->updateMode));
 
                 foreach ($update as $candidate) {
+                    if (! isset($updated[$candidate['email']])) {
+                        $run->updated--;
+                        $this->reject($run, $this->asRow($candidate), ImportRowVerdict::DELETED_CONTACT);
+
+                        continue;
+                    }
+
                     $recipients[] = ['email' => $candidate['email'], 'hash' => $candidate['hash'], 'status' => $candidate['existing_status']];
-                    $touched[$candidate['email']] = $candidate['existing_status'];
+                    // LISTATAGSÁG: a SZIGORÚBB státusz nyer — egy `subscribed` kontaktot egy nem
+                    // igazolt jogalapú import nem tehet `subscribed` listataggá.
+                    $touched[$candidate['email']] = $this->stricter($candidate['existing_status'], $run->status);
                 }
 
-                // A frissítettek uuid-ját az adatbázis tudja (a sor már létezett).
-                $uuids = array_merge($uuids, Contact::query()->whereIn('email', array_column($update, 'email'))->pluck('uuid')->all());
+                if ($updated !== []) {
+                    $uuids = array_merge($uuids, Contact::query()->whereIn('email', array_keys($updated))->pluck('uuid')->all());
+                }
             }
 
             // A kontakt-azonosítókra csak a lista-tagsághoz és a címkékhez van szükség.
-            if ($run->list !== null || $run->tags !== []) {
+            if ($touched !== [] && ($run->list !== null || $run->tags !== [])) {
                 $this->attachToListAndTags(
                     $run,
                     Contact::query()->whereIn('email', array_keys($touched))->pluck('id', 'email')->all(),
@@ -427,34 +418,92 @@ final class ContactImportProcessor
             );
         });
 
-        IndexImportedContacts::dispatch($workspaceId, $uuids);
+        if ($uuids !== []) {
+            IndexImportedContacts::dispatch($workspaceId, $uuids);
+        }
+    }
+
+    /** `pending` szigorúbb, mint `subscribed`; a többi (leiratkozott, kitisztított) marad. */
+    private function stricter(string $existing, string $incoming): string
+    {
+        return $existing === 'subscribed' && $incoming === 'pending' ? 'pending' : $existing;
     }
 
     /**
-     * A frissítendő oszlopok: a státuszhoz, a címhez és az `external_id`-hoz NEM nyúlunk — a
-     * leiratkozás és a ventOS-szinkron kulcsa az importnál erősebb.
+     * Az írás előtti ÚJRAELLENŐRZÉS (tiltólista, GDPR-sírkő, visszavont consent): a kiesőket elutasítja,
+     * és a számlálókat igazítja.
      *
-     * `fill`: a MEGLÉVŐ érték nyer, a hiányt pótoljuk. `overwrite`: a fájl nem üres értéke nyer
-     * (az üres cella nem törli a meglévőt).
-     *
-     * @return array<string, Expression>
+     * @param  list<array<string, mixed>>  $new
+     * @param  list<array<string, mixed>>  $update
+     * @return array{0: list<array<string, mixed>>, 1: list<array<string, mixed>>}
      */
-    private function updateColumns(string $mode): array
+    private function dropLateBlocked(ImportRun $run, array $new, array $update): array
     {
-        $existingWins = $mode === 'fill';
+        $blocked = $this->blocked(array_merge(array_column($new, 'email'), array_column($update, 'email')));
 
-        $name = static fn (string $column): Expression => new Expression($existingWins
-            ? "COALESCE(NULLIF(\"contacts\".\"{$column}\", ''), \"excluded\".\"{$column}\")"
-            : "COALESCE(NULLIF(\"excluded\".\"{$column}\", ''), \"contacts\".\"{$column}\")");
+        if ($blocked === []) {
+            return [$new, $update];
+        }
 
-        return [
-            'first_name' => $name('first_name'),
-            'last_name' => $name('last_name'),
-            'attributes' => new Expression($existingWins
-                ? "\"excluded\".\"attributes\" || COALESCE(\"contacts\".\"attributes\", '{}'::jsonb)"
-                : "COALESCE(\"contacts\".\"attributes\", '{}'::jsonb) || \"excluded\".\"attributes\""),
-            'updated_at' => new Expression('"excluded"."updated_at"'),
-        ];
+        $keep = function (array $rows, string $counter) use ($run, $blocked): array {
+            return array_values(array_filter($rows, function (array $candidate) use ($run, $blocked, $counter): bool {
+                $code = $blocked[$candidate['email']] ?? null;
+
+                if ($code === null) {
+                    return true;
+                }
+
+                $run->{$counter}--;
+                $this->reject($run, $this->asRow($candidate), $code);
+
+                return false;
+            }));
+        };
+
+        return [$keep($new, 'new'), $keep($update, 'updated')];
+    }
+
+    /**
+     * Tiltott címek: cím → elutasítási kód (tiltólista, GDPR-sírkő, visszavont consent).
+     *
+     * @param  list<string>  $emails
+     * @return array<string, string>
+     */
+    private function blocked(array $emails): array
+    {
+        if ($emails === []) {
+            return [];
+        }
+
+        $blocked = [];
+
+        $revoked = Consent::query()->whereIn('email', $emails)->where('channel', 'marketing')->where('status', 'revoked')->pluck('email');
+
+        foreach ($revoked as $email) {
+            $blocked[(string) $email] = ImportRowVerdict::REVOKED_CONSENT;
+        }
+
+        $byHash = [];
+
+        foreach ($emails as $email) {
+            $byHash[ErasedRecipient::hash($email)] = $email;
+        }
+
+        foreach (ErasedRecipient::query()->whereIn('recipient_hash', array_keys($byHash))->pluck('recipient_hash') as $hash) {
+            $blocked[$byHash[$hash]] = ImportRowVerdict::ERASED;
+        }
+
+        $suppressions = Suppression::query()->whereIn('email', $emails)->get(['email', 'workspace_id', 'expires_at']);
+
+        foreach ($suppressions as $suppression) {
+            if ($suppression->isActive()) {
+                // EGYSÉGES kód: a globális és a workspace-szintű találat megkülönböztetése
+                // tenantközi orákulum lenne (a tenant megtudná, mit tilt a platform).
+                $blocked[(string) $suppression->email] = ImportRowVerdict::SUPPRESSED;
+            }
+        }
+
+        return $blocked;
     }
 
     /**
@@ -600,12 +649,8 @@ final class ContactImportProcessor
         ]);
 
         if (! $run->commit) {
-            $import->forceFill([
-                'status' => ContactImport::STATUS_PREVIEWED,
-                'phase' => null,
-                'total_rows' => $run->processed,
-                'stats' => $stats,
-            ])->saveQuietly();
+            $import->forceFill(['phase' => null, 'total_rows' => $run->processed, 'stats' => $stats])->saveQuietly();
+            $this->transition($import, [ContactImport::STATUS_PREVIEWING], ContactImport::STATUS_PREVIEWED);
 
             return;
         }
@@ -628,7 +673,6 @@ final class ContactImportProcessor
         unset($profile['sample']);
 
         $import->forceFill([
-            'status' => ContactImport::STATUS_COMPLETED,
             'phase' => null,
             'total_rows' => $run->processed,
             'storage_path' => null,
@@ -637,6 +681,12 @@ final class ContactImportProcessor
             'error_report_path' => $reportPath,
             'completed_at' => now(),
         ])->saveQuietly();
+
+        // FELTÉTELES átmenet: ha közben más (worker-kill, törlés) lezárta, nem írjuk felül, és az
+        // audit-sort sem duplázzuk.
+        if (! $this->transition($import, [ContactImport::STATUS_PROCESSING], ContactImport::STATUS_COMPLETED)) {
+            return;
+        }
 
         // contacts_peak: az import után a valós létszám — a periódus MAXIMUMÁT tartja.
         $this->metering->observePeak(UsageDimension::ContactsPeak, Contact::query()->count());
@@ -663,14 +713,32 @@ final class ContactImportProcessor
 
         $reason = $e instanceof ImportLimitExceeded ? $e->reason : 'error';
 
+        // A HIBÁS futás nem hagyhat PII-t maga után: a (félig írt) hibariport-fájl, a forrásfájl és a
+        // mintasorok (valódi címek) törlődnek, a rekord nem hivatkozik rájuk. A riportot a
+        // felhasználó így nem tölti le — a hiba oka a rekordban, a részletek a naplóban (cím nélkül).
+        $this->uploads->delete($this->uploads->reportPath($import));
+        $this->uploads->delete($import->storage_path);
+
+        $profile = (array) $import->profile;
+        unset($profile['sample']);
+
+        $stats = (array) $import->stats;
+        $stats['samples'] = [];
+
         $import->forceFill([
-            'status' => ContactImport::STATUS_FAILED,
             'phase' => null,
-            // A kivétel üzenete SQL-értékeket (címeket) is hordozhat: a rekordba csak a kód
-            // kerül, a részletek a laravel.log-ba.
+            // A kivétel üzenete SQL-értékeket (címeket) is hordozhat: a rekordba csak a kód kerül.
             'failure_reason' => $reason,
             'completed_at' => now(),
+            'storage_path' => null,
+            'error_report_path' => null,
+            'profile' => $profile,
+            'stats' => $stats,
         ])->saveQuietly();
+
+        if (! $this->transition($import, [ContactImport::STATUS_PREVIEWING, ContactImport::STATUS_PROCESSING, ContactImport::STATUS_QUEUED], ContactImport::STATUS_FAILED)) {
+            return;
+        }
 
         $this->audit->log(
             'audience.import.failed',
@@ -678,6 +746,24 @@ final class ContactImportProcessor
             context: ['import' => (string) $import->uuid, 'reason' => $reason, 'file_name' => $import->file_name],
             actor: $import->user,
         );
+    }
+
+    /**
+     * FELTÉTELES státuszátmenet: egyetlen `UPDATE … WHERE status IN (…)`, tehát egy párhuzamosan
+     * lezárt / törölt köteget nem írunk felül. Igaz, ha az átmenet megtörtént.
+     *
+     * @param  list<string>  $from
+     */
+    private function transition(ContactImport $import, array $from, string $to): bool
+    {
+        $moved = ContactImport::query()->whereKey($import->getKey())->whereIn('status', $from)->update(['status' => $to, 'updated_at' => now()]);
+
+        if ($moved === 1) {
+            $import->setAttribute('status', $to);
+            $import->syncOriginalAttribute('status');
+        }
+
+        return $moved === 1;
     }
 
     /** A leképezésből és a beállításokból felépített futás-terv. */

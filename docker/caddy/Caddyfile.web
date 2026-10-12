@@ -27,6 +27,12 @@ import snippets/security-headers.caddy
 	}
 	respond @draining "draining" 503
 
+	# Kontakt-import feltöltés: a php.ini post_max_size-nál (132M) nem szűkebb, különben a
+	# Caddy 413-mal vágná el, mielőtt az alkalmazás a saját, érthető hibaüzenetét adhatná.
+	request_body {
+		max_size 140MB
+	}
+
 	root * /app/public
 	encode zstd gzip
 	import security_headers

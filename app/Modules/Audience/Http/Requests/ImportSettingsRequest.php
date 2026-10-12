@@ -38,11 +38,14 @@ final class ImportSettingsRequest extends FormRequest
                 }
             }],
             'tags' => ['nullable', 'array', 'max:20'],
-            'tags.*' => ['string', 'min:1', 'max:60'],
+            // `required`: a levágás utáni üres címke (a TrimStrings null-ra állítja) nem megy át csendben.
+            'tags.*' => ['required', 'string', 'max:60'],
             'updateMode' => ['required', Rule::in(['skip', 'fill', 'overwrite'])],
             'legalBasis' => ['required', Rule::enum(ImportLegalBasis::class)],
             'consentSource' => ['required_unless:legalBasis,unknown', 'nullable', 'string', 'max:255'],
-            'consentDate' => ['required_unless:legalBasis,unknown', 'nullable', 'date_format:Y-m-d', 'before_or_equal:today'],
+            // Alsó határ: egy `0001-01-01` hozzájárulás-dátum értelmetlen bizonyíték (és az `after` az
+            // ismeretlen jogalapnál megadott dátumot is fogja).
+            'consentDate' => ['required_unless:legalBasis,unknown', 'nullable', 'date_format:Y-m-d', 'after_or_equal:1990-01-01', 'before_or_equal:today'],
             'rolePolicy' => ['nullable', Rule::in(['skip', 'import'])],
             'disposablePolicy' => ['nullable', Rule::in(['skip', 'import'])],
         ];

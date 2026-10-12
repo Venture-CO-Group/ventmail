@@ -26,6 +26,33 @@ use RuntimeException;
  */
 final class ImportUploads
 {
+    /**
+     * A PHP tényleges feltöltési plafonja bájtban: `min(upload_max_filesize, post_max_size)`.
+     * A felület a konfigurált import-plafon és EZ minimumát mutatja — különben a felhasználó
+     * a 100 MB-os fájlnál a webszerver 413-át kapná, érthető üzenet nélkül.
+     */
+    public static function phpUploadCeiling(): int
+    {
+        $bytes = static function (string|false $value): int {
+            $value = trim((string) $value);
+
+            if ($value === '' || $value === '-1' || $value === '0') {
+                return PHP_INT_MAX;
+            }
+
+            $number = (int) $value;
+
+            return match (strtoupper(substr($value, -1))) {
+                'G' => $number * 1024 ** 3,
+                'M' => $number * 1024 ** 2,
+                'K' => $number * 1024,
+                default => $number,
+            };
+        };
+
+        return min($bytes(ini_get('upload_max_filesize')), $bytes(ini_get('post_max_size')));
+    }
+
     public function disk(): Filesystem
     {
         return Storage::disk((string) config('audience.import.disk'));

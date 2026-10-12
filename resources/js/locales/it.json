@@ -487,7 +487,7 @@
                     "description": "È necessaria una campagna di re-permission."
                 },
                 "source": "Fonte del consenso",
-                "sourceHint": "Testo libero, mostrato nella scheda del contatto e nel registro di audit.",
+                "sourceHint": "Testo libero, mostrato nella scheda del contatto e nel registro di audit — non inserire dati personali.",
                 "sourcePlaceholder": "Double opt-in sul sito, 2025-03",
                 "date": "Data del consenso",
                 "resultingStatus": "Stato dei contatti importati:",
@@ -534,14 +534,13 @@
                 "missing_email": "E-mail mancante",
                 "invalid_field": "Valore del campo non valido: {field}",
                 "duplicate": "Duplicato (riga {line})",
-                "suppression_global": "Lista di soppressione globale",
-                "suppression_workspace": "Lista di soppressione del workspace",
                 "erased": "Indirizzo cancellato (GDPR)",
                 "revoked_consent": "Consenso revocato",
                 "deleted_contact": "Contatto eliminato",
                 "role_address": "Indirizzo di ruolo",
                 "disposable_domain": "Dominio usa e getta",
-                "existing_contact": "Contatto esistente"
+                "existing_contact": "Contatto esistente",
+                "suppressed": "Presente in una lista di soppressione"
             },
             "step5": {
                 "title": "5. Importazione in corso",
@@ -567,7 +566,9 @@
                 "columns": "il file ha più colonne del consentito",
                 "zip": "il file XLSX supera il limite di decompressione",
                 "format": "il contenuto del file non corrisponde all’estensione",
-                "sheet": "foglio sconosciuto"
+                "sheet": "foglio sconosciuto",
+                "timeout": "l’analisi del file ha superato il tempo massimo",
+                "line": "una riga del file è troppo lunga"
             },
             "result": {
                 "new": "Nuovi contatti",

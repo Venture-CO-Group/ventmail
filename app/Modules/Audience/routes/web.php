@@ -55,14 +55,16 @@ Route::middleware(['auth', 'workspace'])->group(function (): void {
     Route::post('/audience/import', [ContactImportController::class, 'store'])
         ->middleware('throttle:audience-import')
         ->name('audience.import.store');
-    Route::post('/audience/import/fields', [ContactImportController::class, 'storeField'])->name('audience.import.fields.store');
+    Route::post('/audience/import/fields', [ContactImportController::class, 'storeField'])
+        ->middleware('throttle:audience-import-step')
+        ->name('audience.import.fields.store');
 
     Route::prefix('/audience/import/{uuid}')->where(['uuid' => '[0-9a-fA-F\-]{36}'])->group(function (): void {
         Route::get('/', [ContactImportController::class, 'show'])->name('audience.import.show');
-        Route::post('/sheet', [ContactImportController::class, 'sheet'])->name('audience.import.sheet');
-        Route::post('/mapping', [ContactImportController::class, 'mapping'])->name('audience.import.mapping');
-        Route::post('/settings', [ContactImportController::class, 'settings'])->name('audience.import.settings');
-        Route::post('/start', [ContactImportController::class, 'start'])->name('audience.import.start');
+        Route::post('/sheet', [ContactImportController::class, 'sheet'])->middleware('throttle:audience-import-step')->name('audience.import.sheet');
+        Route::post('/mapping', [ContactImportController::class, 'mapping'])->middleware('throttle:audience-import-step')->name('audience.import.mapping');
+        Route::post('/settings', [ContactImportController::class, 'settings'])->middleware('throttle:audience-import-step')->name('audience.import.settings');
+        Route::post('/start', [ContactImportController::class, 'start'])->middleware('throttle:audience-import-step')->name('audience.import.start');
         Route::get('/errors', [ContactImportController::class, 'errors'])->name('audience.import.errors');
         Route::post('/cancel', [ContactImportController::class, 'cancel'])->name('audience.import.cancel');
     });

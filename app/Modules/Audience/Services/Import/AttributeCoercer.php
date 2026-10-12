@@ -41,7 +41,17 @@ final class AttributeCoercer
     {
         $clean = str_replace([' ', "\u{00A0}"], '', $value);
 
-        // „1 234,5" és „1234,5" → tizedesvessző; „1,234.5" → ezres-vessző.
+        if ($clean === '') {
+            return null;
+        }
+
+        // KÉTÉRTELMŰ ezres-jelölés: az `1,234` lehet 1,234 (tizedes) és 1234 is — a találgatás
+        // csendben rossz számot tárolna, ezért sorhiba.
+        if (preg_match('/^[+-]?\d{1,3},\d{3}$/', $clean) === 1) {
+            return null;
+        }
+
+        // „1,234.5" → ezres-vessző; „1234,5" → tizedesvessző.
         if (str_contains($clean, ',') && str_contains($clean, '.')) {
             $clean = str_replace(',', '', $clean);
         } else {
@@ -52,7 +62,19 @@ final class AttributeCoercer
             return null;
         }
 
-        return str_contains($clean, '.') || stripos($clean, 'e') !== false ? (float) $clean : (int) $clean;
+        $isInteger = preg_match('/^[+-]?\d+$/', $clean) === 1;
+
+        if ($isInteger) {
+            // Túlcsordulás: a PHP csendben lebegőpontosra vált (vagy PHP_INT_MAX-ra vág).
+            $int = (int) $clean;
+
+            return (string) $int === ltrim($clean, '+') ? $int : null;
+        }
+
+        $float = (float) $clean;
+
+        // `1e999` → INF: a json_encode kivételt dobna, és az egész import elhasalna.
+        return is_finite($float) ? $float : null;
     }
 
     private function date(string $value): ?string

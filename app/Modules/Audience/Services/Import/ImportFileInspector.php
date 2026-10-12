@@ -31,9 +31,21 @@ final class ImportFileInspector
      *
      * @throws ImportLimitExceeded
      */
-    public function inspect(string $path, string $format, ?string $sheet = null): array
+    public function inspect(string $path, string $format, ?string $sheet = null, bool $verifyZip = true): array
     {
-        return $format === 'xlsx' ? $this->xlsx($path, $sheet) : $this->csv($path);
+        $this->deadline = microtime(true) + (int) config('audience.import.inspect_budget_seconds');
+
+        return $format === 'xlsx' ? $this->xlsx($path, $sheet, $verifyZip) : $this->csv($path);
+    }
+
+    /** A felmérés időkerete (a kérésen belül fut — lásd a konfig `inspect_budget_seconds`). */
+    private float $deadline = 0.0;
+
+    private function checkBudget(): void
+    {
+        if (microtime(true) > $this->deadline) {
+            throw new ImportLimitExceeded('timeout');
+        }
     }
 
     /** @return array<string, mixed> */
@@ -53,9 +65,13 @@ final class ImportFileInspector
     }
 
     /** @return array<string, mixed> */
-    private function xlsx(string $path, ?string $sheet): array
+    private function xlsx(string $path, ?string $sheet, bool $verifyZip): array
     {
-        $this->assertSafeZip($path);
+        // Egy már ellenőrzött fájlt (munkalap-váltás) nem tömörítünk ki újra: a fájl a privát
+        // lemezen megváltoztathatatlan.
+        if ($verifyZip) {
+            $this->assertSafeZip($path);
+        }
 
         $sheets = $this->sheetNames($path);
 
@@ -97,6 +113,10 @@ final class ImportFileInspector
         $width = 0;
 
         foreach ($reader->rows() as $cells) {
+            if (($count & 1023) === 0) {
+                $this->checkBudget();
+            }
+
             $count++;
             $width = max($width, count($cells));
 
@@ -211,7 +231,16 @@ final class ImportFileInspector
         }
 
         try {
-            while (($line = fgets($handle)) !== false) {
+            $cap = (int) config('audience.import.max_line_bytes');
+
+            while (($line = fgets($handle, $cap + 1)) !== false) {
+                // Újsor nélkül a határig teli sor = a fizikai sor túl hosszú.
+                if (strlen($line) > $cap || (strlen($line) === $cap && ! str_ends_with($line, "\n"))) {
+                    throw new ImportLimitExceeded('line');
+                }
+
+                $this->checkBudget();
+
                 if (! mb_check_encoding($line, 'UTF-8')) {
                     return 'Windows-1250';
                 }
@@ -268,8 +297,55 @@ final class ImportFileInspector
             if (! in_array('[Content_Types].xml', $names, true) || ! in_array('xl/workbook.xml', $names, true)) {
                 throw new ImportLimitExceeded('format');
             }
+
+            $this->countRealBytes($zip);
         } finally {
             $zip->close();
+        }
+    }
+
+    /**
+     * A VALÓS kitömörített bájtok számolása — a központi jegyzék mérete HAMISÍTHATÓ (a security-
+     * review 205 KB-os fájlja 1000 bájtot hirdetett, és 200 MB-ot töltött ki ~55 mp CPU-n).
+     * Streamen olvasunk, és megszakítjuk, ha egy bejegyzés meghaladja a deklarált méretét, vagy az
+     * összeg a plafont, vagy az idő a keretet. A leállás a plafonnál történik, nem a végén.
+     */
+    private function countRealBytes(ZipArchive $zip): void
+    {
+        $ceiling = (int) config('audience.import.xlsx_max_uncompressed_bytes');
+        $total = 0;
+
+        for ($i = 0; $i < $zip->numFiles; $i++) {
+            $stat = $zip->statIndex($i);
+            $declared = (int) $stat['size'];
+            $stream = $zip->getStream($stat['name']);
+
+            if ($stream === false) {
+                throw new ImportLimitExceeded('format');
+            }
+
+            $entry = 0;
+
+            try {
+                while (! feof($stream)) {
+                    $chunk = fread($stream, 65536);
+
+                    if ($chunk === false) {
+                        throw new ImportLimitExceeded('format');
+                    }
+
+                    $entry += strlen($chunk);
+                    $total += strlen($chunk);
+
+                    if ($entry > $declared || $total > $ceiling) {
+                        throw new ImportLimitExceeded('zip');
+                    }
+
+                    $this->checkBudget();
+                }
+            } finally {
+                fclose($stream);
+            }
         }
     }
 

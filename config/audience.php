@@ -57,6 +57,17 @@ return [
         'xlsx_max_ratio' => (int) env('AUDIENCE_IMPORT_XLSX_MAX_RATIO', 200),
         'xlsx_max_entries' => (int) env('AUDIENCE_IMPORT_XLSX_MAX_ENTRIES', 500),
         'manual_max_rows' => (int) env('AUDIENCE_IMPORT_MANUAL_MAX_ROWS', 20_000),
+        // Egy fizikai sor (és egy CSV-rekord egy olvasása) legfeljebb ennyi bájt: sor-határ nélkül
+        // egy újsor nélküli 100 MB-os „sor” egyben a memóriába kerülne.
+        'max_line_bytes' => (int) env('AUDIENCE_IMPORT_MAX_LINE_BYTES', 1_048_576),
+        // A feltöltés utáni felmérés (zip-ellenőrzés, sorszámlálás) KÉRÉSEN BELÜL fut: a fejléc és a
+        // minta azonnal kell a képernyőnek. Ezért időkerete van, és a php.ini `max_execution_time`-ja
+        // ennél legalább 30 mp-cel nagyobb (lásd `ImportConfigConsistencyTest`).
+        'inspect_budget_seconds' => (int) env('AUDIENCE_IMPORT_INSPECT_BUDGET', 25),
+        // Workspace-enként egyszerre futó előnézet + import (previewing/queued/processing).
+        'max_concurrent' => (int) env('AUDIENCE_IMPORT_MAX_CONCURRENT', 2),
+        // Egyéni mezők száma workspace-enként.
+        'max_fields' => (int) env('AUDIENCE_IMPORT_MAX_FIELDS', 100),
         'chunk' => (int) env('AUDIENCE_IMPORT_CHUNK', 1000),
         'retention_days' => (int) env('AUDIENCE_IMPORT_RETENTION_DAYS', 7),
     ],

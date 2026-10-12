@@ -42,7 +42,7 @@ const rows = computed<Row[]>(() =>
     })),
 );
 
-const tone = (code: string): 'danger' | 'warning' => (['invalid_email', 'missing_email', 'invalid_field', 'suppression_global', 'suppression_workspace', 'erased', 'revoked_consent', 'deleted_contact'].includes(code) ? 'danger' : 'warning');
+const tone = (code: string): 'danger' | 'warning' => (['invalid_email', 'missing_email', 'invalid_field', 'suppressed', 'erased', 'revoked_consent', 'deleted_contact'].includes(code) ? 'danger' : 'warning');
 </script>
 
 <template>

@@ -92,12 +92,14 @@ function start(): void {
     router.post(`/audience/import/${props.import.uuid}/start`, {}, {
         preserveScroll: true,
         onSuccess: () => (step.value = 4),
+        onError: (failed) => (errors.value = failed),
         onFinish: () => (starting.value = false),
     });
 }
 
 function leave(): void {
-    if (props.import && !props.import.status.match(/^(completed|failed|queued|processing)$/)) {
+    // Csak a még nem futtatott (draft / previewed) köteg törölhető; a többi esetben egyszerűen kilépünk.
+    if (props.import && /^(draft|previewed)$/.test(props.import.status)) {
         router.post(`/audience/import/${props.import.uuid}/cancel`);
 
         return;
@@ -126,6 +128,8 @@ function leave(): void {
                 :status-labels="{ complete: t('audience.import.stepDone'), current: t('audience.import.stepCurrent'), upcoming: '' }"
                 data-testid="import-steps"
             />
+
+            <p v-if="errors.import" class="vm-banner vm-banner--warning" role="alert" data-testid="import-error">{{ errors.import }}</p>
 
             <VmCard>
                 <ImportStepUpload

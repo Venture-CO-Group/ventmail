@@ -26,6 +26,14 @@ final class StoreContactFieldRequest extends FormRequest
                 'required', 'string', 'regex:/^[a-z][a-z0-9_]{0,39}$/',
                 Rule::notIn(ContactField::RESERVED),
                 function (string $attribute, mixed $value, \Closure $fail): void {
+                    // A mezők száma korlátozott: a kulcsok a szegmens-szerkesztő listáját és az
+                    // attribútum-JSON-t növelik, korlát nélkül egy tag felfújhatná.
+                    if (ContactField::query()->count() >= (int) config('audience.import.max_fields')) {
+                        $fail((string) __('ventmail.audience.import.fieldLimit'));
+
+                        return;
+                    }
+
                     if (ContactField::query()->where('key', $value)->exists()) {
                         $fail((string) __('ventmail.audience.import.fieldExists'));
                     }

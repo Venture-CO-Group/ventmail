@@ -25,8 +25,11 @@ final class ImportPaste
                 continue;
             }
 
-            if (preg_match('/<([^<>]+)>/', $line, $match) === 1) {
-                $entries[] = trim($match[1]);
+            // Egy sorban TÖBB `Név <cím>` is lehet: mindegyik csúcsos zárójeles cím kell.
+            if (preg_match_all('/<([^<>]+)>/', $line, $matches) > 0) {
+                foreach ($matches[1] as $address) {
+                    $entries[] = trim($address);
+                }
 
                 continue;
             }
