@@ -68,6 +68,12 @@ expect "accepts an explicit LANDING_HOST that is trusted" '[ "$rc" -eq 0 ]'
 teardown
 
 setup
+printf 'DB_DATABASE=ventmail\nTRUSTED_HOSTS="app.ventmail.app api.ventmail.app ventmail.app ventmail-web"\n' >"$APP_DIR/.env"
+rc=0; "$DEPLOY" v1.0.0 >/dev/null 2>&1 || rc=$?
+expect "accepts a whitespace-separated TRUSTED_HOSTS that contains the landing host" '[ "$rc" -eq 0 ]'
+teardown
+
+setup
 rc=0; "$DEPLOY" latest >/dev/null 2>&1 || rc=$?
 expect "rejects :latest" '[ "$rc" -ne 0 ] && [ ! -s "$CALLS" ]'
 rc=0; "$DEPLOY" 'v1.0.0;rm' >/dev/null 2>&1 || rc=$?

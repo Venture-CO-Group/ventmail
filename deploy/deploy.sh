@@ -54,7 +54,9 @@ fi
 env_value() { sed -n "s/^$1=//p" .env | tail -1 | tr -d "\"'"; }
 landing_host="$(env_value LANDING_HOST)"
 landing_host="${landing_host:-ventmail.app}"
-case ",$(env_value TRUSTED_HOSTS)," in
+# config/proxy.php accepts commas OR whitespace; so does this check.
+trusted_hosts="$(env_value TRUSTED_HOSTS | tr -s ' \t,' ',,,')"
+case ",$trusted_hosts," in
     *",$landing_host,"*) ;;
     *) die "LANDING_HOST ($landing_host) is not in TRUSTED_HOSTS in $APP_DIR/.env; run set-env.sh to add it (and LANDING_HOST) before deploying" ;;
 esac
