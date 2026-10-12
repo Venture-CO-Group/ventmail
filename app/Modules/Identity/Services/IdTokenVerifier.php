@@ -42,6 +42,36 @@ final class IdTokenVerifier
         return $claims;
     }
 
+    /**
+     * A ventSSO ACCESS TOKENJÉNEK szerep-claimjei (Passport JWT, spec §5.7) — a ventSSO a
+     * `resource_access` / `realm_access` szerepeket ide teszi, az ID-tokenbe nem.
+     *
+     * Ugyanaz a JWKS és algoritmus-allowlist, mint az ID-tokennél; az `aud` a mi
+     * kliensünk, a `sub` az ID-tokené. Az access tokenben nincs `iss` (Passport), a
+     * kibocsátót a JWKS-kulcs bizonyítja. Bármilyen eltérésnél ÜRES tömb jön — a szerep
+     * hiánya fail-closed (a belépés tagság nélkül 403).
+     *
+     * @param  array<string, mixed>  $idClaims
+     * @return array<string, mixed>
+     */
+    public function roleClaimsFromAccessToken(string $accessToken, array $idClaims): array
+    {
+        try {
+            $header = $this->header($accessToken);
+            $this->assertAlgorithm($header);
+            $claims = $this->decode($accessToken, $this->needsRefresh($header));
+            $this->assertAudience($claims);
+        } catch (AuthorizationException) {
+            return [];
+        }
+
+        if (($claims['sub'] ?? null) === null || (string) $claims['sub'] !== (string) ($idClaims['sub'] ?? '')) {
+            return [];
+        }
+
+        return array_intersect_key($claims, array_flip(['resource_access', 'realm_access']));
+    }
+
     /** @return array<string, mixed> */
     private function header(string $idToken): array
     {

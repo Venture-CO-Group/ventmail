@@ -137,3 +137,47 @@ it('az app-héjból (Inertia) indított kijelentkezés is eljut a ventSSO-ig', f
     $response->assertStatus(409);
     expect((string) $response->headers->get('X-Inertia-Location'))->toStartWith($this->sso->issuer.'/oauth/logout?');
 });
+
+/*
+ | A ventSSO a szerepeket az ACCESS TOKENBE teszi (Passport JWT, spec §5.7), az ID-tokenbe
+ | nem — élesben mérve: a szerep nélkülinek látott alany 403-at kapott a callbacken.
+ | Az access token ugyanazzal a JWKS-szel ellenőrzött; csak a szerep-claimek jönnek belőle.
+ */
+function accessToken(FakeSsoProvider $sso, array $claims): string
+{
+    return $sso->idToken(array_merge(['aud' => PROD_CLIENT, 'scopes' => ['openid', 'profile', 'email']], $claims));
+}
+
+it('a szerepeket az ellenőrzött access tokenből is átveszi', function () {
+    $this->get('/auth/redirect');
+
+    $this->sso->fakeHttp([
+        'id_token' => $this->sso->idToken(['aud' => PROD_CLIENT, 'nonce' => session('oidc.nonce')]),
+        'access_token' => accessToken($this->sso, ['resource_access' => ['ventmail' => ['roles' => ['owner']]]]),
+    ]);
+
+    $this->get('/auth/callback?code=auth-code&state='.session('oidc.state'))->assertRedirect();
+
+    expect(Auth::check())->toBeTrue();
+    expect(session('oidc.roles_diagnostic'))->toBe([Role::Owner->value]);
+});
+
+it('hamis aláírású, idegen alanyú vagy más kliensnek szóló access tokenből NEM vesz át szerepet', function (string $case) {
+    $this->get('/auth/redirect');
+
+    $token = match ($case) {
+        'idegen kulcs' => accessToken(new FakeSsoProvider('mas-kulcs'), ['resource_access' => ['ventmail' => ['roles' => ['owner']]]]),
+        'más alany' => accessToken($this->sso, ['sub' => 'mas-alany', 'resource_access' => ['ventmail' => ['roles' => ['owner']]]]),
+        'más kliens' => accessToken($this->sso, ['aud' => 'mas-kliens', 'resource_access' => ['ventmail' => ['roles' => ['owner']]]]),
+        'lejárt' => accessToken($this->sso, ['iat' => time() - 7200, 'exp' => time() - 3600, 'resource_access' => ['ventmail' => ['roles' => ['owner']]]]),
+    };
+
+    $this->sso->fakeHttp([
+        'id_token' => $this->sso->idToken(['aud' => PROD_CLIENT, 'nonce' => session('oidc.nonce')]),
+        'access_token' => $token,
+    ]);
+
+    $this->get('/auth/callback?code=auth-code&state='.session('oidc.state'))->assertForbidden();
+
+    expect(Auth::check())->toBeFalse();
+})->with(['idegen kulcs', 'más alany', 'más kliens', 'lejárt']);

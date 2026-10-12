@@ -98,6 +98,14 @@ final class OidcClient
 
         try {
             $claims = $this->verifier->verify($idToken, $nonce);
+
+            // A SZEREPEK a ventSSO-nál az access tokenben vannak: ellenőrzötten átvesszük
+            // őket, ha az ID-token nem hozza (identitás-claimet onnan SOHA).
+            $accessToken = (string) $response->json('access_token', '');
+
+            if ($accessToken !== '' && ! isset($claims['resource_access'])) {
+                $claims = [...$claims, ...$this->verifier->roleClaimsFromAccessToken($accessToken, $claims)];
+            }
         } finally {
             // Egyszer használatos tranziensek — a HIBAÁGON is eldobjuk.
             $request->session()->forget(['oidc.state', 'oidc.nonce', 'oidc.expires_at']);
