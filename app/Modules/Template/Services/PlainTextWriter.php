@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Modules\Template\Services;
 
+use App\Modules\StoredTemplates\Services\ConditionalContent;
+
 /**
  * BLOCK-TREE → PLAINTEXT (59. kritérium).
  *
@@ -55,6 +57,27 @@ final class PlainTextWriter
      */
     private function walk(array $block, array &$lines): void
     {
+        $attrs = (array) ($block['attrs'] ?? []);
+        $before = count($lines);
+
+        $this->emit($block, $lines);
+
+        // A FELTÉTEL (v1.1) a plaintextben is ugyanazzal a jelölővel él, mint a HTML-ben: a
+        // renderer mindkét részt ugyanúgy értékeli ki, tehát a két levél nem mondhat mást.
+        if (isset($attrs['condition']) && is_array($attrs['condition'])
+            && ConditionalContent::violation($attrs['condition']) === null
+            && count($lines) > $before) {
+            $lines[$before] = ConditionalContent::open($attrs['condition']).$lines[$before];
+            $lines[count($lines) - 1] .= ConditionalContent::END;
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>  $block
+     * @param  list<string>  $lines
+     */
+    private function emit(array $block, array &$lines): void
+    {
         $type = (string) ($block['type'] ?? '');
         $attrs = (array) ($block['attrs'] ?? []);
 
@@ -73,6 +96,11 @@ final class PlainTextWriter
             'unsubscribe' => $this->unsubscribe($attrs, $lines),
             'social' => $this->social($attrs, $lines),
             'html' => $lines[] = $this->flatten(strip_tags((string) ($attrs['content'] ?? ''))),
+            'logo' => $this->image($attrs, $lines),
+            'video' => $this->video($attrs, $lines),
+            'product' => $this->product($attrs, $lines),
+            'survey' => $this->survey($attrs, $lines),
+            'footer' => $this->footer($attrs, $lines),
             default => null,
         };
 
@@ -136,11 +164,99 @@ final class PlainTextWriter
      */
     private function social(array $attrs, array &$lines): void
     {
+        $share = ($attrs['mode'] ?? 'follow') === 'share';
+
         foreach ((array) ($attrs['networks'] ?? []) as $network) {
+            if ($share) {
+                $name = is_array($network) ? (string) ($network['name'] ?? '') : (string) $network;
+                $url = MjmlWriter::shareUrl($name, (string) ($attrs['share_url'] ?? ''));
+
+                if ($url !== '') {
+                    $lines[] = ucfirst($name).': '.$url;
+                }
+
+                continue;
+            }
+
             if (is_array($network) && isset($network['href'])) {
                 $lines[] = ucfirst((string) ($network['name'] ?? 'link')).': '.(string) $network['href'];
             }
         }
+    }
+
+    /**
+     * @param  array<string, mixed>  $attrs
+     * @param  list<string>  $lines
+     */
+    private function video(array $attrs, array &$lines): void
+    {
+        $alt = $this->flatten($attrs['alt'] ?? '');
+
+        if ($alt !== '') {
+            $lines[] = '['.$alt.']';
+        }
+
+        $lines[] = '> '.$this->flatten($attrs['play_label'] ?? 'Lejátszás').': '.(string) ($attrs['href'] ?? '');
+    }
+
+    /**
+     * @param  array<string, mixed>  $attrs
+     * @param  list<string>  $lines
+     */
+    private function product(array $attrs, array &$lines): void
+    {
+        $lines[] = $this->flatten($attrs['name'] ?? '');
+
+        if (isset($attrs['description']) && trim((string) $attrs['description']) !== '') {
+            $lines[] = $this->flatten($attrs['description']);
+        }
+
+        if (isset($attrs['price']) && trim((string) $attrs['price']) !== '') {
+            $old = isset($attrs['old_price']) && trim((string) $attrs['old_price']) !== ''
+                ? ' ('.$this->flatten($attrs['old_price']).')'
+                : '';
+
+            $lines[] = $this->flatten($attrs['price']).$old;
+        }
+
+        $lines[] = $this->flatten($attrs['button_label'] ?? 'Megnézem').': '.(string) ($attrs['href'] ?? '');
+    }
+
+    /**
+     * @param  array<string, mixed>  $attrs
+     * @param  list<string>  $lines
+     */
+    private function survey(array $attrs, array &$lines): void
+    {
+        $lines[] = $this->flatten($attrs['question'] ?? '');
+
+        foreach (array_values((array) ($attrs['answers'] ?? [])) as $index => $answer) {
+            $lines[] = '- '.$this->flatten($answer).': '.MjmlWriter::answerUrl((string) ($attrs['base_url'] ?? ''), $index + 1);
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>  $attrs
+     * @param  list<string>  $lines
+     */
+    private function footer(array $attrs, array &$lines): void
+    {
+        $lines[] = '---';
+
+        if (isset($attrs['company']) && trim((string) $attrs['company']) !== '') {
+            $lines[] = $this->flatten($attrs['company']);
+        }
+
+        foreach (preg_split('/\r\n|\r|\n/', trim((string) ($attrs['address'] ?? ''))) ?: [] as $line) {
+            $lines[] = trim($line);
+        }
+
+        if (isset($attrs['content']) && trim((string) $attrs['content']) !== '') {
+            $lines[] = $this->flatten($attrs['content']);
+        }
+
+        $lines[] = $this->flatten($attrs['unsubscribe_label'] ?? 'Leiratkozás').': {{ unsubscribe_url }}';
+        $lines[] = $this->flatten($attrs['preferences_label'] ?? 'Levélbeállítások').': {{ preferences_url }}';
     }
 
     /**

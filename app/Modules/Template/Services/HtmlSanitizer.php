@@ -37,6 +37,15 @@ final class HtmlSanitizer
     /** Formázás, ami egy levélkliensben mindenhol működik. */
     private const INLINE_TAGS = ['a', 'b', 'strong', 'i', 'em', 'u', 's', 'span', 'br'];
 
+    /**
+     * A FORMÁZOTT SZÖVEG (v1.1 inline szerkesztő) többlete: bekezdés, lista. Az igazítás
+     * és a betűszín a `style` attribútumon jön (`text-align`, `color`), ami a `*`-on
+     * engedett és a `style()` szűrőn megy át.
+     *
+     * @var list<string>
+     */
+    private const RICH_TAGS = ['p', 'div', 'ul', 'ol', 'li'];
+
     /** @var list<string> */
     private const BLOCK_TAGS = [
         'p', 'div', 'h1', 'h2', 'h3', 'h4', 'ul', 'ol', 'li', 'hr', 'img',
@@ -84,6 +93,12 @@ final class HtmlSanitizer
     public function inline(string $html): string
     {
         return $this->clean($html, self::INLINE_TAGS);
+    }
+
+    /** A `text` blokk tartalma (v1.1): inline + bekezdés és lista. */
+    public function rich(string $html): string
+    {
+        return $this->clean($html, array_merge(self::INLINE_TAGS, self::RICH_TAGS));
     }
 
     public function block(string $html): string

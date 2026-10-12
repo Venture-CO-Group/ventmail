@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Template\Services;
 
 use App\Modules\Sending\Services\ContentScanner;
+use App\Modules\StoredTemplates\Services\ConditionalContent;
 use App\Modules\Template\Data\BlockSchema;
 use InvalidArgumentException;
 
@@ -172,6 +173,12 @@ final class BlockTreeValidator
 
             $this->validateAttrs($type, $attrs, $here);
 
+            // A FELTÉTELES SZAKASZ nem rejtheti el a kötelező lábléc-elemeket: a leiratkozó
+            // link pont annál a címzettnél hiányozna, akinél a feltétel hamis.
+            if (isset($attrs['condition']) && self::containsCompliance((array) ($block['children'] ?? []))) {
+                $this->errors[] = $here.': a leiratkozó / lábléc blokkot tartalmazó szakasz nem lehet feltételes.';
+            }
+
             $children = $block['children'] ?? [];
 
             if ($spec['children'] === null) {
@@ -210,7 +217,7 @@ final class BlockTreeValidator
         // WEBES ELŐNÉZETBEN (a szerkesztő és a „megnyitás böngészőben" nézet) igen — és
         // az a mi originünk. A `http://` pedig a linkre kattintó címzettet titkosítatlan
         // csatornára viszi.
-        foreach (['href', 'src'] as $field) {
+        foreach (['href', 'src', 'thumbnail', 'image', 'share_url', 'base_url'] as $field) {
             if (! isset($attrs[$field]) || ! is_string($attrs[$field])) {
                 continue;
             }
@@ -294,5 +301,104 @@ final class BlockTreeValidator
         if ($type === 'social' && isset($attrs['networks']) && ! is_array($attrs['networks'])) {
             $this->errors[] = $path.': a `networks` listát vár.';
         }
+
+        $this->validateV11Attrs($type, $attrs, $path);
+    }
+
+    /**
+     * v1.1 — a feltétel, a kapcsolók, a színek és az új blokkok mezői.
+     *
+     * @param  array<string, mixed>  $attrs
+     */
+    private function validateV11Attrs(string $type, array $attrs, string $path): void
+    {
+        if (array_key_exists('condition', $attrs)) {
+            $violation = ConditionalContent::violation($attrs['condition']);
+
+            if ($violation !== null) {
+                $this->errors[] = sprintf('%s: a `condition` hibás: %s.', $path, $violation);
+            }
+        }
+
+        foreach (['hide_on_mobile', 'full_width'] as $flag) {
+            if (array_key_exists($flag, $attrs) && ! is_bool($attrs[$flag])) {
+                $this->errors[] = sprintf('%s: a `%s` igaz/hamis érték kell legyen.', $path, $flag);
+            }
+        }
+
+        // A SZÍN hangosan hibás, nem csendben fekete: a fordító a hibás értéket
+        // alapértelmezésre cserélné, a felhasználó pedig nem tudná, miért nem hat.
+        foreach (['background', 'color', 'button_background', 'button_color', 'link_color'] as $field) {
+            if (isset($attrs[$field]) && (! is_string($attrs[$field])
+                || preg_match('/^(#[0-9a-fA-F]{3,8}|[a-z]{3,20})$/', trim($attrs[$field])) !== 1)) {
+                $this->errors[] = sprintf('%s: a `%s` hex szín vagy színnév lehet.', $path, $field);
+            }
+        }
+
+        if ($type === 'social') {
+            $mode = $attrs['mode'] ?? 'follow';
+
+            if (! in_array($mode, ['follow', 'share'], true)) {
+                $this->errors[] = $path.': a `mode` értéke `follow` vagy `share` lehet.';
+            }
+
+            if ($mode === 'share' && ! is_string($attrs['share_url'] ?? null)) {
+                $this->errors[] = $path.': a megosztó blokkhoz kötelező a `share_url`.';
+            }
+
+            foreach (is_array($attrs['networks'] ?? null) ? $attrs['networks'] : [] as $index => $network) {
+                $name = is_array($network) ? ($network['name'] ?? null) : $network;
+                $allowed = $mode === 'share' ? BlockSchema::SHARE_NETWORKS : BlockSchema::SOCIAL_NETWORKS;
+
+                if (! is_string($name) || ! in_array($name, $allowed, true)) {
+                    $this->errors[] = sprintf('%s: networks[%d]: ismeretlen hálózat. Engedélyezett: %s.', $path, $index, implode(', ', $allowed));
+
+                    continue;
+                }
+
+                if (is_array($network) && isset($network['href'])) {
+                    $violation = is_string($network['href']) ? UrlPolicy::violation($network['href']) : 'nem szöveg';
+
+                    if ($violation !== null) {
+                        $this->errors[] = sprintf('%s: networks[%d].href %s.', $path, $index, $violation);
+                    }
+                }
+            }
+        }
+
+        if ($type === 'survey') {
+            $answers = $attrs['answers'] ?? null;
+
+            if (! is_array($answers) || $answers === [] || count($answers) > BlockSchema::MAX_SURVEY_ANSWERS
+                || array_keys($answers) !== range(0, count($answers) - 1)) {
+                $this->errors[] = sprintf('%s: az `answers` 1–%d elemű lista.', $path, BlockSchema::MAX_SURVEY_ANSWERS);
+            } else {
+                foreach ($answers as $index => $answer) {
+                    if (! is_string($answer) || trim($answer) === '' || mb_strlen($answer) > 80) {
+                        $this->errors[] = sprintf('%s: answers[%d]: 1–80 karakteres szöveg.', $path, $index);
+                    }
+                }
+            }
+        }
+    }
+
+    /** @param array<int, mixed> $blocks */
+    public static function containsCompliance(array $blocks): bool
+    {
+        foreach ($blocks as $block) {
+            if (! is_array($block)) {
+                continue;
+            }
+
+            if (in_array($block['type'] ?? null, BlockSchema::COMPLIANCE_BLOCKS, true)) {
+                return true;
+            }
+
+            if (self::containsCompliance((array) ($block['children'] ?? []))) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

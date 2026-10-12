@@ -142,14 +142,37 @@ it('a MARKETING sablon leiratkozó blokk nélkül nem menthető', function () {
         ])
         ->assertSessionHasErrors('blocks');
 
-    // …leiratkozó blokkal viszont megy, és az ELŐNÉZET a valódi fordítón készül.
-    $withUnsubscribe = [[
+    // v1.1 — a puszta leiratkozó blokk a szerkesztő mentési útján MÁR NEM ELÉG: a
+    // kampányra használható sablonhoz a KÖTELEZŐ lábléc kell (postai cím is).
+    $onlyUnsubscribe = [[
         'type' => 'section',
         'children' => [[
             'type' => 'column',
             'children' => [
                 ['type' => 'text', 'attrs' => ['content' => 'Szia']],
                 ['type' => 'unsubscribe'],
+            ],
+        ]],
+    ]];
+
+    $this->actingAs($user)->withSession(['workspace_uuid' => $workspace->uuid])
+        ->from('/templates/'.$template->uuid)
+        ->put('/templates/'.$template->uuid, [
+            'name' => 'Hírlevél',
+            'subject' => 'Újdonságok',
+            'blocks' => $onlyUnsubscribe,
+        ])
+        ->assertSessionHasErrors('blocks');
+
+    // …a LÁBLÉCCEL (postai cím + leiratkozó + beállítások) viszont megy, és az ELŐNÉZET a
+    // valódi fordítón készül.
+    $withUnsubscribe = [[
+        'type' => 'section',
+        'children' => [[
+            'type' => 'column',
+            'children' => [
+                ['type' => 'text', 'attrs' => ['content' => 'Szia']],
+                ['type' => 'footer', 'attrs' => ['address' => '1000 Budapest, Minta utca 1.']],
             ],
         ]],
     ]];

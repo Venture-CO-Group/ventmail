@@ -195,4 +195,28 @@ return [
     'profile' => [
         'saved' => 'Le tue impostazioni sono state salvate.',
     ],
+    'editor' => [
+        'nameTaken' => 'Esiste già un modello con questo nome.',
+        'deleted' => 'Il modello è stato eliminato.',
+        'blockDeleted' => 'Il blocco salvato è stato eliminato.',
+        'assets' => [
+            'tooLarge' => 'L’immagine è troppo grande (max :max MB).',
+            'badType' => 'Si possono caricare solo immagini JPG, PNG, GIF o WebP.',
+            'badDimensions' => 'L’immagine può essere al massimo di :max × :max pixel.',
+        ],
+        'compliance' => [
+            'missing' => 'Un modello utilizzabile nelle campagne deve contenere un piè di pagina con: :items.',
+            'items' => [
+                'postal_address' => 'indirizzo postale',
+                'unsubscribe' => 'link di disiscrizione',
+                'preferences' => 'link alle preferenze',
+            ],
+        ],
+        'testSend' => [
+            'subjectPrefix' => '[TEST]',
+            'notAllowed' => 'Le email di prova possono essere inviate solo ai membri del workspace o agli indirizzi seed.',
+            'unverifiedDomain' => 'L’indirizzo del mittente deve usare un dominio verificato di questo workspace.',
+            'empty' => 'Salva il modello prima di inviare una prova.',
+        ],
+    ],
 ];

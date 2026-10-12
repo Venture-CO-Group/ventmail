@@ -197,4 +197,28 @@ return [
     'profile' => [
         'saved' => 'Vos préférences ont été enregistrées.',
     ],
+    'editor' => [
+        'nameTaken' => 'Un modèle portant ce nom existe déjà.',
+        'deleted' => 'Le modèle a été supprimé.',
+        'blockDeleted' => 'Le bloc enregistré a été supprimé.',
+        'assets' => [
+            'tooLarge' => 'L’image est trop lourde (max. :max Mo).',
+            'badType' => 'Seules les images JPG, PNG, GIF ou WebP peuvent être importées.',
+            'badDimensions' => 'L’image doit faire au maximum :max × :max pixels.',
+        ],
+        'compliance' => [
+            'missing' => 'Un modèle utilisable en campagne doit contenir un pied de page avec : :items.',
+            'items' => [
+                'postal_address' => 'adresse postale',
+                'unsubscribe' => 'lien de désabonnement',
+                'preferences' => 'lien vers les préférences',
+            ],
+        ],
+        'testSend' => [
+            'subjectPrefix' => '[TEST]',
+            'notAllowed' => 'Les e-mails de test ne peuvent être envoyés qu’aux membres de l’espace ou aux adresses seed.',
+            'unverifiedDomain' => 'L’adresse d’expédition doit utiliser un domaine vérifié de cet espace.',
+            'empty' => 'Enregistrez le modèle avant d’envoyer un test.',
+        ],
+    ],
 ];

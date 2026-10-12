@@ -6,6 +6,7 @@ namespace App\Modules\Template\Models;
 
 use App\Modules\Audit\Concerns\Auditable;
 use App\Modules\StoredTemplates\Models\StoredTemplate;
+use App\Modules\Template\Data\TemplateStyles;
 use App\Modules\Template\Services\BlockTreeValidator;
 use App\Modules\Template\Services\MjmlCompiler;
 use App\Modules\Template\Services\MjmlWriter;
@@ -14,6 +15,7 @@ use App\Modules\Tenancy\Concerns\BelongsToWorkspace;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use InvalidArgumentException;
 
@@ -37,7 +39,7 @@ final class Template extends Model
 {
     use Auditable, BelongsToWorkspace, HasUuids, SoftDeletes;
 
-    protected $fillable = ['name', 'subject', 'preheader', 'blocks', 'marketing'];
+    protected $fillable = ['name', 'subject', 'preheader', 'blocks', 'marketing', 'styles', 'starter_key'];
 
     protected $attributes = ['blocks' => '[]', 'marketing' => true];
 
@@ -50,6 +52,7 @@ final class Template extends Model
     {
         return [
             'blocks' => 'array',
+            'styles' => 'array',
             'marketing' => 'boolean',
             'rendered_at' => 'datetime',
             'published_at' => 'datetime',
@@ -64,6 +67,13 @@ final class Template extends Model
             // 58. — a séma ellen validál, KIVÉTELLEL. A csendes tisztítás azt jelentené,
             // hogy a szerkesztőből eltűnik egy szakasz, a felhasználó viszont sikert lát.
             app(BlockTreeValidator::class)->validate($blocks);
+
+            // v1.1 — a GLOBÁLIS stílus is típusos (lásd `TemplateStyles`).
+            $styleErrors = TemplateStyles::errorsIn($template->styles);
+
+            if ($styleErrors !== []) {
+                throw new InvalidArgumentException(implode(' | ', $styleErrors));
+            }
 
             // 61. — MARKETING sablonban a leiratkozó blokk KÖTELEZŐ, a mentés blokkolva
             // nélküle.
@@ -93,7 +103,9 @@ final class Template extends Model
     {
         $blocks = (array) $this->blocks;
 
-        $mjml = app(MjmlWriter::class)->write($blocks, $this->preheader);
+        $styles = is_array($this->styles) ? $this->styles : null;
+
+        $mjml = app(MjmlWriter::class)->write($blocks, $this->preheader, $styles);
 
         $this->attributes['mjml'] = $mjml;
         $this->attributes['html'] = app(MjmlCompiler::class)->compile($mjml);
@@ -123,7 +135,9 @@ final class Template extends Model
                 continue;
             }
 
-            if (($block['type'] ?? null) === 'unsubscribe') {
+            // A LÁBLÉC (v1.1) a leiratkozó és a beállítás-linket KÖTELEZŐEN kiírja — ugyanaz a
+            // felismerhető elem, csak a postai címmel együtt.
+            if (in_array($block['type'] ?? null, ['unsubscribe', 'footer'], true)) {
                 return true;
             }
 
@@ -138,5 +152,11 @@ final class Template extends Model
     public function storedTemplate(): BelongsTo
     {
         return $this->belongsTo(StoredTemplate::class);
+    }
+
+    /** @return HasMany<TemplateVersion, $this> */
+    public function versions(): HasMany
+    {
+        return $this->hasMany(TemplateVersion::class);
     }
 }

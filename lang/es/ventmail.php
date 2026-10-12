@@ -195,4 +195,28 @@ return [
     'profile' => [
         'saved' => 'Tus preferencias se han guardado.',
     ],
+    'editor' => [
+        'nameTaken' => 'Ya existe una plantilla con este nombre.',
+        'deleted' => 'La plantilla se ha eliminado.',
+        'blockDeleted' => 'El bloque guardado se ha eliminado.',
+        'assets' => [
+            'tooLarge' => 'La imagen es demasiado grande (máx. :max MB).',
+            'badType' => 'Solo se pueden subir imágenes JPG, PNG, GIF o WebP.',
+            'badDimensions' => 'La imagen debe medir como máximo :max × :max píxeles.',
+        ],
+        'compliance' => [
+            'missing' => 'Una plantilla apta para campañas debe incluir un pie con: :items.',
+            'items' => [
+                'postal_address' => 'dirección postal',
+                'unsubscribe' => 'enlace de baja',
+                'preferences' => 'enlace de preferencias',
+            ],
+        ],
+        'testSend' => [
+            'subjectPrefix' => '[PRUEBA]',
+            'notAllowed' => 'Los correos de prueba solo pueden ir a miembros del espacio o a direcciones seed.',
+            'unverifiedDomain' => 'La dirección del remitente debe usar un dominio verificado de este espacio.',
+            'empty' => 'Guarda la plantilla antes de enviar una prueba.',
+        ],
+    ],
 ];

@@ -195,4 +195,28 @@ return [
     'profile' => [
         'saved' => 'A beállításaid mentve.',
     ],
+    'editor' => [
+        'nameTaken' => 'Ilyen nevű sablon már létezik.',
+        'deleted' => 'A sablon törölve.',
+        'blockDeleted' => 'A mentett blokk törölve.',
+        'assets' => [
+            'tooLarge' => 'A kép túl nagy (legfeljebb :max MB).',
+            'badType' => 'Csak JPG, PNG, GIF vagy WebP kép tölthető fel.',
+            'badDimensions' => 'A kép legfeljebb :max × :max pixeles lehet.',
+        ],
+        'compliance' => [
+            'missing' => 'A kampányra használható sablonnak láblécet kell tartalmaznia ezekkel: :items.',
+            'items' => [
+                'postal_address' => 'postai cím',
+                'unsubscribe' => 'leiratkozó link',
+                'preferences' => 'beállítás-link',
+            ],
+        ],
+        'testSend' => [
+            'subjectPrefix' => '[TESZT]',
+            'notAllowed' => 'Teszt-levél csak a workspace tagjainak vagy a seed-címekre mehet.',
+            'unverifiedDomain' => 'A feladó címe a workspace egy hitelesített domainjén kell legyen.',
+            'empty' => 'Teszt-küldés előtt mentsd a sablont.',
+        ],
+    ],
 ];

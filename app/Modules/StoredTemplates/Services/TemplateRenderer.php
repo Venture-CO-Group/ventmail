@@ -35,6 +35,10 @@ final class TemplateRenderer
     /** @param array<string, mixed> $variables */
     public function render(string $template, array $variables, bool $escape = true): string
     {
+        // A FELTÉTELES TARTALOM a behelyettesítés ELŐTT dől el: egy behelyettesített érték
+        // (a plaintext ág nem escape-el) így nem tud feltétel-jelölőt becsempészni.
+        $template = ConditionalContent::apply($template, $variables);
+
         return (string) preg_replace_callback(
             self::TAG,
             function (array $matches) use ($variables, $escape): string {
@@ -87,6 +91,9 @@ final class TemplateRenderer
         // vinne — a mi DKIM-ünkkel aláírt levélben. A sorrend itt a védelem.
         $variables = array_merge($variables, $reserved);
 
+        // A FELTÉTELES TARTALOM a behelyettesítés ELŐTT — lásd `render()`.
+        $template = ConditionalContent::apply($template, $variables);
+
         // EGYETLEN PASS mindkét szintaxisra. Korábban a `%recipient.x%` EREDMÉNYE újra
         // átment a `{{ }}` renderelésen — a `htmlspecialchars` a `{` és a `%` karaktert
         // nem escape-eli, tehát a hívótól jövő érték MÁSODSZOR is kiértékelődött.
@@ -124,6 +131,12 @@ final class TemplateRenderer
     private function value(array $variables, string $name, string $fallback): mixed
     {
         $value = data_get($variables, $name);
+
+        // A BEÉPÍTETT `current_year` (v1.1 merge-tag választó): a lábléc „© {{ current_year }}"
+        // sora ne függjön attól, hogy a hívó átadja-e. A hívó értéke elsőbbséget élvez.
+        if (($value === null || $value === '') && $name === 'current_year') {
+            return now()->format('Y');
+        }
 
         if ($value === null || $value === '') {
             return $fallback;

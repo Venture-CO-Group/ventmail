@@ -9,6 +9,7 @@ use App\Modules\Consent\Services\ConfirmationTokens;
 use App\Modules\Consent\Services\PreferenceTokens;
 use App\Modules\Events\Services\TrackingTokens;
 use App\Modules\Suppression\Services\UnsubscribeTokens;
+use App\Modules\Template\Services\WebVersionTokens;
 use App\Support\ClientAddress;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Model;
@@ -293,6 +294,37 @@ class AppServiceProvider extends ServiceProvider
             Limit::perMinute(20)->by('ws:'.self::workspaceKey($request)),
             Limit::perHour(200)->by('ws:'.self::workspaceKey($request)),
         ]);
+
+        /*
+         | v1.1 · SABLONSZERKESZTŐ. Az autosave / előnézet / optimalizálás debounce-olt, de egy
+         | nyitva felejtett fül is folyamatosan ír — a fék a FELHASZNÁLÓÉ (nem a tenanté: egy
+         | kolléga szerkesztője ne fojtsa meg a másikét). A teszt-küldés küldő út, szűk kerettel,
+         | a workspace-re is; a képfeltöltés lemezt ír, ezért a workspace-re kulcsol.
+         */
+        RateLimiter::for('template-editor', fn (Request $request) => Limit::perMinute(120)->by('user:'.(string) $request->user()?->getAuthIdentifier()));
+
+        RateLimiter::for('template-test-send', fn (Request $request) => [
+            Limit::perMinute(10)->by('user:'.(string) $request->user()?->getAuthIdentifier()),
+            Limit::perHour(100)->by('ws:'.self::workspaceKey($request)),
+        ]);
+
+        RateLimiter::for('template-assets', fn (Request $request) => [
+            Limit::perMinute(30)->by('ws:'.self::workspaceKey($request)),
+            Limit::perDay(1000)->by('ws:'.self::workspaceKey($request)),
+        ]);
+
+        /*
+         | „MEGNYITÁS BÖNGÉSZŐBEN" — publikus, olvasó végpont. Ugyanaz a minta, mint a
+         | nyomkövetésnél: érvényes tokennél az IGÉNY (a workspace + üzenet) a kulcs, nem a
+         | token bájtjai; értelmezhetetlen tokennél a valódi TCP-partner.
+         */
+        RateLimiter::for('web-version', function (Request $request) {
+            $claim = app(WebVersionTokens::class)->parse((string) $request->route('token'));
+
+            return Limit::perMinute(120)->by(
+                $claim === null ? 'peer:'.self::peer($request) : 'claim:'.hash('sha256', $claim['workspaceId'].'|'.$claim['messageUuid']),
+            );
+        });
 
         RateLimiter::for('sub-accounts', fn (Request $request) => [
             Limit::perMinute(5)->by('ws:'.self::workspaceKey($request)),

@@ -195,4 +195,28 @@ return [
     'profile' => [
         'saved' => 'Deine Einstellungen wurden gespeichert.',
     ],
+    'editor' => [
+        'nameTaken' => 'Eine Vorlage mit diesem Namen existiert bereits.',
+        'deleted' => 'Die Vorlage wurde gelöscht.',
+        'blockDeleted' => 'Der gespeicherte Block wurde gelöscht.',
+        'assets' => [
+            'tooLarge' => 'Das Bild ist zu groß (max. :max MB).',
+            'badType' => 'Nur JPG-, PNG-, GIF- oder WebP-Bilder können hochgeladen werden.',
+            'badDimensions' => 'Das Bild darf höchstens :max × :max Pixel groß sein.',
+        ],
+        'compliance' => [
+            'missing' => 'Eine kampagnenfähige Vorlage braucht eine Fußzeile mit: :items.',
+            'items' => [
+                'postal_address' => 'Postanschrift',
+                'unsubscribe' => 'Abmeldelink',
+                'preferences' => 'Link zu den Einstellungen',
+            ],
+        ],
+        'testSend' => [
+            'subjectPrefix' => '[TEST]',
+            'notAllowed' => 'Test-E-Mails gehen nur an Workspace-Mitglieder oder Seed-Adressen.',
+            'unverifiedDomain' => 'Die Absenderadresse muss eine verifizierte Domain dieses Workspaces verwenden.',
+            'empty' => 'Speichern Sie die Vorlage vor dem Testversand.',
+        ],
+    ],
 ];

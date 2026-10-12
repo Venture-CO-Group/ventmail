@@ -211,4 +211,28 @@ return [
     'profile' => [
         'saved' => 'Your preferences have been saved.',
     ],
+    'editor' => [
+        'nameTaken' => 'A template with this name already exists.',
+        'deleted' => 'The template was deleted.',
+        'blockDeleted' => 'The saved block was deleted.',
+        'assets' => [
+            'tooLarge' => 'The image is too large (max :max MB).',
+            'badType' => 'Only JPG, PNG, GIF or WebP images can be uploaded.',
+            'badDimensions' => 'The image must be at most :max × :max pixels.',
+        ],
+        'compliance' => [
+            'missing' => 'A campaign-ready template must include a footer with: :items.',
+            'items' => [
+                'postal_address' => 'postal address',
+                'unsubscribe' => 'unsubscribe link',
+                'preferences' => 'preferences link',
+            ],
+        ],
+        'testSend' => [
+            'subjectPrefix' => '[TEST]',
+            'notAllowed' => 'Test emails can only go to workspace members or seed addresses.',
+            'unverifiedDomain' => 'The sender address must use a verified domain of this workspace.',
+            'empty' => 'Save the template before sending a test.',
+        ],
+    ],
 ];

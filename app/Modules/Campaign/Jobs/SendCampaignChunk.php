@@ -11,6 +11,7 @@ use App\Modules\Campaign\Models\CampaignVariant;
 use App\Modules\Campaign\Services\CampaignLifecycle;
 use App\Modules\Sending\Actions\SendMessage;
 use App\Modules\Sending\Gate\GateReason;
+use App\Modules\Template\Services\MergeVariables;
 use App\Modules\Tenancy\Models\Workspace;
 use App\Modules\Tenancy\Services\WorkspaceContext;
 use Illuminate\Bus\Batchable;
@@ -110,8 +111,19 @@ final class SendCampaignChunk implements ShouldQueue
             $variantSent = [];
             $release = false;
 
-            foreach ($this->recipients($campaign) as $recipient) {
-                $outcome = $this->sendTo($campaign, $recipient, $send);
+            $recipients = $this->recipients($campaign);
+
+            // v1.1 — a MERGE-VÁLTOZÓK (kontakt, workspace, a sablonban hivatkozott
+            // szegmensek tagsága) kötegenként EGYSZER készülnek elő.
+            $variables = app(MergeVariables::class);
+            $variables->prepare(
+                $recipients->map(fn (CampaignRecipient $r) => (string) (($r->variant?->template ?? $campaign->template)?->html ?? ''))
+                    ->unique()->values()->all(),
+                $recipients->pluck('contact_id')->filter()->map(fn ($id) => (int) $id)->values()->all(),
+            );
+
+            foreach ($recipients as $recipient) {
+                $outcome = $this->sendTo($campaign, $recipient, $send, $variables->forContact($recipient->contact, $workspace));
 
                 if ($outcome === self::OUTCOME_RETRY) {
                     // ÁTMENETI ELUTASÍTÁS: a sor `pending` marad, és a job VISSZAMEGY a
@@ -158,7 +170,7 @@ final class SendCampaignChunk implements ShouldQueue
             // (`preventLazyLoading`), tehát a `$recipient->variant` KIVÉTELT dob. És jó
             // okkal: 250 címzettnél a soronkénti variáns- és sablon-lekérdezés 500 extra
             // körutazás lenne EGY kötegben.
-            ->with(['variant.template'])
+            ->with(['variant.template', 'contact'])
             ->whereIn('id', $this->recipientIds)
             // CSAK a `pending` sorok: egy újrapróbált job nem küld másodszor. Ez az
             // idempotencia gyakorlati alapja — a `sent` sort nem nyúlja meg.
@@ -187,7 +199,8 @@ final class SendCampaignChunk implements ShouldQueue
      *
      * @return self::OUTCOME_* mi történt a címzettel
      */
-    private function sendTo(Campaign $campaign, CampaignRecipient $recipient, SendMessage $send): string
+    /** @param array<string, mixed> $renderVariables */
+    private function sendTo(Campaign $campaign, CampaignRecipient $recipient, SendMessage $send, array $renderVariables = []): string
     {
         $variant = $recipient->variant;
         $template = $variant?->template ?? $campaign->template;
@@ -209,6 +222,9 @@ final class SendCampaignChunk implements ShouldQueue
                 'subject' => (string) ($variant?->subject ?? $campaign->subject),
                 'html' => (string) $template->html,
                 'text' => (string) $template->text,
+                // v1.1 — a merge-tagek és a feltételes blokkok adata (titkosítva tárolódik,
+                // a kézbesítés után törlődik; az esemény-naplóba nem kerül).
+                'render_variables' => $renderVariables,
                 // A KAMPÁNY-CÍMKE: a tag-szintű statisztika (A3) és a marketing analitika
                 // (B4) ebből dolgozik — ugyanabból az esemény-forrásból, mint a
                 // platform-napló.

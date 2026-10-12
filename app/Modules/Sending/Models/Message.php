@@ -11,6 +11,7 @@ use App\Modules\Sending\Enums\Channel;
 use App\Modules\Sending\Services\UnsubscribeHeaderPolicy;
 use App\Modules\Suppression\Services\UnsubscribeBaseUrl;
 use App\Modules\Suppression\Services\UnsubscribeTokens;
+use App\Modules\Template\Services\WebVersionTokens;
 use App\Modules\Tenancy\Concerns\BelongsToWorkspace;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
@@ -295,6 +296,12 @@ final class Message extends Model
                 $recipient,
             ),
             'preferences_url' => $this->preferenceCenterUrl($recipient),
+            // v1.1 — a „megnyitás böngészőben" link (`{{ browser_url }}`). Nem személyre
+            // szabott: a token csak a workspace-t és az üzenetet hordozza.
+            'browser_url' => app(UnsubscribeBaseUrl::class)->for($this->domain).'/w/'.app(WebVersionTokens::class)->issue(
+                (int) $this->workspace_id,
+                (string) $this->uuid,
+            ),
         ];
     }
 

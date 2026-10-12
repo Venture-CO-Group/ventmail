@@ -36,29 +36,78 @@ final class BlockSchema
         // MJML-ben `mj-section` + `mj-column`, ami mobilon egymás alá csúszik.
         'section' => [
             'required' => [],
-            'optional' => ['background', 'padding', 'full_width'],
+            'optional' => ['background', 'padding', 'full_width', 'condition', 'hide_on_mobile'],
             'children' => ['column'],
         ],
         'column' => [
             'required' => [],
             'optional' => ['width', 'background', 'padding'],
-            'children' => ['text', 'heading', 'image', 'button', 'divider', 'spacer', 'unsubscribe', 'social', 'html'],
+            'children' => self::CONTENT_BLOCKS,
         ],
-        'heading' => ['required' => ['content'], 'optional' => ['level', 'align', 'color', 'font_size'], 'children' => null],
-        'text' => ['required' => ['content'], 'optional' => ['align', 'color', 'font_size', 'line_height'], 'children' => null],
-        'image' => ['required' => ['src'], 'optional' => ['alt', 'href', 'width', 'align'], 'children' => null],
-        'button' => ['required' => ['content', 'href'], 'optional' => ['background', 'color', 'align', 'border_radius'], 'children' => null],
-        'divider' => ['required' => [], 'optional' => ['color', 'padding'], 'children' => null],
-        'spacer' => ['required' => [], 'optional' => ['height'], 'children' => null],
+        'heading' => ['required' => ['content'], 'optional' => ['level', 'align', 'color', 'font_size', 'padding', 'condition', 'hide_on_mobile'], 'children' => null],
+        'text' => ['required' => ['content'], 'optional' => ['align', 'color', 'font_size', 'line_height', 'padding', 'condition', 'hide_on_mobile'], 'children' => null],
+        'image' => ['required' => ['src'], 'optional' => ['alt', 'href', 'width', 'align', 'condition', 'hide_on_mobile'], 'children' => null],
+        'button' => ['required' => ['content', 'href'], 'optional' => ['background', 'color', 'align', 'border_radius', 'condition', 'hide_on_mobile'], 'children' => null],
+        'divider' => ['required' => [], 'optional' => ['color', 'padding', 'condition', 'hide_on_mobile'], 'children' => null],
+        'spacer' => ['required' => [], 'optional' => ['height', 'condition', 'hide_on_mobile'], 'children' => null],
         // A LEIRATKOZÓ BLOKK (61. kritérium). Külön típus, nem „egy text blokk linkkel":
-        // a szabály csak akkor kikényszeríthető, ha a blokk FELISMERHETŐ.
+        // a szabály csak akkor kikényszeríthető, ha a blokk FELISMERHETŐ. FELTÉTEL NÉLKÜL:
+        // egy feltételhez kötött leiratkozó link pont annál a címzettnél hiányozhatna.
         'unsubscribe' => ['required' => [], 'optional' => ['content', 'align', 'color', 'font_size'], 'children' => null],
-        'social' => ['required' => ['networks'], 'optional' => ['align', 'icon_size'], 'children' => null],
-        // NYERS HTML — szűk, dokumentált kivétel. A tartalma NEM megy át a merge-tag
-        // escape-en (a hívó szándéka a nyers alak), ezért a szerkesztőben jogosultsághoz
-        // kötött, és a validátor legalább a `<script>`-et kizárja.
-        'html' => ['required' => ['content'], 'optional' => [], 'children' => null],
+        // KÖZÖSSÉGI blokk: `mode = follow` (a profilokra mutat) vagy `share` (a `share_url`-t
+        // osztja meg a hálózaton). A megosztó linkeket a FORDÍTÓ építi, nem a felhasználó.
+        'social' => ['required' => ['networks'], 'optional' => ['align', 'icon_size', 'mode', 'share_url', 'condition', 'hide_on_mobile'], 'children' => null],
+        // NYERS HTML — szűk, dokumentált kivétel (a szerkesztőben „Kód"). A kimenet az
+        // allowlist-sanitizeren megy át (`HtmlSanitizer::block()`).
+        'html' => ['required' => ['content'], 'optional' => ['condition', 'hide_on_mobile'], 'children' => null],
+        // v1.1 — LOGÓ: kép, kisebb alapszélességgel és a fejléc-mintákhoz.
+        'logo' => ['required' => ['src'], 'optional' => ['alt', 'href', 'width', 'align', 'condition', 'hide_on_mobile'], 'children' => null],
+        // v1.1 — VIDEÓ: a levélkliensek nem játszanak le videót, ezért bélyegkép + lejátszás
+        // jel + link a videó oldalára. Ez a de facto e-mail-minta.
+        'video' => ['required' => ['thumbnail', 'href'], 'optional' => ['alt', 'width', 'align', 'play_label', 'condition', 'hide_on_mobile'], 'children' => null],
+        // v1.1 — TERMÉK: név, kép, ár, gomb.
+        'product' => [
+            'required' => ['name', 'href'],
+            'optional' => ['image', 'alt', 'price', 'old_price', 'description', 'button_label', 'button_background', 'button_color', 'align', 'condition', 'hide_on_mobile'],
+            'children' => null,
+        ],
+        // v1.1 — KÉRDŐÍV: egykattintásos válaszok. Minden válasz a `base_url`-re mutat
+        // `answer=<n>` paraméterrel — a válasz a kattintásban van, nincs űrlap.
+        'survey' => [
+            'required' => ['question', 'base_url', 'answers'],
+            'optional' => ['align', 'color', 'button_background', 'button_color', 'condition', 'hide_on_mobile'],
+            'children' => null,
+        ],
+        // v1.1 — LÁBLÉC a KÖTELEZŐ elemekkel: postai cím (kötelező mező), leiratkozó és
+        // beállítás-link (a fordító MINDIG kiírja, nem kapcsolható ki). FELTÉTEL NÉLKÜL.
+        'footer' => [
+            'required' => ['address'],
+            'optional' => ['company', 'content', 'unsubscribe_label', 'preferences_label', 'align', 'color', 'link_color', 'font_size'],
+            'children' => null,
+        ],
     ];
+
+    /** A tartalmi (levél-) blokkok — egy oszlop ezeket tartalmazhatja. */
+    public const CONTENT_BLOCKS = [
+        'text', 'heading', 'image', 'button', 'divider', 'spacer', 'unsubscribe', 'social', 'html',
+        'logo', 'video', 'product', 'survey', 'footer',
+    ];
+
+    /**
+     * A KÖTELEZŐ LÁBLÉC-ELEMEKET hordozó blokkok: ezek nem lehetnek feltételhez kötve, és a
+     * szakaszuk sem — egy feltételes szakaszban a leiratkozó link pont annál a címzettnél
+     * hiányozhatna, akinél a feltétel hamis.
+     */
+    public const COMPLIANCE_BLOCKS = ['unsubscribe', 'footer'];
+
+    /** A közösségi hálózatok, amiket a fordító ismer (követés és megosztás). */
+    public const SOCIAL_NETWORKS = ['facebook', 'x', 'twitter', 'instagram', 'linkedin', 'youtube', 'tiktok'];
+
+    /** A megosztásra alkalmas hálózatok — ezeknek van nyilvános megosztó URL-je. */
+    public const SHARE_NETWORKS = ['facebook', 'x', 'twitter', 'linkedin'];
+
+    /** A kérdőív válaszainak felső száma. */
+    public const MAX_SURVEY_ANSWERS = 6;
 
     /** A gyökérben CSAK section állhat: a levél elrendezése szakaszokból épül. */
     public const ROOT_BLOCKS = ['section'];

@@ -10,5 +10,8 @@ Studio block-tree (közös JSON Schema) → MJML → reszponzív HTML + plaintex
 - A modul nem épít saját identity / consent-banner / fájltár / számlázó / landing-page réteget.
 
 ## Állapot
-Váz (M0-0). A tartalmat a saját packetje tölti fel — lásd `PHASE.md` és
-`docs/ventmail-roadmap.md`.
+B2 (58–61., 67.) + v1.1 4. modul: drag-and-drop szerkesztő (új blokkok: logó, videó,
+termék, kérdőív, lábléc, megosztás; feltételes blokk; globális stílus), verziótörténet
+(`template_versions`), mentett blokkok, képfeltöltés `AssetStore` mögött (D10, ventVault →
+HUMAN-QUEUE), hat indulósablon (`lang/*/editor.php`), optimalizálás panel és teszt-küldés a
+`SendMessage` / PreSendGate úton, „megnyitás böngészőben" (`/w/{token}`).
