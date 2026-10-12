@@ -121,6 +121,9 @@ jobs:
   frontend:
     name: Frontend (vue-tsc · build · npm audit)
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -182,6 +185,10 @@ jobs:
       - name: '@venture csomagok telepítése és építése'
         env:
           PACKAGES_TOKEN: ${{ secrets.VENTURE_PACKAGES_TOKEN }}
+          # A `venture-ui` a @venture-co-group/design-t a GitHub Packages npm-regiszteréből
+          # telepíti (a saját .npmrc-je `NODE_AUTH_TOKEN`-t olvas). A job SAJÁT, csak
+          # olvasó tokenje — és csak ebben a lépésben, a ventMail `npm ci`-je nem látja.
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # A csomagok EGYMÁST `git+ssh` URL-lel hivatkozzák (a `venture-ui` a
           # `venture-design`-t), a runneren viszont nincs SSH-kulcs: `Permission denied
@@ -231,6 +238,9 @@ jobs:
   e2e:
     name: E2E (Playwright · napló-flow)
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
 
     # A 29. kritérium Playwrightot ír elő a napló-flow-ra. Egy teszt, amit a CI sosem futtat,
     # nem kapu: az első elrontott képernyő csendben átmenne rajta.
@@ -332,6 +342,10 @@ jobs:
       - name: '@venture csomagok telepítése és építése'
         env:
           PACKAGES_TOKEN: ${{ secrets.VENTURE_PACKAGES_TOKEN }}
+          # A `venture-ui` a @venture-co-group/design-t a GitHub Packages npm-regiszteréből
+          # telepíti (a saját .npmrc-je `NODE_AUTH_TOKEN`-t olvas). A job SAJÁT, csak
+          # olvasó tokenje — és csak ebben a lépésben, a ventMail `npm ci`-je nem látja.
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # A csomagok EGYMÁST `git+ssh` URL-lel hivatkozzák (a `venture-ui` a
           # `venture-design`-t), a runneren viszont nincs SSH-kulcs: `Permission denied

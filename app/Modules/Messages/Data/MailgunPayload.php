@@ -42,7 +42,7 @@ final readonly class MailgunPayload
         /** @var array<string, mixed> */
         public array $variables,
         /** `t:variables` — csak renderelésre; sosem visszhangzik (lásd RenderVariablesTest). */
-        public array $renderVariables = [],
+        public array $renderVariables,
         /** @var array<string, string> */
         public array $headers,
         /** @var array<string, mixed> */

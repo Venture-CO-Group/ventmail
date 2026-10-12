@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Modules\Sending\Actions;
 
-use App\Modules\Audit\Services\KeyedHash;
 use App\Modules\Audit\Services\AuditLogger;
+use App\Modules\Audit\Services\KeyedHash;
 use App\Modules\Billing\Enums\UsageDimension;
 use App\Modules\Billing\Services\Metering;
 use App\Modules\Events\Models\MessageEvent;

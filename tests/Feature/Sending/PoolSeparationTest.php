@@ -15,6 +15,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Factory;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Schema;
 
 uses(RefreshDatabase::class);
 
@@ -170,17 +171,17 @@ it('a health-check a Postal webszerver valódi oldalát kérdezi (a webnek nincs
 });
 
 it('a Postal-hivatkozás mentésének hibája nem írja felül a sikeres átadást (nincs dupla kézbesítés)', function () {
-    Http::swap(new Illuminate\Http\Client\Factory);
+    Http::swap(new Factory);
     Http::fake(['postal-tx:5000/*' => Http::response(['status' => 'success', 'data' => [
         'message_id' => 'tx-1', 'messages' => ['cimzett@example.test' => ['id' => 1, 'token' => 'tok']],
     ]])]);
 
-    Illuminate\Support\Facades\Schema::rename('postal_message_refs', 'postal_message_refs_off');
+    Schema::rename('postal_message_refs', 'postal_message_refs_off');
 
     try {
         $result = (new PostalDriver)->send(pooled('transactional'));
     } finally {
-        Illuminate\Support\Facades\Schema::rename('postal_message_refs_off', 'postal_message_refs');
+        Schema::rename('postal_message_refs_off', 'postal_message_refs');
     }
 
     expect($result->accepted)->toBeTrue();
