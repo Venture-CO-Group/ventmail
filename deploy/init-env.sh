@@ -19,7 +19,8 @@ APP_DIR="${APP_DIR:-$(cd "$(dirname "$0")" && pwd)}"
 APP_HOST="${APP_HOST:-app.ventmail.app}"
 API_HOST="${API_HOST:-api.ventmail.app}"
 ISSUER="${ISSUER:-https://sso.ventureco.app}"
-EDGE_PROXY="${EDGE_PROXY:-172.30.0.2/32}"
+# The edge Caddy's fixed addresses on the dual-stack edge network (venture-infra box.env).
+EDGE_PROXY="${EDGE_PROXY:-172.30.0.2/32 fd30:0:0:1::2/128}"
 SEED_ALLOWLIST="${SEED_ALLOWLIST:?SEED_ALLOWLIST (comma-separated seed addresses) is required}"
 
 log() { printf '%s [init-env] %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*" >&2; }
@@ -59,8 +60,9 @@ LOG_LEVEL=info
 AUDIT_PEPPER=$pepper
 
 # --- behind the mail-box edge
-TRUSTED_PROXIES=$EDGE_PROXY
-TRUSTED_HOSTS=$APP_HOST,$API_HOST
+TRUSTED_PROXIES="$EDGE_PROXY"
+# ventmail-web: the Postal webhooks arrive on the internal network under this name.
+TRUSTED_HOSTS=$APP_HOST,$API_HOST,ventmail-web
 SESSION_COOKIE=__Host-ventmail_session
 SESSION_SECURE_COOKIE=true
 SESSION_SAME_SITE=lax

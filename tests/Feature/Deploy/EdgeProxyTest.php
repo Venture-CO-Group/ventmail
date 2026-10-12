@@ -143,3 +143,19 @@ it('a kiküldött session-süti Secure, HttpOnly, SameSite=Lax, Path=/ és Domai
         ->and($header)->toMatch('/;\s*path=\/(;|$)/i')
         ->and($header)->not->toMatch('/;\s*domain=/i');
 });
+
+it('IPv6 kliensnél a rate-limit vödör a /64, a bizonyíték a teljes cím', function () {
+    config(['proxy.trusted_proxies' => [EDGE.'/32']]);
+
+    $request = Request::create('http://app.ventmail.app/x', 'GET', server: [
+        'REMOTE_ADDR' => EDGE,
+        'HTTP_X_FORWARDED_FOR' => '2001:db8:abcd:12:1111:2222:3333:4444',
+    ]);
+    Request::setTrustedProxies([EDGE.'/32'], Request::HEADER_X_FORWARDED_FOR);
+
+    expect(ClientAddress::of($request))->toBe('2001:db8:abcd:12:1111:2222:3333:4444')
+        ->and(ClientAddress::bucket($request))->toBe('2001:db8:abcd:12::/64');
+
+    $v4 = Request::create('http://app.ventmail.app/x', 'GET', server: ['REMOTE_ADDR' => '198.51.100.9']);
+    expect(ClientAddress::bucket($v4))->toBe('198.51.100.9');
+});

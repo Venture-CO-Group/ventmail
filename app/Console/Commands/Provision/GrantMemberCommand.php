@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Console\Commands\Provision;
 
 use App\Models\User;
+use App\Modules\Audit\Services\AuditLogger;
 use App\Modules\Identity\Enums\Role;
 use App\Modules\Tenancy\Models\WorkspaceMember;
 use Illuminate\Console\Command;
@@ -45,6 +46,12 @@ final class GrantMemberCommand extends Command
             ['workspace_id' => $workspace->id, 'user_id' => $user->id],
             ['roles' => [$role->value]]
         );
+
+        // A WorkspaceMember nem Auditable (az AssignWorkspaceRoles ír explicit auditot) —
+        // a CLI-út ugyanígy explicit.
+        app(AuditLogger::class)->log('workspace.member_granted', $member, after: [
+            'user_id' => $user->id, 'roles' => $member->roles(), 'via' => 'cli',
+        ]);
 
         $this->info(sprintf('tag: %s → %s (%s)', $user->email, $workspace->slug, implode(',', $member->roles())));
 

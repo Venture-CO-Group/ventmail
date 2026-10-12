@@ -168,3 +168,20 @@ it('a health-check a Postal webszerver valódi oldalát kérdezi (a webnek nincs
     expect((new PostalDriver)->health()->healthy)->toBeTrue();
     Http::assertNotSent(fn (Request $r) => str_contains($r->url(), 'postal-mk'));
 });
+
+it('a Postal-hivatkozás mentésének hibája nem írja felül a sikeres átadást (nincs dupla kézbesítés)', function () {
+    Http::swap(new Illuminate\Http\Client\Factory);
+    Http::fake(['postal-tx:5000/*' => Http::response(['status' => 'success', 'data' => [
+        'message_id' => 'tx-1', 'messages' => ['cimzett@example.test' => ['id' => 1, 'token' => 'tok']],
+    ]])]);
+
+    Illuminate\Support\Facades\Schema::rename('postal_message_refs', 'postal_message_refs_off');
+
+    try {
+        $result = (new PostalDriver)->send(pooled('transactional'));
+    } finally {
+        Illuminate\Support\Facades\Schema::rename('postal_message_refs_off', 'postal_message_refs');
+    }
+
+    expect($result->accepted)->toBeTrue();
+});

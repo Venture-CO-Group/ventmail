@@ -122,7 +122,7 @@ final class MessageDispatcher
         // A KÜLDÉSI MÓD a küldés pillanatában is számít: ha a tulajdonos a gate-döntés óta
         // visszazárta (seed-mód, marketing ki), a sorban álló levél sem mehet ki.
         if (($restriction = $this->mode->restriction($message)) !== null) {
-            $message->forceFill(['status' => 'rejected', 'reason' => $restriction->value])->save();
+            $message->forceFill(['status' => 'rejected', 'reason' => $restriction->value, 'render_variables' => null])->save();
             $this->events($message, 'rejected', [], ['reason' => $restriction->value]);
 
             return;
@@ -296,6 +296,8 @@ final class MessageDispatcher
             'reason' => $result->accepted ? null : 'DRIVER_REJECTED',
             'sent_at' => now(),
             'options' => [...$message->options, 'delivered_recipients' => $delivered],
+            // A titkos render-változók csak addig élnek, amíg újrapróbálás jöhet.
+            ...($status === 'deferred' ? [] : ['render_variables' => null]),
         ])->save();
 
         // A fogadó VÁLASZA feldolgozva: hard bounce → azonnali suppression, soft → N próba
@@ -349,8 +351,10 @@ final class MessageDispatcher
         ]);
 
         $attempt = (int) $message->attempts;
+        $final = $this->retry->shouldGiveUp($attempt);
 
         $message->forceFill([
+            ...($final ? ['render_variables' => null] : []),
             // A `failed` VÉGLEGES: a korlátlan újrapróbálás a sort sosem ürítené ki, és a
             // fogadó felé is agresszió lenne.
             'status' => $this->retry->shouldGiveUp($attempt) ? 'failed' : 'deferred',
@@ -418,7 +422,8 @@ final class MessageDispatcher
         $html = (string) ($message->options['body_html'] ?? '');
         $text = (string) ($message->options['body_text'] ?? '');
         $recipientVariables = (array) ($message->variables['recipient-variables'] ?? []);
-        $shared = collect($message->variables)->except('recipient-variables')->all();
+        // A `t:variables` CSAK itt, a renderelésben él (és felülírja az azonos nevű `v:*`-t).
+        $shared = [...collect($message->variables)->except('recipient-variables')->all(), ...(array) $message->render_variables];
 
         // A nyomkövetés a TENANT SAJÁT hosztján fut (`email.<domain>`), nem a miénken —
         // különben minden ügyfél link-reputációja egy közös hosztra folyna össze, és a

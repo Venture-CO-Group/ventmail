@@ -15,6 +15,7 @@ use App\Modules\Sending\Models\PostalMessageRef;
 use App\Modules\Sending\Models\RawMimeMessage;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
@@ -181,17 +182,29 @@ final class PostalDriver implements SendingDriver
      */
     private function remember(Message $message, Response $response): void
     {
-        foreach ((array) $response->json('data.messages', []) as $recipient => $ref) {
-            $token = is_array($ref) ? (string) ($ref['token'] ?? '') : '';
+        // A levelet a Postal MÁR átvette: a hivatkozás mentésének hibája nem fordíthatja
+        // vissza az eredményt (az újrapróbálás dupla kézbesítés lenne). A webhook ilyenkor
+        // „ismeretlen token"-t naplóz — ez a kisebbik rossz.
+        try {
+            foreach ((array) $response->json('data.messages', []) as $recipient => $ref) {
+                $token = is_array($ref) ? (string) ($ref['token'] ?? '') : '';
 
-            if ($token === '') {
-                continue;
+                if ($token === '') {
+                    continue;
+                }
+
+                // SAVEPOINT: egy hibás írás Postgresen különben a hívó TELJES tranzakcióját
+                // elrontaná („current transaction is aborted").
+                DB::transaction(fn () => PostalMessageRef::query()->updateOrCreate(
+                    ['pool' => $this->pool, 'token' => $token],
+                    ['message_uuid' => $message->uuid, 'recipient' => strtolower((string) $recipient)]
+                ));
             }
-
-            PostalMessageRef::query()->updateOrCreate(
-                ['pool' => $this->pool, 'token' => $token],
-                ['message_uuid' => $message->uuid, 'recipient' => strtolower((string) $recipient)]
-            );
+        } catch (\Throwable $e) {
+            Log::error('Postal-hivatkozás mentése sikertelen (a levél kiment)', [
+                'message_uuid' => $message->uuid,
+                'exception' => $e::class,
+            ]);
         }
     }
 

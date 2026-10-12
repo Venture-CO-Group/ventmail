@@ -265,3 +265,42 @@ it('a hivatkozás tenant-izolált: idegen workspace kontextusából nem látszik
     expect(PostalMessageRef::resolve('transactional', 'tok-1')?->workspace_id)->toBe($this->workspace->id);
     expect(PostalMessageRef::resolve('marketing', 'tok-1'))->toBeNull();
 });
+
+it('a késleltetés (MessageDelayed) NEM számít soft bounce-nak — a greylist nem tilt le címet', function () {
+    foreach (range(1, 7) as $i) {
+        postWebhook('transactional', postalBody('MessageDelayed', [
+            'message' => postalMessage(), 'status' => 'SoftFail', 'details' => 'greylisted',
+            'output' => '451 4.7.1 Greylisting in action, please come back later', 'sent_with_ssl' => true,
+            'timestamp' => microtime(true), 'time' => 0.1,
+        ]), $this->txPrivate)->assertNoContent();
+    }
+
+    expect(Suppression::query()->withoutGlobalScopes()->exists())->toBeFalse()
+        ->and(DeliveryAttempt::query()->withoutGlobalScopes()->count())->toBe(0)
+        ->and(MessageEvent::query()->withoutGlobalScopes()->where('type', 'deferred')->count())->toBe(7);
+});
+
+it('élesben a Postal belső hostneve (ventmail-web) is kiszolgált', function () {
+    config(['proxy.trusted_hosts' => ['app.ventmail.app', 'api.ventmail.app', 'ventmail-web']]);
+    app()->detectEnvironment(fn () => 'production');
+
+    $body = postalBody('MessageSent', ['message' => postalMessage(), 'status' => 'Sent', 'output' => '250 OK', 'sent_with_ssl' => true]);
+    openssl_sign($body, $signature, $this->txPrivate, OPENSSL_ALGO_SHA256);
+
+    $this->call('POST', 'http://ventmail-web:8080/internal/mta/postal/transactional', [], [], [], [
+        'CONTENT_TYPE' => 'application/json',
+        'HTTP_X_POSTAL_SIGNATURE_256' => base64_encode($signature),
+    ], $body)->assertNoContent();
+});
+
+it('többcímzettes üzenetnél egy címzett bounce-a nem jelöli bounced-nak az egészet', function () {
+    app(WorkspaceContext::class)->set($this->workspace);
+    $this->message->forceFill(['recipients' => ['halott@example.test', 'elo@example.test']])->save();
+    app(WorkspaceContext::class)->forget();
+
+    postWebhook('transactional', postalBody('MessageBounced', [
+        'original_message' => postalMessage(), 'bounce' => postalMessage('b'),
+    ]), $this->txPrivate)->assertNoContent();
+
+    expect(Message::query()->withoutGlobalScopes()->find($this->message->id)->status)->toBe('sent');
+});

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Console\Commands\Provision;
 
 use App\Models\User;
+use App\Modules\Audit\Services\AuditLogger;
 use App\Modules\Tenancy\Models\WorkspaceMember;
 use Illuminate\Console\Command;
 
@@ -22,8 +23,17 @@ final class RevokeMemberCommand extends Command
         $workspace = $this->enterWorkspace((string) $this->argument('workspace'));
         $user = User::query()->whereRaw('lower(email) = ?', [strtolower((string) $this->argument('email'))])->first();
 
-        $deleted = $user === null ? 0 : WorkspaceMember::query()
-            ->where('workspace_id', $workspace->id)->where('user_id', $user->id)->delete();
+        $deleted = 0;
+        $members = $user === null ? collect() : WorkspaceMember::query()
+            ->where('workspace_id', $workspace->id)->where('user_id', $user->id)->get();
+
+        foreach ($members as $member) {
+            app(AuditLogger::class)->log('workspace.member_revoked', $member, before: [
+                'user_id' => $member->user_id, 'roles' => $member->roles(), 'via' => 'cli',
+            ]);
+            $member->delete();
+            $deleted++;
+        }
 
         $this->info("visszavonva: {$deleted} tagság");
 

@@ -193,14 +193,14 @@ expect "lists every key the production example lists" \
     'missing=0; for k in $(sed -n "s/^\([A-Z][A-Z0-9_]*\)=$/\1/p" "$HERE/../.env.production.example"); do grep -q "^$k=" "$APP_DIR/.env" || { echo "missing $k"; missing=1; }; done; [ "$missing" = 0 ]'
 expect "production values" 'grep -qx "APP_ENV=production" "$APP_DIR/.env" && grep -qx "APP_DEBUG=false" "$APP_DIR/.env" && grep -qx "LOG_CHANNEL=stderr" "$APP_DIR/.env" && grep -qx "IDENTITY_DEV_LOGIN=false" "$APP_DIR/.env" && grep -qx "OIDC_PROVIDER_URL=https://sso.ventureco.app" "$APP_DIR/.env"'
 expect "the sending switches start CLOSED (deploy rule 3)" 'grep -qx "SENDING_LIVE=false" "$APP_DIR/.env" && grep -qx "SENDING_MARKETING_ENABLED=false" "$APP_DIR/.env" && grep -qx "SEND_ALLOWLIST_ENFORCED=true" "$APP_DIR/.env" && grep -qx "SEND_ALLOWLIST=seed-a@example.test,seed-b@example.test" "$APP_DIR/.env"'
-expect "a __Host- session cookie and both trusted hosts" 'grep -qx "SESSION_COOKIE=__Host-ventmail_session" "$APP_DIR/.env" && grep -qx "TRUSTED_HOSTS=app.ventmail.app,api.ventmail.app" "$APP_DIR/.env"'
+expect "a __Host- session cookie and both trusted hosts" 'grep -qx "SESSION_COOKIE=__Host-ventmail_session" "$APP_DIR/.env" && grep -qx "TRUSTED_HOSTS=app.ventmail.app,api.ventmail.app,ventmail-web" "$APP_DIR/.env"'
 expect "two separate Postal instances" 'grep -qx "POSTAL_TX_ENDPOINT=http://postal-tx-web:5000" "$APP_DIR/.env" && grep -qx "POSTAL_MK_ENDPOINT=http://postal-mk-web:5000" "$APP_DIR/.env"'
 expect "takes the database credentials from db.env" 'grep -qx "DB_PASSWORD=$DB_PW" "$APP_DIR/.env"'
 expect "generates a Redis password" 'redis_password_is_64_hex "$APP_DIR/.env"'
 before="$(cat "$APP_DIR/.env")"
 "$INIT" v1.0.0 >/dev/null 2>&1
 expect "is idempotent: an existing .env is never overwritten" '[ "$(cat "$APP_DIR/.env")" = "$before" ]'
-expect "trusts only the edge proxy address" 'grep -qx "TRUSTED_PROXIES=172.30.0.2/32" "$APP_DIR/.env"'
+expect "trusts only the edge proxy addresses (v4 + v6)" 'grep -qx "TRUSTED_PROXIES=\"172.30.0.2/32 fd30:0:0:1::2/128\"" "$APP_DIR/.env"'
 teardown
 
 echo "set-env.sh"
@@ -217,6 +217,8 @@ printf -- '-----BEGIN PUBLIC KEY-----\nAAAA\nBBBB\n-----END PUBLIC KEY-----\n' |
 expect "stores a PEM on one line" 'grep -qx "POSTAL_TX_WEBHOOK_PUBLIC_KEY=\"-----BEGIN PUBLIC KEY-----\\\\nAAAA\\\\nBBBB\\\\n-----END PUBLIC KEY-----\"" "$APP_DIR/.env"'
 rc=0; printf '' | "$SETENV" OIDC_CLIENT_ID 2>/dev/null || rc=$?
 expect "refuses an empty value" '[ "$rc" -ne 0 ] && ! grep -q "^OIDC_CLIENT_ID=" "$APP_DIR/.env"'
+rc=0; printf 'abc$HOME' | "$SETENV" OIDC_CLIENT_ID 2>/dev/null || rc=$?
+expect "refuses a value compose would interpolate (\$, backtick, backslash)" '[ "$rc" -ne 0 ] && ! grep -q "^OIDC_CLIENT_ID=" "$APP_DIR/.env"'
 rc=0; printf 'x' | "$SETENV" 'bad key' 2>/dev/null || rc=$?
 expect "refuses a malformed key" '[ "$rc" -eq 2 ]'
 teardown

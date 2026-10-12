@@ -123,9 +123,10 @@ class AppServiceProvider extends ServiceProvider
         // A kulcs a KANONIKUS IGÉNY, nem a token bájtjai: azokból több ezer érvényes variáns
         // gyártható ugyanarra az igényre, tehát token-kulccsal a fék megkerülhető lenne.
         // Értelmezhetetlen tokennél az IP a kulcs — ott nincs mihez kötni.
-        // A Postal webhookja: a belső hálózatról jön, de egy elszabadult (vagy hamis)
-        // hívó se tudja a DB-t aláírás-ellenőrzéssel elárasztani.
-        RateLimiter::for('postal-webhook', fn (Request $request) => Limit::perMinute(1200)->by('peer:'.self::peer($request)));
+        // A Postal webhookja: a belső hálózatról jön, aláírással. A plafon a kampány-
+        // volumenű, címzettenkénti `MessageSent` fölött van (különben 429 után a Postal
+        // eldobná az eseményeket), de egy elszabadult hívót így is megfog.
+        RateLimiter::for('postal-webhook', fn (Request $request) => Limit::perMinute(30000)->by('peer:'.self::peer($request)));
 
         RateLimiter::for('tracking', function (Request $request) {
             $tokens = app(TrackingTokens::class);
@@ -336,6 +337,6 @@ class AppServiceProvider extends ServiceProvider
         // A TCP-partner (`server('REMOTE_ADDR')`) — vagy a SZŰKÍTETT edge-listáról érkező
         // kérésnél a továbbított kliens-IP. Enélkül az edge mögött minden fék egyetlen
         // globális vödör lenne. Lásd `ClientAddress`.
-        return ClientAddress::of($request);
+        return ClientAddress::bucket($request);
     }
 }

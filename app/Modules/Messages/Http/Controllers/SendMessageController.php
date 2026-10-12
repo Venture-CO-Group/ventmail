@@ -135,6 +135,7 @@ final class SendMessageController
             'text' => $text,
             'tags' => $payload->tags,
             'variables' => $payload->variables,
+            'render_variables' => $payload->renderVariables,
             'headers' => $payload->headers,
             'options' => $payload->options,
             'deliverytime' => $payload->deliverytime,

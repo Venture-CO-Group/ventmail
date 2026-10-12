@@ -15,7 +15,9 @@ declare(strict_types=1);
  | ide kerülnek.
  */
 
-$list = static fn (string $value): array => array_values(array_filter(array_map('trim', explode(',', $value))));
+// Vesszővel VAGY szóközzel elválasztva: a web-réteg Caddy-ja (`trusted_proxies static …`)
+// szóközzel várja, ugyanabból az env-ből.
+$list = static fn (string $value): array => array_values(array_filter(preg_split('/[\s,]+/', trim($value)) ?: []));
 
 $hosts = $list((string) env('TRUSTED_HOSTS', ''));
 

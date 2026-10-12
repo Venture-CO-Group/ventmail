@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Console\Commands\Provision;
 
+use App\Modules\Audit\Services\AuditLogger;
 use App\Modules\Tenancy\Models\Workspace;
+use App\Modules\Tenancy\Services\WorkspaceContext;
 use Illuminate\Console\Command;
 
 /** A (rendszer-)workspace létrehozása — idempotens: létezőnél csak a nevét igazítja. */
@@ -28,6 +30,11 @@ final class EnsureWorkspaceCommand extends Command
             ['slug' => $slug],
             ['name' => (string) ($this->option('name') ?: $slug)]
         );
+
+        app(WorkspaceContext::class)->set($workspace);
+        app(AuditLogger::class)->log('workspace.ensured', $workspace, after: [
+            'slug' => $workspace->slug, 'created' => $workspace->wasRecentlyCreated, 'via' => 'cli',
+        ]);
 
         $this->info(sprintf('workspace %s (%s) %s', $workspace->slug, $workspace->uuid, $workspace->wasRecentlyCreated ? 'létrehozva' : 'már létezett'));
 

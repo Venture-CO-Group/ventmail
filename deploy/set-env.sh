@@ -16,8 +16,14 @@ cd "$APP_DIR"
 value="$(cat)"
 value="${value%$'\n'}"
 [ -n "$value" ] || { echo "empty value on stdin; .env unchanged" >&2; exit 1; }
+# Compose's env_file interpolates `$` inside double quotes and Laravel's dotenv
+# interprets backslashes: such a value would silently change. Refuse instead.
+case "$value" in *'"'* | *'$'* | *'`'* | *\\*)
+    echo "value contains a quote, \$, backtick or backslash; refusing" >&2
+    exit 1
+    ;;
+esac
 value="$(printf '%s' "$value" | awk 'BEGIN{ORS="\\n"} {print}' | sed 's/\\n$//')"
-case "$value" in *'"'*) echo "value contains a double quote; refusing" >&2; exit 1 ;; esac
 
 umask 077
 tmp="$(mktemp .env.XXXXXX)"

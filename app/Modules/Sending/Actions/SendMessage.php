@@ -105,6 +105,8 @@ final class SendMessage
             $message->forceFill([
                 'status' => 'rejected',
                 'reason' => $decision->reason,
+                // Az elutasított levél titkos render-változóira soha nem lesz szükség.
+                'render_variables' => null,
                 'options' => [...$message->options, 'gate_trace' => $decision->trace()],
             ])->save();
 
@@ -376,6 +378,7 @@ final class SendMessage
             ),
             'tags' => Arr::get($attributes, 'tags', []),
             'variables' => Arr::get($attributes, 'variables', []),
+            'render_variables' => Arr::get($attributes, 'render_variables') ?: null,
             'headers' => Arr::get($attributes, 'headers', []),
             // A törzs EGYETLEN kanonikus helyen él (`body_html` / `body_text`), nem
             // duplikálva: 100 KB-os levélnél a kettős tárolás 200 KB/sor lenne.
@@ -425,7 +428,7 @@ final class SendMessage
     {
         $canonical = Arr::only($attributes, [
             'channel', 'from_email', 'from_name', 'subject', 'to', 'html', 'text',
-            'tags', 'variables', 'headers', 'deliverytime', 'testmode', 'rendered_html',
+            'tags', 'variables', 'render_variables', 'headers', 'deliverytime', 'testmode', 'rendered_html',
             // A MIME-úton a TARTALOM kizárólag itt van: `options` (vezérlők) és a nyers
             // levél lenyomata. Enélkül ugyanaz a kulcs KÉT különböző MIME-levéllel replayt
             // adott, és a második soha nem ment ki.

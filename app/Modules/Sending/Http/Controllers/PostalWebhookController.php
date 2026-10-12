@@ -114,7 +114,10 @@ final class PostalWebhookController
 
         match ($event) {
             'MessageSent' => $this->delivered($message, $recipient, (bool) ($payload['sent_with_ssl'] ?? false)),
-            'MessageDelayed' => $outcome($message, $recipient, $code ?? 451, $text ?: 'Delayed by MTA', $enhanced),
+            // A késleltetés NEM kudarc: a Postal maga próbálja újra (akár 18-szor). Ha soft
+            // kísérletként számolnánk, egy greylistelő vagy egy órára leálló fogadó öt
+            // késleltetés után VÉGLEG tiltólistára tenné a címet. Csak trace-esemény.
+            'MessageDelayed' => $this->event($message, $recipient, 'deferred', ['reason' => 'MTA_DELAYED', 'code' => $code, 'enhanced_code' => $enhanced]),
             'MessageDeliveryFailed' => $outcome($message, $recipient, $code ?? 550, $text ?: 'Delivery failed', $enhanced),
             // Az aszinkron bounce (DSN) a kézbesítés UTÁN jön: a fogadó elfogadta, majd
             // visszadobta. Végleges kudarcnak kezeljük — a Postal a DSN-t magát nem bontja
@@ -137,7 +140,11 @@ final class PostalWebhookController
     private function bounced(Message $message, string $recipient, RecordDeliveryOutcome $outcome): void
     {
         $outcome($message, $recipient, 550, 'Asynchronous bounce (DSN) received by the MTA', '5.0.0');
-        $message->forceFill(['status' => 'bounced'])->save();
+
+        // Egy címzett visszadobása nem a többieké: csak egycímzettes üzenet lesz `bounced`.
+        if (count($message->recipients) === 1) {
+            $message->forceFill(['status' => 'bounced'])->save();
+        }
     }
 
     /** @param array<string, mixed> $payload */

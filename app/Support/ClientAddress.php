@@ -28,4 +28,22 @@ final class ClientAddress
 
         return (string) ($request->getClientIp() ?? $remote);
     }
+
+    /**
+     * A rate-limit VÖDÖR: IPv4-en a cím, IPv6-on a /64. Egy IPv6-előfizető egy teljes
+     * /64-et kap — /128-ra kulcsolva címenként friss keretet rotálhatna magának.
+     * (A consent-bizonyítékhoz a teljes cím kell: arra az `of()`.)
+     */
+    public static function bucket(Request $request): string
+    {
+        $address = self::of($request);
+
+        if (filter_var($address, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) === false) {
+            return $address;
+        }
+
+        $packed = (string) inet_pton($address);
+
+        return inet_ntop(substr($packed, 0, 8).str_repeat("\0", 8)).'/64';
+    }
 }

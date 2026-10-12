@@ -135,3 +135,17 @@ it('tagot csak már belépett (létező) felhasználóhoz rendel, a megadott sze
     [$revoke] = runCommand('ventmail:member:revoke', ['workspace' => 'venture', 'email' => 'tulaj@pelda.test']);
     expect($revoke)->toBe(0)->and(WorkspaceMember::query()->where('user_id', $user->id)->exists())->toBeFalse();
 });
+
+it('a CLI-ből adott és visszavont tagság auditált (golden rule 11)', function () {
+    runCommand('ventmail:workspace:ensure', ['slug' => 'venture', '--name' => 'Venture']);
+    User::factory()->create(['email' => 'tulaj@pelda.test']);
+
+    runCommand('ventmail:member:grant', ['workspace' => 'venture', 'email' => 'tulaj@pelda.test', 'role' => 'owner']);
+    runCommand('ventmail:member:revoke', ['workspace' => 'venture', 'email' => 'tulaj@pelda.test']);
+
+    $actions = AuditLog::query()->withoutGlobalScopes()->pluck('action')->all();
+
+    expect($actions)->toContain('workspace.member_granted')
+        ->and($actions)->toContain('workspace.member_revoked')
+        ->and($actions)->toContain('workspace.ensured');
+});

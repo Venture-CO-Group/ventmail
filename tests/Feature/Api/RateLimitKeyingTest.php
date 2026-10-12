@@ -37,7 +37,7 @@ it('a `peer()` a ClientAddress-t adja: TCP-partner, vagy CSAK a szűkített edge
     $provider = (string) file_get_contents(app_path('Providers/AppServiceProvider.php'));
     $client = (string) file_get_contents(app_path('Support/ClientAddress.php'));
 
-    expect($provider)->toContain('ClientAddress::of($request)');
+    expect($provider)->toContain('ClientAddress::bucket($request)');
     expect($client)->toContain("server('REMOTE_ADDR')");
     // A továbbított címet csak a megbízható proxytól veszi át — a `*` bizalom mellett sem.
     expect($client)->toContain('isFromTrustedProxy()');

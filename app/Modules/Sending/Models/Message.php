@@ -26,8 +26,11 @@ final class Message extends Model
 {
     use BelongsToWorkspace, HasUuids;
 
+    /** A titkos render-változók semmilyen szerializálásban (API, napló) nem jelenhetnek meg. */
+    protected $hidden = ['render_variables'];
+
     protected $fillable = [
-        'domain_id', 'ip_pool_id', 'ip_address_id', 'channel', 'from_email', 'from_name', 'subject',
+        'domain_id', 'ip_pool_id', 'ip_address_id', 'channel', 'from_email', 'from_name', 'subject', 'render_variables',
         'recipients', 'tags', 'variables', 'headers', 'options', 'deliverytime',
         'testmode', 'status', 'reason', 'idempotency_key', 'request_fingerprint',
         'queued_at', 'sent_at',
@@ -402,6 +405,8 @@ final class Message extends Model
             'recipients' => 'array',
             'tags' => 'array',
             'variables' => 'array',
+            // `t:variables`: titkosítva, a küldés végén törölve — sosem visszhangzik.
+            'render_variables' => 'encrypted:array',
             'headers' => 'array',
             'options' => 'array',
             'deliverytime' => 'datetime',
