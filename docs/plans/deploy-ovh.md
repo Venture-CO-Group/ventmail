@@ -112,6 +112,16 @@
     teszt egy saját, nem létező címre megy (`bounce-test@rp-tx.ventmail.app`, a saját MX-ünk
     utasítja el 5xx-szel), az allowlistbe ideiglenesen felvéve, utána eltávolítva.
 
+15. **Független review (venture-reviewer + venture-security) után javítva:** `t:variables` —
+    csak rendereléshez használt, titkosított, a küldés végén törölt sablonváltozók (a ventSSO
+    reset/magic-link/OTP tokenje így nem kerül eseménybe, webhookba, `/v1/events`-be); a
+    ventSSO driver csak ezt küldi. `TRUSTED_HOSTS` + `ventmail-web` (különben élesben 400 a
+    Postal-webhookra). CLI-tagság auditált. `MessageDelayed` ≠ soft bounce. IPv6 /64 vödör.
+    MariaDB-jelszó `MYSQL_PWD`-ben; a Postal üzenet-DB 3 napos és nincs off-site mentésben.
+    **Tudatosan nem változott:** `deploy` NOPASSWD sudo (trust-box paritás, kulcs-only SSH,
+    admin-IP-re szűkítve); tag-alapú pull (a tagot csak a CI építi); kimenő 465/587 a
+    konténerekből nincs tiltva (a pool-reputációt csak a 25 érinti).
+
 ## PLAN (sorrend)
 
 1. Hardening (`venture-infra` `boxes/mail/bootstrap-host.sh`) ✔
@@ -130,3 +140,6 @@
 - 2026-10-12 00:3x — felmérés, F3 (L2 a mk IP-n) → tulajdonos: marad.
 - 2026-10-12 00:48 — hardening kész, sshd lockout-védelemmel (második session, `ubuntu` letiltva).
 - 2026-10-12 01:2x — edge, Postgres, Postal ×2 egészséges; Postal-provisioning kész.
+- 2026-10-12 01:4x — PR-ok: ventmail#37, venture-infra#11, ventsso#18. Review → javítások.
+- 2026-10-12 01:4x — a ventmail CI a `VENTURE_PACKAGES_TOKEN` lejárt secretje miatt nem fut le
+  (Bad credentials a privát csomagok klónozásánál) → emberi lépés, a GHCR-tokennel együtt kérve.

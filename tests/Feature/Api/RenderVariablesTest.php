@@ -129,3 +129,27 @@ it('az idempotencia-lenyomat a t:variables tartalmát is figyelembe veszi', func
         'template' => 'sso-password_reset-hu', 't:variables' => json_encode(['url' => 'https://b.test']),
     ])->assertStatus(409)->assertJsonPath('error.code', 'IDEMPOTENCY_KEY_REUSED');
 });
+
+it('a lenyomatokból (kérés, törzs) egy rövid kód sem fejthető vissza kulcs nélkül', function () {
+    $this->withHeaders(rvHeaders())->postJson('/v1/templates', [
+        'name' => 'sso-email_otp-hu', 'template' => '<p>Kódod: {{ code }}</p>',
+    ])->assertCreated();
+
+    rvSend(['template' => 'sso-email_otp-hu', 't:variables' => json_encode(['code' => '483920'])])->assertAccepted();
+
+    $message = Message::query()->latest('id')->firstOrFail();
+    $bodyHash = MessageEvent::query()->where('message_uuid', $message->uuid)->whereNotNull('payload->body_sha256')->value('payload')['body_sha256'] ?? null;
+
+    // A támadó ismeri a (publikus) sablont és a többi mezőt: kulcs nélküli SHA-256 esetén
+    // egy 10^6-os próbálkozás visszaadná a kódot. Kulcsolt lenyomattal egyik jelölt sem egyezik.
+    $candidate = '<p>Kódod: 483920</p>';
+    expect($bodyHash)->not->toBeNull()
+        ->and($bodyHash)->not->toBe(hash('sha256', $candidate))
+        ->and($message->request_fingerprint)->not->toContain('483920');
+
+    $plain = hash('sha256', (string) json_encode(collect([
+        'channel' => 'transactional', 'from_email' => 'noreply@pelda.hu', 'subject' => 'Jelszó visszaállítása',
+        'render_variables' => ['code' => '483920'],
+    ])->sortKeys()->all()));
+    expect($message->request_fingerprint)->not->toBe($plain);
+});

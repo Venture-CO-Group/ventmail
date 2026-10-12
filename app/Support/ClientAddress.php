@@ -42,6 +42,11 @@ final class ClientAddress
             return $address;
         }
 
+        // IPv4-mapped (::ffff:a.b.c.d): a valódi IPv4 a vödör, különben mind `::/64` lenne.
+        if (preg_match('/^::ffff:(\d+\.\d+\.\d+\.\d+)$/i', $address, $mapped) === 1) {
+            return $mapped[1];
+        }
+
         $packed = (string) inet_pton($address);
 
         return inet_ntop(substr($packed, 0, 8).str_repeat("\0", 8)).'/64';

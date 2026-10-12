@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Sending\Actions;
 
+use App\Modules\Audit\Services\KeyedHash;
 use App\Modules\Audit\Services\AuditLogger;
 use App\Modules\Billing\Enums\UsageDimension;
 use App\Modules\Billing\Services\Metering;
@@ -440,7 +441,9 @@ final class SendMessage
         // Érvénytelen UTF-8 (latin-1 törzsű legacy integráció) esetén a `json_encode`
         // `false`-t adott, tehát MINDEN ilyen kérés lenyomata `hash('')` lett — két
         // különböző levél ütközött, a második csendben elveszett.
-        return hash('sha256', json_encode($canonical, JSON_INVALID_UTF8_SUBSTITUTE) ?: serialize($canonical));
+        // KULCSOLT lenyomat: a `t:variables` (pl. egy 6 jegyű OTP) a kérés része, és a
+        // többi mező ismert — kulcs nélküli SHA-256-ból offline visszafejthető lenne.
+        return KeyedHash::of('request_fingerprint', json_encode($canonical, JSON_INVALID_UTF8_SUBSTITUTE) ?: serialize($canonical));
     }
 
     /**
@@ -461,7 +464,7 @@ final class SendMessage
                 'reason' => $reason,
                 'tags' => $message->tags,
                 'variables' => $shared,
-                'payload' => ['body_sha256' => $body === '' ? null : hash('sha256', $body)],
+                'payload' => ['body_sha256' => $body === '' ? null : KeyedHash::of('body', $body)],
             ]);
         }
     }

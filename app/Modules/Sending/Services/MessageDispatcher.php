@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Sending\Services;
 
+use App\Modules\Audit\Services\KeyedHash;
 use App\Modules\Domains\Models\Domain;
 use App\Modules\Events\Models\MessageEvent;
 use App\Modules\Events\Services\TrackingBaseUrl;
@@ -402,7 +403,8 @@ final class MessageDispatcher
                     ...$payload,
                     // Tartalom helyett LENYOMAT: bizonyítja, hogy melyik törzs ment ki,
                     // de nem őrzi meg a titkokat.
-                    'body_sha256' => $body === null ? null : hash('sha256', $body),
+                    // Kulcsolt: a renderelt törzsben `t:variables` (rövid kód) is lehet.
+                    'body_sha256' => $body === null ? null : KeyedHash::of('body', $body),
                 ],
             ]);
         }
