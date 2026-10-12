@@ -15,15 +15,17 @@ import { expect, test, type Page } from '@playwright/test';
  *  3. az OLDAL vízszintesen görget.
  *
  * Az adat NEM üres: a seed hosszú neveket, e-mail-címet, domaint, URL-t ad, mert az átfedés
- * épp a hosszú szövegnél jelenik meg. A seed idempotens (egyedi futás-azonosító a nevekben),
- * a hibás válaszát nem nyeli el némán: a vizsgált képernyők listája a kapott helyekből áll.
+ * épp a hosszú szövegnél jelenik meg. A seed IDEMPOTENS: a nevekben ROGZITETT azonosító van, és minden
+ * elem csak akkor jön létre, ha az adott képernyőn még nincs meg (ismételt futás nem hizlal). A
+ * webhook-végpontot az `afterAll` törli (a `platform-screens.spec.ts` üres listát vár); a
+ * többi seedelt sor szándékosan marad — ugyanaz a sor a következő futásban újrahasznosul.
  */
 test.describe.configure({ mode: 'serial' });
 
 const WIDTHS = [1440, 1024, 390] as const;
 const TOLERANCE = 1;
 
-const run = Date.now().toString(36);
+const run = 'layoutseed';
 const LONG = `Nagyon-hosszu-nev-amely-semmilyen-szokozt-nem-tartalmaz-${run}-es-tovabb-folytatodik-a-sor-vegeig-X`;
 const LONG_WORDS = `Egy meglehetosen hosszu, tobb szobol allo megnevezes a kampanyhoz ${run} amely tobb sorba tordelodik`;
 const LONG_EMAIL = `nagyon.hosszu.felhasznalo.nev.amely.nem.torheto+${run}@egy-rendkivul-hosszu-subdomain.pelda-szervezet-neve.example.co.uk`;
@@ -98,14 +100,20 @@ test.beforeAll(async ({ browser }) => {
 
     await page.goto('/dashboard'); // a munkamenet + XSRF süti
 
-    // A szeed-hívások eredményét nem állítjuk (egy ütköző ismétlés 422): ami létrejött, az látszik.
+    // Idempotens seed: csak akkor posztolunk, ha a képernyőn még nincs meg az érték.
+    const seedOnce = async (path: string, needle: string, url: string, data: Record<string, unknown>): Promise<void> => {
+        await page.goto(path);
+
+        if (!(await page.locator('body').innerText()).includes(needle)) await post(page, url, data);
+    };
+
     await page.goto('/dev/seed-logs');
-    await post(page, '/domains', { name: LONG_DOMAIN });
-    await post(page, '/api-keys', { name: LONG, scopes: ['messages:send'], channels: [], testmode: false });
-    await post(page, '/suppressions', { email: LONG_EMAIL, reason: 'manual', appliesTo: 'all' });
-    await post(page, '/webhooks', { name: LONG, url: LONG_URL, events: ['delivered', 'bounced'] });
-    await post(page, '/audience/lists', { name: LONG_WORDS });
-    await post(page, '/forms', {
+    await seedOnce('/domains', LONG_DOMAIN, '/domains', { name: LONG_DOMAIN });
+    await seedOnce('/api-keys', LONG, '/api-keys', { name: LONG, scopes: ['messages:send'], channels: [], testmode: false });
+    await seedOnce('/suppressions', LONG_EMAIL, '/suppressions', { email: LONG_EMAIL, reason: 'manual', appliesTo: 'all' });
+    await seedOnce('/webhooks', LONG, '/webhooks', { name: LONG, url: LONG_URL, events: ['delivered', 'bounced'] });
+    await seedOnce('/audience', LONG_WORDS, '/audience/lists', { name: LONG_WORDS });
+    await seedOnce('/forms', LONG_WORDS, '/forms', {
         name: LONG_WORDS,
         listUuid: null,
         minSeconds: 5,
@@ -113,28 +121,36 @@ test.beforeAll(async ({ browser }) => {
         consentText: LONG_WORDS,
         redirectUrl: LONG_URL,
     });
-    await post(page, '/members/invitations', { email: LONG_EMAIL, roles: ['editor'] });
-    await post(page, '/sub-accounts', { name: LONG_WORDS });
+    await seedOnce('/members', LONG_EMAIL, '/members/invitations', { email: LONG_EMAIL, roles: ['editor'] });
+    await seedOnce('/templates', LONG_WORDS, '/templates', { name: LONG_WORDS, subject: LONG_WORDS, marketing: true });
+    await seedOnce('/campaigns', LONG_WORDS, '/campaigns', { name: LONG_WORDS, subject: LONG_WORDS });
+    await seedOnce('/journeys', LONG_WORDS, '/journeys', { name: LONG_WORDS, trigger: 'api_event' });
 
-    const template = (await post(page, '/templates', { name: LONG_WORDS, subject: LONG_WORDS, marketing: true })).path;
-    const campaign = (await post(page, '/campaigns', { name: LONG_WORDS, subject: LONG_WORDS })).path;
-    const journey = (await post(page, '/journeys', { name: LONG_WORDS, trigger: 'api_event' })).path;
+    // A részletező oldalakat a listák linkjeiből találjuk meg (a létrehozás útvonalából nem lehet:
+    // ismételt futásnál a sor már létezik).
+    for (const [list, prefix] of [
+        ['/templates', '/templates/'],
+        ['/campaigns', '/campaigns/'],
+        ['/journeys', '/journeys/'],
+    ] as const) {
+        await page.goto(list);
 
-    for (const path of [template, campaign, journey]) {
-        if (/^\/(templates|campaigns|journeys)\/[^/]+$/.test(path)) detailPages.push(path);
+        const href = await page
+            .locator(`a[href^="${prefix}"]`, { hasText: LONG_WORDS })
+            .first()
+            .getAttribute('href');
+
+        if (href) {
+            detailPages.push(href);
+            if (prefix === '/campaigns/') detailPages.push(`/analytics/campaigns/${href.split('/').pop()}`);
+        }
     }
 
-    // A napló egy sora → trace (az első napló-link).
+    // A napló egy sora → trace (a „Trace" gomb navigál, nincs href: az URL-t a kattintás után olvassuk).
     await page.goto('/logs');
-    const trace = await page.locator('a[href^="/logs/"]').evaluateAll((links) =>
-        links.map((link) => link.getAttribute('href') ?? '').find((href) => /^\/logs\/[0-9a-f-]{36}/.test(href)),
-    );
-
-    if (trace) detailPages.push(trace);
-
-    if (/^\/campaigns\/[^/]+$/.test(campaign)) {
-        detailPages.push(`/analytics/campaigns/${campaign.split('/').pop()}`);
-    }
+    await page.getByTestId('log-trace').first().click();
+    await page.waitForURL(/\/logs\/[0-9a-f-]{36}/);
+    detailPages.push(new URL(page.url()).pathname);
 
     await context.close();
 });
@@ -150,12 +166,13 @@ test.afterAll(async ({ browser }) => {
 
     await page.goto('/webhooks');
 
-    const ids = await page.locator('[data-testid^="delete-"]').evaluateAll((buttons) =>
-        buttons.map((button) => button.getAttribute('data-testid') ?? ''),
-    );
+    // CSAK a seedelt végpontot (név: LONG): a sor `endpoint-<uuid>` testid-t visel.
+    const ids = await page
+        .locator('[data-testid^="endpoint-"]', { hasText: LONG })
+        .evaluateAll((rows) => rows.map((row) => (row.getAttribute('data-testid') ?? '').replace('endpoint-', '')));
 
     for (const id of ids) {
-        const button = page.getByTestId(id);
+        const button = page.getByTestId(`delete-${id}`);
 
         await button.click();
         // Az Inertia újrarenderelését megvárjuk: a régi gomb ELTŰNIK — különben a következő
@@ -341,7 +358,12 @@ test('a seed hosszú adatot ad a képernyőknek', async ({ page }) => {
         await expect(page.locator('body'), `${path}: hiányzik a seedelt hosszú adat`).toContainText(needle);
     }
 
-    expect(detailPages.length, 'a részletező oldalak (sablon, kampány, journey, napló-trace, analitika)').toBeGreaterThanOrEqual(4);
+    for (const prefix of ['/templates/', '/campaigns/', '/journeys/', '/logs/', '/analytics/campaigns/']) {
+        expect(
+            detailPages.some((path) => path.startsWith(prefix)),
+            `hiányzik a(z) ${prefix} részletező oldal a mérésből`,
+        ).toBe(true);
+    }
 });
 
 /*
