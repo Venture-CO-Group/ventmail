@@ -169,4 +169,7 @@ return [
         'suppressionAdded' => 'Global suppression added.',
         'suppressionRemoved' => 'Global suppression removed.',
     ],
+    'auth' => [
+        'retry' => 'Sign-in did not succeed. Please try again.',
+    ],
 ];

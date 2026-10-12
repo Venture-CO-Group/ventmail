@@ -8,7 +8,7 @@ use App\Models\User;
 use App\Modules\Sending\Services\DomainNormalizer;
 use App\Modules\Tenancy\Models\WorkspaceInvitation;
 use App\Modules\Tenancy\Models\WorkspaceMember;
-use Illuminate\Auth\Access\AuthorizationException;
+use App\Modules\Identity\Exceptions\SsoAccessDenied;
 
 /**
  * Van-e az alanynak keresnivalója a ventMailben?
@@ -48,7 +48,7 @@ final class AuthorizeSsoSubject
             && WorkspaceMember::query()->where('user_id', $existing->getKey())->exists();
 
         if (! $hasMembership && ! $this->hasOpenInvitation($claims)) {
-            throw new AuthorizationException(
+            throw new SsoAccessDenied(
                 'Ehhez a ventSSO-alanyhoz nincs ventMail-hozzáférés. Kérj meghívót a workspace tulajdonosától.'
             );
         }

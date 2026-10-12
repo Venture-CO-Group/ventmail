@@ -73,7 +73,7 @@ it('más kliensnek kiadott (rossz audience) tokent elutasít', function () {
         'resource_access' => ['ventmail' => ['roles' => ['owner']]],
     ])]);
 
-    $this->get('/auth/callback?code=auth-code&state='.session('oidc.state'))->assertForbidden();
+    $this->get('/auth/callback?code=auth-code&state='.session('oidc.state'))->assertRedirect('/');
 
     expect(Auth::check())->toBeFalse();
 });
@@ -89,7 +89,7 @@ it('lejárt tokent elutasít', function () {
         'resource_access' => ['ventmail' => ['roles' => ['owner']]],
     ])]);
 
-    $this->get('/auth/callback?code=auth-code&state='.session('oidc.state'))->assertForbidden();
+    $this->get('/auth/callback?code=auth-code&state='.session('oidc.state'))->assertRedirect('/');
 
     expect(Auth::check())->toBeFalse();
 });
@@ -211,6 +211,7 @@ it('hamis, idegen, lejárt vagy sérült access tokenből NEM vesz át szerepet'
         'nem JWT' => 'opaque-access-token',
     };
 
+    // A hamis access tokenből NEM veszünk át szerepet → szerep nélküli alany → megtagadva (403).
     loginWithTokens($this, [], $token)->assertForbidden();
 
     expect(Auth::check())->toBeFalse();
@@ -219,7 +220,7 @@ it('hamis, idegen, lejárt vagy sérült access tokenből NEM vesz át szerepet'
 it('ventSSO-impersonációval (act) érkező belépést elutasít — a ventMail saját, csak olvasó támogatói nézete a helyes út', function () {
     loginWithTokens($this, ['act' => ['sub' => 'admin-alany']], $this->sso->accessToken([
         'aud' => PROD_CLIENT, 'act' => ['sub' => 'admin-alany'], 'resource_access' => ['ventmail' => ['roles' => ['owner']]],
-    ]))->assertForbidden();
+    ]))->assertRedirect('/');
 
     expect(Auth::check())->toBeFalse();
 });

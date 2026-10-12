@@ -153,4 +153,7 @@ return [
         'suppressionAdded' => 'Supresión global añadida.',
         'suppressionRemoved' => 'Supresión global eliminada.',
     ],
+    'auth' => [
+        'retry' => 'No se pudo iniciar sesión. Inténtalo de nuevo.',
+    ],
 ];

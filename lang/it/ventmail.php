@@ -153,4 +153,7 @@ return [
         'suppressionAdded' => 'Soppressione globale aggiunta.',
         'suppressionRemoved' => 'Soppressione globale rimossa.',
     ],
+    'auth' => [
+        'retry' => 'Accesso non riuscito. Riprova.',
+    ],
 ];

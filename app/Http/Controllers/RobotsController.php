@@ -15,7 +15,8 @@ final class RobotsController
 {
     public function __invoke(Request $request): Response
     {
-        $landing = strtolower($request->getHost()) === strtolower((string) config('app.landing_host'));
+        $landing = strtolower($request->getHost()) === strtolower((string) config('app.landing_host'))
+            && app()->environment('production');
 
         $body = $landing
             ? "User-agent: *\nAllow: /\n"

@@ -105,6 +105,8 @@ it('a fókusz kényszerített színeknél is látszik (átlátszó körvonal mar
 });
 
 it('a robots.txt hostonként más: a landing engedett, az app tiltott', function () {
+    $this->app['env'] = 'production';
+    config(['proxy.trusted_hosts' => ['ventmail.app', 'app.ventmail.app', 'api.ventmail.app']]);
     $this->get('http://ventmail.app/robots.txt')
         ->assertOk()
         ->assertHeader('Content-Type', 'text/plain; charset=UTF-8')
@@ -132,7 +134,41 @@ it('a megtagadott belépés barátságos oldalt ad, 403-mal', function () {
 
     $this->get('/auth/callback?code=auth-code&state='.session('oidc.state'))
         ->assertStatus(403)
-        ->assertInertia(fn ($page) => $page->component('Auth/Denied'));
+        ->assertInertia(fn ($page) => $page->component('Auth/Denied'))
+        // A belső hibaüzenet (a kivétel szövege) nem kerülhet a felhasználó elé.
+        ->assertDontSee('ventSSO-alanyhoz')
+        ->assertDontSee('Kérj meghívót');
+});
+
+it('a nem szerep-megtagadás (state, token hiba) újrabejelentkezésre visz, Denied oldal nélkül', function () {
+    $this->get('/auth/redirect');
+
+    $this->get('/auth/callback?code=auth-code&state=hamisitott')
+        ->assertRedirect('/')
+        ->assertSessionHas('error');
+
+    $page = $this->followingRedirects()->get('/auth/callback?code=auth-code&state=hamisitott');
+    $page->assertInertia(fn ($p) => $p->component('Auth/Login'))
+        ->assertDontSee('CSRF')
+        ->assertDontSee('OIDC state');
+});
+
+it('az apex-kaput a továbbított host is érvényesíti, de csak trusted proxyról', function () {
+    config(['proxy.trusted_proxies' => ['127.0.0.1']]);
+    $this->get('http://app.ventmail.app/dashboard', ['X-Forwarded-Host' => 'ventmail.app'])->assertNotFound();
+
+    config(['proxy.trusted_proxies' => []]);
+    Illuminate\Http\Request::setTrustedProxies([], -1);
+    $this->get('http://app.ventmail.app/dashboard', ['X-Forwarded-Host' => 'ventmail.app'])->assertRedirect();
+});
+
+it('a robots.txt csak production-ben engedi az indexelést', function () {
+    $this->app['env'] = 'production';
+    config(['proxy.trusted_hosts' => ['ventmail.app', 'app.ventmail.app', 'api.ventmail.app']]);
+    $this->get('http://ventmail.app/robots.txt')->assertSee('Allow: /', false);
+
+    $this->app['env'] = 'testing';
+    $this->get('http://ventmail.app/robots.txt')->assertSee('Disallow: /', false)->assertDontSee('Allow: /', false);
 });
 
 it('az app.version a konfigból jön, alapértéke dev', function () {

@@ -11,6 +11,7 @@ use App\Modules\Api\Http\Middleware\AuthorizeChannel;
 use App\Modules\Api\Http\Middleware\RequireApiScope;
 use App\Modules\Api\Http\Middleware\RequireIdempotencyKey;
 use App\Modules\Billing\Http\Middleware\EnsureEntitlement;
+use App\Modules\Identity\Exceptions\SsoAccessDenied;
 use App\Modules\Identity\Http\Middleware\SetLocale;
 use App\Modules\SuperAdmin\Http\Middleware\EnforceImpersonation;
 use App\Modules\Tenancy\Http\Middleware\ResolveWorkspace;
@@ -100,7 +101,8 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->replace(TrustProxies::class, TrustEdgeProxies::class);
         // Az apex (landing) host csak a termékoldalt szolgálja ki — minden mást 404-gyel zár. GLOBÁLIS,
         // közvetlenül a host-ellenőrzés után: a /v1, horizon, /internal sem kerülheti meg.
-        $middleware->prepend(RestrictLandingHost::class);
+        // A TrustEdgeProxies UTÁN fut (append): a `getHost()` így a trusted proxy továbbított hostját adja.
+        $middleware->append(RestrictLandingHost::class);
         $middleware->prepend(TrustConfiguredHosts::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
@@ -141,6 +143,12 @@ return Application::configure(basePath: dirname(__DIR__))
                 || ! $request->routeIs('auth.callback')
                 || $request->expectsJson()) {
                 return null;
+            }
+
+            // Csak a szerep/tagság-megtagadás kap „nincs hozzáférésed" oldalt; a többi hiba
+            // (state, token, impersonáció) újrabejelentkezés — a belső okot nem mutatjuk.
+            if (! $e->getPrevious() instanceof SsoAccessDenied) {
+                return redirect('/')->with('error', __('ventmail.auth.retry'));
             }
 
             return Inertia::render('Auth/Denied')->toResponse($request)->setStatusCode(403);
