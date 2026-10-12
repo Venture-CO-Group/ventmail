@@ -120,3 +120,20 @@ it('a kijelentkezés a ventSSO end_session végpontjára visz, a kliens azonosí
     expect($query['client_id'])->toBe(PROD_CLIENT);
     expect($query)->toHaveKey('post_logout_redirect_uri');
 });
+
+it('az app-héjból (Inertia) indított kijelentkezés is eljut a ventSSO-ig', function () {
+    Http::swap(new Factory);
+    Http::fake([$this->sso->issuer.'/.well-known/openid-configuration' => Http::response([
+        'issuer' => $this->sso->issuer,
+        'authorization_endpoint' => $this->sso->issuer.'/oauth/authorize',
+        'token_endpoint' => $this->sso->issuer.'/oauth/token',
+        'jwks_uri' => $this->sso->issuer.'/.well-known/jwks.json',
+        'end_session_endpoint' => $this->sso->issuer.'/oauth/logout',
+    ])]);
+
+    // Egy Inertia XHR nem követ külső átirányítást: 409 + X-Inertia-Location kell.
+    $response = $this->post('/auth/logout', [], ['X-Inertia' => 'true', 'X-Requested-With' => 'XMLHttpRequest']);
+
+    $response->assertStatus(409);
+    expect((string) $response->headers->get('X-Inertia-Location'))->toStartWith($this->sso->issuer.'/oauth/logout?');
+});
