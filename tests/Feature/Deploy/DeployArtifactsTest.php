@@ -131,6 +131,7 @@ it('az edge-site csak egészséges színre küld, és a webhook-útvonalat elzá
     expect($site)->toMatch('/^app\.ventmail\.app \{/m')
         ->and($site)->toMatch('/^api\.ventmail\.app \{/m')
         ->and($site)->toMatch('/^ventmail\.app \{\n\timport ventmail_site ventmail\.app\n\}/m')
+        ->and($site)->toMatch('/^www\.ventmail\.app \{\n\timport security_headers\n\tredir https:\/\/ventmail\.app\{uri\} 308\n\}/m')
         ->and($site)->not->toContain('redir https://app.ventmail.app')
         ->and($site)->toContain('reverse_proxy ventmail-web-blue:8080 ventmail-web-green:8080')
         ->and($site)->toContain('health_uri /up')
