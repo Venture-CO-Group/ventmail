@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import { router, usePage } from '@inertiajs/vue3';
-import { VtButton, VtCard, VtField, VtInput, VtSelect, VtTable, type VtColumn } from '@venture/ui';
+import { VtButton, VtField, VtInput, VtSelect, type VtColumn } from '@venture/ui';
+import VmTable from '../../Components/Form/VmTable.vue';
+import VmCard from '../../Components/Form/VmCard.vue';
+import VmForm from '../../Components/Form/VmForm.vue';
+import VmFormActions from '../../Components/Form/VmFormActions.vue';
+import VmFormRow from '../../Components/Form/VmFormRow.vue';
+import VmFormSection from '../../Components/Form/VmFormSection.vue';
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import AppLayout from '../../Layouts/AppLayout.vue';
@@ -98,42 +104,50 @@ function revoke(uuid: string): void {
 
         <p class="vm-banner" role="status">{{ t('smtp.relayNote') }}</p>
 
-        <VtCard v-if="issued" data-testid="issued-credential">
+        <VmCard v-if="issued" data-testid="issued-credential">
             <p>{{ t('smtp.issuedOnce') }}</p>
-            <p class="vt-text-mono" data-testid="issued-username">{{ issued.username }}</p>
-            <p class="vt-text-mono" data-testid="issued-password">{{ issued.password }}</p>
-        </VtCard>
+            <p class="vt-text-mono vm-wrap" data-testid="issued-username">{{ issued.username }}</p>
+            <p class="vt-text-mono vm-wrap" data-testid="issued-password">{{ issued.password }}</p>
+        </VmCard>
 
-        <VtCard>
+        <VmCard>
             <h2>{{ t('smtp.new') }}</h2>
 
-            <VtField :label="t('smtp.name')">
-                <VtInput v-model="name" data-testid="credential-name" placeholder="Legacy CRM" />
-            </VtField>
+            <VmForm @submit.prevent="issue">
+                <VmFormSection>
+                    <VtField :label="t('smtp.name')">
+                        <VtInput v-model="name" data-testid="credential-name" placeholder="Legacy CRM" />
+                    </VtField>
 
-            <VtField :label="t('smtp.domain')" :hint="t('smtp.domainHint')">
-                <VtSelect v-model="domain" :options="domainOptions" data-testid="credential-domain" />
-            </VtField>
+                    <VmFormRow>
+                        <VtField :label="t('smtp.domain')" :hint="t('smtp.domainHint')">
+                            <VtSelect v-model="domain" :options="domainOptions" data-testid="credential-domain" />
+                        </VtField>
 
-            <VtField :label="t('smtp.channel')" :hint="t('smtp.channelHint')">
-                <VtSelect v-model="channel" :options="channelOptions" data-testid="credential-channel" />
-            </VtField>
+                        <VtField :label="t('smtp.channel')" :hint="t('smtp.channelHint')">
+                            <VtSelect v-model="channel" :options="channelOptions" data-testid="credential-channel" />
+                        </VtField>
+                    </VmFormRow>
 
-            <p>{{ t('smtp.rateLimit', { limit: defaultRateLimit }) }}</p>
+                    <p>{{ t('smtp.rateLimit', { limit: defaultRateLimit }) }}</p>
+                </VmFormSection>
 
-            <VtButton :disabled="submitting || !name.trim()" data-testid="credential-submit" @click="issue">
-                {{ t('smtp.issue') }}
-            </VtButton>
-        </VtCard>
+                <VmFormActions>
+                    <VtButton type="submit" :disabled="submitting || !name.trim()" data-testid="credential-submit">
+                        {{ t('smtp.issue') }}
+                    </VtButton>
+                </VmFormActions>
+            </VmForm>
+        </VmCard>
 
-        <VtCard>
+        <VmCard>
             <h2>{{ t('smtp.existing') }}</h2>
 
             <p v-if="!rows.length" data-testid="credentials-empty">{{ t('smtp.empty') }}</p>
-            <VtTable v-else :columns="columns" :rows="rows" :caption="t('smtp.existing')" data-testid="credentials-table" />
+            <VmTable v-else :columns="columns" :rows="rows" :caption="t('smtp.existing')" data-testid="credentials-table" />
 
             <div v-for="credential in credentials" :key="credential.uuid" class="vm-cluster">
-                <span>{{ credential.name }}</span>
+                <span class="vm-truncate vm-truncate--fill" :title="credential.name">{{ credential.name }}</span>
                 <VtButton
                     v-if="!credential.revokedAt"
                     variant="ghost"
@@ -143,6 +157,6 @@ function revoke(uuid: string): void {
                     {{ t('smtp.revoke') }}
                 </VtButton>
             </div>
-        </VtCard>
+        </VmCard>
     </AppLayout>
 </template>

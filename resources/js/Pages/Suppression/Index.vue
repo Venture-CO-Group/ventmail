@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import { router } from '@inertiajs/vue3';
-import { VtButton, VtCard, VtField, VtInput, VtSelect, VtTable, type VtColumn } from '@venture/ui';
+import { VtButton, VtField, VtInput, VtSelect, type VtColumn } from '@venture/ui';
+import VmTable from '../../Components/Form/VmTable.vue';
+import VmCard from '../../Components/Form/VmCard.vue';
+import VmForm from '../../Components/Form/VmForm.vue';
+import VmFormActions from '../../Components/Form/VmFormActions.vue';
+import VmFormRow from '../../Components/Form/VmFormRow.vue';
+import VmFormSection from '../../Components/Form/VmFormSection.vue';
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import AppLayout from '../../Layouts/AppLayout.vue';
@@ -84,41 +90,53 @@ function remove(address: string): void {
 
         <p class="vm-banner" role="status">{{ t('suppressions.note') }}</p>
 
-        <VtCard>
-            <form data-testid="suppression-filters" @submit.prevent="applySearch">
-                <VtField :label="t('suppressions.search')">
-                    <VtInput v-model="search" data-testid="suppression-search" placeholder="pelda.hu" />
-                </VtField>
+        <VmCard>
+            <VmForm data-testid="suppression-filters" @submit.prevent="applySearch">
+                <VmFormSection>
+                    <VtField :label="t('suppressions.search')">
+                        <VtInput v-model="search" data-testid="suppression-search" placeholder="pelda.hu" />
+                    </VtField>
+                </VmFormSection>
 
-                <VtButton data-testid="suppression-search-submit" @click="applySearch">
-                    {{ t('suppressions.searchAction') }}
-                </VtButton>
-            </form>
-        </VtCard>
+                <VmFormActions>
+                    <VtButton type="submit" data-testid="suppression-search-submit">
+                        {{ t('suppressions.searchAction') }}
+                    </VtButton>
+                </VmFormActions>
+            </VmForm>
+        </VmCard>
 
-        <VtCard>
+        <VmCard>
             <h2>{{ t('suppressions.add') }}</h2>
 
-            <VtField :label="t('suppressions.email')">
-                <VtInput v-model="email" data-testid="suppression-email" placeholder="cimzett@pelda.hu" />
-            </VtField>
+            <VmForm @submit.prevent="add">
+                <VmFormSection>
+                    <VtField :label="t('suppressions.email')">
+                        <VtInput v-model="email" data-testid="suppression-email" placeholder="cimzett@pelda.hu" />
+                    </VtField>
 
-            <VtField :label="t('suppressions.reason')">
-                <VtSelect v-model="reason" :options="reasonOptions" data-testid="suppression-reason" />
-            </VtField>
+                    <VmFormRow>
+                        <VtField :label="t('suppressions.reason')">
+                            <VtSelect v-model="reason" :options="reasonOptions" data-testid="suppression-reason" />
+                        </VtField>
 
-            <VtField :label="t('suppressions.scope')" :hint="t('suppressions.scopeHint')">
-                <VtSelect v-model="appliesTo" :options="scopeOptions" data-testid="suppression-scope" />
-            </VtField>
+                        <VtField :label="t('suppressions.scope')" :hint="t('suppressions.scopeHint')">
+                            <VtSelect v-model="appliesTo" :options="scopeOptions" data-testid="suppression-scope" />
+                        </VtField>
+                    </VmFormRow>
+                </VmFormSection>
 
-            <VtButton :disabled="!email.trim()" data-testid="suppression-submit" @click="add">
-                {{ t('suppressions.addAction') }}
-            </VtButton>
-        </VtCard>
+                <VmFormActions>
+                    <VtButton type="submit" :disabled="!email.trim()" data-testid="suppression-submit">
+                        {{ t('suppressions.addAction') }}
+                    </VtButton>
+                </VmFormActions>
+            </VmForm>
+        </VmCard>
 
-        <VtCard>
+        <VmCard>
             <p v-if="!rows.length" data-testid="suppressions-empty">{{ t('suppressions.empty') }}</p>
-            <VtTable
+            <VmTable
                 v-else
                 :columns="columns"
                 :rows="rows"
@@ -127,7 +145,7 @@ function remove(address: string): void {
             />
 
             <div v-for="item in suppressions.items" :key="item.uuid" class="vm-cluster">
-                <span class="vt-text-mono">{{ item.email }}</span>
+                <span class="vt-text-mono vm-truncate vm-truncate--fill" :title="item.email">{{ item.email }}</span>
                 <VtButton
                     v-if="item.revocable"
                     variant="ghost"
@@ -139,6 +157,6 @@ function remove(address: string): void {
                 <!-- A GOMB HIÁNYA MAGYARÁZATTAL jár: enélkül a felhasználó azt hinné, elromlott. -->
                 <span v-else :data-testid="`locked-${item.email}`">{{ t('suppressions.irrevocableShort') }}</span>
             </div>
-        </VtCard>
+        </VmCard>
     </AppLayout>
 </template>

@@ -1,0 +1,73 @@
+/*
+ | KÖZÖS ELRENDEZÉSI SZABÁLYOK — hosszú szöveg, tábla, tartalom-szélesség.
+ |
+ | Kizárólag @venture/design tokenekből. A cél egy mondatban: SEMMI nem csúszhat ki a
+ | tartójából és nem fedhet át más elemet — a hosszú érték vagy tördelődik, vagy vágódik
+ | (és a teljes érték a `title`-ben marad). Az e2e `layout-overlap.spec.ts` őrzi.
+ */
+
+/* A flex/grid gyerek alapból `min-width: auto` — egy hosszú szó így kitágítja a szülőt. */
+.vm-shell__main > * {
+    min-width: 0;
+}
+
+.vm-shell__main :where(h1, h2, h3, h4, p, li, dd, dt, label, legend, caption) {
+    overflow-wrap: anywhere;
+}
+
+/* TÖRDELÉS: azonosítók, e-mailek, domainek, URL-ek, ahol a teljes értéket látni kell. */
+.vm-wrap {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    min-width: 0;
+}
+
+/* VÁGÁS: egy sor, `…`, a teljes érték a `title`-ben. A határ a spacing-skálából jön. */
+.vm-truncate {
+    display: block;
+    max-inline-size: calc(var(--vt-space-32) * 3);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Vágás a rendelkezésre álló teljes szélességig (flex-sorban, kártya-fejlécben). */
+.vm-truncate--fill {
+    max-inline-size: 100%;
+    min-width: 0;
+}
+
+/* A TÁBLA a saját görgetési tartománya: kicsúszás helyett vízszintesen görgethető. */
+div.vt-table.vm-table {
+    overflow-x: auto;
+    max-inline-size: 100%;
+}
+
+/* Kód / előnézet-blokk: a hosszú sor a blokkon belül görget, nem tágítja a kártyát. */
+.vm-pre {
+    overflow-x: auto;
+    max-inline-size: 100%;
+    white-space: pre;
+}
+
+/* Sor: elemei törnek, és a hosszú elem összezsugorodhat. */
+.vm-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--vt-space-2) var(--vt-space-3);
+    min-width: 0;
+}
+
+.vm-row > * {
+    min-width: 0;
+}
+
+.vm-cluster > *,
+.vm-stack > * {
+    min-width: 0;
+}
+
+.vm-cluster > :where(strong, span, p, a, code) {
+    overflow-wrap: anywhere;
+}

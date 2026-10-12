@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { router } from '@inertiajs/vue3';
-import { VtButton, VtCard, VtGlowLine, VtTable, type VtColumn } from '@venture/ui';
+import { VtButton, VtGlowLine, type VtColumn } from '@venture/ui';
+import VmTable from '../../Components/Form/VmTable.vue';
+import VmCard from '../../Components/Form/VmCard.vue';
 import AppLayout from '../../Layouts/AppLayout.vue';
 
 /**
@@ -58,7 +60,7 @@ const setRange = (days: number): void => {
 
 <template>
     <AppLayout>
-        <VtCard>
+        <VmCard>
             <h1>Tag-statisztika</h1>
             <VtGlowLine />
 
@@ -68,7 +70,7 @@ const setRange = (days: number): void => {
             <VtButton data-testid="stats-30" @click="setRange(30)">30 nap</VtButton>
             <VtButton data-testid="stats-90" @click="setRange(90)">90 nap</VtButton>
 
-            <VtTable :columns="columns" :rows="rows()" data-testid="stats-table" />
+            <VmTable :columns="columns" :rows="rows()" data-testid="stats-table" />
 
             <p v-if="props.rows.length === 0" data-testid="stats-empty">
                 Ebben az időszakban nincs tag-hez rendelt esemény.
@@ -83,6 +85,6 @@ const setRange = (days: number): void => {
                 A nyitási arány felfelé torzít: egyes levélkliensek (pl. Apple Mail adatvédelmi
                 funkciója) a címzett helyett töltik be a képeket. A kattintás méri az emberi szándékot.
             </p>
-        </VtCard>
+        </VmCard>
     </AppLayout>
 </template>

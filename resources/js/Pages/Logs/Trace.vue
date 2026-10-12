@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { VtCard, VtGlowLine, VtTable, type VtColumn } from '@venture/ui';
+import { VtGlowLine, type VtColumn } from '@venture/ui';
+import VmTable from '../../Components/Form/VmTable.vue';
+import VmCard from '../../Components/Form/VmCard.vue';
 import AppLayout from '../../Layouts/AppLayout.vue';
 
 /**
@@ -91,7 +93,7 @@ const attemptRows = (): AttemptRow[] =>
 
 <template>
     <AppLayout>
-        <VtCard>
+        <VmCard>
             <h1>Üzenet-trace</h1>
             <VtGlowLine />
 
@@ -124,7 +126,7 @@ const attemptRows = (): AttemptRow[] =>
             </dl>
 
             <h2>Kapuk</h2>
-            <VtTable :columns="gateColumns" :rows="gateRows()" data-testid="trace-gates" />
+            <VmTable :columns="gateColumns" :rows="gateRows()" data-testid="trace-gates" />
 
             <h2>SMTP-párbeszéd</h2>
             <div v-for="(transaction, index) in props.trace.smtp" :key="index" data-testid="trace-smtp">
@@ -137,10 +139,10 @@ const attemptRows = (): AttemptRow[] =>
             <p v-if="props.trace.smtp.length === 0">Nincs rögzített SMTP-párbeszéd ehhez az üzenethez.</p>
 
             <h2>Kézbesítési kísérletek</h2>
-            <VtTable :columns="attemptColumns" :rows="attemptRows()" data-testid="trace-attempts" />
+            <VmTable :columns="attemptColumns" :rows="attemptRows()" data-testid="trace-attempts" />
 
             <h2>Események</h2>
-            <VtTable :columns="eventColumns" :rows="eventRows()" data-testid="trace-events" />
-        </VtCard>
+            <VmTable :columns="eventColumns" :rows="eventRows()" data-testid="trace-events" />
+        </VmCard>
     </AppLayout>
 </template>

@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import { router } from '@inertiajs/vue3';
-import { VtButton, VtCard, VtField, VtInput, VtTable, type VtColumn } from '@venture/ui';
+import { VtButton, VtField, VtInput, type VtColumn } from '@venture/ui';
+import VmTable from '../../Components/Form/VmTable.vue';
+import VmCard from '../../Components/Form/VmCard.vue';
+import VmForm from '../../Components/Form/VmForm.vue';
+import VmFormActions from '../../Components/Form/VmFormActions.vue';
+import VmFormRow from '../../Components/Form/VmFormRow.vue';
+import VmFormSection from '../../Components/Form/VmFormSection.vue';
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import AppLayout from '../../Layouts/AppLayout.vue';
@@ -68,25 +74,31 @@ function more(): void {
     <AppLayout>
         <h1 class="vt-text-display">{{ t('platform.auditSearch') }}</h1>
 
-        <VtCard>
-            <form @submit.prevent="search">
-                <VtField :label="t('platform.action')" :hint="t('platform.actionHint')">
-                    <VtInput v-model="action" data-testid="audit-action" placeholder="platform." />
-                </VtField>
+        <VmCard>
+            <VmForm @submit.prevent="search">
+                <VmFormSection>
+                    <VmFormRow>
+                        <VtField :label="t('platform.action')" :hint="t('platform.actionHint')">
+                            <VtInput v-model="action" data-testid="audit-action" placeholder="platform." />
+                        </VtField>
 
-                <VtField :label="t('platform.actor')">
-                    <VtInput v-model="actor" data-testid="audit-actor" placeholder="admin@ventmail.app" />
-                </VtField>
+                        <VtField :label="t('platform.actor')">
+                            <VtInput v-model="actor" data-testid="audit-actor" placeholder="admin@ventmail.app" />
+                        </VtField>
+                    </VmFormRow>
+                </VmFormSection>
 
-                <VtButton data-testid="audit-search" @click="search">{{ t('platform.search') }}</VtButton>
-            </form>
-        </VtCard>
+                <VmFormActions>
+                    <VtButton type="submit" data-testid="audit-search">{{ t('platform.search') }}</VtButton>
+                </VmFormActions>
+            </VmForm>
+        </VmCard>
 
-        <VtCard>
+        <VmCard>
             <p v-if="!rows.length" data-testid="audit-empty">{{ t('platform.noAuditRows') }}</p>
-            <VtTable v-else :columns="columns" :rows="rows" :caption="t('platform.auditSearch')" data-testid="audit-table" />
+            <VmTable v-else :columns="columns" :rows="rows" :caption="t('platform.auditSearch')" data-testid="audit-table" />
 
             <VtButton v-if="nextCursor" data-testid="audit-more" @click="more">{{ t('platform.more') }}</VtButton>
-        </VtCard>
+        </VmCard>
     </AppLayout>
 </template>

@@ -1,6 +1,11 @@
 <script setup lang="ts">
 import { router } from '@inertiajs/vue3';
-import { VtButton, VtCard, VtField, VtInput, VtTable, type VtColumn } from '@venture/ui';
+import { VtButton, VtField, VtInput, type VtColumn } from '@venture/ui';
+import VmTable from '../../Components/Form/VmTable.vue';
+import VmCard from '../../Components/Form/VmCard.vue';
+import VmForm from '../../Components/Form/VmForm.vue';
+import VmFormActions from '../../Components/Form/VmFormActions.vue';
+import VmFormSection from '../../Components/Form/VmFormSection.vue';
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import AppLayout from '../../Layouts/AppLayout.vue';
@@ -115,7 +120,7 @@ function createList(): void {
             {{ t('audience.unconfirmedWarning', { count: unconfirmed }) }}
         </p>
 
-        <VtCard>
+        <VmCard>
             <h2>{{ t('audience.lists') }}</h2>
 
             <div v-for="list in lists" :key="list.uuid" class="vm-stack" :data-testid="`list-${list.uuid}`">
@@ -129,41 +134,55 @@ function createList(): void {
                     </VtButton>
                 </div>
 
-                <div v-if="editingList === list.uuid" class="vm-stack" :data-testid="`list-form-${list.uuid}`">
-                    <VtField :label="t('audience.listName')">
-                        <VtInput v-model="listForm.name" :data-testid="`list-edit-name-${list.uuid}`" />
-                    </VtField>
+                <VmForm
+                    v-if="editingList === list.uuid"
+                    :data-testid="`list-form-${list.uuid}`"
+                    @submit.prevent="saveList(list.uuid)"
+                >
+                    <VmFormSection>
+                        <VtField :label="t('audience.listName')">
+                            <VtInput v-model="listForm.name" :data-testid="`list-edit-name-${list.uuid}`" />
+                        </VtField>
 
-                    <VtField :label="t('audience.listDescription')" :hint="t('audience.listDescriptionHint')">
-                        <VtInput v-model="listForm.description" :data-testid="`list-edit-description-${list.uuid}`" />
-                    </VtField>
+                        <VtField :label="t('audience.listDescription')" :hint="t('audience.listDescriptionHint')">
+                            <VtInput v-model="listForm.description" :data-testid="`list-edit-description-${list.uuid}`" />
+                        </VtField>
 
-                    <VtField :label="t('audience.listFromEmail')">
-                        <VtInput v-model="listForm.fromEmail" :data-testid="`list-edit-from-${list.uuid}`" />
-                    </VtField>
+                        <VtField :label="t('audience.listFromEmail')">
+                            <VtInput v-model="listForm.fromEmail" :data-testid="`list-edit-from-${list.uuid}`" />
+                        </VtField>
+                    </VmFormSection>
 
-                    <VtButton
-                        :disabled="!listForm.name.trim()"
-                        :data-testid="`list-save-${list.uuid}`"
-                        @click="saveList(list.uuid)"
-                    >
-                        {{ t('audience.saveList') }}
-                    </VtButton>
-                </div>
+                    <VmFormActions>
+                        <VtButton
+                            :disabled="!listForm.name.trim()"
+                            type="submit"
+                            :data-testid="`list-save-${list.uuid}`"
+                        >
+                            {{ t('audience.saveList') }}
+                        </VtButton>
+                    </VmFormActions>
+                </VmForm>
             </div>
 
             <p v-if="!lists.length" data-testid="lists-empty">{{ t('audience.noLists') }}</p>
 
-            <VtField :label="t('audience.newList')">
-                <VtInput v-model="listName" data-testid="list-name" placeholder="Hírlevél" />
-            </VtField>
+            <VmForm @submit.prevent="createList">
+                <VmFormSection>
+                    <VtField :label="t('audience.newList')">
+                        <VtInput v-model="listName" data-testid="list-name" placeholder="Hírlevél" />
+                    </VtField>
+                </VmFormSection>
 
-            <VtButton :disabled="!listName.trim()" data-testid="list-submit" @click="createList">
-                {{ t('audience.createList') }}
-            </VtButton>
-        </VtCard>
+                <VmFormActions>
+                    <VtButton type="submit" :disabled="!listName.trim()" data-testid="list-submit">
+                        {{ t('audience.createList') }}
+                    </VtButton>
+                </VmFormActions>
+            </VmForm>
+        </VmCard>
 
-        <VtCard>
+        <VmCard>
             <h2>{{ t('audience.segments') }}</h2>
 
             <p v-if="!segments.length" data-testid="segments-empty">{{ t('audience.noSegments') }}</p>
@@ -179,20 +198,25 @@ function createList(): void {
                     </template>
                 </span>
             </div>
-        </VtCard>
+        </VmCard>
 
-        <VtCard>
+        <VmCard>
             <h2>{{ t('audience.contacts') }}</h2>
 
-            <form @submit.prevent="applySearch">
-                <VtField :label="t('audience.search')">
-                    <VtInput v-model="search" data-testid="contact-search" placeholder="pelda.hu" />
-                </VtField>
-                <VtButton data-testid="contact-search-submit" @click="applySearch">{{ t('audience.searchAction') }}</VtButton>
-            </form>
+            <VmForm @submit.prevent="applySearch">
+                <VmFormSection>
+                    <VtField :label="t('audience.search')">
+                        <VtInput v-model="search" data-testid="contact-search" placeholder="pelda.hu" />
+                    </VtField>
+                </VmFormSection>
+
+                <VmFormActions>
+                    <VtButton type="submit" data-testid="contact-search-submit">{{ t('audience.searchAction') }}</VtButton>
+                </VmFormActions>
+            </VmForm>
 
             <p v-if="!rows.length" data-testid="contacts-empty">{{ t('audience.noContacts') }}</p>
-            <VtTable v-else :columns="columns" :rows="rows" :caption="t('audience.contacts')" data-testid="contacts-table" />
-        </VtCard>
+            <VmTable v-else :columns="columns" :rows="rows" :caption="t('audience.contacts')" data-testid="contacts-table" />
+        </VmCard>
     </AppLayout>
 </template>

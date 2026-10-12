@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { VtCard, VtTable, type VtColumn } from '@venture/ui';
+import { type VtColumn } from '@venture/ui';
+import VmTable from '../../Components/Form/VmTable.vue';
+import VmCard from '../../Components/Form/VmCard.vue';
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import AppLayout from '../../Layouts/AppLayout.vue';
@@ -69,7 +71,7 @@ const rows = computed<Row[]>(() =>
             {{ t('ipPools.warmupNote', { count: warming.length }) }}
         </p>
 
-        <VtCard>
+        <VmCard>
             <h2>{{ t('ipPools.pools') }}</h2>
 
             <div v-for="pool in pools" :key="pool.uuid" class="vm-cluster" :data-testid="`pool-${pool.uuid}`">
@@ -78,11 +80,11 @@ const rows = computed<Row[]>(() =>
                 <!-- A MEGOSZTOTT pool reputációját mások forgalma is alakítja — ezt tudni kell. -->
                 <span>{{ pool.shared ? t('ipPools.shared') : t('ipPools.dedicated') }}</span>
             </div>
-        </VtCard>
+        </VmCard>
 
-        <VtCard>
+        <VmCard>
             <p v-if="!rows.length" data-testid="ips-empty">{{ t('ipPools.empty') }}</p>
-            <VtTable v-else :columns="columns" :rows="rows" :caption="t('ipPools.title')" data-testid="ips-table" />
-        </VtCard>
+            <VmTable v-else :columns="columns" :rows="rows" :caption="t('ipPools.title')" data-testid="ips-table" />
+        </VmCard>
     </AppLayout>
 </template>

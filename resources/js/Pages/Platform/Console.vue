@@ -1,6 +1,13 @@
 <script setup lang="ts">
 import { Link, router } from '@inertiajs/vue3';
-import { VtButton, VtCard, VtCheckbox, VtField, VtInput, VtSelect, VtTable, type VtColumn } from '@venture/ui';
+import { VtButton, VtCheckbox, VtField, VtInput, VtSelect, type VtColumn } from '@venture/ui';
+import VmTable from '../../Components/Form/VmTable.vue';
+import VmCard from '../../Components/Form/VmCard.vue';
+import VmFieldGroup from '../../Components/Form/VmFieldGroup.vue';
+import VmForm from '../../Components/Form/VmForm.vue';
+import VmFormActions from '../../Components/Form/VmFormActions.vue';
+import VmFormRow from '../../Components/Form/VmFormRow.vue';
+import VmFormSection from '../../Components/Form/VmFormSection.vue';
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import AppLayout from '../../Layouts/AppLayout.vue';
@@ -112,12 +119,12 @@ function removeSuppression(uuid: string): void {
             {{ t('platform.unhealthyWarning', { count: unhealthy.length, status: health.status }) }}
         </p>
 
-        <VtCard>
+        <VmCard>
             <h2>{{ t('platform.health') }}</h2>
-            <VtTable :columns="healthColumns" :rows="healthRows" :caption="t('platform.health')" data-testid="health-table" />
-        </VtCard>
+            <VmTable :columns="healthColumns" :rows="healthRows" :caption="t('platform.health')" data-testid="health-table" />
+        </VmCard>
 
-        <VtCard>
+        <VmCard>
             <h2>{{ t('platform.impersonation') }}</h2>
 
             <template v-if="impersonation">
@@ -131,35 +138,41 @@ function removeSuppression(uuid: string): void {
                 </VtButton>
             </template>
 
-            <template v-else>
-                <VtField :label="t('platform.workspace')">
-                    <VtSelect v-model="impersonationForm.workspace" :options="workspaceOptions" data-testid="impersonation-workspace" />
-                </VtField>
+            <VmForm v-else @submit.prevent="startImpersonation">
+                <VmFormSection>
+                    <VmFormRow>
+                        <VtField :label="t('platform.workspace')">
+                            <VtSelect v-model="impersonationForm.workspace" :options="workspaceOptions" data-testid="impersonation-workspace" />
+                        </VtField>
 
-                <VtField :label="t('platform.reason')" :hint="t('platform.reasonHint')">
-                    <VtInput v-model="impersonationForm.reason" data-testid="impersonation-reason" placeholder="SUP-123" />
-                </VtField>
+                        <VtField :label="t('platform.reason')" :hint="t('platform.reasonHint')">
+                            <VtInput v-model="impersonationForm.reason" data-testid="impersonation-reason" placeholder="SUP-123" />
+                        </VtField>
+                    </VmFormRow>
+                </VmFormSection>
 
-                <VtButton
-                    :disabled="!impersonationForm.reason.trim()"
-                    data-testid="impersonation-start"
-                    @click="startImpersonation"
-                >
-                    {{ t('platform.startImpersonation') }}
-                </VtButton>
-            </template>
-        </VtCard>
+                <VmFormActions>
+                    <VtButton
+                        type="submit"
+                        :disabled="!impersonationForm.reason.trim()"
+                        data-testid="impersonation-start"
+                    >
+                        {{ t('platform.startImpersonation') }}
+                    </VtButton>
+                </VmFormActions>
+            </VmForm>
+        </VmCard>
 
-        <VtCard>
+        <VmCard>
             <h2>{{ t('platform.overrides') }}</h2>
 
-            <VtField :label="t('platform.workspace')">
-                <VtSelect v-model="overrideForm.workspace" :options="workspaceOptions" data-testid="override-workspace" />
-            </VtField>
+            <VmForm @submit.prevent="grantOverride">
+                <VmFormSection>
+                    <VtField :label="t('platform.workspace')">
+                        <VtSelect v-model="overrideForm.workspace" :options="workspaceOptions" data-testid="override-workspace" />
+                    </VtField>
 
-            <fieldset>
-                <legend>{{ t('platform.features') }}</legend>
-                <div class="vm-cluster">
+                    <VmFieldGroup :legend="t('platform.features')">
                     <VtCheckbox
                         v-for="feature in features"
                         :key="feature"
@@ -169,22 +182,27 @@ function removeSuppression(uuid: string): void {
                     >
                         {{ feature }}
                     </VtCheckbox>
-                </div>
-            </fieldset>
+                    </VmFieldGroup>
 
-            <VtField :label="t('platform.sendQuota')" :hint="t('platform.sendQuotaHint')">
-                <VtInput v-model="overrideForm.sendQuota" data-testid="override-quota" placeholder="500000" />
-            </VtField>
+                    <VmFormRow>
+                        <VtField :label="t('platform.sendQuota')" :hint="t('platform.sendQuotaHint')">
+                            <VtInput v-model="overrideForm.sendQuota" data-testid="override-quota" placeholder="500000" />
+                        </VtField>
 
-            <VtField :label="t('platform.reason')">
-                <VtInput v-model="overrideForm.reason" data-testid="override-reason" />
-            </VtField>
+                        <VtField :label="t('platform.expiresAt')" :hint="t('platform.expiresHint')">
+                            <VtInput v-model="overrideForm.expiresAt" data-testid="override-expires" placeholder="2026-12-31 23:59" />
+                        </VtField>
+                    </VmFormRow>
 
-            <VtField :label="t('platform.expiresAt')" :hint="t('platform.expiresHint')">
-                <VtInput v-model="overrideForm.expiresAt" data-testid="override-expires" placeholder="2026-12-31 23:59" />
-            </VtField>
+                    <VtField :label="t('platform.reason')">
+                        <VtInput v-model="overrideForm.reason" data-testid="override-reason" />
+                    </VtField>
+                </VmFormSection>
 
-            <VtButton data-testid="override-submit" @click="grantOverride">{{ t('platform.grantOverride') }}</VtButton>
+                <VmFormActions>
+                    <VtButton type="submit" data-testid="override-submit">{{ t('platform.grantOverride') }}</VtButton>
+                </VmFormActions>
+            </VmForm>
 
             <div v-for="override in overrides" :key="override.uuid" class="vm-cluster" :data-testid="`override-${override.uuid}`">
                 <strong>{{ override.workspace }}</strong>
@@ -195,34 +213,44 @@ function removeSuppression(uuid: string): void {
                     {{ t('platform.revoke') }}
                 </VtButton>
             </div>
-        </VtCard>
+        </VmCard>
 
-        <VtCard>
+        <VmCard>
             <h2>{{ t('platform.globalSuppressions') }}</h2>
             <p>{{ t('platform.globalSuppressionNote') }}</p>
 
-            <VtField :label="t('platform.email')">
-                <VtInput v-model="suppressionForm.email" data-testid="global-suppression-email" />
-            </VtField>
+            <VmForm @submit.prevent="addSuppression">
+                <VmFormSection>
+                    <VmFormRow>
+                        <VtField :label="t('platform.email')">
+                            <VtInput v-model="suppressionForm.email" data-testid="global-suppression-email" />
+                        </VtField>
 
-            <VtField :label="t('platform.reason')">
-                <VtSelect v-model="suppressionForm.reason" :options="reasonOptions" data-testid="global-suppression-reason" />
-            </VtField>
+                        <VtField :label="t('platform.reason')">
+                            <VtSelect v-model="suppressionForm.reason" :options="reasonOptions" data-testid="global-suppression-reason" />
+                        </VtField>
+                    </VmFormRow>
 
-            <VtField :label="t('platform.detail')" :hint="t('platform.detailHint')">
-                <VtInput v-model="suppressionForm.detail" data-testid="global-suppression-detail" />
-            </VtField>
+                    <VtField :label="t('platform.detail')" :hint="t('platform.detailHint')">
+                        <VtInput v-model="suppressionForm.detail" data-testid="global-suppression-detail" />
+                    </VtField>
+                </VmFormSection>
 
-            <VtButton data-testid="global-suppression-submit" @click="addSuppression">
-                {{ t('platform.addSuppression') }}
-            </VtButton>
+                <VmFormActions>
+                    <VtButton type="submit" data-testid="global-suppression-submit">
+                        {{ t('platform.addSuppression') }}
+                    </VtButton>
+                </VmFormActions>
+            </VmForm>
 
-            <VtField :label="t('platform.removalReason')">
-                <VtInput v-model="removalReason" data-testid="global-removal-reason" />
-            </VtField>
+            <VmFormSection>
+                <VtField :label="t('platform.removalReason')">
+                    <VtInput v-model="removalReason" data-testid="global-removal-reason" />
+                </VtField>
+            </VmFormSection>
 
             <div v-for="item in globalSuppressions" :key="item.uuid" class="vm-cluster" :data-testid="`global-${item.uuid}`">
-                <span class="vt-text-mono">{{ item.email }}</span>
+                <span class="vt-text-mono vm-truncate vm-truncate--fill" :title="item.email">{{ item.email }}</span>
                 <span>{{ item.reason }}</span>
                 <VtButton
                     variant="ghost"
@@ -233,9 +261,9 @@ function removeSuppression(uuid: string): void {
                     {{ t('platform.remove') }}
                 </VtButton>
             </div>
-        </VtCard>
+        </VmCard>
 
-        <VtCard>
+        <VmCard>
             <h2>{{ t('platform.warmup') }}</h2>
 
             <div v-for="ip in warmup" :key="ip.address" class="vm-cluster">
@@ -244,10 +272,10 @@ function removeSuppression(uuid: string): void {
                 <span>{{ ip.status }} · {{ ip.warmup_state }}</span>
                 <span>{{ ip.utilisation === null ? '—' : `${ip.utilisation}%` }}</span>
             </div>
-        </VtCard>
+        </VmCard>
 
-        <VtCard>
+        <VmCard>
             <Link href="/platform/audit" data-testid="audit-link">{{ t('platform.auditSearch') }}</Link>
-        </VtCard>
+        </VmCard>
     </AppLayout>
 </template>

@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { VtCard, VtTable, type VtColumn } from '@venture/ui';
+import { type VtColumn } from '@venture/ui';
+import VmTable from '../../Components/Form/VmTable.vue';
+import VmCard from '../../Components/Form/VmCard.vue';
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import AppLayout from '../../Layouts/AppLayout.vue';
@@ -50,17 +52,17 @@ const metrics = computed(() =>
         <h1 class="vt-text-display">{{ campaign.name }}</h1>
 
         <div class="vm-metrics" data-testid="report-metrics">
-            <VtCard v-for="key in metrics" :key="key">
+            <VmCard v-for="key in metrics" :key="key">
                 <p class="vm-metric__label">{{ t(`analytics.metric.${key}`) }}</p>
                 <p class="vm-metric__value" :data-testid="`metric-${key}`">{{ summary[key] }}</p>
-            </VtCard>
+            </VmCard>
         </div>
 
-        <VtCard>
+        <VmCard>
             <p data-testid="analytics-mpp">{{ t('analytics.mppNote') }}</p>
-        </VtCard>
+        </VmCard>
 
-        <VtCard v-if="variants.length" data-testid="report-variants">
+        <VmCard v-if="variants.length" data-testid="report-variants">
             <h2>{{ t('analytics.variants') }}</h2>
 
             <div v-for="variant in variants" :key="String(variant.variant)" class="vm-cluster">
@@ -69,14 +71,14 @@ const metrics = computed(() =>
                 <span>{{ t('analytics.metric.clicked') }}: {{ variant.clicked }}</span>
                 <span v-if="winner === variant.variant" data-testid="variant-winner">{{ t('analytics.winner') }}</span>
             </div>
-        </VtCard>
+        </VmCard>
 
-        <VtCard>
+        <VmCard>
             <h2>{{ t('analytics.clickMap') }}</h2>
             <!-- A KLIKK-TÉRKÉP a retenció után is megmarad AGGREGÁLVA: a címzett-dimenzió
                  tűnik el belőle, a link-szintű szám nem. -->
             <p v-if="!linkRows.length" data-testid="links-empty">{{ t('analytics.noClicks') }}</p>
-            <VtTable v-else :columns="linkColumns" :rows="linkRows" :caption="t('analytics.clickMap')" data-testid="links-table" />
-        </VtCard>
+            <VmTable v-else :columns="linkColumns" :rows="linkRows" :caption="t('analytics.clickMap')" data-testid="links-table" />
+        </VmCard>
     </AppLayout>
 </template>

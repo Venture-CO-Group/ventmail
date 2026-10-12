@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import { router } from '@inertiajs/vue3';
-import { VtButton, VtCard, VtField, VtSelect } from '@venture/ui';
+import { VtButton, VtField, VtSelect } from '@venture/ui';
+import VmCard from '../../Components/Form/VmCard.vue';
+import VmForm from '../../Components/Form/VmForm.vue';
+import VmFormRow from '../../Components/Form/VmFormRow.vue';
+import VmFormSection from '../../Components/Form/VmFormSection.vue';
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import AppLayout from '../../Layouts/AppLayout.vue';
@@ -92,16 +96,18 @@ function activate(version: number): void {
 
         <p class="vm-banner" role="status">{{ t('storedTemplates.note') }}</p>
 
-        <VtCard>
+        <VmCard>
             <p v-if="!templates.length" data-testid="stored-templates-empty">{{ t('storedTemplates.empty') }}</p>
 
-            <VtField v-else :label="t('storedTemplates.template')">
-                <VtSelect v-model="template" :options="templateOptions" data-testid="stored-template-select" />
-            </VtField>
-        </VtCard>
+            <VmFormSection v-else>
+                <VtField :label="t('storedTemplates.template')">
+                    <VtSelect v-model="template" :options="templateOptions" data-testid="stored-template-select" />
+                </VtField>
+            </VmFormSection>
+        </VmCard>
 
-        <VtCard v-if="selected" data-testid="stored-template-versions">
-            <h2>{{ selected.name }}</h2>
+        <VmCard v-if="selected" data-testid="stored-template-versions">
+            <h2 class="vm-wrap">{{ selected.name }}</h2>
 
             <div v-for="version in selected.versions" :key="version.version" class="vm-cluster">
                 <span class="vt-text-mono">v{{ version.version }}</span>
@@ -121,12 +127,12 @@ function activate(version: number): void {
                     {{ t('storedTemplates.activate') }}
                 </VtButton>
             </div>
-        </VtCard>
+        </VmCard>
 
-        <VtCard v-if="selected && selected.versions.length > 1" data-testid="stored-template-diff">
+        <VmCard v-if="selected && selected.versions.length > 1" data-testid="stored-template-diff">
             <h2>{{ t('storedTemplates.compare') }}</h2>
 
-            <div class="vm-cluster">
+            <VmFormRow>
                 <VtField :label="t('storedTemplates.left')">
                     <VtSelect
                         v-model="left"
@@ -144,7 +150,7 @@ function activate(version: number): void {
                         @update:model-value="reload"
                     />
                 </VtField>
-            </div>
+            </VmFormRow>
 
             <!-- A TÚL NAGY diff nem „üres", hanem MEGMONDJUK, miért nincs: egy csendben
                  üres összehasonlítás azt jelentené, hogy nem változott semmi. -->
@@ -180,6 +186,6 @@ function activate(version: number): void {
                     </template>
                 </div>
             </div>
-        </VtCard>
+        </VmCard>
     </AppLayout>
 </template>

@@ -1,6 +1,11 @@
 <script setup lang="ts">
 import { router } from '@inertiajs/vue3';
-import { VtButton, VtCard, VtField, VtInput, VtSelect, VtTextarea } from '@venture/ui';
+import { VtButton, VtField, VtInput, VtSelect, VtTextarea } from '@venture/ui';
+import VmCard from '../../Components/Form/VmCard.vue';
+import VmForm from '../../Components/Form/VmForm.vue';
+import VmFormActions from '../../Components/Form/VmFormActions.vue';
+import VmFormRow from '../../Components/Form/VmFormRow.vue';
+import VmFormSection from '../../Components/Form/VmFormSection.vue';
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import AppLayout from '../../Layouts/AppLayout.vue';
@@ -186,21 +191,27 @@ function save(): void {
     <AppLayout>
         <h1 class="vt-text-display">{{ t('templates.editor') }}</h1>
 
-        <VtCard>
-            <VtField :label="t('templates.name')">
-                <VtInput v-model="name" data-testid="editor-name" />
-            </VtField>
+        <VmCard>
+            <VmForm @submit.prevent="save">
+                <VmFormSection>
+                    <VmFormRow>
+                        <VtField :label="t('templates.name')">
+                            <VtInput v-model="name" data-testid="editor-name" />
+                        </VtField>
 
-            <VtField :label="t('templates.subject')">
-                <VtInput v-model="subject" data-testid="editor-subject" />
-            </VtField>
+                        <VtField :label="t('templates.subject')">
+                            <VtInput v-model="subject" data-testid="editor-subject" />
+                        </VtField>
+                    </VmFormRow>
 
-            <VtField :label="t('templates.preheader')" :hint="t('templates.preheaderHint')">
-                <VtInput v-model="preheader" data-testid="editor-preheader" />
-            </VtField>
-        </VtCard>
+                    <VtField :label="t('templates.preheader')" :hint="t('templates.preheaderHint')">
+                        <VtInput v-model="preheader" data-testid="editor-preheader" />
+                    </VtField>
+                </VmFormSection>
+            </VmForm>
+        </VmCard>
 
-        <VtCard>
+        <VmCard>
             <h2>{{ t('templates.blocks') }}</h2>
 
             <p v-if="template.marketing" class="vm-banner vm-banner--warning" role="status" data-testid="editor-unsubscribe-note">
@@ -230,6 +241,7 @@ function save(): void {
                         </VtButton>
                     </div>
 
+                    <VmFormSection>
                     <VtField
                         v-for="field in editableFields(block)"
                         :key="field"
@@ -248,6 +260,7 @@ function save(): void {
                             @update:model-value="setAttr(block, field, String($event))"
                         />
                     </VtField>
+                    </VmFormSection>
                 </div>
 
                 <div class="vm-cluster">
@@ -260,11 +273,13 @@ function save(): void {
                 </div>
             </div>
 
-            <VtButton data-testid="add-section" @click="addSection">{{ t('templates.addSection') }}</VtButton>
-            <VtButton :disabled="saving" data-testid="editor-save" @click="save">{{ t('templates.save') }}</VtButton>
-        </VtCard>
+            <VmFormActions>
+                <VtButton data-testid="add-section" @click="addSection">{{ t('templates.addSection') }}</VtButton>
+                <VtButton :disabled="saving" data-testid="editor-save" @click="save">{{ t('templates.save') }}</VtButton>
+            </VmFormActions>
+        </VmCard>
 
-        <VtCard>
+        <VmCard>
             <h2>{{ t('templates.preview') }}</h2>
 
             <p v-if="preview.error" class="vm-banner vm-banner--danger" role="status" data-testid="preview-error">
@@ -276,7 +291,7 @@ function save(): void {
             <!-- A FORDÍTOTT HTML forrása látszik, nem beágyazva: a levél HTML-jét a saját
                  oldalunkba engedni (idegen stílus, script) rossz ötlet — a `html` blokk
                  nyers tartalma is átjönne. -->
-            <pre v-else class="vt-text-mono" data-testid="preview-html">{{ preview.html }}</pre>
-        </VtCard>
+            <pre v-else class="vt-text-mono vm-pre" data-testid="preview-html">{{ preview.html }}</pre>
+        </VmCard>
     </AppLayout>
 </template>

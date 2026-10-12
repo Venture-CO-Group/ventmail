@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import { router } from '@inertiajs/vue3';
-import { VtButton, VtCard, VtField, VtGlowLine, VtInput, VtTable, type VtColumn } from '@venture/ui';
+import { VtButton, VtField, VtGlowLine, VtInput, type VtColumn } from '@venture/ui';
+import VmTable from '../../Components/Form/VmTable.vue';
+import VmCard from '../../Components/Form/VmCard.vue';
+import VmForm from '../../Components/Form/VmForm.vue';
+import VmFormActions from '../../Components/Form/VmFormActions.vue';
+import VmFormRow from '../../Components/Form/VmFormRow.vue';
+import VmFormSection from '../../Components/Form/VmFormSection.vue';
 import { reactive } from 'vue';
 import AppLayout from '../../Layouts/AppLayout.vue';
 
@@ -105,11 +111,13 @@ const openTrace = (row: Row): void => {
 
 <template>
     <AppLayout>
-        <VtCard>
+        <VmCard>
             <h1>Napló</h1>
             <VtGlowLine />
 
-            <form data-testid="log-filters" @submit.prevent="search">
+            <VmForm data-testid="log-filters" @submit.prevent="search">
+                <VmFormSection>
+                <VmFormRow>
                 <VtField label="Címzett">
                     <VtInput v-model="filters.recipient" data-testid="filter-recipient" placeholder="cimzett@example.test" />
                 </VtField>
@@ -133,22 +141,26 @@ const openTrace = (row: Row): void => {
                 <VtField label="Eddig">
                     <VtInput v-model="filters.until" data-testid="filter-until" type="date" />
                 </VtField>
+                </VmFormRow>
+                </VmFormSection>
 
-                <VtButton type="submit" data-testid="log-search">Keresés</VtButton>
-            </form>
+                <VmFormActions>
+                    <VtButton type="submit" data-testid="log-search">Keresés</VtButton>
+                </VmFormActions>
+            </VmForm>
 
-            <VtTable :columns="columns" :rows="rows()" data-testid="log-table">
+            <VmTable :columns="columns" :rows="rows()" data-testid="log-table">
                 <template #cell="{ row, column, value }">
                     <VtButton v-if="column.key === 'trace'" data-testid="log-trace" @click="openTrace(row)">
                         Trace
                     </VtButton>
-                    <template v-else>{{ value }}</template>
+                    <span v-else class="vm-truncate" :title="String(value ?? '')">{{ value }}</span>
                 </template>
-            </VtTable>
+            </VmTable>
 
             <VtButton v-if="props.messages.next_cursor" data-testid="log-more" @click="loadMore">
                 További találatok
             </VtButton>
-        </VtCard>
+        </VmCard>
     </AppLayout>
 </template>

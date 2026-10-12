@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Link } from '@inertiajs/vue3';
-import { VtCard } from '@venture/ui';
+import VmCard from '../../Components/Form/VmCard.vue';
 import { useI18n } from 'vue-i18n';
 import AppLayout from '../../Layouts/AppLayout.vue';
 
@@ -14,7 +14,7 @@ const { t } = useI18n();
     <AppLayout>
         <h1 class="vt-text-display">{{ t('analytics.title') }}</h1>
 
-        <VtCard>
+        <VmCard>
             <p v-if="!campaigns.length" data-testid="analytics-empty">{{ t('analytics.empty') }}</p>
 
             <div v-for="campaign in campaigns" :key="campaign.uuid" class="vm-cluster">
@@ -23,6 +23,6 @@ const { t } = useI18n();
                 </Link>
                 <span>{{ campaign.status }}</span>
             </div>
-        </VtCard>
+        </VmCard>
     </AppLayout>
 </template>

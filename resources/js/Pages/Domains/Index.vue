@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { Link } from '@inertiajs/vue3';
-import { VtButton, VtCard, VtTable, type VtColumn } from '@venture/ui';
+import { VtButton, type VtColumn } from '@venture/ui';
+import VmTable from '../../Components/Form/VmTable.vue';
+import VmCard from '../../Components/Form/VmCard.vue';
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import AppLayout from '../../Layouts/AppLayout.vue';
@@ -61,23 +63,23 @@ const unverified = computed(() => props.domains.filter((domain) => domain.status
             {{ t('domains.unverified', { count: unverified.length }) }}
         </p>
 
-        <VtCard>
+        <VmCard>
             <div class="vm-cluster">
                 <Link href="/domains/wizard">
                     <VtButton data-testid="domains-add">{{ t('domains.add') }}</VtButton>
                 </Link>
             </div>
-        </VtCard>
+        </VmCard>
 
-        <VtCard>
+        <VmCard>
             <p v-if="!rows.length" data-testid="domains-empty">{{ t('domains.empty') }}</p>
-            <VtTable
+            <VmTable
                 v-else
                 :columns="columns"
                 :rows="rows"
                 :caption="t('domains.title')"
                 data-testid="domains-table"
             />
-        </VtCard>
+        </VmCard>
     </AppLayout>
 </template>

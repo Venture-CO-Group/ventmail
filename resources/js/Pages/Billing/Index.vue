@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { VtCard, VtTable, type VtColumn } from '@venture/ui';
+import { type VtColumn } from '@venture/ui';
+import VmTable from '../../Components/Form/VmTable.vue';
+import VmCard from '../../Components/Form/VmCard.vue';
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import AppLayout from '../../Layouts/AppLayout.vue';
@@ -61,27 +63,27 @@ const enabledFeatures = computed(() => props.features.filter((feature) => featur
         </p>
 
         <div class="vm-metrics">
-            <VtCard>
+            <VmCard>
                 <p class="vm-metric__label">{{ t('billing.remainingQuota') }}</p>
                 <p class="vm-metric__value" data-testid="billing-quota">{{ remainingQuota.toLocaleString() }}</p>
-            </VtCard>
+            </VmCard>
 
-            <VtCard>
+            <VmCard>
                 <p class="vm-metric__label">{{ t('billing.currentPeriod') }}</p>
                 <p class="vm-metric__value" data-testid="billing-period">{{ period }}</p>
-            </VtCard>
+            </VmCard>
         </div>
 
-        <VtCard>
+        <VmCard>
             <h2>{{ t('billing.usage') }}</h2>
 
             <div v-for="item in usage" :key="item.dimension" class="vm-cluster" :data-testid="`usage-${item.dimension}`">
                 <span>{{ item.dimension }}</span>
                 <strong>{{ item.current.toLocaleString() }}</strong>
             </div>
-        </VtCard>
+        </VmCard>
 
-        <VtCard>
+        <VmCard>
             <h2>{{ t('billing.features') }}</h2>
             <p v-if="!enabledFeatures.length" data-testid="features-empty">{{ t('billing.noFeatures') }}</p>
 
@@ -90,12 +92,12 @@ const enabledFeatures = computed(() => props.features.filter((feature) => featur
                     {{ feature.feature }}: {{ feature.enabled ? t('billing.on') : t('billing.off') }}
                 </span>
             </div>
-        </VtCard>
+        </VmCard>
 
-        <VtCard>
+        <VmCard>
             <h2>{{ t('billing.invoices') }}</h2>
             <p v-if="!rows.length" data-testid="invoices-empty">{{ t('billing.noInvoices') }}</p>
-            <VtTable v-else :columns="columns" :rows="rows" :caption="t('billing.invoices')" data-testid="invoices-table" />
-        </VtCard>
+            <VmTable v-else :columns="columns" :rows="rows" :caption="t('billing.invoices')" data-testid="invoices-table" />
+        </VmCard>
     </AppLayout>
 </template>

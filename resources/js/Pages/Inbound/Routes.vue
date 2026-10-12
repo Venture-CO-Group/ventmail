@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { VtCard, VtGlowLine, VtTable, type VtColumn } from '@venture/ui';
+import { VtGlowLine, type VtColumn } from '@venture/ui';
+import VmTable from '../../Components/Form/VmTable.vue';
+import VmCard from '../../Components/Form/VmCard.vue';
 import AppLayout from '../../Layouts/AppLayout.vue';
 
 /**
@@ -100,7 +102,7 @@ const messageRows = (): MessageRow[] =>
 
 <template>
     <AppLayout>
-        <VtCard>
+        <VmCard>
             <h1>Bejövő szabályok</h1>
             <VtGlowLine />
 
@@ -108,7 +110,7 @@ const messageRows = (): MessageRow[] =>
                 A szabályok ebben a sorrendben értékelődnek ki. Az első <code>stop()</code> lezárja a láncot.
             </p>
 
-            <VtTable :columns="routeColumns" :rows="routeRows()" data-testid="inbound-routes" />
+            <VmTable :columns="routeColumns" :rows="routeRows()" data-testid="inbound-routes" />
 
             <p v-if="props.routes.length === 0" data-testid="inbound-routes-empty">
                 Még nincs szabály. Szabály nélkül a beérkező levél eltárolódik, és a retenció lejártakor törlődik.
@@ -116,12 +118,12 @@ const messageRows = (): MessageRow[] =>
 
             <h2>Utolsó beérkezett levelek</h2>
 
-            <VtTable :columns="messageColumns" :rows="messageRows()" data-testid="inbound-messages" />
+            <VmTable :columns="messageColumns" :rows="messageRows()" data-testid="inbound-messages" />
 
             <p data-testid="inbound-retention">
                 A beérkezett levél idegen tartalom: rövid retencióval tároljuk, majd a nyers levél és a
                 csatolmányok is törlődnek.
             </p>
-        </VtCard>
+        </VmCard>
     </AppLayout>
 </template>

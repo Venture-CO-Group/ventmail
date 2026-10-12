@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import { router, usePage } from '@inertiajs/vue3';
-import { VtButton, VtCard, VtCheckbox, VtField, VtInput, VtTable, type VtColumn } from '@venture/ui';
+import { VtButton, VtCheckbox, VtField, VtInput, type VtColumn } from '@venture/ui';
+import VmTable from '../../Components/Form/VmTable.vue';
+import VmCard from '../../Components/Form/VmCard.vue';
+import VmFieldGroup from '../../Components/Form/VmFieldGroup.vue';
+import VmForm from '../../Components/Form/VmForm.vue';
+import VmFormActions from '../../Components/Form/VmFormActions.vue';
+import VmFormSection from '../../Components/Form/VmFormSection.vue';
 import { computed, ref, type Ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import AppLayout from '../../Layouts/AppLayout.vue';
@@ -113,21 +119,21 @@ function revoke(uuid: string): void {
         <h1 class="vt-text-display">{{ t('apiKeys.title') }}</h1>
 
         <!-- EGYSZER látszik. A szöveg ezt ki is mondja: aki elveszíti, újat állít ki. -->
-        <VtCard v-if="issuedKey" data-testid="issued-key">
+        <VmCard v-if="issuedKey" data-testid="issued-key">
             <p>{{ t('apiKeys.issuedOnce') }}</p>
-            <p class="vt-text-mono" data-testid="issued-key-value">{{ issuedKey }}</p>
-        </VtCard>
+            <p class="vt-text-mono vm-wrap" data-testid="issued-key-value">{{ issuedKey }}</p>
+        </VmCard>
 
-        <VtCard>
+        <VmCard>
             <h2>{{ t('apiKeys.new') }}</h2>
 
-            <VtField :label="t('apiKeys.name')">
-                <VtInput v-model="name" data-testid="key-name" placeholder="CI" />
-            </VtField>
+            <VmForm @submit.prevent="issue">
+                <VmFormSection>
+                    <VtField :label="t('apiKeys.name')">
+                        <VtInput v-model="name" data-testid="key-name" placeholder="CI" />
+                    </VtField>
 
-            <fieldset>
-                <legend>{{ t('apiKeys.scopes') }}</legend>
-                <div class="vm-cluster" data-testid="key-scopes">
+                    <VmFieldGroup :legend="t('apiKeys.scopes')" data-testid="key-scopes">
                     <VtCheckbox
                         v-for="scope in availableScopes"
                         :key="scope"
@@ -137,13 +143,9 @@ function revoke(uuid: string): void {
                     >
                         {{ scope }}
                     </VtCheckbox>
-                </div>
-            </fieldset>
+                    </VmFieldGroup>
 
-            <fieldset>
-                <legend>{{ t('apiKeys.channels') }}</legend>
-                <p>{{ t('apiKeys.channelsHint') }}</p>
-                <div class="vm-cluster" data-testid="key-channels">
+                    <VmFieldGroup :legend="t('apiKeys.channels')" :hint="t('apiKeys.channelsHint')" data-testid="key-channels">
                     <VtCheckbox
                         v-for="channel in availableChannels"
                         :key="channel"
@@ -153,30 +155,33 @@ function revoke(uuid: string): void {
                     >
                         {{ channel }}
                     </VtCheckbox>
-                </div>
-            </fieldset>
+                    </VmFieldGroup>
 
-            <VtCheckbox v-model="testmode" data-testid="key-testmode">
-                {{ t('apiKeys.testmode') }}
-            </VtCheckbox>
+                    <VtCheckbox v-model="testmode" data-testid="key-testmode">
+                        {{ t('apiKeys.testmode') }}
+                    </VtCheckbox>
+                </VmFormSection>
 
-            <VtButton :disabled="!canSubmit || submitting" data-testid="key-submit" @click="issue">
-                {{ t('apiKeys.issue') }}
-            </VtButton>
-        </VtCard>
+                <VmFormActions>
+                    <VtButton type="submit" :disabled="!canSubmit || submitting" data-testid="key-submit">
+                        {{ t('apiKeys.issue') }}
+                    </VtButton>
+                </VmFormActions>
+            </VmForm>
+        </VmCard>
 
-        <VtCard>
+        <VmCard>
             <h2>{{ t('apiKeys.existing') }}</h2>
 
             <p v-if="!rows.length" data-testid="keys-empty">{{ t('apiKeys.empty') }}</p>
-            <VtTable v-else :columns="columns" :rows="rows" :caption="t('apiKeys.existing')" data-testid="keys-table" />
+            <VmTable v-else :columns="columns" :rows="rows" :caption="t('apiKeys.existing')" data-testid="keys-table" />
 
             <div v-for="key in keys" :key="key.uuid" class="vm-cluster">
-                <span>{{ key.name }}</span>
+                <span class="vm-truncate vm-truncate--fill" :title="key.name">{{ key.name }}</span>
                 <VtButton variant="ghost" :data-testid="`revoke-${key.prefix}`" @click="revoke(key.uuid)">
                     {{ t('apiKeys.revoke') }}
                 </VtButton>
             </div>
-        </VtCard>
+        </VmCard>
     </AppLayout>
 </template>

@@ -10,6 +10,7 @@ import './brand.css';
 import './glow.css';
 import './shell.css';
 import './nav.css';
+import './layout.css';
 import './profile.css';
 
 /*

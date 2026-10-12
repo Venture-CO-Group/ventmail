@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { router } from '@inertiajs/vue3';
-import { VtButton, VtCard, VtTable, type VtColumn } from '@venture/ui';
+import { VtButton, type VtColumn } from '@venture/ui';
+import VmTable from '../../Components/Form/VmTable.vue';
+import VmCard from '../../Components/Form/VmCard.vue';
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import AppLayout from '../../Layouts/AppLayout.vue';
@@ -68,7 +70,7 @@ function pause(): void {
             {{ t('journeys.statusIs', { status: journey.status, trigger: journey.trigger }) }}
         </p>
 
-        <VtCard>
+        <VmCard>
             <div class="vm-cluster">
                 <span data-testid="runs-active">{{ t('journeys.activeRuns') }}: {{ runs.active }}</span>
                 <span data-testid="runs-completed">{{ t('journeys.completedRuns') }}: {{ runs.completed }}</span>
@@ -80,13 +82,13 @@ function pause(): void {
             </div>
 
             <p>{{ t('journeys.activationNote') }}</p>
-        </VtCard>
+        </VmCard>
 
-        <VtCard>
+        <VmCard>
             <h2>{{ t('journeys.chain') }}</h2>
 
             <p v-if="!rows.length" data-testid="steps-empty">{{ t('journeys.noSteps') }}</p>
-            <VtTable v-else :columns="columns" :rows="rows" :caption="t('journeys.chain')" data-testid="steps-table" />
-        </VtCard>
+            <VmTable v-else :columns="columns" :rows="rows" :caption="t('journeys.chain')" data-testid="steps-table" />
+        </VmCard>
     </AppLayout>
 </template>

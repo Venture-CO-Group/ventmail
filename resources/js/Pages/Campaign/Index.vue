@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import { Link, router } from '@inertiajs/vue3';
-import { VtButton, VtCard, VtField, VtInput, VtTable, type VtColumn } from '@venture/ui';
+import { VtButton, VtField, VtInput, type VtColumn } from '@venture/ui';
+import VmTable from '../../Components/Form/VmTable.vue';
+import VmCard from '../../Components/Form/VmCard.vue';
+import VmForm from '../../Components/Form/VmForm.vue';
+import VmFormActions from '../../Components/Form/VmFormActions.vue';
+import VmFormRow from '../../Components/Form/VmFormRow.vue';
+import VmFormSection from '../../Components/Form/VmFormSection.vue';
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import AppLayout from '../../Layouts/AppLayout.vue';
@@ -61,25 +67,33 @@ function create(): void {
     <AppLayout>
         <h1 class="vt-text-display">{{ t('campaigns.title') }}</h1>
 
-        <VtCard>
+        <VmCard>
             <h2>{{ t('campaigns.new') }}</h2>
 
-            <VtField :label="t('campaigns.name')">
-                <VtInput v-model="name" data-testid="campaign-name" placeholder="Szeptemberi hírlevél" />
-            </VtField>
+            <VmForm @submit.prevent="create">
+                <VmFormSection>
+                    <VmFormRow>
+                        <VtField :label="t('campaigns.name')">
+                            <VtInput v-model="name" data-testid="campaign-name" placeholder="Szeptemberi hírlevél" />
+                        </VtField>
 
-            <VtField :label="t('campaigns.subject')">
-                <VtInput v-model="subject" data-testid="campaign-subject" placeholder="Újdonságok nálunk" />
-            </VtField>
+                        <VtField :label="t('campaigns.subject')">
+                            <VtInput v-model="subject" data-testid="campaign-subject" placeholder="Újdonságok nálunk" />
+                        </VtField>
+                    </VmFormRow>
+                </VmFormSection>
 
-            <VtButton :disabled="!name.trim() || !subject.trim()" data-testid="campaign-submit" @click="create">
-                {{ t('campaigns.create') }}
-            </VtButton>
-        </VtCard>
+                <VmFormActions>
+                    <VtButton type="submit" :disabled="!name.trim() || !subject.trim()" data-testid="campaign-submit">
+                        {{ t('campaigns.create') }}
+                    </VtButton>
+                </VmFormActions>
+            </VmForm>
+        </VmCard>
 
-        <VtCard>
+        <VmCard>
             <p v-if="!rows.length" data-testid="campaigns-empty">{{ t('campaigns.empty') }}</p>
-            <VtTable v-else :columns="columns" :rows="rows" :caption="t('campaigns.title')" data-testid="campaigns-table" />
+            <VmTable v-else :columns="columns" :rows="rows" :caption="t('campaigns.title')" data-testid="campaigns-table" />
 
             <div v-for="campaign in campaigns" :key="campaign.uuid" class="vm-cluster">
                 <Link :href="`/campaigns/${campaign.uuid}`" :data-testid="`open-${campaign.uuid}`">
@@ -87,6 +101,6 @@ function create(): void {
                 </Link>
                 <span v-if="!campaign.editable" :data-testid="`locked-${campaign.uuid}`">{{ t('campaigns.locked') }}</span>
             </div>
-        </VtCard>
+        </VmCard>
     </AppLayout>
 </template>

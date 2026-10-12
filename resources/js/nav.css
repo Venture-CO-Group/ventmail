@@ -36,11 +36,25 @@
     flex: none;
 }
 
+/*
+ | A MENÜPONTOK nem zsugorodnak (egy sorban, `nowrap`): a helyet a workspace-váltó adja le,
+ | mert annak a címkéje `…`-ra vágható. Enélkül a sáv a töréspont közelében túlcsordult.
+ */
 .vm-topbar__nav {
     display: flex;
     align-items: center;
     gap: var(--vt-space-1);
+    flex: 0 0 auto;
+}
+
+.vm-topbar__row > .vm-dd {
+    flex: 0 1 auto;
     min-width: 0;
+}
+
+.vm-topbar__row > .vm-dd > .vm-chip {
+    min-width: 0;
+    max-inline-size: 100%;
 }
 
 .vm-topbar__group {

@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import { router, usePage } from '@inertiajs/vue3';
-import { VtBadge, VtButton, VtCard, VtCheckbox, VtField, VtSelect } from '@venture/ui';
+import { VtBadge, VtButton, VtCheckbox, VtField, VtSelect } from '@venture/ui';
+import VmCard from '../../Components/Form/VmCard.vue';
+import VmForm from '../../Components/Form/VmForm.vue';
+import VmFormRow from '../../Components/Form/VmFormRow.vue';
+import VmFormSection from '../../Components/Form/VmFormSection.vue';
 import { computed, reactive, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import VmIcon from '../../Components/Shell/VmIcon.vue';
@@ -131,11 +135,12 @@ function save(): void {
         </p>
 
         <div class="vm-profile">
-            <form class="vm-stack vm-profile__main" novalidate @submit.prevent="save">
-                <VtCard>
+            <VmForm class="vm-profile__main" novalidate @submit.prevent="save">
+                <VmCard>
                     <h2 class="vt-text-display">{{ t('profile.sectionFormats') }}</h2>
 
-                    <div class="vm-profile__grid">
+                    <VmFormSection>
+                        <VmFormRow>
                         <VtField :label="t('profile.language')" :hint="t('profile.languageHint')" :error="errors.locale">
                             <VtSelect v-model="form.locale" :options="localeOptions" data-testid="profile-locale" />
                         </VtField>
@@ -151,7 +156,7 @@ function save(): void {
                         <VtField :label="t('profile.numberFormat')" :error="errors.number_format">
                             <VtSelect v-model="form.number_format" :options="numberOptions" data-testid="profile-number-format" />
                         </VtField>
-                    </div>
+                        </VmFormRow>
 
                     <VtField
                         :label="t('profile.defaultWorkspace')"
@@ -160,9 +165,10 @@ function save(): void {
                     >
                         <VtSelect v-model="form.default_workspace" :options="workspaceOptions" data-testid="profile-default-workspace" />
                     </VtField>
-                </VtCard>
+                    </VmFormSection>
+                </VmCard>
 
-                <VtCard>
+                <VmCard>
                     <h2 class="vt-text-display">{{ t('profile.sectionNotifications') }}</h2>
 
                     <ul class="vm-profile__notifs" role="list">
@@ -177,11 +183,11 @@ function save(): void {
                             <span class="vm-profile__notif-hint">{{ t(`profile.notifications.${key}.hint`) }}</span>
                         </li>
                     </ul>
-                </VtCard>
-            </form>
+                </VmCard>
+            </VmForm>
 
             <aside class="vm-stack vm-profile__side">
-                <VtCard glow data-testid="profile-sso-card">
+                <VmCard glow data-testid="profile-sso-card">
                     <div class="vm-profile__who">
                         <div class="vm-stack">
                             <span class="vm-profile__name">{{ page.props.auth.user?.name }}</span>
@@ -203,9 +209,9 @@ function save(): void {
                         <VmIcon name="external" />
                         <span class="vm-visually-hidden">({{ t('shell.opensNewTab') }})</span>
                     </a>
-                </VtCard>
+                </VmCard>
 
-                <VtCard>
+                <VmCard>
                     <h2 class="vt-text-display">{{ t('profile.rolesTitle') }}</h2>
                     <ul class="vm-profile__roles" role="list">
                         <li v-for="row in page.props.workspaces" :key="row.uuid" class="vm-profile__role">
@@ -213,7 +219,7 @@ function save(): void {
                             <VtBadge size="sm">{{ roleLabel(row) }}</VtBadge>
                         </li>
                     </ul>
-                </VtCard>
+                </VmCard>
             </aside>
         </div>
     </AppLayout>

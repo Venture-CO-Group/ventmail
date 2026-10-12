@@ -1,6 +1,11 @@
 <script setup lang="ts">
 import { router } from '@inertiajs/vue3';
-import { VtButton, VtCard, VtField, VtInput, VtSelect, VtTextarea } from '@venture/ui';
+import { VtButton, VtField, VtInput, VtSelect, VtTextarea } from '@venture/ui';
+import VmCard from '../../Components/Form/VmCard.vue';
+import VmForm from '../../Components/Form/VmForm.vue';
+import VmFormActions from '../../Components/Form/VmFormActions.vue';
+import VmFormRow from '../../Components/Form/VmFormRow.vue';
+import VmFormSection from '../../Components/Form/VmFormSection.vue';
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import AppLayout from '../../Layouts/AppLayout.vue';
@@ -102,63 +107,71 @@ function toggle(row: FormRow): void {
 
         <p class="vm-banner" role="status">{{ t('forms.note') }}</p>
 
-        <VtCard data-testid="form-editor">
+        <VmCard data-testid="form-editor">
             <h2>{{ editing ? t('forms.edit') : t('forms.create') }}</h2>
 
-            <VtField :label="t('forms.name')">
-                <VtInput v-model="form.name" data-testid="form-name" />
-            </VtField>
+            <VmForm @submit.prevent="submit">
+                <VmFormSection>
+                    <VtField :label="t('forms.name')">
+                        <VtInput v-model="form.name" data-testid="form-name" />
+                    </VtField>
 
-            <VtField :label="t('forms.list')" :hint="t('forms.listHint')">
-                <VtSelect v-model="form.listUuid" :options="listOptions" data-testid="form-list" />
-            </VtField>
+                    <VmFormRow>
+                        <VtField :label="t('forms.list')" :hint="t('forms.listHint')">
+                            <VtSelect v-model="form.listUuid" :options="listOptions" data-testid="form-list" />
+                        </VtField>
 
-            <VtField :label="t('forms.minSeconds')" :hint="t('forms.minSecondsHint')">
-                <VtInput v-model="form.minSeconds" data-testid="form-min-seconds" />
-            </VtField>
+                        <VtField :label="t('forms.minSeconds')" :hint="t('forms.minSecondsHint')">
+                            <VtInput v-model="form.minSeconds" data-testid="form-min-seconds" />
+                        </VtField>
+                    </VmFormRow>
 
-            <VtField :label="t('forms.consentText')" :hint="t('forms.consentTextHint')">
-                <VtTextarea v-model="form.consentText" data-testid="form-consent-text" />
-            </VtField>
+                    <VtField :label="t('forms.consentText')" :hint="t('forms.consentTextHint')">
+                        <VtTextarea v-model="form.consentText" data-testid="form-consent-text" />
+                    </VtField>
 
-            <VtField :label="t('forms.policyVersion')" :hint="t('forms.policyVersionHint')">
-                <VtInput v-model="form.policyVersion" data-testid="form-policy-version" />
-            </VtField>
+                    <VmFormRow>
+                        <VtField :label="t('forms.policyVersion')" :hint="t('forms.policyVersionHint')">
+                            <VtInput v-model="form.policyVersion" data-testid="form-policy-version" />
+                        </VtField>
 
-            <VtField :label="t('forms.redirectUrl')" :hint="t('forms.redirectUrlHint')">
-                <VtInput v-model="form.redirectUrl" data-testid="form-redirect" placeholder="https://" />
-            </VtField>
+                        <VtField :label="t('forms.redirectUrl')" :hint="t('forms.redirectUrlHint')">
+                            <VtInput v-model="form.redirectUrl" data-testid="form-redirect" placeholder="https://" />
+                        </VtField>
+                    </VmFormRow>
+                </VmFormSection>
 
-            <div class="vm-cluster">
-                <VtButton
-                    :disabled="!form.name.trim() || !form.consentText.trim()"
-                    data-testid="form-submit"
-                    @click="submit"
-                >
-                    {{ editing ? t('forms.saveAction') : t('forms.createAction') }}
-                </VtButton>
+                <VmFormActions>
+                    <VtButton
+                        type="submit"
+                        :disabled="!form.name.trim() || !form.consentText.trim()"
+                        data-testid="form-submit"
+                    >
+                        {{ editing ? t('forms.saveAction') : t('forms.createAction') }}
+                    </VtButton>
 
-                <VtButton
-                    v-if="editing"
-                    variant="ghost"
-                    data-testid="form-cancel"
-                    @click="
-                        editing = null;
-                        form = blank();
-                    "
-                >
-                    {{ t('forms.cancel') }}
-                </VtButton>
-            </div>
-        </VtCard>
+                    <VtButton
+                        v-if="editing"
+                        variant="ghost"
+                        data-testid="form-cancel"
+                        @click="
+                            editing = null;
+                            form = blank();
+                        "
+                    >
+                        {{ t('forms.cancel') }}
+                    </VtButton>
+                </VmFormActions>
+            </VmForm>
+        </VmCard>
 
-        <VtCard>
+        <VmCard>
             <p v-if="!forms.length" data-testid="forms-empty">{{ t('forms.empty') }}</p>
 
             <div v-for="row in forms" :key="row.uuid" class="vm-stack" :data-testid="`form-${row.slug}`">
                 <div class="vm-cluster">
-                    <span>{{ row.name }}</span>
-                    <span class="vt-text-mono">{{ endpointBase }}{{ row.slug }}</span>
+                    <span class="vm-truncate vm-truncate--fill" :title="row.name">{{ row.name }}</span>
+                    <span class="vt-text-mono vm-wrap">{{ endpointBase }}{{ row.slug }}</span>
                     <span :data-testid="`state-${row.slug}`">
                         {{ row.active ? t('forms.active') : t('forms.inactive') }}
                     </span>
@@ -187,6 +200,6 @@ function toggle(row: FormRow): void {
                     row.snippet
                 }}</pre>
             </div>
-        </VtCard>
+        </VmCard>
     </AppLayout>
 </template>

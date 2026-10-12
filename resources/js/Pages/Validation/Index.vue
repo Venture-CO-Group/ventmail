@@ -1,6 +1,11 @@
 <script setup lang="ts">
 import { router } from '@inertiajs/vue3';
-import { VtButton, VtCard, VtField, VtInput, VtTable, type VtColumn } from '@venture/ui';
+import { VtButton, VtField, VtInput, type VtColumn } from '@venture/ui';
+import VmTable from '../../Components/Form/VmTable.vue';
+import VmCard from '../../Components/Form/VmCard.vue';
+import VmForm from '../../Components/Form/VmForm.vue';
+import VmFormActions from '../../Components/Form/VmFormActions.vue';
+import VmFormSection from '../../Components/Form/VmFormSection.vue';
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import AppLayout from '../../Layouts/AppLayout.vue';
@@ -77,21 +82,27 @@ function useSuggestion(suggestion: string): void {
 
         <p class="vm-banner" role="status">{{ t('validation.probeNote') }}</p>
 
-        <VtCard>
+        <VmCard>
             <h2>{{ t('validation.single') }}</h2>
 
-            <VtField :label="t('validation.address')">
-                <VtInput v-model="email" data-testid="validation-email" placeholder="cimzett@pelda.hu" />
-            </VtField>
+            <VmForm @submit.prevent="check">
+                <VmFormSection>
+                    <VtField :label="t('validation.address')">
+                        <VtInput v-model="email" data-testid="validation-email" placeholder="cimzett@pelda.hu" />
+                    </VtField>
+                </VmFormSection>
 
-            <VtButton :disabled="!email.trim()" data-testid="validation-submit" @click="check">
-                {{ t('validation.check') }}
-            </VtButton>
-        </VtCard>
+                <VmFormActions>
+                    <VtButton type="submit" :disabled="!email.trim()" data-testid="validation-submit">
+                        {{ t('validation.check') }}
+                    </VtButton>
+                </VmFormActions>
+            </VmForm>
+        </VmCard>
 
-        <VtCard v-if="verdict" data-testid="validation-verdict">
+        <VmCard v-if="verdict" data-testid="validation-verdict">
             <p>
-                <span class="vt-text-mono">{{ verdict.address }}</span>
+                <span class="vt-text-mono vm-wrap">{{ verdict.address }}</span>
                 — <strong data-testid="verdict-result">{{ verdict.result }}</strong>
                 ({{ t('validation.risk') }}: {{ verdict.risk }})
             </p>
@@ -108,14 +119,14 @@ function useSuggestion(suggestion: string): void {
                     {{ t('validation.useSuggestion') }}
                 </VtButton>
             </div>
-        </VtCard>
+        </VmCard>
 
-        <VtCard>
+        <VmCard>
             <h2>{{ t('validation.bulk') }}</h2>
             <p>{{ t('validation.usage', { count: usage }) }}</p>
 
             <p v-if="!rows.length" data-testid="jobs-empty">{{ t('validation.noJobs') }}</p>
-            <VtTable v-else :columns="columns" :rows="rows" :caption="t('validation.bulk')" data-testid="jobs-table" />
-        </VtCard>
+            <VmTable v-else :columns="columns" :rows="rows" :caption="t('validation.bulk')" data-testid="jobs-table" />
+        </VmCard>
     </AppLayout>
 </template>

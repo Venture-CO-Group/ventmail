@@ -1,6 +1,13 @@
 <script setup lang="ts">
 import { router, usePage } from '@inertiajs/vue3';
-import { VtButton, VtCard, VtCheckbox, VtField, VtInput, VtTable, type VtColumn } from '@venture/ui';
+import { VtButton, VtCheckbox, VtField, VtInput, type VtColumn } from '@venture/ui';
+import VmTable from '../../Components/Form/VmTable.vue';
+import VmCard from '../../Components/Form/VmCard.vue';
+import VmFieldGroup from '../../Components/Form/VmFieldGroup.vue';
+import VmForm from '../../Components/Form/VmForm.vue';
+import VmFormActions from '../../Components/Form/VmFormActions.vue';
+import VmFormRow from '../../Components/Form/VmFormRow.vue';
+import VmFormSection from '../../Components/Form/VmFormSection.vue';
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import AppLayout from '../../Layouts/AppLayout.vue';
@@ -121,26 +128,31 @@ function filterStatus(value: string): void {
             {{ t('webhooks.deadLetterWarning', { count: deadLettered.length }) }}
         </p>
 
-        <VtCard v-if="issuedSecret" data-testid="issued-secret">
+        <VmCard v-if="issuedSecret" data-testid="issued-secret">
             <p>{{ t('webhooks.secretOnce') }}</p>
-            <p class="vt-text-mono" data-testid="issued-secret-value">{{ issuedSecret }}</p>
-        </VtCard>
+            <p class="vt-text-mono vm-wrap" data-testid="issued-secret-value">{{ issuedSecret }}</p>
+        </VmCard>
 
-        <VtCard>
+        <VmCard>
             <h2>{{ t('webhooks.newEndpoint') }}</h2>
 
-            <VtField :label="t('webhooks.name')">
-                <VtInput v-model="name" data-testid="endpoint-name" placeholder="CRM" />
-            </VtField>
+            <VmForm @submit.prevent="create">
+                <VmFormSection>
+                    <VmFormRow>
+                        <VtField :label="t('webhooks.name')">
+                            <VtInput v-model="name" data-testid="endpoint-name" placeholder="CRM" />
+                        </VtField>
 
-            <VtField :label="t('webhooks.url')" :hint="t('webhooks.urlHint')">
-                <VtInput v-model="url" data-testid="endpoint-url" placeholder="https://pelda.hu/hook" />
-            </VtField>
+                        <VtField :label="t('webhooks.url')" :hint="t('webhooks.urlHint')">
+                            <VtInput v-model="url" data-testid="endpoint-url" placeholder="https://pelda.hu/hook" />
+                        </VtField>
+                    </VmFormRow>
 
-            <fieldset>
-                <legend>{{ t('webhooks.events') }}</legend>
-                <p>{{ t('webhooks.eventsHint') }}</p>
-                <div class="vm-cluster" data-testid="endpoint-events">
+                    <VmFieldGroup
+                        :legend="t('webhooks.events')"
+                        :hint="t('webhooks.eventsHint')"
+                        data-testid="endpoint-events"
+                    >
                     <VtCheckbox
                         v-for="event in availableEvents"
                         :key="event"
@@ -150,31 +162,34 @@ function filterStatus(value: string): void {
                     >
                         {{ event }}
                     </VtCheckbox>
-                </div>
-            </fieldset>
+                    </VmFieldGroup>
+                </VmFormSection>
 
-            <VtButton :disabled="!name.trim() || !url.trim()" data-testid="endpoint-submit" @click="create">
-                {{ t('webhooks.create') }}
-            </VtButton>
-        </VtCard>
+                <VmFormActions>
+                    <VtButton type="submit" :disabled="!name.trim() || !url.trim()" data-testid="endpoint-submit">
+                        {{ t('webhooks.create') }}
+                    </VtButton>
+                </VmFormActions>
+            </VmForm>
+        </VmCard>
 
-        <VtCard>
+        <VmCard>
             <h2>{{ t('webhooks.endpoints') }}</h2>
 
             <p v-if="!endpoints.length" data-testid="endpoints-empty">{{ t('webhooks.noEndpoints') }}</p>
 
             <div v-for="endpoint in endpoints" :key="endpoint.uuid" class="vm-cluster" :data-testid="`endpoint-${endpoint.uuid}`">
-                <strong>{{ endpoint.name }}</strong>
-                <span class="vt-text-mono">{{ endpoint.url }}</span>
-                <span>{{ endpoint.events.length ? endpoint.events.join(', ') : t('webhooks.allEvents') }}</span>
+                <strong class="vm-truncate vm-truncate--fill" :title="endpoint.name">{{ endpoint.name }}</strong>
+                <span class="vt-text-mono vm-truncate vm-truncate--fill" :title="endpoint.url">{{ endpoint.url }}</span>
+                <span class="vm-wrap">{{ endpoint.events.length ? endpoint.events.join(', ') : t('webhooks.allEvents') }}</span>
                 <span>{{ endpoint.active ? t('webhooks.active') : t('webhooks.inactive') }}</span>
                 <VtButton variant="ghost" :data-testid="`delete-${endpoint.uuid}`" @click="remove(endpoint.uuid)">
                     {{ t('webhooks.delete') }}
                 </VtButton>
             </div>
-        </VtCard>
+        </VmCard>
 
-        <VtCard>
+        <VmCard>
             <h2>{{ t('webhooks.deliveries') }}</h2>
 
             <div class="vm-cluster">
@@ -187,7 +202,7 @@ function filterStatus(value: string): void {
             </div>
 
             <p v-if="!deliveryRows.length" data-testid="deliveries-empty">{{ t('webhooks.noDeliveries') }}</p>
-            <VtTable
+            <VmTable
                 v-else
                 :columns="deliveryColumns"
                 :rows="deliveryRows"
@@ -206,6 +221,6 @@ function filterStatus(value: string): void {
                     {{ t('webhooks.replay') }}
                 </VtButton>
             </div>
-        </VtCard>
+        </VmCard>
     </AppLayout>
 </template>

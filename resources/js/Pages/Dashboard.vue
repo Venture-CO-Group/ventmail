@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { VtCard, VtTable, type VtColumn } from '@venture/ui';
+import { type VtColumn } from '@venture/ui';
+import VmTable from '../Components/Form/VmTable.vue';
+import VmCard from '../Components/Form/VmCard.vue';
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import AppLayout from '../Layouts/AppLayout.vue';
@@ -57,44 +59,44 @@ const rows = computed<Row[]>(() =>
         </p>
 
         <div class="vm-metrics" data-testid="dashboard-metrics">
-            <VtCard>
+            <VmCard>
                 <p class="vm-metric__label">{{ t('dashboard.quota') }}</p>
                 <p class="vm-metric__value" data-testid="metric-quota">{{ quota.remaining.toLocaleString() }}</p>
-            </VtCard>
+            </VmCard>
 
-            <VtCard>
+            <VmCard>
                 <p class="vm-metric__label">{{ t('dashboard.domains') }}</p>
                 <p class="vm-metric__value" data-testid="metric-domains">{{ domains.verified }} / {{ domains.total }}</p>
-            </VtCard>
+            </VmCard>
 
-            <VtCard>
+            <VmCard>
                 <p class="vm-metric__label">{{ t('dashboard.suppressions') }}</p>
                 <p class="vm-metric__value" data-testid="metric-suppressions">{{ suppressions.toLocaleString() }}</p>
-            </VtCard>
+            </VmCard>
 
-            <VtCard v-if="delivery">
+            <VmCard v-if="delivery">
                 <p class="vm-metric__label">{{ t('dashboard.bounceRate') }}</p>
                 <p class="vm-metric__value" data-testid="metric-bounce-rate">{{ delivery.bounce_rate }}%</p>
-            </VtCard>
+            </VmCard>
         </div>
 
-        <VtCard v-if="delivery" data-testid="delivery-summary">
+        <VmCard v-if="delivery" data-testid="delivery-summary">
             <div class="vm-cluster">
                 <span>{{ t('dashboard.delivered') }}: <strong>{{ delivery.delivered }}</strong></span>
                 <span>{{ t('dashboard.opened') }}: <strong>{{ delivery.opened }}</strong></span>
                 <span>{{ t('dashboard.clicked') }}: <strong>{{ delivery.clicked }}</strong></span>
                 <span>{{ t('dashboard.bounced') }}: <strong>{{ delivery.bounced }}</strong></span>
             </div>
-        </VtCard>
+        </VmCard>
 
-        <VtCard>
+        <VmCard>
             <h2>{{ t('dashboard.recent') }}</h2>
 
             <!-- A JOGOSULTSÁG HIÁNYA SZÖVEG, nem üres doboz: az `author` szerep szándékosan
                  nem kap `logs.view`-t, és ezt meg kell mondani, nem elhallgatni. -->
             <p v-if="delivery === null" data-testid="logs-forbidden">{{ t('dashboard.noAccess') }}</p>
             <p v-else-if="!rows.length" data-testid="recent-empty">{{ t('dashboard.empty') }}</p>
-            <VtTable v-else :columns="columns" :rows="rows" :caption="t('dashboard.recent')" data-testid="recent-table" />
-        </VtCard>
+            <VmTable v-else :columns="columns" :rows="rows" :caption="t('dashboard.recent')" data-testid="recent-table" />
+        </VmCard>
     </AppLayout>
 </template>

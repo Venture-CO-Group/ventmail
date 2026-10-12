@@ -1,6 +1,11 @@
 <script setup lang="ts">
 import { router } from '@inertiajs/vue3';
-import { VtButton, VtCard, VtField, VtGlowLine, VtInput, VtTable, type VtColumn } from '@venture/ui';
+import { VtButton, VtField, VtGlowLine, VtInput, type VtColumn } from '@venture/ui';
+import VmTable from '../../Components/Form/VmTable.vue';
+import VmCard from '../../Components/Form/VmCard.vue';
+import VmForm from '../../Components/Form/VmForm.vue';
+import VmFormActions from '../../Components/Form/VmFormActions.vue';
+import VmFormSection from '../../Components/Form/VmFormSection.vue';
 import { computed, ref } from 'vue';
 import AppLayout from '../../Layouts/AppLayout.vue';
 
@@ -82,7 +87,7 @@ function rotateDkim(): void {
     <AppLayout>
             <VtGlowLine />
 
-            <VtCard>
+            <VmCard>
                 <h1>Küldő domain hitelesítése</h1>
                 <p>
                     Verifikálatlan domainről a ventMail nem küld — ez nem beállítás, hanem szabály.
@@ -94,35 +99,43 @@ function rotateDkim(): void {
                     <li :aria-current="step === 2 ? 'step' : undefined">DNS-rekordok felvétele</li>
                     <li :aria-current="step === 3 ? 'step' : undefined">Ellenőrzés</li>
                 </ol>
-            </VtCard>
+            </VmCard>
 
-            <VtCard v-if="!domain">
-                <VtField label="Domain" hint="Például: pelda.hu — a feladó címének domainje.">
-                    <VtInput v-model="domainName" data-testid="domain-input" placeholder="pelda.hu" />
-                </VtField>
+            <VmCard v-if="!domain">
+                <VmForm @submit.prevent="submitDomain">
+                    <VmFormSection>
+                        <VtField label="Domain" hint="Például: pelda.hu — a feladó címének domainje.">
+                            <VtInput v-model="domainName" data-testid="domain-input" placeholder="pelda.hu" />
+                        </VtField>
+                    </VmFormSection>
 
-                <VtButton data-testid="domain-submit" :disabled="submitting" @click="submitDomain">
-                    Domain hozzáadása
-                </VtButton>
-            </VtCard>
+                    <VmFormActions>
+                        <VtButton type="submit" data-testid="domain-submit" :disabled="submitting">
+                            Domain hozzáadása
+                        </VtButton>
+                    </VmFormActions>
+                </VmForm>
+            </VmCard>
 
-            <VtCard v-else>
-                <h2>{{ domain.name }}</h2>
+            <VmCard v-else>
+                <h2 class="vm-wrap">{{ domain.name }}</h2>
                 <p data-testid="domain-status">Állapot: {{ domain.status }}</p>
 
-                <VtTable
+                <VmTable
                     :columns="columns"
                     :rows="rows"
                     caption="A hitelesítéshez felveendő DNS-rekordok"
                     data-testid="dns-records"
                 />
 
-                <VtButton data-testid="verify-button" :disabled="checking" @click="verify">
-                    Ellenőrzés indítása
-                </VtButton>
+                <VmFormActions>
+                    <VtButton data-testid="verify-button" :disabled="checking" @click="verify">
+                        Ellenőrzés indítása
+                    </VtButton>
 
-                <VtButton data-testid="rotate-button" @click="rotateDkim">DKIM-kulcs rotálása</VtButton>
-            </VtCard>
+                    <VtButton data-testid="rotate-button" @click="rotateDkim">DKIM-kulcs rotálása</VtButton>
+                </VmFormActions>
+            </VmCard>
     </AppLayout>
 </template>
 

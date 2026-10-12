@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import { router } from '@inertiajs/vue3';
-import { VtButton, VtCard, VtCheckbox, VtField, VtInput, VtSelect } from '@venture/ui';
+import { VtButton, VtCheckbox, VtField, VtInput, VtSelect } from '@venture/ui';
+import VmCard from '../../Components/Form/VmCard.vue';
+import VmForm from '../../Components/Form/VmForm.vue';
+import VmFormActions from '../../Components/Form/VmFormActions.vue';
+import VmFormRow from '../../Components/Form/VmFormRow.vue';
+import VmFormSection from '../../Components/Form/VmFormSection.vue';
+import VmFieldGroup from '../../Components/Form/VmFieldGroup.vue';
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import AppLayout from '../../Layouts/AppLayout.vue';
@@ -109,7 +115,7 @@ function transition(action: string): void {
 
 <template>
     <AppLayout>
-        <h1 class="vt-text-display">{{ campaign.name }}</h1>
+        <h1 class="vt-text-display vm-wrap">{{ campaign.name }}</h1>
 
         <p class="vm-banner" role="status" data-testid="campaign-status">
             {{ t('campaigns.statusIs', { status: campaign.status }) }}
@@ -121,40 +127,48 @@ function transition(action: string): void {
             {{ t('campaigns.lockedReason') }}
         </p>
 
-        <VtCard>
+        <VmCard>
             <h2>{{ t('campaigns.content') }}</h2>
 
-            <VtField :label="t('campaigns.name')">
-                <VtInput v-model="form.name" :disabled="!campaign.editable" data-testid="edit-name" />
-            </VtField>
+            <VmForm @submit.prevent="save">
+                <VmFormSection>
+                    <VmFormRow>
+                        <VtField :label="t('campaigns.name')">
+                            <VtInput v-model="form.name" :disabled="!campaign.editable" data-testid="edit-name" />
+                        </VtField>
 
-            <VtField :label="t('campaigns.subject')">
-                <VtInput v-model="form.subject" :disabled="!campaign.editable" data-testid="edit-subject" />
-            </VtField>
+                        <VtField :label="t('campaigns.subject')">
+                            <VtInput v-model="form.subject" :disabled="!campaign.editable" data-testid="edit-subject" />
+                        </VtField>
+                    </VmFormRow>
 
-            <VtField :label="t('campaigns.fromEmail')" :hint="t('campaigns.fromHint')">
-                <VtInput v-model="form.fromEmail" :disabled="!campaign.editable" data-testid="edit-from" />
-            </VtField>
+                    <VmFormRow>
+                        <VtField :label="t('campaigns.fromEmail')" :hint="t('campaigns.fromHint')">
+                            <VtInput v-model="form.fromEmail" :disabled="!campaign.editable" data-testid="edit-from" />
+                        </VtField>
 
-            <VtField :label="t('campaigns.template')">
-                <VtSelect
-                    v-model="form.templateUuid"
-                    :options="templateOptions"
-                    :disabled="!campaign.editable"
-                    data-testid="edit-template"
-                />
-            </VtField>
-        </VtCard>
+                        <VtField :label="t('campaigns.template')">
+                            <VtSelect
+                                v-model="form.templateUuid"
+                                :options="templateOptions"
+                                :disabled="!campaign.editable"
+                                data-testid="edit-template"
+                            />
+                        </VtField>
+                    </VmFormRow>
+                </VmFormSection>
+            </VmForm>
+        </VmCard>
 
-        <VtCard>
+        <VmCard>
             <h2>{{ t('campaigns.targeting') }}</h2>
 
             <!-- A BECSLÉS a VALÓDI feloldón megy át: ugyanazon, amelyik a küldéskor dolgozik. -->
             <p data-testid="campaign-estimate">{{ t('campaigns.estimate', { count: estimate }) }}</p>
 
-            <fieldset>
-                <legend>{{ t('campaigns.lists') }}</legend>
-                <div class="vm-cluster">
+            <VmForm @submit.prevent="save">
+                <VmFormSection>
+                <VmFieldGroup :legend="t('campaigns.lists')">
                     <VtCheckbox
                         v-for="list in lists"
                         :key="list.uuid"
@@ -165,12 +179,9 @@ function transition(action: string): void {
                     >
                         {{ list.name }}
                     </VtCheckbox>
-                </div>
-            </fieldset>
+                </VmFieldGroup>
 
-            <fieldset>
-                <legend>{{ t('campaigns.segments') }}</legend>
-                <div class="vm-cluster">
+                <VmFieldGroup :legend="t('campaigns.segments')">
                     <VtCheckbox
                         v-for="segment in segments"
                         :key="segment.uuid"
@@ -181,35 +192,44 @@ function transition(action: string): void {
                     >
                         {{ segment.name }}
                     </VtCheckbox>
-                </div>
-            </fieldset>
+                </VmFieldGroup>
+                </VmFormSection>
 
-            <VtButton :disabled="!campaign.editable" data-testid="campaign-save" @click="save">
-                {{ t('campaigns.save') }}
-            </VtButton>
-        </VtCard>
+                <VmFormActions>
+                    <VtButton type="submit" :disabled="!campaign.editable" data-testid="campaign-save">
+                        {{ t('campaigns.save') }}
+                    </VtButton>
+                </VmFormActions>
+            </VmForm>
+        </VmCard>
 
-        <VtCard>
+        <VmCard>
             <h2>{{ t('campaigns.scheduling') }}</h2>
 
-            <VtField :label="t('campaigns.localTime')" :hint="t('campaigns.localTimeHint')">
-                <VtInput v-model="localTime" data-testid="schedule-time" placeholder="2026-10-01 09:00" />
-            </VtField>
+            <VmForm @submit.prevent>
+                <VmFormSection>
+                    <VmFormRow>
+                        <VtField :label="t('campaigns.localTime')" :hint="t('campaigns.localTimeHint')">
+                            <VtInput v-model="localTime" data-testid="schedule-time" placeholder="2026-10-01 09:00" />
+                        </VtField>
 
-            <VtField :label="t('campaigns.timezone')">
-                <VtInput v-model="timezone" data-testid="schedule-timezone" />
-            </VtField>
+                        <VtField :label="t('campaigns.timezone')">
+                            <VtInput v-model="timezone" data-testid="schedule-timezone" />
+                        </VtField>
+                    </VmFormRow>
+                </VmFormSection>
 
-            <div class="vm-cluster">
-                <VtButton data-testid="action-schedule" @click="transition('schedule')">{{ t('campaigns.schedule') }}</VtButton>
-                <VtButton variant="ghost" data-testid="action-unschedule" @click="transition('unschedule')">{{ t('campaigns.unschedule') }}</VtButton>
-                <VtButton data-testid="action-start" @click="transition('start')">{{ t('campaigns.start') }}</VtButton>
-                <VtButton variant="ghost" data-testid="action-pause" @click="transition('pause')">{{ t('campaigns.pause') }}</VtButton>
-                <VtButton variant="ghost" data-testid="action-resume" @click="transition('resume')">{{ t('campaigns.resume') }}</VtButton>
-            </div>
-        </VtCard>
+                <VmFormActions>
+                    <VtButton data-testid="action-schedule" @click="transition('schedule')">{{ t('campaigns.schedule') }}</VtButton>
+                    <VtButton variant="ghost" data-testid="action-unschedule" @click="transition('unschedule')">{{ t('campaigns.unschedule') }}</VtButton>
+                    <VtButton data-testid="action-start" @click="transition('start')">{{ t('campaigns.start') }}</VtButton>
+                    <VtButton variant="ghost" data-testid="action-pause" @click="transition('pause')">{{ t('campaigns.pause') }}</VtButton>
+                    <VtButton variant="ghost" data-testid="action-resume" @click="transition('resume')">{{ t('campaigns.resume') }}</VtButton>
+                </VmFormActions>
+            </VmForm>
+        </VmCard>
 
-        <VtCard data-testid="campaign-variants">
+        <VmCard data-testid="campaign-variants">
             <h2>{{ t('campaigns.abTest') }}</h2>
 
             <p>{{ t('campaigns.abHint') }}</p>
@@ -230,31 +250,37 @@ function transition(action: string): void {
             <!-- A VÁLTOZAT csak DRAFT állapotban vehető fel: a kiosztás a küldés elején
                  dől el, egy menet közben érkező variáns a már kiküldött felével
                  összehasonlíthatatlan lenne. -->
-            <template v-if="campaign.editable">
-                <VtField :label="t('campaigns.variantLabel')">
-                    <VtInput v-model="variantForm.label" data-testid="variant-label" placeholder="B" />
-                </VtField>
+            <VmForm v-if="campaign.editable" @submit.prevent="addVariant">
+                <VmFormSection>
+                    <VmFormRow>
+                        <VtField :label="t('campaigns.variantLabel')">
+                            <VtInput v-model="variantForm.label" data-testid="variant-label" placeholder="B" />
+                        </VtField>
 
-                <VtField :label="t('campaigns.subject')">
-                    <VtInput v-model="variantForm.subject" data-testid="variant-subject" />
-                </VtField>
+                        <VtField :label="t('campaigns.weight')" :hint="t('campaigns.weightHint')">
+                            <VtInput v-model="variantForm.weight" data-testid="variant-weight" />
+                        </VtField>
+                    </VmFormRow>
 
-                <VtField :label="t('campaigns.weight')" :hint="t('campaigns.weightHint')">
-                    <VtInput v-model="variantForm.weight" data-testid="variant-weight" />
-                </VtField>
+                    <VtField :label="t('campaigns.subject')">
+                        <VtInput v-model="variantForm.subject" data-testid="variant-subject" />
+                    </VtField>
+                </VmFormSection>
 
-                <VtButton
-                    :disabled="!variantForm.label.trim() || !variantForm.subject.trim()"
-                    data-testid="variant-submit"
-                    @click="addVariant"
-                >
-                    {{ t('campaigns.addVariant') }}
-                </VtButton>
-            </template>
+                <VmFormActions>
+                    <VtButton
+                        type="submit"
+                        :disabled="!variantForm.label.trim() || !variantForm.subject.trim()"
+                        data-testid="variant-submit"
+                    >
+                        {{ t('campaigns.addVariant') }}
+                    </VtButton>
+                </VmFormActions>
+            </VmForm>
 
             <div v-for="variant in campaign.variants" :key="variant.uuid" class="vm-cluster">
                 <strong>{{ variant.label }}</strong>
-                <span>{{ variant.subject }}</span>
+                <span class="vm-truncate vm-truncate--fill" :title="variant.subject">{{ variant.subject }}</span>
                 <span>{{ t('campaigns.weight') }}: {{ variant.weight }}</span>
                 <span :data-testid="`variant-stats-${variant.label}`">
                     {{ variant.sent }} / {{ variant.opened }} / {{ variant.clicked }}
@@ -270,6 +296,6 @@ function transition(action: string): void {
                 </VtButton>
                 <span v-if="variant.winner" :data-testid="`winner-${variant.uuid}`">{{ t('campaigns.winner') }}</span>
             </div>
-        </VtCard>
+        </VmCard>
     </AppLayout>
 </template>
