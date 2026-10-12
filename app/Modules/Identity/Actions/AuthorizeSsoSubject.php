@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace App\Modules\Identity\Actions;
 
 use App\Models\User;
+use App\Modules\Identity\Exceptions\SsoAccessDenied;
 use App\Modules\Sending\Services\DomainNormalizer;
 use App\Modules\Tenancy\Models\WorkspaceInvitation;
 use App\Modules\Tenancy\Models\WorkspaceMember;
-use App\Modules\Identity\Exceptions\SsoAccessDenied;
 
 /**
  * Van-e az alanynak keresnivalója a ventMailben?

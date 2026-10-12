@@ -55,7 +55,7 @@ it('a JWKS-újratöltés nem ismételhető korlátlanul', function () {
     $this->sso->fakeHttp(['id_token' => $token]);
     $before = $this->sso->jwksRequests;
 
-    $this->get('/auth/callback?code=c&state='.session('oidc.state'))->assertRedirect('/');
+    $this->get('/auth/callback?code=c&state='.session('oidc.state'))->assertRedirect('/')->assertSessionHas('error', __('ventmail.auth.retry'));
 
     // Hideg cache mellett egy normál + EGY rotációs újratöltés a plafon; a lényeg, hogy
     // a hibás aláírás ne indítson korlátlan JWKS-lekérést az IdP felé.

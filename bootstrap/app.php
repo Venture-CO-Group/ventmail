@@ -139,10 +139,13 @@ return Application::configure(basePath: dirname(__DIR__))
         // (A Laravel a render-callbackek ELŐTT az AuthorizationException-t AccessDeniedHttpException-re
         // fordítja — ezért az az elfogott típus, az eredeti a `getPrevious()`-ben van.)
         $exceptions->render(function (AccessDeniedHttpException $e, Request $request) {
-            if (! $e->getPrevious() instanceof AuthorizationException
-                || ! $request->routeIs('auth.callback')
-                || $request->expectsJson()) {
+            if (! $e->getPrevious() instanceof AuthorizationException || ! $request->routeIs('auth.callback')) {
                 return null;
+            }
+
+            // JSON-ra is generikus válasz: a belső ok (state/nonce/aud/szerep) validációs orákulum lenne.
+            if ($request->expectsJson()) {
+                return response()->json(['message' => __('ventmail.auth.retry')], 403);
             }
 
             // Csak a szerep/tagság-megtagadás kap „nincs hozzáférésed" oldalt; a többi hiba

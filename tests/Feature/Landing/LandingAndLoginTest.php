@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Request;
 use Tests\Support\FakeSsoProvider;
 
 uses(RefreshDatabase::class);
@@ -153,12 +154,37 @@ it('a nem szerep-megtagadás (state, token hiba) újrabejelentkezésre visz, Den
         ->assertDontSee('OIDC state');
 });
 
+it('JSON kérésnél a callback hibája sem szivárogtat belső okot', function () {
+    $this->get('/auth/redirect');
+
+    $json = $this->getJson('/auth/callback?code=auth-code&state=hamisitott');
+    $json->assertStatus(403);
+
+    $body = strtolower($json->getContent());
+    foreach (['state', 'nonce', 'aud', 'csrf', 'oidc'] as $leak) {
+        expect($body)->not->toContain($leak);
+    }
+});
+
+it('JSON kérésnél a szerep-megtagadás is generikus', function () {
+    $sso = new FakeSsoProvider;
+    config(['oidc.provider_url' => $sso->issuer, 'oidc.client_id' => 'ventmail', 'oidc.client_secret' => 's', 'oidc.roles_claim' => 'resource_access.ventmail.roles']);
+    $sso->fakeHttp();
+    $this->get('/auth/redirect');
+    $sso->fakeHttp(['id_token' => $sso->idToken(['aud' => 'ventmail', 'nonce' => session('oidc.nonce')])]);
+
+    $this->getJson('/auth/callback?code=auth-code&state='.session('oidc.state'))
+        ->assertStatus(403)
+        ->assertDontSee('ventSSO-alanyhoz')
+        ->assertDontSee('meghívót');
+});
+
 it('az apex-kaput a továbbított host is érvényesíti, de csak trusted proxyról', function () {
     config(['proxy.trusted_proxies' => ['127.0.0.1']]);
     $this->get('http://app.ventmail.app/dashboard', ['X-Forwarded-Host' => 'ventmail.app'])->assertNotFound();
 
     config(['proxy.trusted_proxies' => []]);
-    Illuminate\Http\Request::setTrustedProxies([], -1);
+    Request::setTrustedProxies([], -1);
     $this->get('http://app.ventmail.app/dashboard', ['X-Forwarded-Host' => 'ventmail.app'])->assertRedirect();
 });
 
