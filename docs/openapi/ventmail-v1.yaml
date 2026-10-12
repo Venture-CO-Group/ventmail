@@ -1359,6 +1359,9 @@ components:
         - VALIDATION_RISK
         - INVALID_REQUEST
         - GATE_ERROR
+        # Éles küldési mód: seed-allowlist, illetve kikapcsolt marketing-csatorna.
+        - SENDING_RESTRICTED
+        - CHANNEL_DISABLED
         - ENTITLEMENT_REQUIRED
         - IP_POOL_CHANNEL_MISMATCH
         - UNSUPPORTED_MIME_OPTION

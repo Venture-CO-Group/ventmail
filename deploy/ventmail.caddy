@@ -1,0 +1,41 @@
+# ventMail on the mail-box edge (venture-infra boxes/mail/edge/sites/).
+# app.  : the web UI     api. : the /v1 API     apex : 301 to app.
+#
+# Traffic only goes to a colour that passes its health check (blue/green, see
+# deploy.sh). /internal/* is the Postal webhook path: reachable only from the
+# internal postal-api network, never through the edge.
+(ventmail_upstream) {
+	reverse_proxy ventmail-web-blue:8080 ventmail-web-green:8080 {
+		header_up -X-Forwarded-Prefix
+		header_up -X-Forwarded-Port
+		lb_policy first
+		lb_try_duration 10s
+		lb_try_interval 250ms
+		health_uri /up
+		health_interval 2s
+		health_timeout 2s
+		health_headers {
+			Host {args[0]}
+		}
+	}
+}
+
+(ventmail_site) {
+	import security_headers
+	@internal path /internal /internal/*
+	respond @internal 404
+	import ventmail_upstream {args[0]}
+}
+
+app.ventmail.app {
+	import ventmail_site app.ventmail.app
+}
+
+api.ventmail.app {
+	import ventmail_site api.ventmail.app
+}
+
+ventmail.app {
+	import security_headers
+	redir https://app.ventmail.app{uri} 301
+}

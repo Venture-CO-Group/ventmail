@@ -3,6 +3,8 @@
 declare(strict_types=1);
 
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Http\Middleware\TrustConfiguredHosts;
+use App\Http\Middleware\TrustEdgeProxies;
 use App\Modules\Api\Http\Middleware\AuthenticateApiKey;
 use App\Modules\Api\Http\Middleware\AuthorizeChannel;
 use App\Modules\Api\Http\Middleware\RequireApiScope;
@@ -16,6 +18,7 @@ use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets;
+use Illuminate\Http\Middleware\TrustProxies;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 
@@ -82,33 +85,16 @@ return Application::configure(basePath: dirname(__DIR__))
         // A PreSendGate 5. kapuja (rate-limit) mellett az API-felület is limitált kell legyen.
         $middleware->throttleApi();
 
-        // Caddy mögött enélkül a kliens IP a proxyé lenne (rossz rate-limit kulcs és audit-forrás),
-        // és a generált URL-ek http:// sémával jönnének — az OIDC redirect_uri-t a ventSSO
-        // jogosan utasítaná el. Élesben az `at:` a konkrét proxy-hálóra szűkítendő.
-        // FIGYELEM — a `*` NEM no-op, MÉRVE: `REMOTE_ADDR=172.18.0.9` +
-        // `X-Forwarded-For: 9.9.9.9` mellett a `request->ip()` `9.9.9.9`, és a `getHost()` is
-        // az `X-Forwarded-Host`-ot veszi. (Egy korábbi komment itt az ellenkezőjét állította;
-        // az állítás hamis volt, és a rá építő rate-limitek egy fejléccel kikapcsolhatók.)
-        //
-        // Vagyis a `request->ip()` a KÉRŐ SZAVA. Naplózáshoz és földrajzi jelzéshez rendben
-        // (ott a proxy adja a helyes értéket), rate-limit KULCSÁHOZ nem: aki a fejlécet írja,
-        // magának ad friss keretet. Az A6 publikus végpontjai ezért a `REMOTE_ADDR`-ra és az
-        // igény lenyomatára kulcsolnak (`AppServiceProvider::peer()`), de a `throttle:oidc`,
-        // az `api` és az `api-auth-fail:ip:` vödör MÉG a `request->ip()`-re — az API-kulcs
-        // brute-force plafonja tehát ma átléphető.
-        //
-        // A helyes javítás nem limiterenkénti kerülőút, hanem a `TRUSTED_PROXIES` leszűkítése
-        // a valódi proxy-hálóra. Ez üzemeltetési döntés (PHASE.md · A6 backlog), és élesben
-        // KÖTELEZŐ.
-        $proxies = (string) env('TRUSTED_PROXIES', '*');
-
-        $middleware->trustProxies(
-            at: $proxies === '*' ? '*' : explode(',', $proxies),
-            headers: Request::HEADER_X_FORWARDED_FOR
-                | Request::HEADER_X_FORWARDED_HOST
-                | Request::HEADER_X_FORWARDED_PORT
-                | Request::HEADER_X_FORWARDED_PROTO,
-        );
+        // Caddy mögött enélkül a generált URL-ek http:// sémával jönnének (az OIDC
+        // redirect_uri-t a ventSSO jogosan utasítaná el), a kliens-IP pedig a proxyé lenne.
+        // A `*` NEM no-op: mellette az `X-Forwarded-For` és az `X-Forwarded-Host` a KÉRŐ
+        // szava. A rate-limitek kulcsa ezért a `ClientAddress` (a TCP-partner, vagy a
+        // szűkített edge-listáról érkező kérésnél a továbbított cím).
+        // A bizalmi határ a `config/proxy.php`-ben (deploy-ovh): alapból SENKINEK nem
+        // hiszünk, élesben csak az edge-proxy `/32`-jének. A Host-fejlécet élesben a
+        // megbízható hostlista szűri.
+        $middleware->replace(TrustProxies::class, TrustEdgeProxies::class);
+        $middleware->prepend(TrustConfiguredHosts::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         // A Laravel a BINDINGEKET behelyettesíti a QueryException üzenetébe — egy hibás

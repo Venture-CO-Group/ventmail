@@ -9,6 +9,7 @@ use App\Modules\Consent\Services\ConfirmationTokens;
 use App\Modules\Consent\Services\PreferenceTokens;
 use App\Modules\Events\Services\TrackingTokens;
 use App\Modules\Suppression\Services\UnsubscribeTokens;
+use App\Support\ClientAddress;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
@@ -122,6 +123,10 @@ class AppServiceProvider extends ServiceProvider
         // A kulcs a KANONIKUS IGÉNY, nem a token bájtjai: azokból több ezer érvényes variáns
         // gyártható ugyanarra az igényre, tehát token-kulccsal a fék megkerülhető lenne.
         // Értelmezhetetlen tokennél az IP a kulcs — ott nincs mihez kötni.
+        // A Postal webhookja: a belső hálózatról jön, de egy elszabadult (vagy hamis)
+        // hívó se tudja a DB-t aláírás-ellenőrzéssel elárasztani.
+        RateLimiter::for('postal-webhook', fn (Request $request) => Limit::perMinute(1200)->by('peer:'.self::peer($request)));
+
         RateLimiter::for('tracking', function (Request $request) {
             $tokens = app(TrackingTokens::class);
             $claim = $tokens->parse((string) $request->route('token'));
@@ -328,6 +333,9 @@ class AppServiceProvider extends ServiceProvider
 
     private static function peer(Request $request): string
     {
-        return (string) ($request->server('REMOTE_ADDR') ?? 'unknown');
+        // A TCP-partner (`server('REMOTE_ADDR')`) — vagy a SZŰKÍTETT edge-listáról érkező
+        // kérésnél a továbbított kliens-IP. Enélkül az edge mögött minden fék egyetlen
+        // globális vödör lenne. Lásd `ClientAddress`.
+        return ClientAddress::of($request);
     }
 }

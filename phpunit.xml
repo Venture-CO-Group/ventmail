@@ -70,6 +70,12 @@
         <env force="true" name="MAIL_MAILER" value="array"/>
         <env force="true" name="QUEUE_CONNECTION" value="sync"/>
         <env force="true" name="SESSION_DRIVER" value="array"/>
+        <!-- A küldési mód élesben ZÁRT (SendingModeTest); a többi teszt a nyitott motort méri. -->
+        <env force="true" name="SENDING_LIVE" value="true"/>
+        <env force="true" name="SENDING_MARKETING_ENABLED" value="true"/>
+        <env force="true" name="SEND_ALLOWLIST_ENFORCED" value="false"/>
+        <!-- A proxy-bizalom determinisztikus: senkinek (EdgeProxyTest méri az edge-et). -->
+        <env force="true" name="TRUSTED_PROXIES" value=""/>
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>
@@ -79,6 +85,10 @@
              DEV drivereken futna (Redis-cache, Redis-session), és a rate limiter átszivárogna
              a tesztek között. -->
         <server force="true" name="APP_ENV" value="testing"/>
+        <server force="true" name="SENDING_LIVE" value="true"/>
+        <server force="true" name="SENDING_MARKETING_ENABLED" value="true"/>
+        <server force="true" name="SEND_ALLOWLIST_ENFORCED" value="false"/>
+        <server force="true" name="TRUSTED_PROXIES" value=""/>
         <server force="true" name="APP_MAINTENANCE_DRIVER" value="file"/>
         <server force="true" name="BCRYPT_ROUNDS" value="4"/>
         <server force="true" name="BROADCAST_CONNECTION" value="null"/>

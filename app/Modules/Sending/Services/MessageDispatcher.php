@@ -59,6 +59,7 @@ final class MessageDispatcher
         private readonly TemplateRenderer $renderer = new TemplateRenderer,
         private readonly TrackingRewriter $tracking = new TrackingRewriter(new TrackingTokens),
         private readonly TrackingBaseUrl $trackingBase = new TrackingBaseUrl,
+        private readonly SendingMode $mode = new SendingMode,
     ) {}
 
     /**
@@ -116,6 +117,15 @@ final class MessageDispatcher
                 $message->uuid,
                 (string) $message->gate_decided_at
             ));
+        }
+
+        // A KÜLDÉSI MÓD a küldés pillanatában is számít: ha a tulajdonos a gate-döntés óta
+        // visszazárta (seed-mód, marketing ki), a sorban álló levél sem mehet ki.
+        if (($restriction = $this->mode->restriction($message)) !== null) {
+            $message->forceFill(['status' => 'rejected', 'reason' => $restriction->value])->save();
+            $this->events($message, 'rejected', [], ['reason' => $restriction->value]);
+
+            return;
         }
 
         if (! $this->claim($message)) {

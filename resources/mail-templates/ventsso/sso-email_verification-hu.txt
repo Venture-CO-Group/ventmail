@@ -1,0 +1,9 @@
+Erősítsd meg az e-mail-címed
+
+Kattints az alábbi linkre, hogy megerősítsd az e-mail-címedet a Venture-fiókodhoz:
+
+{{ url }}
+
+Ha nem te regisztráltál, hagyd figyelmen kívül ezt a levelet.
+
+— Venture

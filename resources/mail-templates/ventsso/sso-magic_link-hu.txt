@@ -1,0 +1,9 @@
+Bejelentkezési linked
+
+Az alábbi linkkel jelszó nélkül bejelentkezhetsz a Venture-fiókodba. A link rövid ideig érvényes és egyszer használható.
+
+{{ url }}
+
+Ha nem te kérted, hagyd figyelmen kívül ezt a levelet.
+
+— Venture

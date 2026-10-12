@@ -53,6 +53,11 @@ final class DnsRecordGenerator
             // hogy a mi domainünkre kötelező a TLS (a lefokozó támadás ellen), az utóbbi
             // pedig a fogadóktól kér jelentést a TLS-hibákról. A kettő együtt működik: az
             // egyik előír, a másik megmutatja, hogy betartják-e.
+            // A Return-Path (envelope sender) POOLONKÉNT külön domainre mutat: a bounce a
+            // küldő példányhoz jön vissza, és a két pool reputációja itt sem keveredik.
+            // A DMARC SPF-igazítás (relaxed) ezen az aldomainen keresztül teljesül.
+            'return_path_transactional' => $this->returnPath($host, 'transactional'),
+            'return_path_marketing' => $this->returnPath($host, 'marketing'),
             'mta_sts' => [
                 'type' => 'TXT',
                 'name' => '_mta-sts.'.$host,
@@ -77,6 +82,19 @@ final class DnsRecordGenerator
                 'value' => sprintf('10 %s', config('inbound.mx_target')),
                 'purpose' => 'Bejövő levelek fogadása (opcionális — csak ha inbound routingot használsz).',
             ],
+        ];
+    }
+
+    /** @return array{type: string, name: string, value: string, purpose: string} */
+    private function returnPath(string $host, string $pool): array
+    {
+        return [
+            'type' => 'CNAME',
+            'name' => sprintf('%s.%s', config("sending.postal.pools.{$pool}.return_path_prefix"), $host),
+            'value' => (string) config("sending.postal.pools.{$pool}.return_path_domain"),
+            'purpose' => $pool === 'transactional'
+                ? 'Return-Path a tranzakciós poolhoz: ide érkeznek vissza a bounce-ok.'
+                : 'Return-Path a marketing poolhoz (csak ha marketing levelet is küldesz erről a domainről).',
         ];
     }
 }

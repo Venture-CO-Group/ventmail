@@ -19,6 +19,12 @@ enum GateReason: string
     case RateLimited = 'RATE_LIMITED';
     case ValidationRisk = 'VALIDATION_RISK';
 
+    /** Seed-mód / allowlist: az éles küldés még nincs kinyitva erre a címzettre. */
+    case SendingRestricted = 'SENDING_RESTRICTED';
+
+    /** A csatorna (marketing, campaign, journey) a platformon ki van kapcsolva. */
+    case ChannelDisabled = 'CHANNEL_DISABLED';
+
     /** Bemenet-épség: ismeretlen csatorna, hiányzó/érvénytelen címzett, tiltott fejléc. */
     case InvalidRequest = 'INVALID_REQUEST';
 

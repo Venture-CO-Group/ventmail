@@ -13,3 +13,34 @@ pest()->extend(TestCase::class)->in('Feature');
 
 // A RefreshDatabase-t az adatbázist érintő tesztek maguk kérik (`uses(RefreshDatabase::class)`),
 // hogy a séma nélküli skeleton-tesztek gyorsak maradjanak.
+
+/** Egy config-fájl kiértékelése adott env-vel — a VALÓDI alapértékek mérésére. */
+function configFileWith(string $file, array $env): array
+{
+    $saved = [];
+
+    foreach ($env as $key => $value) {
+        $saved[$key] = array_key_exists($key, $_SERVER) ? $_SERVER[$key] : null;
+        putenv($value === null ? $key : "{$key}={$value}");
+
+        if ($value === null) {
+            unset($_ENV[$key], $_SERVER[$key]);
+        } else {
+            $_ENV[$key] = $_SERVER[$key] = $value;
+        }
+    }
+
+    try {
+        return require base_path("config/{$file}.php");
+    } finally {
+        foreach ($saved as $key => $value) {
+            putenv($value === null ? $key : "{$key}={$value}");
+
+            if ($value === null) {
+                unset($_ENV[$key], $_SERVER[$key]);
+            } else {
+                $_ENV[$key] = $_SERVER[$key] = $value;
+            }
+        }
+    }
+}

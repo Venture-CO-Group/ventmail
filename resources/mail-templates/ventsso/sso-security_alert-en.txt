@@ -1,0 +1,9 @@
+Security alert
+
+A security event happened on your Venture account: {{ event }} ({{ provider }}).
+
+{{ code }}
+
+If this was not you, change your password right away and review your account settings.
+
+— Venture

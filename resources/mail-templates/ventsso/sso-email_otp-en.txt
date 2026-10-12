@@ -1,0 +1,9 @@
+Your sign-in code
+
+Enter this code to finish signing in:
+
+{{ code }}
+
+The code is valid for a short time. If this was not you, change your password.
+
+— Venture

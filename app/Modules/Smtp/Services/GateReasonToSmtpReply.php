@@ -24,6 +24,8 @@ final class GateReasonToSmtpReply
             GateReason::NoConsent->value => new SmtpReply(550, 'No confirmed consent for marketing', '5.7.1'),
             GateReason::ValidationRisk->value => new SmtpReply(550, 'Recipient address rejected', '5.1.1'),
             GateReason::InvalidRequest->value => new SmtpReply(550, 'Message rejected', '5.6.0'),
+            GateReason::SendingRestricted->value => new SmtpReply(550, 'Recipient not allowed in seed mode', '5.7.1'),
+            GateReason::ChannelDisabled->value => new SmtpReply(550, 'Marketing sending disabled', '5.7.1'),
             GateReason::QuotaExceeded->value => new SmtpReply(452, 'Quota exceeded, try again later', '4.3.1'),
             GateReason::RateLimited->value => new SmtpReply(452, 'Rate limited, try again later', '4.3.2'),
             // Fail-closed: inkább KÉSÉS, mint ellenőrizetlen küldés.

@@ -4,13 +4,17 @@ on:
   pull_request:
   push:
     branches: [main]
+  # A release workflow ugyanezt a kaput hívja meg az image-építés előtt.
+  workflow_call:
 
 # A GITHUB_TOKEN a lehető legszűkebb jogot kapja (security-review B2).
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}
+  # A workflow neve is a kulcs része: a main-re pusholt CI és a release által meghívott
+  # kapu (ugyanazon a refen) különben kölcsönösen megszakítaná egymást.
+  group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -106,6 +110,13 @@ jobs:
 
       - name: composer audit
         run: composer audit --no-interaction
+
+      # A deploy-scriptek (deploy.sh, init-env.sh, set-env.sh) stub-docker elleni tesztje
+      # és a shell-scriptek statikus ellenőrzése.
+      - name: deploy tesztek + shellcheck
+        run: |
+          bash deploy/tests/deploy_test.sh
+          shellcheck deploy/*.sh deploy/tests/*.sh docker/*.sh
 
   frontend:
     name: Frontend (vue-tsc · build · npm audit)
@@ -204,6 +215,15 @@ jobs:
 
       - name: vite build
         run: npm run build
+
+      # A release image PONTOSAN ezt a buildet kapja (Dockerfile: public/build kötelező).
+      - name: public/build artefaktum
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: public-build
+          path: public/build
+          retention-days: 7
+          if-no-files-found: error
 
       - name: npm audit
         run: npm audit --audit-level=high

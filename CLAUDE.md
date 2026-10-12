@@ -66,5 +66,15 @@ saját identity/consent/számlázó/landing-page reimplementáció · direkt pus
 - Külső gazda mindig **interfész mögött**; a fake = teszttel fedett kontraktus.
 - Sávok: **M0 közös mag** → **A sáv (Platform)** és **B sáv (Studio)** párhuzamosítható → **C sáv (zárás)**.
 
+## Éles (mail-ovh-01, deploy-ovh — részletek: `docs/plans/deploy-ovh.md`)
+- Box: OVH `141.95.64.117` (tx pool, `mta-tx1`) + `51.38.111.172` (mk pool, `mta-mk1`); infra: `venture-infra/boxes/mail`.
+- **Két Postal-példány** (tx/mk), külön SNAT-egress, HELO, Return-Path (`rp-tx`/`rp-mk.ventmail.app`).
+  A driver a `Channel::poolClass()` szerint választ; keveredés/visszaesés nincs (`PoolSeparationTest`).
+- **Küldési mód** (alapból zárva): `SENDING_LIVE`, `SEND_ALLOWLIST(_ENFORCED)`, `SENDING_MARKETING_ENABLED` —
+  csak a tulajdonos kapcsolja (RUNBOOK-mail §13). Kapu + dispatcher-ellenőrzés.
+- Postal → ventMail: aláírt webhook `/internal/mta/postal/{pool}` (az edge nem engedi kívülről).
+- Edge-bizalom: `config/proxy.php` (`TRUSTED_PROXIES` = edge /32, `TRUSTED_HOSTS`), `__Host-` süti,
+  rate-limit kulcs = `ClientAddress`. Deploy: `deploy/deploy.sh <tag>` (blue/green, csak GHCR tag).
+
 ## Tesztparancs
 `php artisan test --parallel` (Pest) + Playwright a flow-kra. A commit-kapu hook maga futtatja.

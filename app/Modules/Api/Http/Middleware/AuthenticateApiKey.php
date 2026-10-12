@@ -7,6 +7,7 @@ namespace App\Modules\Api\Http\Middleware;
 use App\Modules\Identity\Models\ApiKey;
 use App\Modules\Tenancy\Models\Workspace;
 use App\Modules\Tenancy\Services\WorkspaceContext;
+use App\Support\ClientAddress;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -57,7 +58,7 @@ final class AuthenticateApiKey
         // rotáló fejléccel az IP-vödör kérésenként friss keretet adott, a `credentialKey`
         // pedig kulcsforgatásnál nem fékez. Vagyis az API-kulcs brute-force plafonja
         // gyakorlatilag megszűnt.
-        $ipKey = 'api-auth-fail:ip:'.$this->sourceBucket((string) ($request->server('REMOTE_ADDR') ?? 'unknown'));
+        $ipKey = 'api-auth-fail:ip:'.$this->sourceBucket(ClientAddress::of($request));
         $credentialKey = 'api-auth-fail:key:'.hash('sha256', (string) $plain);
 
         // A fék a DRÁGA munka (kulcsolt hash + indexelt lekérdezés) ELŐTT csattan.

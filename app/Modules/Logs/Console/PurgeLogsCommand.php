@@ -6,6 +6,8 @@ namespace App\Modules\Logs\Console;
 
 use App\Modules\Logs\Models\SmtpTransaction;
 use App\Modules\Sending\Models\DeliveryAttempt;
+use App\Modules\Sending\Models\PostalMessageRef;
+use App\Modules\Sending\Models\PostalWebhookReceipt;
 use App\Modules\Tenancy\Models\Workspace;
 use App\Modules\Tenancy\Services\WorkspaceContext;
 use App\Modules\Webhooks\Models\WebhookDelivery;
@@ -36,7 +38,7 @@ final class PurgeLogsCommand extends Command
 
     public function handle(WorkspaceContext $context): int
     {
-        $deleted = ['smtp' => 0, 'attempts' => 0, 'webhooks' => 0];
+        $deleted = ['smtp' => 0, 'attempts' => 0, 'webhooks' => 0, 'postal' => 0];
 
         try {
             Workspace::query()->withTrashed()->orderBy('id')->chunkById(100, function ($workspaces) use ($context, &$deleted): void {
@@ -46,17 +48,27 @@ final class PurgeLogsCommand extends Command
                     $deleted['smtp'] += SmtpTransaction::query()->where($this->expired(...))->delete();
                     $deleted['attempts'] += DeliveryAttempt::query()->where($this->expired(...))->delete();
                     $deleted['webhooks'] += WebhookDelivery::query()->where($this->expired(...))->delete();
+                    // A Postal-hivatkozás (token → címzett) PII-t köt egy üzenethez: ugyanaz a retenció.
+                    $deleted['postal'] += PostalMessageRef::query()
+                        ->where('created_at', '<=', now()->subDays((int) config('sending.delivery_attempt_retention_days', 90)))
+                        ->delete();
                 }
             });
         } finally {
             $context->forget();
         }
 
+        // A webhook-nyugta csak a dedup-ablakhoz kell (tenant nélküli, gépi sor).
+        $deleted['postal'] += PostalWebhookReceipt::query()
+            ->where('received_at', '<=', now()->subDays((int) config('sending.delivery_attempt_retention_days', 90)))
+            ->delete();
+
         $this->info(sprintf(
-            'Törölve — SMTP-párbeszéd: %d, kísérlet: %d, webhook-sor: %d',
+            'Törölve — SMTP-párbeszéd: %d, kísérlet: %d, webhook-sor: %d, Postal-hivatkozás: %d',
             $deleted['smtp'],
             $deleted['attempts'],
-            $deleted['webhooks']
+            $deleted['webhooks'],
+            $deleted['postal']
         ));
 
         return self::SUCCESS;

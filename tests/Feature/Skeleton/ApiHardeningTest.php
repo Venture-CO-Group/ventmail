@@ -22,7 +22,9 @@ it('a modul-API stack tartalmazza a throttle-t', function () {
 it('a proxy-fejlécek megbízhatók a Caddy mögött', function () {
     $source = file_get_contents(base_path('bootstrap/app.php'));
 
-    expect($source)->toContain('trustProxies');
+    // A bizalmi határ a `TrustEdgeProxies` (config/proxy.php): a viselkedést az
+    // EdgeProxyTest méri (edge-től igen, bárki mástól nem, prefix/port soha).
+    expect($source)->toContain('TrustEdgeProxies::class');
 });
 
 it('a titkok nem kerülnek exception-kontextusba', function () {

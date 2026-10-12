@@ -141,6 +141,12 @@ it('a Tenancy modulon kívül senki nem kerüli meg a global scope-ot', function
             'Inbound/Services/VerifiedInboundResolver.php',
             'Logs/Services/TagStatistics.php',
             'Identity/Models/ApiKey.php',
+            // deploy-ovh · A POSTAL KÉZBESÍTÉSI WEBHOOKJA kontextus nélkül érkezik — a
+            // kontextus a hivatkozásból JÖN, ugyanúgy, mint az API-kulcsnál. A
+            // `PostalMessageRef::resolve()` EGYETLEN pontos egyezésre (pool + a Postal saját
+            // tokenje) kapcsolja ki a scope-ot, és csak a pool RSA-aláírásával hitelesített
+            // webhook hívja; a hívó azonnal a sor workspace-ére áll.
+            'Sending/Models/PostalMessageRef.php',
             'Smtp/Models/SmtpCredential.php',
             'IpPools/Console/UpdateIpReputationCommand.php',
         ];

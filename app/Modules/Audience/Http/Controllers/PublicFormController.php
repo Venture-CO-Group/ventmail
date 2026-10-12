@@ -10,6 +10,7 @@ use App\Modules\Audience\Models\Form;
 use App\Modules\Domains\Models\Domain;
 use App\Modules\Tenancy\Models\Workspace;
 use App\Modules\Tenancy\Services\WorkspaceContext;
+use App\Support\ClientAddress;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
@@ -105,7 +106,9 @@ final class PublicFormController
                 // `X-Forwarded-For`-ból jön — és ez az érték BIZONYÍTÉKBA kerül (a consent
                 // `ip_hash`-e). Egy hamisítható IP bizonyítékként rosszabb, mint a semmi:
                 // egy jogi vitában épp azt kérdőjelezi meg, amit igazolni akar.
-                ip: (string) ($request->server('REMOTE_ADDR') ?? ''),
+                // Az edge mögött a TCP-partner a proxy: a valódi cím a `ClientAddress`-ből jön,
+                // ami a továbbított fejlécet CSAK a szűkített edge-listától fogadja el.
+                ip: ClientAddress::of($request),
                 userAgent: $request->userAgent(),
             ));
 

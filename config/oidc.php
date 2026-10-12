@@ -17,7 +17,9 @@ return [
     'provider_url' => rtrim((string) env('OIDC_PROVIDER_URL', 'https://ventsso.app'), '/'),
     'client_id' => env('OIDC_CLIENT_ID', 'ventmail'),
     'client_secret' => env('OIDC_CLIENT_SECRET'),
-    'scopes' => explode(' ', trim((string) env('OIDC_SCOPES', 'openid profile email roles'))),
+    // A ventSSO v1.2 claim-katalógusában a ventMail csak a nevet és az e-mailt kéri; a
+    // szerepek a hozzáférési tokenben/ID-tokenben a `resource_access` alatt jönnek.
+    'scopes' => explode(' ', trim((string) env('OIDC_SCOPES', 'openid profile email'))),
 
     'roles_claim' => env('OIDC_ROLES_CLAIM', 'resource_access.ventmail.roles'),
 

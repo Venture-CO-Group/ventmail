@@ -21,6 +21,8 @@ use App\Modules\Journey\Models\JourneyRunStep;
 use App\Modules\Logs\Models\SmtpTransaction;
 use App\Modules\Sending\Models\DeliveryAttempt;
 use App\Modules\Sending\Models\Message;
+use App\Modules\Sending\Models\PostalMessageRef;
+use App\Modules\Sending\Models\PostalWebhookReceipt;
 use App\Modules\Sending\Models\RawMimeMessage;
 use App\Modules\SuperAdmin\Models\ImpersonationSession;
 use App\Modules\SuperAdmin\Models\PlanOverride;
@@ -181,6 +183,12 @@ it('minden admin-felületű modell auditált', function () {
         // auditálja, ami `Auditable`. Soronkénti audit itt a törölhetetlen audit-táblát
         // tömné meg forgalommal, és a fogyás-sor amúgy sem tart személyes adatot.
         UsageRecord::class,
+        // deploy-ovh · A POSTAL-HIVATKOZÁS és a WEBHOOK-NYUGTA gépi adat: küldésenként,
+        // címzettenként, illetve kézbesítési eseményenként keletkezik, felhasználói művelet
+        // nélkül, és a `logs:purge` lejáratkor törli. Soronkénti audit a törölhetetlen
+        // audit-táblát tömné meg forgalommal (a címzett címével együtt).
+        PostalMessageRef::class,
+        PostalWebhookReceipt::class,
         /*
          | C2 · A `ImpersonationSession` és a `PlanOverride` auditálását a SZOLGÁLTATÁS
          | írja EXPLICITEN — és jobban, mint a trait tudná.

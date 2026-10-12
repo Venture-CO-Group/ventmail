@@ -66,6 +66,17 @@ enum Channel: string
         return $this->requiresConsent() ? 'marketing' : 'transactional';
     }
 
+    /**
+     * A POOL-OSZTÁLY: melyik IP-poolon (és élesben melyik MTA-példányon) mehet ki.
+     *
+     * Csak két osztály van, és a kettő SOHA nem keveredik (deploy-ovh, kemény szabály 5):
+     * a tranzakciós IP reputációja nem viselheti egy kampány spam-jelöléseit.
+     */
+    public function poolClass(): string
+    {
+        return $this === self::Transactional ? 'transactional' : 'marketing';
+    }
+
     /** A sor prioritása (spec 7.): transactional > journey > campaign. */
     public function queuePriority(): int
     {

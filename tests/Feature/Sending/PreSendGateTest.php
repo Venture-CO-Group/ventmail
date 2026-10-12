@@ -148,8 +148,9 @@ it('minden gate-döntés auditált, a hat kapu eredményével', function () {
 
     expect($log)->not->toBeNull('az elfogadás nem volt auditált');
     // Hat nevesített kapu + négy nem kapcsolható: bemenet-épség, fejléc-biztonság,
-    // és tartalom-biztonság (link-séma a VÉGLEGES, behelyettesített törzsön).
-    expect($log->after['gates'])->toHaveCount(10);
+    // tartalom-biztonság (link-séma a VÉGLEGES, behelyettesített törzsön) és az éles
+    // küldési mód (seed-allowlist, marketing-főkapcsoló).
+    expect($log->after['gates'])->toHaveCount(11);
 
     Suppression::create(['email' => 'tiltott@example.test', 'reason' => 'bounce']);
     send(['to' => 'tiltott@example.test']);

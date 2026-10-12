@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests;
 
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
+use Illuminate\Http\Request;
 
 abstract class TestCase extends BaseTestCase
 {
@@ -33,5 +34,22 @@ abstract class TestCase extends BaseTestCase
         parent::setUp();
 
         $this->withoutVite();
+    }
+
+    /**
+     * A `Request` STATIKUS proxy- és host-listája nem szivároghat át a következő tesztbe.
+     *
+     * Élesben ez folyamatonként él, a tesztben viszont egy folyamat futtat mindent: egy
+     * `production` módra váltó teszt után a `TrustConfiguredHosts` által beállított lista
+     * bent maradt, és egy LÁTSZÓLAG független későbbi teszt kérését 400-zal dobta el
+     * (mérve: soros futásban piros, párhuzamosban zöld). A middleware maga helyes — a
+     * tesztek közötti állapot nem.
+     */
+    protected function tearDown(): void
+    {
+        Request::setTrustedHosts([]);
+        Request::setTrustedProxies([], -1);
+
+        parent::tearDown();
     }
 }

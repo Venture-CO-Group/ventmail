@@ -1,0 +1,9 @@
+Bejelentkezési kódod
+
+A bejelentkezés befejezéséhez add meg ezt a kódot:
+
+{{ code }}
+
+A kód rövid ideig érvényes. Ha nem te próbáltál belépni, változtasd meg a jelszavad.
+
+— Venture

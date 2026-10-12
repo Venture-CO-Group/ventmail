@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace App\Modules\Sending\Drivers;
 
+use App\Modules\IpPools\Models\IpAddress;
 use App\Modules\Sending\Contracts\SendingDriver;
 use App\Modules\Sending\Data\DispatchResult;
 use App\Modules\Sending\Data\DriverCapabilities;
 use App\Modules\Sending\Data\DriverHealth;
+use App\Modules\Sending\Enums\Channel;
 use App\Modules\Sending\Models\Message;
+use App\Modules\Sending\Models\PostalMessageRef;
 use App\Modules\Sending\Models\RawMimeMessage;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
@@ -31,17 +34,12 @@ use RuntimeException;
  */
 final class PostalDriver implements SendingDriver
 {
+    /** Az aktuális küldés pool-osztálya — a webhook-hivatkozás ehhez kötődik. */
+    private string $pool = 'transactional';
+
     public function send(Message $message): DispatchResult
     {
-        $endpoint = $this->endpoint();
-        $key = (string) config('sending.postal.api_key');
-
-        if ($key === '') {
-            throw new RuntimeException(
-                'A PostalDriver nincs konfigurálva (POSTAL_ENDPOINT / POSTAL_API_KEY). '
-                .'Amíg a cluster nem él, használd a SENDING_DRIVER=fake beállítást.'
-            );
-        }
+        [$endpoint, $key, $this->pool] = $this->target($message);
 
         return ($message->options['raw_mime'] ?? false) === true
             ? $this->sendRaw($message, $endpoint, $key)
@@ -124,6 +122,7 @@ final class PostalDriver implements SendingDriver
 
                 $accepted[] = $recipient;
                 $ids[] = (string) $response->json('data.message_id', '');
+                $this->remember($message, $response);
 
                 continue;
             }
@@ -169,10 +168,31 @@ final class PostalDriver implements SendingDriver
 
             $accepted[] = $recipient;
             $ids[] = (string) $response->json('data.message_id', '');
+            $this->remember($message, $response);
         }
 
         // Az MTA átvette — a KÉZBESÍTÉS visszaigazolása a webhookból jön (A3).
         return DispatchResult::accepted(implode(',', $ids));
+    }
+
+    /**
+     * A Postal címzettenkénti tokenje → ventMail-üzenet. A kézbesítési webhook CSAK ezt a
+     * tokent hozza: e nélkül a bounce nem lenne kihez kötni.
+     */
+    private function remember(Message $message, Response $response): void
+    {
+        foreach ((array) $response->json('data.messages', []) as $recipient => $ref) {
+            $token = is_array($ref) ? (string) ($ref['token'] ?? '') : '';
+
+            if ($token === '') {
+                continue;
+            }
+
+            PostalMessageRef::query()->updateOrCreate(
+                ['pool' => $this->pool, 'token' => $token],
+                ['message_uuid' => $message->uuid, 'recipient' => strtolower((string) $recipient)]
+            );
+        }
     }
 
     private function result(Response $response, Message $message): DispatchResult
@@ -184,6 +204,8 @@ final class PostalDriver implements SendingDriver
                 (string) ($response->json('data.message') ?? 'Postal '.$response->status())
             );
         }
+
+        $this->remember($message, $response);
 
         return DispatchResult::accepted((string) $response->json('data.message_id', ''));
     }
@@ -197,24 +219,99 @@ final class PostalDriver implements SendingDriver
             ->connectTimeout(5);
     }
 
-    private function endpoint(): string
+    /**
+     * A csatorna POOL-OSZTÁLYÁHOZ tartozó Postal-példány (deploy-ovh, kemény szabály 5).
+     *
+     * Fail-closed minden ponton: hiányzó példány, közös végpont vagy közös Return-Path
+     * domain esetén NINCS küldés — a „majd a másikon kimegy" pont a keveredés lenne.
+     *
+     * @return array{0: string, 1: string, 2: string}
+     */
+    private function target(Message $message): array
     {
-        $endpoint = rtrim((string) config('sending.postal.endpoint'), '/');
+        $channel = Channel::tryFrom((string) $message->channel)
+            ?? throw new RuntimeException('Ismeretlen csatorna — a pool nem dönthető el.');
+        $class = $channel->poolClass();
 
-        if ($endpoint === '') {
-            throw new RuntimeException(
-                'A PostalDriver nincs konfigurálva (POSTAL_ENDPOINT / POSTAL_API_KEY). '
-                .'Amíg a cluster nem él, használd a SENDING_DRIVER=fake beállítást.'
-            );
+        $this->assertPoolsSeparated();
+
+        // Ha a dispatcher már IP-t foglalt, annak a poolja IS ugyanebbe az osztályba kell
+        // essen. Egy rossz pool-hozzárendelés itt áll meg, nem a fogadónál.
+        $poolChannel = $message->ip_address_id === null
+            ? null
+            : IpAddress::query()->with('pool')->find($message->ip_address_id)?->pool?->channel;
+
+        if ($poolChannel !== null && Channel::tryFrom((string) $poolChannel)?->poolClass() !== $class) {
+            throw new RuntimeException(sprintf(
+                'A(z) %s üzenet (%s) %s osztályú IP-re van foglalva — a poolok nem keveredhetnek.',
+                $message->uuid,
+                $channel->value,
+                (string) $poolChannel
+            ));
         }
 
-        if (! str_starts_with($endpoint, 'https://')) {
-            throw new RuntimeException(
-                'A POSTAL_ENDPOINT csak https lehet: az X-Server-API-Key fejlécben utazik.'
-            );
+        $endpoint = rtrim((string) config("sending.postal.pools.{$class}.endpoint"), '/');
+        $key = (string) config("sending.postal.pools.{$class}.api_key");
+
+        // A régi, egy-végpontos beállítás CSAK tranzakciós forgalomra esik vissza.
+        if ($endpoint === '' && $class === 'transactional') {
+            $endpoint = rtrim((string) config('sending.postal.endpoint'), '/');
+            $key = (string) config('sending.postal.api_key');
         }
 
-        return $endpoint;
+        if ($endpoint === '' || $key === '') {
+            throw new RuntimeException(sprintf(
+                'A PostalDriver %s poolja nincs konfigurálva (POSTAL_%s_ENDPOINT / POSTAL_%s_API_KEY). '
+                .'Amíg a cluster nem él, használd a SENDING_DRIVER=fake beállítást.',
+                $class,
+                $class === 'transactional' ? 'TX' : 'MK',
+                $class === 'transactional' ? 'TX' : 'MK'
+            ));
+        }
+
+        $this->assertSecureEndpoint($endpoint);
+
+        return [$endpoint, $key, $class];
+    }
+
+    private function assertPoolsSeparated(): void
+    {
+        $tx = (array) config('sending.postal.pools.transactional', []);
+        $mk = (array) config('sending.postal.pools.marketing', []);
+
+        $same = static fn (string $field): bool => ($tx[$field] ?? '') !== ''
+            && strtolower(rtrim((string) $tx[$field], '/')) === strtolower(rtrim((string) ($mk[$field] ?? ''), '/'));
+
+        if ($same('endpoint') || $same('api_key') || $same('return_path_domain')) {
+            throw new RuntimeException(
+                'A tranzakciós és a marketing pool ugyanarra a Postal-példányra / Return-Path '
+                .'domainre van konfigurálva — a két pool nem keveredhet, küldés nincs.'
+            );
+        }
+    }
+
+    /**
+     * Az API-kulcs FEJLÉCBEN utazik, tehát a végpont `https://` — egyetlen kivétellel: az
+     * EGYCÍMKÉS hostnév (`postal-tx`). Ilyen nevet csak a docker belső (internal) hálózat
+     * DNS-e old fel, a forgalom a gépet nem hagyja el. Minden pontot tartalmazó név —
+     * vagy IP-cím — kívülről is feloldható/elérhető lehet, ezért ott marad a https.
+     */
+    private function assertSecureEndpoint(string $endpoint): void
+    {
+        if (str_starts_with($endpoint, 'https://')) {
+            return;
+        }
+
+        $host = (string) parse_url($endpoint, PHP_URL_HOST);
+
+        if (str_starts_with($endpoint, 'http://') && preg_match('/^[a-z][a-z0-9-]{0,62}$/i', $host) === 1) {
+            return;
+        }
+
+        throw new RuntimeException(
+            'A Postal végpont csak https lehet (vagy http egycímkés belső hostnévvel): '
+            .'az X-Server-API-Key fejlécben utazik.'
+        );
     }
 
     public function capabilities(): DriverCapabilities
@@ -230,14 +327,17 @@ final class PostalDriver implements SendingDriver
 
     public function health(): DriverHealth
     {
-        $endpoint = (string) config('sending.postal.endpoint');
+        // A tranzakciós példány a mérvadó: ő viszi a jelszó-visszaállítót.
+        $endpoint = (string) (config('sending.postal.pools.transactional.endpoint') ?: config('sending.postal.endpoint'));
 
         if ($endpoint === '') {
             return new DriverHealth(healthy: false, detail: 'Nincs POSTAL_ENDPOINT beállítva.');
         }
 
         try {
-            $ok = Http::timeout(3)->get(rtrim($endpoint, '/').'/health')->successful();
+            // A Postal WEBSZERVERÉNEK nincs `/health` végpontja (az csak a worker és az SMTP
+            // külön health-portján van) — a bejelentkező oldal a legolcsóbb valódi válasz.
+            $ok = Http::timeout(3)->get(rtrim($endpoint, '/').'/login')->successful();
         } catch (\Throwable $e) {
             // A nyers kivétel-üzenet a teljes URL-t hordozza (tokennel együtt), és ez egy
             // operátori felületre menne ki. A részlet a szerver-logba való.
