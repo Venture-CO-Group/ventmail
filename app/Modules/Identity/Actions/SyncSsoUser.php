@@ -78,7 +78,11 @@ final class SyncSsoUser
     /** @param array<int, mixed> $supported */
     private function isSupportedClaim(mixed $claim, array $supported): bool
     {
-        $base = explode('-', str_replace('_', '-', strtolower(trim((string) $claim))))[0];
+        if (! is_string($claim)) {
+            return false;
+        }
+
+        $base = explode('-', str_replace('_', '-', strtolower(trim($claim))))[0];
 
         return in_array($base, $supported, true);
     }
@@ -96,7 +100,7 @@ final class SyncSsoUser
     private function supportedLocale(mixed $claim): string
     {
         $supported = (array) config('app.supported_locales', []);
-        $candidate = strtolower(trim((string) $claim));
+        $candidate = is_string($claim) ? strtolower(trim($claim)) : '';
         $base = str_replace('_', '-', $candidate);
         $base = explode('-', $base)[0];
 

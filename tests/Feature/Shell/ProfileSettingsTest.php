@@ -78,14 +78,14 @@ it('a beállítások mentése validál és ír', function () {
         ->and($fresh->default_workspace_id)->toBe($workspace->id);
 });
 
-it('változatlan nyelv mentése nem rögzíti a nyelvet user-választásnak', function () {
+it('a profil mentése (akár változatlan nyelvvel) user-választásként rögzíti a nyelvet', function () {
     [$user, $workspace] = profileUser(['locale' => 'hu', 'locale_source' => 'sso']);
 
     $this->actingAs($user)->withSession(['workspace_uuid' => $workspace->uuid])
         ->put('/profile', ['locale' => 'hu', 'timezone' => 'Europe/Budapest'])
         ->assertSessionHasNoErrors();
 
-    expect($user->fresh()->locale_source)->toBe('sso');
+    expect($user->fresh()->locale_source)->toBe('user');
 });
 
 it('érvénytelen értékeket elutasít', function (array $payload, string $field) {
@@ -190,4 +190,57 @@ it('az sso-fiók URL-je konfigurálható az OIDC-szolgáltatóból, alapértéke
     expect($default['sso_account_url'])->toBe('https://sso.ventureco.app/account')
         ->and($fromIssuer['sso_account_url'])->toBe('https://sso.pelda.invalid/account')
         ->and($explicit['sso_account_url'])->toBe('https://acc.pelda.invalid/me');
+});
+
+it('a mentett értesítések visszatöltődnek (round-trip), és a következő mentés nem írja felül', function () {
+    [$user, $workspace] = profileUser();
+
+    $this->actingAs($user)->withSession(['workspace_uuid' => $workspace->uuid])
+        ->put('/profile', ['notifications' => ['weekly_summary' => true]])->assertSessionHasNoErrors();
+
+    $this->withoutVite()->actingAs($user->fresh())->withSession(['workspace_uuid' => $workspace->uuid])
+        ->get('/profile')
+        ->assertInertia(fn ($page) => $page->where('settings.notifications.weekly_summary', true));
+
+    // Másik kulcs mentése nem állítja vissza a korábbit.
+    $this->actingAs($user->fresh())->withSession(['workspace_uuid' => $workspace->uuid])
+        ->put('/profile', ['notifications' => ['report_ready' => false]])->assertSessionHasNoErrors();
+
+    expect($user->fresh()->notification_prefs['weekly_summary'])->toBeTrue()
+        ->and($user->fresh()->notification_prefs['report_ready'])->toBeFalse();
+});
+
+it('a profil az EFFEKTÍV nyelvet mutatja, és forrás nélkül az azonos mentés is user-választás', function () {
+    [$user, $workspace] = profileUser(['locale' => 'hu', 'locale_source' => null]);
+
+    $this->withoutVite()->actingAs($user)->withSession(['workspace_uuid' => $workspace->uuid])
+        ->withHeaders(['Accept-Language' => 'fr-FR'])
+        ->get('/profile')
+        ->assertInertia(fn ($page) => $page->where('settings.locale', 'fr'));
+
+    $this->actingAs($user)->withSession(['workspace_uuid' => $workspace->uuid])
+        ->withHeaders(['Accept-Language' => 'fr-FR'])
+        ->put('/profile', ['locale' => 'fr'])->assertSessionHasNoErrors();
+
+    expect($user->fresh()->locale)->toBe('fr')->and($user->fresh()->locale_source)->toBe('user');
+});
+
+it('a profilmódosítás auditált, a megváltozott kulcsokkal és érték nélkül', function () {
+    [$user, $workspace] = profileUser();
+
+    $this->actingAs($user)->withSession(['workspace_uuid' => $workspace->uuid])
+        ->put('/profile', ['timezone' => 'Europe/Paris', 'date_format' => 'iso'])->assertSessionHasNoErrors();
+
+    $log = \App\Modules\Audit\Models\AuditLog::query()->where('action', 'user.settings.updated')->firstOrFail();
+
+    expect($log->context['changed'])->toEqualCanonicalizing(['timezone', 'date_format'])
+        ->and(json_encode($log->context))->not->toContain('Paris');
+});
+
+it('az értesítések tömb mérete korlátos', function () {
+    [$user, $workspace] = profileUser();
+
+    $this->actingAs($user)->withSession(['workspace_uuid' => $workspace->uuid])
+        ->put('/profile', ['notifications' => array_fill_keys(range(1, 50), true)])
+        ->assertSessionHasErrors('notifications');
 });

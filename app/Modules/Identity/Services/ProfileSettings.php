@@ -37,12 +37,13 @@ final class ProfileSettings
             : Workspace::query()->whereKey($user->raw('default_workspace_id'))->value('uuid');
 
         return [
-            'locale' => $user->preferredLocale(),
+            // EFFEKTÍV nyelv (a kérésé): forrás nélkül az Accept-Language dönt, a tárolt érték félrevezető.
+            'locale' => app()->getLocale(),
             'localeSource' => $user->raw('locale_source'),
             'timezone' => $user->raw('timezone') ?? (string) config('app.timezone'),
             'date_format' => $user->raw('date_format') ?? 'ymd',
             'number_format' => $user->raw('number_format') ?? 'space_comma',
-            'notifications' => self::normaliseNotifications([], is_array($user->raw('notification_prefs')) ? $user->notification_prefs : null),
+            'notifications' => self::normaliseNotifications([], $user->notificationPrefs()),
             'default_workspace' => $default === null ? null : (string) $default,
         ];
     }

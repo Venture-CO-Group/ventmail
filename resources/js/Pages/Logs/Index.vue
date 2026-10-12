@@ -8,6 +8,7 @@ import VmFormActions from '../../Components/Form/VmFormActions.vue';
 import VmFormRow from '../../Components/Form/VmFormRow.vue';
 import VmFormSection from '../../Components/Form/VmFormSection.vue';
 import { reactive } from 'vue';
+import { useI18n } from 'vue-i18n';
 import AppLayout from '../../Layouts/AppLayout.vue';
 
 /**
@@ -37,6 +38,8 @@ const props = defineProps<{
     messages: { items: LogRow[]; next_cursor: string | null };
 }>();
 
+const { t, locale } = useI18n({ useScope: 'global' });
+
 const filters = reactive({
     recipient: props.filters.recipient ?? '',
     tag: props.filters.tag ?? '',
@@ -58,13 +61,13 @@ type Row = {
     created_at: string;
 };
 
-const columns: VtColumn<Row>[] = [
-    { key: 'created_at', label: 'Időpont' },
-    { key: 'recipient', label: 'Címzett', mono: true },
-    { key: 'subject', label: 'Tárgy' },
-    { key: 'status', label: 'Állapot' },
-    { key: 'channel', label: 'Csatorna' },
-    { key: 'tags', label: 'Tagek' },
+const columns = (): VtColumn<Row>[] => [
+    { key: 'created_at', label: t('logs.time') },
+    { key: 'recipient', label: t('logs.recipient'), mono: true },
+    { key: 'subject', label: t('logs.subject') },
+    { key: 'status', label: t('logs.status') },
+    { key: 'channel', label: t('logs.channel') },
+    { key: 'tags', label: t('logs.tags') },
     // A trace-hez vezető gomb SAJÁT oszlop. A `VtTable` nem emit sor-kattintást (ma nincs
     // ilyen a @venture/ui-ban), a sorra akasztott kattintás pedig némán nem működne — a
     // support azt hinné, hogy a trace nem létezik. A hiányt JELENTJÜK, nem gyártunk helyi
@@ -86,8 +89,8 @@ const rows = (): Row[] =>
         status: message.reason ? `${message.status} (${message.reason})` : message.status,
         channel: message.channel,
         tags: message.tags.join(', ') || '—',
-        created_at: message.created_at ? new Date(message.created_at).toLocaleString('hu-HU') : '—',
-        trace: 'Trace',
+        created_at: message.created_at ? new Date(message.created_at).toLocaleString(locale.value) : '—',
+        trace: t('logs.trace'),
     }));
 
 const search = (): void => {
@@ -112,54 +115,54 @@ const openTrace = (row: Row): void => {
 <template>
     <AppLayout>
         <VmCard>
-            <h1>Napló</h1>
+            <h1>{{ t('logs.title') }}</h1>
             <VtGlowLine />
 
             <VmForm data-testid="log-filters" @submit.prevent="search">
                 <VmFormSection>
                 <VmFormRow>
-                <VtField label="Címzett">
+                <VtField :label="t('logs.recipient')">
                     <VtInput v-model="filters.recipient" data-testid="filter-recipient" placeholder="cimzett@example.test" />
                 </VtField>
-                <VtField label="Tag">
+                <VtField :label="t('logs.tag')">
                     <VtInput v-model="filters.tag" data-testid="filter-tag" placeholder="szamla" />
                 </VtField>
-                <VtField label="Csatorna">
+                <VtField :label="t('logs.channel')">
                     <VtInput v-model="filters.channel" data-testid="filter-channel" placeholder="transactional" />
                 </VtField>
-                <VtField label="Állapot">
+                <VtField :label="t('logs.status')">
                     <VtInput v-model="filters.status" data-testid="filter-status" placeholder="delivered" />
                 </VtField>
-                <VtField label="Domain">
+                <VtField :label="t('logs.domain')">
                     <VtInput v-model="filters.domain" data-testid="filter-domain" placeholder="pelda.hu" />
                 </VtField>
                 <!-- Az időablak a backendben eddig is megvolt, az űrlapról hiányzott: a support
                      leggyakoribb kérdése épp az, hogy „mi ment ki tegnap délután". -->
-                <VtField label="Ettől">
+                <VtField :label="t('logs.since')">
                     <VtInput v-model="filters.since" data-testid="filter-since" type="date" />
                 </VtField>
-                <VtField label="Eddig">
+                <VtField :label="t('logs.until')">
                     <VtInput v-model="filters.until" data-testid="filter-until" type="date" />
                 </VtField>
                 </VmFormRow>
                 </VmFormSection>
 
                 <VmFormActions>
-                    <VtButton type="submit" data-testid="log-search">Keresés</VtButton>
+                    <VtButton type="submit" data-testid="log-search">{{ t('logs.search') }}</VtButton>
                 </VmFormActions>
             </VmForm>
 
-            <VmTable :columns="columns" :rows="rows()" data-testid="log-table">
+            <VmTable :columns="columns()" :rows="rows()" data-testid="log-table">
                 <template #cell="{ row, column, value }">
                     <VtButton v-if="column.key === 'trace'" data-testid="log-trace" @click="openTrace(row)">
-                        Trace
+                        {{ t('logs.trace') }}
                     </VtButton>
                     <span v-else class="vm-truncate" :title="String(value ?? '')">{{ value }}</span>
                 </template>
             </VmTable>
 
             <VtButton v-if="props.messages.next_cursor" data-testid="log-more" @click="loadMore">
-                További találatok
+                {{ t('logs.more') }}
             </VtButton>
         </VmCard>
     </AppLayout>

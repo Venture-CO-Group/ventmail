@@ -79,3 +79,14 @@ it('bejelentkezés nélkül nem hozható létre', function () {
 
     expect(Workspace::query()->count())->toBe(0);
 });
+
+it('cirill/CJK névnél is van slug', function () {
+    [$user, $current] = creator();
+
+    $this->actingAs($user)->withSession(['workspace_uuid' => $current->uuid])
+        ->post('/workspaces', ['name' => '会社'])->assertSessionHasNoErrors();
+
+    $created = Workspace::query()->where('name', '会社')->firstOrFail();
+
+    expect($created->slug)->toStartWith('workspace-');
+});

@@ -8,6 +8,7 @@ import VmFormActions from '../../Components/Form/VmFormActions.vue';
 import VmFormSection from '../../Components/Form/VmFormSection.vue';
 import { computed, ref } from 'vue';
 import AppLayout from '../../Layouts/AppLayout.vue';
+import { useI18n } from 'vue-i18n';
 
 /**
  * Domain-hitelesítő wizard.
@@ -28,6 +29,8 @@ const props = defineProps<{
     domain: { uuid: string; name: string; status: string } | null;
     records: Record<string, DnsRecord>;
 }>();
+
+const { t } = useI18n({ useScope: 'global' });
 
 const domainName = ref('');
 const checking = ref(false);
@@ -51,11 +54,11 @@ const rows = computed(() =>
 
 type Row = { key: string; type: string; name: string; value: string; status: string };
 
-const columns: VtColumn<Row>[] = [
-    { key: 'type', label: 'Típus' },
-    { key: 'name', label: 'Név', mono: true },
-    { key: 'value', label: 'Érték', mono: true },
-    { key: 'status', label: 'Állapot' },
+const columns = (): VtColumn<Row>[] => [
+    { key: 'type', label: t('wizard.type') },
+    { key: 'name', label: t('wizard.name'), mono: true },
+    { key: 'value', label: t('wizard.value'), mono: true },
+    { key: 'status', label: t('wizard.rowStatus') },
 ];
 
 function submitDomain(): void {
@@ -88,30 +91,29 @@ function rotateDkim(): void {
             <VtGlowLine />
 
             <VmCard>
-                <h1>Küldő domain hitelesítése</h1>
+                <h1>{{ t('wizard.title') }}</h1>
                 <p>
-                    Verifikálatlan domainről a ventMail nem küld — ez nem beállítás, hanem szabály.
-                    A három rekord (SPF, DKIM, DMARC) mindegyike kell hozzá.
+                    {{ t('wizard.rule') }}
                 </p>
 
                 <ol data-testid="wizard-steps">
-                    <li :aria-current="step === 1 ? 'step' : undefined">Domain megadása</li>
-                    <li :aria-current="step === 2 ? 'step' : undefined">DNS-rekordok felvétele</li>
-                    <li :aria-current="step === 3 ? 'step' : undefined">Ellenőrzés</li>
+                    <li :aria-current="step === 1 ? 'step' : undefined">{{ t('wizard.step1') }}</li>
+                    <li :aria-current="step === 2 ? 'step' : undefined">{{ t('wizard.step2') }}</li>
+                    <li :aria-current="step === 3 ? 'step' : undefined">{{ t('wizard.step3') }}</li>
                 </ol>
             </VmCard>
 
             <VmCard v-if="!domain">
                 <VmForm @submit.prevent="submitDomain">
                     <VmFormSection>
-                        <VtField label="Domain" hint="Például: pelda.hu — a feladó címének domainje.">
+                        <VtField :label="t('wizard.domain')" :hint="t('wizard.domainHint')">
                             <VtInput v-model="domainName" data-testid="domain-input" placeholder="pelda.hu" />
                         </VtField>
                     </VmFormSection>
 
                     <VmFormActions>
                         <VtButton type="submit" data-testid="domain-submit" :disabled="submitting">
-                            Domain hozzáadása
+                            {{ t('wizard.add') }}
                         </VtButton>
                     </VmFormActions>
                 </VmForm>
@@ -119,21 +121,21 @@ function rotateDkim(): void {
 
             <VmCard v-else>
                 <h2 class="vm-wrap">{{ domain.name }}</h2>
-                <p data-testid="domain-status">Állapot: {{ domain.status }}</p>
+                <p data-testid="domain-status">{{ t('wizard.status', { status: domain.status }) }}</p>
 
                 <VmTable
-                    :columns="columns"
+                    :columns="columns()"
                     :rows="rows"
-                    caption="A hitelesítéshez felveendő DNS-rekordok"
+                    :caption="t('wizard.dnsCaption')"
                     data-testid="dns-records"
                 />
 
                 <VmFormActions>
                     <VtButton data-testid="verify-button" :disabled="checking" @click="verify">
-                        Ellenőrzés indítása
+                        {{ t('wizard.verify') }}
                     </VtButton>
 
-                    <VtButton data-testid="rotate-button" @click="rotateDkim">DKIM-kulcs rotálása</VtButton>
+                    <VtButton data-testid="rotate-button" @click="rotateDkim">{{ t('wizard.rotate') }}</VtButton>
                 </VmFormActions>
             </VmCard>
     </AppLayout>

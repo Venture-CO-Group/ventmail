@@ -36,6 +36,22 @@ final class HandleInertiaRequests extends Middleware
     /**
      * @return array<string, mixed>
      */
+    /**
+     * Az Inertia a `Vary`-t `X-Inertia`-ra CSERÉLI, ezért a nyelv-függést (SetLocale) itt,
+     * a szülő UTÁN fűzzük hozzá: nem hitelesített válasznál a nyelv az `Accept-Language`-től
+     * függ, és a gyorsítótár/edge nem keverheti a nyelveket.
+     */
+    public function handle(Request $request, \Closure $next): \Symfony\Component\HttpFoundation\Response
+    {
+        $response = parent::handle($request, $next);
+
+        if ($request->user() === null && $request->headers->has('Accept-Language')) {
+            $response->headers->set('Vary', 'Accept-Language', false);
+        }
+
+        return $response;
+    }
+
     public function share(Request $request): array
     {
         /*

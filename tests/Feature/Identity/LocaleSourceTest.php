@@ -116,3 +116,18 @@ describe('SetLocale sorrend', function () {
             ->assertJson(['locale' => 'es']);
     });
 });
+
+it('nem string locale claim (tömb) nem okoz hibát', function () {
+    $user = app(SyncSsoUser::class)(ssoClaims('tomb-1', ['x']));
+
+    expect($user->locale)->toBe((string) config('app.locale'))->and($user->locale_source)->toBeNull();
+});
+
+it('a fejléctől függő nyelvű válasz Vary: Accept-Language-et kap', function () {
+    Route::middleware(['web'])->get('/teszt/vary', fn () => ['locale' => app()->getLocale()]);
+
+    $response = $this->withHeaders(['Accept-Language' => 'fr'])->get('/teszt/vary')
+        ->assertJson(['locale' => 'fr']);
+
+    expect(implode(',', $response->headers->all('vary')))->toContain('Accept-Language');
+});

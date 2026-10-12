@@ -38,15 +38,27 @@ final class SetLocale
     {
         $supported = array_map('strval', (array) config('app.supported_locales', []));
 
-        $locale = $this->fromUser($request, $supported)
-            ?? $this->fromHeader($request, $supported)
-            ?? $this->fromStored($request, $supported);
+        $locale = $this->fromUser($request, $supported);
+        $viaHeader = false;
+
+        if ($locale === null) {
+            $locale = $this->fromHeader($request, $supported);
+            $viaHeader = $locale !== null;
+            $locale ??= $this->fromStored($request, $supported);
+        }
 
         if ($locale !== null) {
             app()->setLocale($locale);
         }
 
-        return $next($request);
+        $response = $next($request);
+
+        // Ha a nyelv a fejlécből jött, a válasz attól függ: a gyorsítótár/edge ne keverje.
+        if ($viaHeader) {
+            $response->headers->set('Vary', 'Accept-Language', false);
+        }
+
+        return $response;
     }
 
     /** @param list<string> $supported */

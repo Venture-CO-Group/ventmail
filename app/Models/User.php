@@ -127,6 +127,33 @@ class User extends Model implements AuthenticatableContract, HasLocalePreference
     }
 
     /**
+     * Nyers attribútum-olvasás: a szigorú mód (`preventAccessingMissingAttributes`) csonka
+     * példánynál (nem minden oszlop töltődött) kivételt dobna — az opcionális profil-
+     * beállításoknál a hiány egyszerűen „nincs beállítva".
+     */
+    public function raw(string $key): mixed
+    {
+        return $this->getAttributes()[$key] ?? null;
+    }
+
+    /**
+     * A értesítési beállítások DEKÓDOLT alakja (a nyers attribútum JSON-string). Csonka
+     * példánynál (strict mód) és hiányzó értéknél null.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function notificationPrefs(): ?array
+    {
+        $raw = $this->raw('notification_prefs');
+
+        if (is_string($raw)) {
+            $raw = json_decode($raw, true);
+        }
+
+        return is_array($raw) ? $raw : null;
+    }
+
+    /**
      * A FELHASZNÁLÓ NYELVE — fail-safe olvasó.
      *
      * A `HasLocalePreference` szerződést azért implementáljuk, mert a Laravel maga is ezt
@@ -139,16 +166,6 @@ class User extends Model implements AuthenticatableContract, HasLocalePreference
      * Mérve: a szigorú mód (`preventAccessingMissingAttributes`) különben az EGÉSZ
      * app-héjat leviszi.
      */
-    /**
-     * Nyers attribútum-olvasás: a szigorú mód (`preventAccessingMissingAttributes`) csonka
-     * példánynál (nem minden oszlop töltődött) kivételt dobna — az opcionális profil-
-     * beállításoknál a hiány egyszerűen „nincs beállítva".
-     */
-    public function raw(string $key): mixed
-    {
-        return $this->getAttributes()[$key] ?? null;
-    }
-
     public function preferredLocale(): string
     {
         $locale = trim((string) ($this->attributes['locale'] ?? ''));

@@ -48,7 +48,7 @@ final class CreateWorkspace
 
             $workspace = Workspace::create([
                 'name' => $name,
-                'slug' => Str::slug($name).'-'.Str::lower(Str::random(8)),
+                'slug' => (Str::slug($name) ?: 'workspace').'-'.Str::lower(Str::random(8)),
                 'plan' => 'free',
             ]);
 
