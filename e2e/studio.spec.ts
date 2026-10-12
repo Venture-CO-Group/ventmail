@@ -39,37 +39,43 @@ test('az új sablon ÉRVÉNYES fával indul, és az előnézet a valódi fordít
 
     const name = `E2E sablon ${run}`;
 
+    await page.getByTestId('template-new').click();
+    await page.getByTestId('create-blank').click();
     await page.getByTestId('template-name').fill(name);
     await page.getByTestId('template-subject').fill('E2E tárgy');
     await page.getByTestId('template-submit').click();
 
-    // A LÉTREHOZÁS a szerkesztőbe visz — és a marketing sablon már tartalmaz leiratkozót,
-    // különben létre sem jöhetne (61. kritérium).
+    // A LÉTREHOZÁS a szerkesztőbe visz — és a marketing sablon már tartalmazza a kötelező
+    // láblécet (postai cím, leiratkozó, beállítások), különben létre sem jöhetne.
     await expect(page.getByTestId('editor-name')).toHaveValue(name);
     await expect(page.getByTestId('section-0')).toBeVisible();
-    await expect(page.getByTestId('preview-html')).toBeVisible();
-    await expect(page.getByTestId('preview-html')).toContainText('<!doctype html');
+    await expect(page.locator('[data-testid="editor-canvas"] [data-type="footer"]')).toHaveCount(1);
+
+    await page.getByTestId('editor-preview').click();
+    await expect(page.getByTestId('preview-frame')).toHaveAttribute('srcdoc', /<!doctype html>/);
 });
 
 test('a szerkesztő blokkot ad hozzá, és a mentés után is ott van', async ({ page }) => {
     await page.goto('/templates');
+    await page.getByTestId('template-new').click();
     await page.getByTestId('template-name').fill(`E2E blokkok ${run}`);
     await page.getByTestId('template-subject').fill('Blokkok');
     await page.getByTestId('template-submit').click();
 
-    await page.getByTestId('add-block-0').locator('select').selectOption('heading');
+    // KATTINTÁSSAL beszúrt címsor (a húzás billentyűzetes megfelelője): a kijelölt bekezdés után.
+    await page.getByTestId('block-0-0-0').click();
+    await page.getByTestId('palette-heading').click();
+    await expect(page.getByTestId('block-0-0-1')).toHaveAttribute('data-type', 'heading');
 
-    // A KÖTELEZŐ mező alapértékkel jön: enélkül az új blokk azonnal hibás lenne.
-    const heading = page.getByTestId('content-0-2');
-    await expect(heading).toBeVisible();
-    await heading.fill('E2E cím');
+    const heading = page.getByTestId('rich-0-0-1');
+    await heading.click();
+    await page.keyboard.press('ControlOrMeta+a');
+    await page.keyboard.type('E2E cím');
 
-    await page.getByTestId('editor-save').click();
-    await expect(page.getByTestId('flash-success')).toBeVisible();
+    await expect(page.getByTestId('save-status')).toHaveAttribute('data-state', 'saved', { timeout: 15_000 });
 
     await page.reload();
-    await expect(page.getByTestId('content-0-2')).toHaveValue('E2E cím');
-    await expect(page.getByTestId('preview-html')).toContainText('E2E cím');
+    await expect(page.getByTestId('rich-0-0-1')).toHaveText('E2E cím');
 });
 
 test('a kampány célzása a becsült közönséggel jelenik meg', async ({ page }) => {
