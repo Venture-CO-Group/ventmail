@@ -209,6 +209,7 @@ return [
             'tooLarge' => 'Das Bild ist zu groß (max. :max MB).',
             'badType' => 'Nur JPG-, PNG-, GIF- oder WebP-Bilder können hochgeladen werden.',
             'badDimensions' => 'Das Bild darf höchstens :max × :max Pixel groß sein.',
+            'busy' => 'In diesem Workspace läuft gerade ein anderer Upload — versuchen Sie es gleich noch einmal.',
             'quota' => 'Der Bildspeicher des Workspaces ist voll (max. :max MB).',
             'processing' => 'Die Bildverarbeitung ist nicht verfügbar — der Upload wurde abgelehnt.',
         ],

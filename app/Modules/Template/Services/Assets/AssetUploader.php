@@ -6,10 +6,14 @@ namespace App\Modules\Template\Services\Assets;
 
 use App\Modules\Template\Contracts\AssetStore;
 use App\Modules\Template\Models\TemplateAsset;
+use App\Modules\Tenancy\Models\Workspace;
 use App\Modules\Tenancy\Services\WorkspaceContext;
+use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Validation\ValidationException;
+use Throwable;
 
 /**
  * KÉPFELTÖLTÉS a szerkesztőből — az ELLENŐRZÉS itt, a tárolás az `AssetStore` mögött.
@@ -27,6 +31,9 @@ use Illuminate\Validation\ValidationException;
  */
 final class AssetUploader
 {
+    /** A progresszív JPEG scan-jeinek felső száma (S2) — egy valódi kép 10 körül van. */
+    private const MAX_JPEG_SCANS = 100;
+
     /** @var array<string, string> MIME → kiterjesztés */
     private const ALLOWED = [
         'image/jpeg' => 'jpg',
@@ -63,45 +70,81 @@ final class AssetUploader
             throw ValidationException::withMessages(['file' => __('ventmail.editor.assets.badDimensions', ['max' => $limit])]);
         }
 
-        // TÁRHELY-KVÓTA workspace-enként (SS5): a feltöltés publikus tárba ír.
-        $used = (int) TemplateAsset::query()->sum('size');
-        $quota = (int) config('template.assets.workspace_quota_bytes');
+        // PROGRESSZÍV JPEG CPU-bomba (S2): a dekódolás ideje a scan-ek számával nő. A
+        // scan-fejléc (SOS, `FF DA`) az entrópia-kódolt adatban nem fordulhat elő (ott a
+        // `FF` bájt `FF 00`-ként töltődik), tehát a puszta számlálás pontos.
+        if ($mime === 'image/jpeg' && substr_count($contents, "\xFF\xDA") > self::MAX_JPEG_SCANS) {
+            throw ValidationException::withMessages(['file' => __('ventmail.editor.assets.badType')]);
+        }
 
         // ÚJRAKÓDOLÁS metaadat nélkül (SS5): az EXIF (GPS, készülék, név) különben a
         // publikus URL-en bárkinek olvasható lenne.
         $contents = $this->reencode($contents, $mime);
 
-        if ($used + strlen($contents) > $quota) {
-            throw ValidationException::withMessages(['file' => __('ventmail.editor.assets.quota', ['max' => (int) round($quota / 1024 / 1024)])]);
+        $workspace = $this->context->workspace();
+        $quota = (int) config('template.assets.workspace_quota_bytes');
+
+        /*
+         | KVÓTA ZÁRRAL (S1): a „összeg → írás → sor" lánc zár nélkül versenyezhet — két
+         | párhuzamos feltöltés mindkettője a régi összeget látja, és együtt túllépik a
+         | kvótát. A workspace-zár alatt a lánc soros; ha a sor írása elbukik, a már
+         | kiírt fájl is törlődik (nem marad nyilvántartás nélküli, publikus fájl).
+         */
+        try {
+            return $this->locked($contents, $mime, $quota, $workspace, $width, $height, $file);
+        } catch (LockTimeoutException) {
+            throw ValidationException::withMessages(['file' => __('ventmail.editor.assets.busy')]);
         }
+    }
 
-        $stored = $this->store->put((string) $this->context->workspace()->uuid, $contents, self::ALLOWED[$mime]);
+    private function locked(string $contents, string $mime, int $quota, Workspace $workspace, int $width, int $height, UploadedFile $file): TemplateAsset
+    {
+        return Cache::lock('template-assets:'.$workspace->getKey(), 30)->block((int) config('template.assets.lock_wait_seconds', 10), function () use ($contents, $mime, $quota, $workspace, $width, $height, $file): TemplateAsset {
+            $used = (int) TemplateAsset::query()->sum('size');
 
-        return TemplateAsset::query()->create([
-            'driver' => $this->store->name(),
-            'path' => $stored->path,
-            'url' => $stored->url,
-            'mime' => $mime,
-            'size' => strlen($contents),
-            'width' => $width,
-            'height' => $height,
-            // A FELTÖLTŐ fájlneve csak címke (a tárolt név véletlen UUID); vezérlőkarakter nélkül.
-            'original_name' => mb_substr((string) preg_replace('/[\x00-\x1f\x7f]/u', '', $file->getClientOriginalName()), 0, 255),
-            'created_by' => Auth::id(),
-        ]);
+            if ($used + strlen($contents) > $quota) {
+                throw ValidationException::withMessages(['file' => __('ventmail.editor.assets.quota', ['max' => (int) round($quota / 1024 / 1024)])]);
+            }
+
+            $stored = $this->store->put((string) $workspace->uuid, $contents, self::ALLOWED[$mime]);
+
+            try {
+                return TemplateAsset::query()->create([
+                    'driver' => $this->store->name(),
+                    'path' => $stored->path,
+                    'url' => $stored->url,
+                    'mime' => $mime,
+                    'size' => strlen($contents),
+                    'width' => $width,
+                    'height' => $height,
+                    // A FELTÖLTŐ fájlneve csak címke (a tárolt név véletlen UUID); vezérlőkarakter nélkül.
+                    'original_name' => mb_substr((string) preg_replace('/[\x00-\x1f\x7f]/u', '', $file->getClientOriginalName()), 0, 255),
+                    'created_by' => Auth::id(),
+                ]);
+            } catch (Throwable $e) {
+                $this->store->delete($stored->path);
+
+                throw $e;
+            }
+        });
     }
 
     /**
      * A kép ÚJRAKÓDOLÁSA GD-vel: a kimenet csak pixeladat, metaadat (EXIF, XMP, ICC-
-     * megjegyzés) nélkül. A GIF változatlan marad (az animáció a GD-n elveszne; a GIF-nek
-     * nincs EXIF-je) — de csak a fenti tartalom-ellenőrzés után.
+     * megjegyzés) nélkül. A GIF-et nem kódoljuk újra (az animáció a GD-n elveszne), hanem a
+     * blokkjait szűrjük: a komment- és a nem-animációs alkalmazás-kiterjesztés (XMP) kiesik
+     * (`GifMetadata`).
      *
      * GD nélkül a feltöltés ELUTASUL (fail-closed): metaadatos képet nem teszünk publikussá.
      */
     private function reencode(string $contents, string $mime): string
     {
         if ($mime === 'image/gif') {
-            return $contents;
+            try {
+                return GifMetadata::strip($contents);
+            } catch (\InvalidArgumentException) {
+                throw ValidationException::withMessages(['file' => __('ventmail.editor.assets.badType')]);
+            }
         }
 
         if (! function_exists('imagecreatefromstring')) {

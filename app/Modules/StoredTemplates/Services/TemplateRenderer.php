@@ -37,8 +37,8 @@ final class TemplateRenderer
     {
         // A FELTÉTELES TARTALOM a behelyettesítés ELŐTT dől el: egy behelyettesített érték
         // (a plaintext ág nem escape-el) így nem tud feltétel-jelölőt becsempészni. Nem
-        // Studio-eredetű törzsön (`$conditions = false`) a feltételes rész ELTŰNIK.
-        $template = $conditions ? ConditionalContent::apply($template, $variables) : ConditionalContent::strip($template);
+        // Studio-eredetű törzsön (`$conditions = false`) csak a jelölő tűnik el (D58).
+        $template = $conditions ? ConditionalContent::apply($template, $variables) : ConditionalContent::unmark($template);
 
         return self::checked(preg_replace_callback(
             self::TAG,
@@ -108,7 +108,7 @@ final class TemplateRenderer
         $variables = array_merge($variables, $reserved);
 
         // A FELTÉTELES TARTALOM a behelyettesítés ELŐTT — lásd `render()`.
-        $template = $conditions ? ConditionalContent::apply($template, $variables) : ConditionalContent::strip($template);
+        $template = $conditions ? ConditionalContent::apply($template, $variables) : ConditionalContent::unmark($template);
 
         // EGYETLEN PASS mindkét szintaxisra. Korábban a `%recipient.x%` EREDMÉNYE újra
         // átment a `{{ }}` renderelésen — a `htmlspecialchars` a `{` és a `%` karaktert

@@ -20,6 +20,10 @@ return [
         'max_bytes' => (int) env('TEMPLATE_ASSET_MAX_BYTES', 5 * 1024 * 1024),
         'max_dimension' => (int) env('TEMPLATE_ASSET_MAX_DIMENSION', 4000),
         // A workspace TELJES képtárhelye (SS5).
+        // A törölt workspace képei ennyi nap után törlődnek (S3: a soft delete visszavonható).
+        // A kvóta-zárra (S1) legfeljebb ennyit vár egy feltöltés.
+        'lock_wait_seconds' => (int) env('TEMPLATE_ASSET_LOCK_WAIT', 10),
+        'purge_grace_days' => (int) env('TEMPLATE_ASSET_PURGE_GRACE_DAYS', 30),
         'workspace_quota_bytes' => (int) env('TEMPLATE_ASSET_WORKSPACE_QUOTA', 500 * 1024 * 1024),
     ],
 

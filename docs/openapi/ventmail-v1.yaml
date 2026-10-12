@@ -39,6 +39,14 @@ info:
       építjük címzettenként.
     - Ugyanaz az `Idempotency-Key` MÁS kérés-tartalommal `409 IDEMPOTENCY_KEY_REUSED`
       (korábban csendben eldobta a második levelet).
+    - **Fenntartott `Idempotency-Key` előtagok** (`campaign:`, `journey:`, `template-test:`,
+      `invite:`, `optin:`, `smtp:`, `inbound-fwd-`, `dev-seed-`): a belső küldő utak kulcsai.
+      Ilyen kulccsal a kérés `400 IDEMPOTENCY_KEY_RESERVED` — különben egy API-hívó előre
+      „lefoglalhatna" egy belső kulcsot, és a valódi levél replay-ként elmaradna.
+    - **`<!--vm:…-->` kommentek a törzsben** (v1.1): ezek a Studio szerkesztő feltételes
+      blokkjainak belső jelölői. A `/v1` és az SMTP úton beküldött `html`/`text` törzsből a
+      jelölő-kommentek kimaradnak, a TARTALOM érintetlen. A szerkesztőből tárolt sablonná
+      publikált sablonból a feltételes blokkok a publikáláskor kiesnek.
 
 servers:
   - url: https://api.ventmail.app/v1

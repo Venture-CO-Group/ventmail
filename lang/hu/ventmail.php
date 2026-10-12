@@ -209,6 +209,7 @@ return [
             'tooLarge' => 'A kép túl nagy (legfeljebb :max MB).',
             'badType' => 'Csak JPG, PNG, GIF vagy WebP kép tölthető fel.',
             'badDimensions' => 'A kép legfeljebb :max × :max pixeles lehet.',
+            'busy' => 'Ebben a workspace-ben épp egy másik feltöltés fut — próbáld újra egy pillanat múlva.',
             'quota' => 'A workspace képtárhelye megtelt (legfeljebb :max MB).',
             'processing' => 'A képfeldolgozás nem érhető el — a feltöltés elutasítva.',
         ],

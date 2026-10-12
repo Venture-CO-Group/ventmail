@@ -6,6 +6,7 @@ namespace App\Modules\Template\Actions;
 
 use App\Modules\StoredTemplates\Models\StoredTemplate;
 use App\Modules\StoredTemplates\Models\StoredTemplateVersion;
+use App\Modules\StoredTemplates\Services\ConditionalContent;
 use App\Modules\Template\Models\Template;
 use Illuminate\Support\Facades\DB;
 
@@ -60,8 +61,11 @@ final class PublishToStoredTemplate
             $version = StoredTemplateVersion::query()->create([
                 'stored_template_id' => $stored->getKey(),
                 'version' => $stored->nextVersionNumber(),
-                'body' => (string) $template->html,
-                'body_text' => (string) $template->text,
+                // A FELTÉTELES BLOKKOK a tárolt sablonban NEM élnek (D58): a `/v1` hívó adata
+                // nem a mi kontaktunké, tehát a feltételes rész a publikáláskor kiesik —
+                // a „csak VIP" tartalom így senkihez nem kerül ki.
+                'body' => ConditionalContent::strip((string) $template->html),
+                'body_text' => ConditionalContent::strip((string) $template->text),
                 // A `engine` a behelyettesítés nyelvét mondja meg. A block editor kimenete
                 // `{{ valtozo }}` alakú merge-tageket tartalmaz — ugyanazt, amit az A1
                 // `TemplateRenderer`-e ért, escape-eléssel és fallbackkel.

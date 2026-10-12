@@ -16,6 +16,9 @@ use Symfony\Component\HttpFoundation\Response;
  */
 final class RequireIdempotencyKey
 {
+    /** @var list<string> a belső küldő utak kulcs-előtagjai */
+    public const RESERVED_PREFIXES = ['campaign:', 'journey:', 'template-test:', 'invite:', 'optin:', 'smtp:', 'inbound-fwd-', 'dev-seed-'];
+
     public function handle(Request $request, Closure $next): Response
     {
         $key = trim((string) $request->header('Idempotency-Key'));
@@ -34,6 +37,17 @@ final class RequireIdempotencyKey
             return response()->json([
                 'error' => ['code' => 'IDEMPOTENCY_KEY_TOO_LONG', 'message' => 'Az Idempotency-Key max 255 karakter.'],
             ], 400);
+        }
+
+        // FENNTARTOTT ELŐTAG: a belső küldő utak (kampány, journey, sablon-teszt, meghívó,
+        // opt-in, SMTP, továbbítás) kulcsai. Egy kívülről beküldött `campaign:…` kulcs
+        // lefoglalná a belső kulcsot, és a valódi kampány-levél replay-ként elmaradna.
+        foreach (self::RESERVED_PREFIXES as $prefix) {
+            if (str_starts_with(strtolower($key), $prefix)) {
+                return response()->json([
+                    'error' => ['code' => 'IDEMPOTENCY_KEY_RESERVED', 'message' => 'Ez az Idempotency-Key előtag a ventMail belső használatára fenntartott.'],
+                ], 400);
+            }
         }
 
         $request->attributes->set('idempotency_key', $key);

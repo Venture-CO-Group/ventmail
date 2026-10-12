@@ -28,15 +28,20 @@ final class PurgeTemplateAssetsCommand extends Command
         $previous = $context->hasWorkspace() ? $context->workspace() : null;
 
         try {
-            Workspace::query()->onlyTrashed()->orderBy('id')->chunkById(100, function ($workspaces) use ($context, $store, &$deleted): void {
+            // TÜRELMI IDŐ (S3): a soft delete visszavonható; a képek csak a türelmi idő
+            // letelte után törlődnek, addig a visszaállított workspace sablonjai épek.
+            $cutoff = now()->subDays((int) config('template.assets.purge_grace_days', 30));
+
+            Workspace::query()->onlyTrashed()->where('deleted_at', '<', $cutoff)->orderBy('id')->chunkById(100, function ($workspaces) use ($context, $store, &$deleted): void {
                 foreach ($workspaces as $workspace) {
                     $context->set($workspace);
 
-                    TemplateAsset::query()->orderBy('id')->each(function (TemplateAsset $asset) use ($store, &$deleted): void {
+                    // `lazyById` (S3): az offset-lapozás törlés közben átugrana sorokat.
+                    foreach (TemplateAsset::query()->lazyById(200) as $asset) {
                         $store->delete((string) $asset->path);
                         $asset->delete();
                         $deleted++;
-                    });
+                    }
                 }
             });
         } finally {

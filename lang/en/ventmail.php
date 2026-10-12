@@ -225,6 +225,7 @@ return [
             'tooLarge' => 'The image is too large (max :max MB).',
             'badType' => 'Only JPG, PNG, GIF or WebP images can be uploaded.',
             'badDimensions' => 'The image must be at most :max × :max pixels.',
+            'busy' => 'Another upload is in progress in this workspace — try again in a moment.',
             'quota' => 'The workspace image storage is full (max :max MB).',
             'processing' => 'Image processing is not available — the upload was refused.',
         ],

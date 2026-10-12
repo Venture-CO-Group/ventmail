@@ -154,6 +154,40 @@ final class ConditionalContent
         return self::walk($content, static fn (): bool => false);
     }
 
+    /**
+     * CSAK A JELÖLŐK eltávolítása, a tartalom MARAD — a nem Studio-eredetű (`/v1`, SMTP)
+     * törzsekre (D58). Ott a `<!--vm:…-->` a hívó saját HTML-kommentje, nem a mi
+     * feltételünk: jelentése nincs, de a tartalma (egy le nem zárt nyitó UTÁNI rész sem)
+     * nem tűnhet el csendben a hívó levéléből. A Studio feltételes blokkjai a tárolt
+     * sablonná PUBLIKÁLÁSKOR esnek ki (`strip()`), tehát a „csak VIP" tartalom ezen az úton
+     * sem kerül ki mindenkihez.
+     */
+    public static function unmark(string $content): string
+    {
+        if (! str_contains($content, '<!--vm:')) {
+            return $content;
+        }
+
+        $out = '';
+        $offset = 0;
+
+        while (($start = strpos($content, '<!--vm:', $offset)) !== false) {
+            $out .= substr($content, $offset, $start - $offset);
+            $close = strpos($content, '-->', $start);
+
+            if ($close === false) {
+                // Le nem zárt komment: a jelölő-kezdet eltűnik, a maradék szöveg marad.
+                $offset = $start + strlen('<!--vm:');
+
+                continue;
+            }
+
+            $offset = $close + 3;
+        }
+
+        return $out.substr($content, $offset);
+    }
+
     /** @param callable(?array<string, mixed>): bool $visible */
     private static function walk(string $content, callable $visible): string
     {

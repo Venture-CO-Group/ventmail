@@ -19,6 +19,8 @@ use App\Modules\Journey\Models\JourneyRunStep;
 use App\Modules\Journey\Models\JourneyStep;
 use App\Modules\Sending\Actions\SendMessage;
 use App\Modules\Sending\Enums\Channel;
+use App\Modules\Sending\Gate\GateReason;
+use App\Modules\Sending\Models\Message;
 use App\Modules\Suppression\Models\Suppression;
 use App\Modules\Template\Models\Template;
 use App\Modules\Template\Services\MergeVariables;
@@ -581,11 +583,25 @@ final class JourneyEngine
                 'idempotency_key' => 'journey:'.$run->uuid.':'.$step->uuid.':'.$claim->iteration,
             ]);
 
+            /*
+             | IDEMPOTENCY_KEY_REUSED = visszajátszás (ugyanaz, mint a kampánynál, D53): a
+             | kulcs belső (futás + lépés + iteráció), tehát eltérő lenyomat csak a renderelési
+             | adat elcsúszásából jöhet. Az ELŐZŐ kísérlet üzenete dönt.
+             */
+            $allowed = $result->decision->allowed;
+            $messageUuid = $result->message?->uuid;
+
+            if ($result->decision->reason === GateReason::IdempotencyKeyReused->value) {
+                $existing = Message::query()->where('idempotency_key', 'journey:'.$run->uuid.':'.$step->uuid.':'.$claim->iteration)->first();
+                $allowed = $existing !== null && $existing->status !== 'rejected';
+                $messageUuid = $existing?->uuid;
+            }
+
             $claim->forceFill([
-                'message_uuid' => $result->message?->uuid,
+                'message_uuid' => $messageUuid,
                 // A KAPU DÖNTÉSE: a riportnak meg kell tudnia mondani, miért nem kapta meg
                 // valaki a journey-levelet — a `skipped` nem hiba, hanem a kapu munkája.
-                'outcome' => $result->decision->allowed ? 'sent' : 'skipped',
+                'outcome' => $allowed ? 'sent' : 'skipped',
             ])->save();
         } catch (Throwable $e) {
             // EGY LÉPÉS HIBÁJA a FUTÁST jelöli meg, nem dobja el a többit: egy hibás

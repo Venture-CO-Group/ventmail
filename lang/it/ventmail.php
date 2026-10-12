@@ -209,6 +209,7 @@ return [
             'tooLarge' => 'L’immagine è troppo grande (max :max MB).',
             'badType' => 'Si possono caricare solo immagini JPG, PNG, GIF o WebP.',
             'badDimensions' => 'L’immagine può essere al massimo di :max × :max pixel.',
+            'busy' => 'Un altro caricamento è in corso in questo workspace — riprova tra un attimo.',
             'quota' => 'Lo spazio immagini del workspace è pieno (max :max MB).',
             'processing' => 'L’elaborazione delle immagini non è disponibile — caricamento rifiutato.',
         ],

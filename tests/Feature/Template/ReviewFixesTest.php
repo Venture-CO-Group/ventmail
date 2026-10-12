@@ -149,7 +149,7 @@ it('SB1: üres renderelt HTML-törzs SOHA nem megy ki (dispatcher-őr)', functio
         ->and(Message::query()->where('idempotency_key', 'ures-1')->value('status'))->toBe('deferred');
 });
 
-it('a feltételes rész CSAK Studio-eredetű törzsön értékelődik ki — máshol eltűnik', function () {
+it('a feltételes rész CSAK Studio-eredetű törzsön értékelődik ki — máshol csak a jelölő tűnik el', function () {
     $condition = ConditionalContent::open(['kind' => 'field', 'field' => 'contact.first_name', 'op' => 'is_set']);
     $html = '<p>mindenkinek</p>'.$condition.'<p>VIP</p>'.ConditionalContent::END;
 
@@ -158,7 +158,8 @@ it('a feltételes rész CSAK Studio-eredetű törzsön értékelődik ki — má
         'html' => $html, 'variables' => ['contact' => ['first_name' => 'Anna']], 'idempotency_key' => 'api-1',
     ]);
 
-    expect(rvBody('api@pelda.hu'))->toContain('mindenkinek')->not->toContain('VIP')->not->toContain('vm:');
+    // D58: nem Studio-eredetű törzsön a jelölő nem értelmezett — csak ő tűnik el, a tartalom marad.
+    expect(rvBody('api@pelda.hu'))->toContain('mindenkinek')->toContain('VIP')->not->toContain('vm:');
 });
 
 /*
@@ -516,6 +517,8 @@ it('SS5: a törölt workspace sablon-képei a takarító paranccsal törlődnek'
     TemplateAsset::query()->create(['driver' => 'local', 'path' => 'templates/'.$this->workspace->uuid.'/x.png', 'url' => 'https://x/x.png', 'mime' => 'image/png', 'size' => 3, 'width' => 1, 'height' => 1]);
 
     $this->workspace->delete();
+    // A türelmi időn (S3) túl.
+    DB::table('workspaces')->where('id', $this->workspace->id)->update(['deleted_at' => now()->subDays(31)]);
     app(WorkspaceContext::class)->forget();
 
     $this->artisan('templates:purge-assets')->assertSuccessful();

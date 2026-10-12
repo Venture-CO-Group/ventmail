@@ -211,6 +211,7 @@ return [
             'tooLarge' => 'L’image est trop lourde (max. :max Mo).',
             'badType' => 'Seules les images JPG, PNG, GIF ou WebP peuvent être importées.',
             'badDimensions' => 'L’image doit faire au maximum :max × :max pixels.',
+            'busy' => 'Un autre import est en cours dans cet espace — réessayez dans un instant.',
             'quota' => 'Le stockage d’images de l’espace est plein (max. :max Mo).',
             'processing' => 'Le traitement d’image n’est pas disponible — l’import a été refusé.',
         ],

@@ -69,6 +69,23 @@ final class SendCampaignChunk implements ShouldQueue
     /** A visszaengedés késleltetése — a limit-ablaknál hosszabb, hogy ne pörögjön. */
     private const RETRY_DELAY = 60;
 
+    /**
+     * Egy címzett ÁTMENETI elutasításainak felső száma (S4). Utána a sor `failed`
+     * (`transient_exhausted:<ok>`) — egy tartósan kimerült kvóta ne pörgesse a köteget
+     * végtelenül.
+     */
+    public const MAX_TRANSIENT_ATTEMPTS = 10;
+
+    /**
+     * A JOB próbálkozásainak száma — a worker `tries` beállítása FÖLÖTT (S4).
+     *
+     * A Horizon supervisorok `tries => 1`-gyel futnak: a `release()` után a második
+     * felvételkor a job `MaxAttemptsExceededException`-nel elbukna, és az átmeneti
+     * elutasítás utáni újrapróbálás élesben SOHA nem történne meg. A job saját `$tries`-a
+     * elsőbbséget élvez; a címzettenkénti plafon fölé +2 (az első futás és egy tartalék).
+     */
+    public int $tries = self::MAX_TRANSIENT_ATTEMPTS + 2;
+
     /** @param list<int> $recipientIds */
     public function __construct(
         private readonly string $campaignUuid,
@@ -283,6 +300,16 @@ final class SendCampaignChunk implements ShouldQueue
             }
 
             if (in_array($reason, self::TRANSIENT_REASONS, true)) {
+                if ($attempt + 1 >= self::MAX_TRANSIENT_ATTEMPTS) {
+                    $recipient->forceFill([
+                        'status' => 'failed',
+                        'skip_reason' => 'transient_exhausted:'.$reason,
+                        'message_uuid' => $result->message?->uuid,
+                    ])->save();
+
+                    return self::OUTCOME_FAILED;
+                }
+
                 // A SOR `pending` marad — a köteg újrafutása ÚJ kísérlet-kulccsal veszi fel.
                 $recipient->forceFill(['skip_reason' => 'retry:'.($attempt + 1)])->save();
 

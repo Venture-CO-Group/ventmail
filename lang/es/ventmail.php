@@ -209,6 +209,7 @@ return [
             'tooLarge' => 'La imagen es demasiado grande (máx. :max MB).',
             'badType' => 'Solo se pueden subir imágenes JPG, PNG, GIF o WebP.',
             'badDimensions' => 'La imagen debe medir como máximo :max × :max píxeles.',
+            'busy' => 'Hay otra subida en curso en este espacio — inténtalo de nuevo en un momento.',
             'quota' => 'El almacenamiento de imágenes del espacio está lleno (máx. :max MB).',
             'processing' => 'El procesamiento de imágenes no está disponible — se rechazó la subida.',
         ],
