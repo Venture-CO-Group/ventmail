@@ -186,10 +186,10 @@ jobs:
         env:
           PACKAGES_TOKEN: ${{ secrets.VENTURE_PACKAGES_TOKEN }}
           # A `venture-ui` a @venture-co-group/design-t a GitHub Packages npm-regiszteréből
-          # telepíti (a saját .npmrc-je `NODE_AUTH_TOKEN`-t olvas). A job tokenje 403-at
-          # kap (a csomag nem adott hozzáférést ennek a repónak), ezért a csomag-PAT —
-          # és csak ebben a lépésben, a ventMail `npm ci`-je nem látja.
-          NODE_AUTH_TOKEN: ${{ secrets.VENTURE_PACKAGES_TOKEN }}
+          # telepíti (a saját .npmrc-je `NODE_AUTH_TOKEN`-t olvas). A job SAJÁT, csak
+          # olvasó tokenje (a csomag „Manage Actions access” beállításában a ventmail
+          # repónak Read jog kell) — és csak ebben a lépésben, a ventMail `npm ci`-je nem látja.
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # A csomagok EGYMÁST `git+ssh` URL-lel hivatkozzák (a `venture-ui` a
           # `venture-design`-t), a runneren viszont nincs SSH-kulcs: `Permission denied
@@ -344,10 +344,10 @@ jobs:
         env:
           PACKAGES_TOKEN: ${{ secrets.VENTURE_PACKAGES_TOKEN }}
           # A `venture-ui` a @venture-co-group/design-t a GitHub Packages npm-regiszteréből
-          # telepíti (a saját .npmrc-je `NODE_AUTH_TOKEN`-t olvas). A job tokenje 403-at
-          # kap (a csomag nem adott hozzáférést ennek a repónak), ezért a csomag-PAT —
-          # és csak ebben a lépésben, a ventMail `npm ci`-je nem látja.
-          NODE_AUTH_TOKEN: ${{ secrets.VENTURE_PACKAGES_TOKEN }}
+          # telepíti (a saját .npmrc-je `NODE_AUTH_TOKEN`-t olvas). A job SAJÁT, csak
+          # olvasó tokenje (a csomag „Manage Actions access” beállításában a ventmail
+          # repónak Read jog kell) — és csak ebben a lépésben, a ventMail `npm ci`-je nem látja.
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # A csomagok EGYMÁST `git+ssh` URL-lel hivatkozzák (a `venture-ui` a
           # `venture-design`-t), a runneren viszont nincs SSH-kulcs: `Permission denied
