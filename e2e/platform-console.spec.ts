@@ -22,4 +22,12 @@ test('a konzol menüpontja nem is látszik a tenant-felhasználónak', async ({ 
     // konzolé külön testid, épp hogy a kettő ne mosódjon össze.
     await expect(page.getByTestId('nav-platform-console')).toHaveCount(0);
     await expect(page.getByTestId('nav-platform-audit')).toHaveCount(0);
+    // v1.1 · 7. modul: a küldési infrastruktúra is csak platform-adminnak.
+    await expect(page.getByTestId('nav-platform-infra')).toHaveCount(0);
+});
+
+test('a küldési infrastruktúra tenant-jogosultsággal NEM elérhető', async ({ page }) => {
+    const response = await page.goto('/platform/infrastructure');
+
+    expect(response?.status()).toBe(403);
 });

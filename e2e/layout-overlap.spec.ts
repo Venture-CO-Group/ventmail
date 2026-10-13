@@ -56,6 +56,7 @@ const STATIC_PAGES = [
     '/deliverability',
     '/logs',
     '/logs/statistics',
+    '/statistics',
     '/billing',
     '/inbound',
     '/validation',

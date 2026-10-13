@@ -18,6 +18,7 @@ use App\Modules\Inbound\Models\InboundAttachment;
 use App\Modules\Inbound\Models\InboundMessage;
 use App\Modules\Journey\Models\JourneyRun;
 use App\Modules\Journey\Models\JourneyRunStep;
+use App\Modules\Logs\Models\DomainDailyStat;
 use App\Modules\Logs\Models\SmtpTransaction;
 use App\Modules\Sending\Models\DeliveryAttempt;
 use App\Modules\Sending\Models\Message;
@@ -183,6 +184,9 @@ it('minden admin-felületű modell auditált', function () {
         // auditálja, ami `Auditable`. Soronkénti audit itt a törölhetetlen audit-táblát
         // tömné meg forgalommal, és a fogyás-sor amúgy sem tart személyes adatot.
         UsageRecord::class,
+        // v1.1 · 7. modul (D175): a DOMAIN-STATISZTIKA számláló-sora gépi adat — az
+        // esemény-folyam írja `+1` upserttel, felhasználói művelet nélkül, és PII-t nem tart.
+        DomainDailyStat::class,
         // deploy-ovh · A POSTAL-HIVATKOZÁS és a WEBHOOK-NYUGTA gépi adat: küldésenként,
         // címzettenként, illetve kézbesítési eseményenként keletkezik, felhasználói művelet
         // nélkül, és a `logs:purge` lejáratkor törli. Soronkénti audit a törölhetetlen

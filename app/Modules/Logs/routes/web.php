@@ -17,3 +17,6 @@ Route::get('/logs/statistics', [LogController::class, 'statistics'])->name('logs
 // Az EXPORT is a `{uuid}` ELŐTT (ugyanaz az ok).
 Route::get('/logs/export', [LogController::class, 'export'])->name('logs.export');
 Route::get('/logs/{uuid}', [LogController::class, 'show'])->name('logs.show');
+
+// v1.1 · 7. modul: küldési statisztika domainenként és időben (D175).
+Route::get('/statistics', [LogController::class, 'domainStatistics'])->name('statistics.domains');

@@ -55,10 +55,14 @@
             "profile": "Langue, formats, notifications",
             "console": "Santé du cluster et vue support",
             "audit": "Rechercher dans le journal d’audit",
-            "segments": "Conditions ET/OU avec comptage en direct"
+            "segments": "Conditions ET/OU avec comptage en direct",
+            "domainStats": "Envoyés, délivrés, rebonds, plaintes, ouvertures, clics par domaine",
+            "infrastructure": "Pools IP, réputation, listes de blocage, limites de débit"
         },
         "profile": "Paramètres du profil",
-        "segments": "Segments"
+        "segments": "Segments",
+        "domainStats": "Statistiques d'envoi",
+        "infrastructure": "Infrastructure d'envoi"
     },
     "shell": {
         "workspace": "Espace de travail",
@@ -2043,7 +2047,10 @@
             "quarantined": "En quarantaine",
             "warming": "Montée en charge",
             "test": "test",
-            "propagating": "Propagation…"
+            "propagating": "Propagation…",
+            "unknown": "Aucune donnée",
+            "cold": "Froid",
+            "warm": "Chaud"
         },
         "eyebrow": {
             "domains": "Plateforme · Domaines",
@@ -2051,7 +2058,9 @@
             "smtp": "Plateforme · SMTP",
             "webhooks": "Plateforme · Webhooks",
             "logs": "Plateforme · Journal d'événements",
-            "suppressions": "Plateforme · Suppression"
+            "suppressions": "Plateforme · Suppression",
+            "stats": "Plateforme · Statistiques",
+            "infra": "Console plateforme · Infrastructure"
         },
         "domains": {
             "title": "Domaines d'envoi",
@@ -2183,6 +2192,54 @@
             "deleteWarning": "Après suppression, des e-mails pourront de nouveau être envoyés à {email}. L'action est auditée.",
             "justification": "Motif (obligatoire)",
             "deleteAndLog": "Supprimer et journaliser"
+        },
+        "stats": {
+            "title": "Statistiques d'envoi",
+            "lead": "Par domaine et dans le temps. Les chiffres restent après la période de rétention du journal.",
+            "range": "Période",
+            "overTime": "Dans le temps",
+            "byDomain": "Par domaine",
+            "empty": "Pas encore de données pour cette période.",
+            "noDomain": "(sans domaine)",
+            "tooExpensive": "La requête est trop coûteuse — choisissez une période plus courte ou un seul domaine.",
+            "note": "Les taux de rebond et de plainte sont rapportés aux envois, les ouvertures et clics aux délivrés. Ouvertures/clics sont des nombres d'événements (Apple MPP peut les gonfler).",
+            "metric": {
+                "sent": "Envoyés",
+                "delivered": "Délivrés",
+                "bounced": "Rebonds",
+                "complained": "Plaintes",
+                "opened": "Ouvertures",
+                "clicked": "Clics"
+            }
+        },
+        "infra": {
+            "title": "Infrastructure d'envoi",
+            "lead": "Pools IP, réputation, surveillance des listes de blocage et limites de débit — lecture seule ; le mode d'envoi est géré par le propriétaire.",
+            "type": "Type",
+            "owner": "Propriétaire",
+            "addresses": "IP",
+            "anyChannel": "tous",
+            "warmup": "Montée en charge",
+            "blocklist": "Liste de blocage",
+            "ips": "Adresses IP",
+            "receivers": "Limitation par destinataire",
+            "otherReceivers": "tous les autres destinataires",
+            "perMinute": "messages / minute",
+            "perMinuteN": "{n} messages / minute",
+            "listedWarning": "{count} IP figurent sur une liste de blocage — vérifiez la console et mettez-les en quarantaine si nécessaire.",
+            "readOnly": "Les limites proviennent de la configuration et ne sont pas modifiables ici.",
+            "on": "Activé",
+            "off": "Désactivé",
+            "mode": {
+                "live": "Envoi réel",
+                "allowlist": "Liste de seed imposée",
+                "allowlistSize": "{count} entrées",
+                "marketing": "Envoi marketing"
+            },
+            "rate": {
+                "workspace": "Limite de l'espace",
+                "smtp": "Limite par identifiant SMTP"
+            }
         }
     }
 }

@@ -55,10 +55,14 @@
             "profile": "Lingua, formati, notifiche",
             "console": "Stato del cluster e vista supporto",
             "audit": "Cerca nel registro di audit",
-            "segments": "Condizioni E/O con conteggio in tempo reale"
+            "segments": "Condizioni E/O con conteggio in tempo reale",
+            "domainStats": "Inviati, consegnati, rimbalzi, reclami, aperture, clic per dominio",
+            "infrastructure": "Pool IP, reputazione, blocklist, limiti di velocità"
         },
         "profile": "Impostazioni del profilo",
-        "segments": "Segmenti"
+        "segments": "Segmenti",
+        "domainStats": "Statistiche di invio",
+        "infrastructure": "Infrastruttura di invio"
     },
     "shell": {
         "workspace": "Workspace",
@@ -2043,7 +2047,10 @@
             "quarantined": "In quarantena",
             "warming": "Warm-up",
             "test": "test",
-            "propagating": "In propagazione…"
+            "propagating": "In propagazione…",
+            "unknown": "Nessun dato",
+            "cold": "Freddo",
+            "warm": "Riscaldato"
         },
         "eyebrow": {
             "domains": "Piattaforma · Domini",
@@ -2051,7 +2058,9 @@
             "smtp": "Piattaforma · SMTP",
             "webhooks": "Piattaforma · Webhook",
             "logs": "Piattaforma · Registro eventi",
-            "suppressions": "Piattaforma · Soppressione"
+            "suppressions": "Piattaforma · Soppressione",
+            "stats": "Piattaforma · Statistiche",
+            "infra": "Console piattaforma · Infrastruttura"
         },
         "domains": {
             "title": "Domini di invio",
@@ -2183,6 +2192,54 @@
             "deleteWarning": "Dopo l'eliminazione si potrà di nuovo inviare a {email}. L'azione è registrata.",
             "justification": "Motivo (obbligatorio)",
             "deleteAndLog": "Elimina e registra"
+        },
+        "stats": {
+            "title": "Statistiche di invio",
+            "lead": "Per dominio e nel tempo. I numeri restano dopo il periodo di conservazione del registro.",
+            "range": "Periodo",
+            "overTime": "Nel tempo",
+            "byDomain": "Per dominio",
+            "empty": "Ancora nessun dato per questo periodo.",
+            "noDomain": "(senza dominio)",
+            "tooExpensive": "La query è troppo costosa — scegli un periodo più breve o un solo dominio.",
+            "note": "I tassi di rimbalzo e reclamo sono rispetto agli inviati, aperture e clic rispetto ai consegnati. Aperture/clic sono conteggi di eventi (Apple MPP può gonfiarli).",
+            "metric": {
+                "sent": "Inviati",
+                "delivered": "Consegnati",
+                "bounced": "Rimbalzi",
+                "complained": "Reclami",
+                "opened": "Aperture",
+                "clicked": "Clic"
+            }
+        },
+        "infra": {
+            "title": "Infrastruttura di invio",
+            "lead": "Pool IP, reputazione, monitoraggio blocklist e limiti — sola lettura; la modalità di invio la imposta il proprietario.",
+            "type": "Tipo",
+            "owner": "Proprietario",
+            "addresses": "IP",
+            "anyChannel": "qualsiasi",
+            "warmup": "Warm-up",
+            "blocklist": "Blocklist",
+            "ips": "Indirizzi IP",
+            "receivers": "Limite per destinatario",
+            "otherReceivers": "tutti gli altri destinatari",
+            "perMinute": "messaggi / minuto",
+            "perMinuteN": "{n} messaggi / minuto",
+            "listedWarning": "{count} IP sono in blocklist — controlla la console e mettile in quarantena se serve.",
+            "readOnly": "I limiti provengono dalla configurazione e qui non sono modificabili.",
+            "on": "Attivo",
+            "off": "Disattivo",
+            "mode": {
+                "live": "Invio reale",
+                "allowlist": "Allowlist seed obbligatoria",
+                "allowlistSize": "{count} voci",
+                "marketing": "Invio marketing"
+            },
+            "rate": {
+                "workspace": "Limite workspace",
+                "smtp": "Limite credenziale SMTP"
+            }
         }
     }
 }

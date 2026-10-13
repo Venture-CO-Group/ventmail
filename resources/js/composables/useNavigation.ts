@@ -92,6 +92,8 @@ export function useNavigation(): {
             { href: '/deliverability', testid: 'nav-deliverability', key: 'deliverability', icon: 'activity', show: can('analytics.view') },
             { href: '/logs', testid: 'nav-logs', key: 'logs', icon: 'list', show: can('logs.view') },
             { href: '/logs/statistics', testid: 'nav-statistics', key: 'statistics', icon: 'chart', show: can('logs.view') },
+            // v1.1 · 7. modul: küldési statisztika domainenként és időben.
+            { href: '/statistics', testid: 'nav-domain-stats', key: 'domainStats', icon: 'activity', show: can('analytics.view') },
             { href: '/billing', testid: 'nav-billing', key: 'billing', icon: 'credit-card', show: can('billing.manage') },
             // D15: „hamarosan" jelzés — a meglévő képernyők a régi útvonalon elérhetők maradnak.
             { href: '/inbound', testid: 'nav-inbound', key: 'inbound', icon: 'inbox', show: can('domain.manage'), soon: true },
@@ -125,6 +127,14 @@ export function useNavigation(): {
                       label: t('platform.title'),
                       description: t('nav.desc.console'),
                       icon: 'terminal',
+                  },
+                  {
+                      // v1.1 · 7. modul: küldési infrastruktúra (csak olvasás).
+                      href: '/platform/infrastructure',
+                      testid: 'nav-platform-infra',
+                      label: t('nav.infrastructure'),
+                      description: t('nav.desc.infrastructure'),
+                      icon: 'network',
                   },
                   {
                       href: '/platform/audit',

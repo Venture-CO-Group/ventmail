@@ -22,6 +22,8 @@ use Illuminate\Support\Facades\Route;
  | lehetne kilépni, csak megvárni a 30 perces lejáratot.
  */
 Route::get('/platform', [PlatformConsoleController::class, 'index'])->name('platform.index');
+// v1.1 · 7. modul: a küldési infrastruktúra (poolok, IP-reputáció, blocklist, rate limitek) — csak olvasás.
+Route::get('/platform/infrastructure', [PlatformConsoleController::class, 'infrastructure'])->name('platform.infrastructure');
 Route::get('/platform/audit', [PlatformConsoleController::class, 'audit'])->name('platform.audit');
 
 Route::post('/platform/impersonation', [PlatformConsoleController::class, 'startImpersonation'])

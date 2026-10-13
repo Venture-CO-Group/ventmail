@@ -180,3 +180,17 @@ test('suppression: külön listák, a panasz nem törölhető', async ({ page })
     await expect(page).toHaveURL(/list=manual/);
     await expect(page.getByTestId('suppression-tabs')).not.toContainText(`panasz-${run}@pelda.hu`);
 });
+
+test('statisztika: domainenként és időben, grafikonnal', async ({ page }) => {
+    await page.goto('/dev/seed-logs');
+    await page.goto('/statistics');
+
+    await expect(page.getByTestId('stats-tiles')).toBeVisible();
+    await expect(page.getByTestId('stats-domains')).toBeVisible();
+
+    await page.getByTestId('stats-range').getByRole('radio').first().click();
+    await expect(page).toHaveURL(/days=7/);
+
+    // A grafikon (ha van adat) canvas-ra rajzol; üres időszaknál magyarázó szöveg.
+    await expect(page.getByTestId('stats-chart').or(page.getByTestId('stats-empty'))).toBeVisible();
+});

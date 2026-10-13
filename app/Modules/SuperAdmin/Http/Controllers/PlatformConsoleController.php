@@ -6,6 +6,8 @@ namespace App\Modules\SuperAdmin\Http\Controllers;
 
 use App\Models\User;
 use App\Modules\Billing\Enums\Feature;
+use App\Modules\Deliverability\Models\BlocklistCheck;
+use App\Modules\IpPools\Models\IpPool;
 use App\Modules\SuperAdmin\Models\ImpersonationSession;
 use App\Modules\SuperAdmin\Models\PlanOverride;
 use App\Modules\SuperAdmin\Services\AuditSearch;
@@ -93,6 +95,66 @@ final class PlatformConsoleController
                 ])->values()->all(),
             'features' => array_map(fn (Feature $feature) => $feature->value, Feature::cases()),
             'reasons' => array_map(fn (SuppressionReason $reason) => $reason->value, SuppressionReason::cases()),
+        ]);
+    }
+
+    /**
+     * KÜLDÉSI INFRASTRUKTÚRA (v1.1 · 7. modul, D176) — CSAK OLVASÁS, csak platform-adminnak.
+     *
+     * Poolok (tenanteken átnyúlva), IP-k reputációval és warmuppal, a legutóbbi blocklist-
+     * állapot IP-nként és zónánként, a rate limitek és a küldési mód kapcsolói. Itt SEMMI nem
+     * állítható: a karantén a konzolon, a küldési mód (`SENDING_LIVE`, allowlist, marketing)
+     * a tulajdonosé (RUNBOOK-mail §13) — a felület csak megmutatja.
+     */
+    public function infrastructure(IpSupervision $ips): Response
+    {
+        $admin = $this->admin();
+
+        $pools = IpPool::query()->withoutGlobalScopes()->orderBy('name')->limit(500)->get();
+        $tenants = Workspace::query()->withoutGlobalScopes()->whereIn('id', $pools->pluck('workspace_id')->filter())->pluck('name', 'id');
+        $addresses = collect($ips->warmupOverview($admin));
+
+        // A LEGUTÓBBI ellenőrzés címenként és zónánként — `distinct on`, 30 napos ablakban.
+        $blocklist = BlocklistCheck::query()
+            ->where('checked_at', '>=', now()->subDays(30))
+            ->selectRaw('distinct on (target, zone) target, zone, listed, detail, checked_at')
+            ->orderBy('target')
+            ->orderBy('zone')
+            ->orderByDesc('checked_at')
+            ->limit(2000)
+            ->get()
+            ->groupBy('target');
+
+        return Inertia::render('Platform/Infrastructure', [
+            'pools' => $pools->map(fn (IpPool $pool) => [
+                'uuid' => (string) $pool->uuid,
+                'name' => (string) $pool->name,
+                'type' => (string) $pool->type,
+                'channel' => $pool->channel,
+                'workspace' => $pool->workspace_id === null ? null : ($tenants[$pool->workspace_id] ?? '—'),
+                'addresses' => $addresses->where('pool', $pool->name)->count(),
+            ])->values()->all(),
+            'addresses' => $addresses->map(fn (array $ip) => [
+                ...collect($ip)->only(['address', 'hostname', 'pool', 'pool_type', 'status', 'warmup_state', 'daily_limit', 'sent_today', 'utilisation', 'reputation_score', 'quarantined_at', 'quarantine_reason'])->all(),
+                'blocklist' => collect($blocklist[$ip['address']] ?? [])->map(fn (BlocklistCheck $check) => [
+                    'zone' => (string) $check->zone,
+                    'listed' => (bool) $check->listed,
+                    'checkedAt' => $check->checked_at?->toIso8601String(),
+                ])->values()->all(),
+            ])->values()->all(),
+            'rateLimits' => [
+                'workspacePerMinute' => (int) config('sending.rate_limit.per_minute'),
+                'smtpCredentialPerMinute' => (int) config('smtp.rate_limit.per_credential_per_minute'),
+                'receiverDefault' => (int) config('sending.domain_throttle.default'),
+                'receivers' => collect((array) config('sending.domain_throttle.limits'))->map(fn ($limit, $domain) => ['domain' => (string) $domain, 'perMinute' => (int) $limit])->values()->all(),
+            ],
+            // A KÜLDÉSI MÓD kapcsolói — CSAK megjelenítés; az allowlist TARTALMA nem kerül ki.
+            'sendingMode' => [
+                'live' => (bool) config('sending.live'),
+                'marketingEnabled' => (bool) config('sending.marketing_enabled'),
+                'allowlistEnforced' => (bool) config('sending.allowlist_enforced'),
+                'allowlistSize' => count(array_filter((array) config('sending.allowlist', []))),
+            ],
         ]);
     }
 

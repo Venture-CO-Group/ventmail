@@ -55,10 +55,14 @@
             "profile": "Nyelv, formátumok, értesítések",
             "console": "Klaszter-állapot és támogatói nézet",
             "audit": "Keresés az audit-naplóban",
-            "segments": "ÉS/VAGY feltételek élő számlálóval"
+            "segments": "ÉS/VAGY feltételek élő számlálóval",
+            "domainStats": "Küldött, kézbesített, bounce, panasz, nyitás, kattintás domainenként",
+            "infrastructure": "IP-poolok, reputáció, feketelisták, rate limitek"
         },
         "profile": "Profilbeállítások",
-        "segments": "Szegmensek"
+        "segments": "Szegmensek",
+        "domainStats": "Küldési statisztika",
+        "infrastructure": "Küldési infrastruktúra"
     },
     "shell": {
         "workspace": "Workspace",
@@ -2043,7 +2047,10 @@
             "quarantined": "Karanténban",
             "warming": "Warmup",
             "test": "teszt",
-            "propagating": "Terjed…"
+            "propagating": "Terjed…",
+            "unknown": "Nincs adat",
+            "cold": "Hideg",
+            "warm": "Bemelegedett"
         },
         "eyebrow": {
             "domains": "Platform · Domainek",
@@ -2051,7 +2058,9 @@
             "smtp": "Platform · SMTP",
             "webhooks": "Platform · Webhookok",
             "logs": "Platform · Eseménynapló",
-            "suppressions": "Platform · Suppression"
+            "suppressions": "Platform · Suppression",
+            "stats": "Platform · Statisztika",
+            "infra": "Platform-konzol · Infrastruktúra"
         },
         "domains": {
             "title": "Küldő domainek",
@@ -2183,6 +2192,54 @@
             "deleteWarning": "A(z) {email} címre a törlés után újra mehet levél. A művelet auditált.",
             "justification": "Indoklás (kötelező)",
             "deleteAndLog": "Törlés és naplózás"
+        },
+        "stats": {
+            "title": "Küldési statisztika",
+            "lead": "Domainenként és időben. A számok a napló retenciója után is megmaradnak.",
+            "range": "Időszak",
+            "overTime": "Időbeli alakulás",
+            "byDomain": "Domainenként",
+            "empty": "Ebben az időszakban még nincs adat.",
+            "noDomain": "(domain nélkül)",
+            "tooExpensive": "A lekérdezés túl költséges — válassz rövidebb időszakot vagy egy domaint.",
+            "note": "A bounce- és panaszarány a küldötthöz, a nyitás és a kattintás a kézbesítetthez viszonyít; a nyitás/kattintás esemény-szám (Apple MPP torzíthatja).",
+            "metric": {
+                "sent": "Küldött",
+                "delivered": "Kézbesített",
+                "bounced": "Bounce",
+                "complained": "Panasz",
+                "opened": "Megnyitás",
+                "clicked": "Kattintás"
+            }
+        },
+        "infra": {
+            "title": "Küldési infrastruktúra",
+            "lead": "IP-poolok, reputáció, feketelista-figyelés és rate limitek — csak olvasás; a küldési módot a tulajdonos kapcsolja.",
+            "type": "Típus",
+            "owner": "Tulajdonos",
+            "addresses": "IP-k",
+            "anyChannel": "bármely",
+            "warmup": "Warmup",
+            "blocklist": "Feketelista",
+            "ips": "IP-címek",
+            "receivers": "Fogadónkénti sebességkorlát",
+            "otherReceivers": "minden más fogadó",
+            "perMinute": "levél / perc",
+            "perMinuteN": "{n} levél / perc",
+            "listedWarning": "{count} IP feketelistán van — nézd meg a konzolon, és szükség esetén tedd karanténba.",
+            "readOnly": "A limitek a konfigurációból jönnek; innen nem módosíthatók.",
+            "on": "Be",
+            "off": "Ki",
+            "mode": {
+                "live": "Éles küldés",
+                "allowlist": "Seed-allowlist kötelező",
+                "allowlistSize": "{count} bejegyzés",
+                "marketing": "Marketing-küldés"
+            },
+            "rate": {
+                "workspace": "Workspace-keret",
+                "smtp": "SMTP-hitelesítő keret"
+            }
         }
     }
 }

@@ -55,10 +55,14 @@
             "profile": "Language, formats, notifications",
             "console": "Cluster health and support view",
             "audit": "Search the audit log",
-            "segments": "AND/OR conditions with a live count"
+            "segments": "AND/OR conditions with a live count",
+            "domainStats": "Sent, delivered, bounces, complaints, opens, clicks per domain",
+            "infrastructure": "IP pools, reputation, blocklists, rate limits"
         },
         "profile": "Profile settings",
-        "segments": "Segments"
+        "segments": "Segments",
+        "domainStats": "Sending statistics",
+        "infrastructure": "Sending infrastructure"
     },
     "shell": {
         "workspace": "Workspace",
@@ -2043,7 +2047,10 @@
             "quarantined": "Quarantined",
             "warming": "Warming up",
             "test": "test",
-            "propagating": "Propagating…"
+            "propagating": "Propagating…",
+            "unknown": "No data",
+            "cold": "Cold",
+            "warm": "Warm"
         },
         "eyebrow": {
             "domains": "Platform · Domains",
@@ -2051,7 +2058,9 @@
             "smtp": "Platform · SMTP",
             "webhooks": "Platform · Webhooks",
             "logs": "Platform · Event log",
-            "suppressions": "Platform · Suppression"
+            "suppressions": "Platform · Suppression",
+            "stats": "Platform · Statistics",
+            "infra": "Platform console · Infrastructure"
         },
         "domains": {
             "title": "Sending domains",
@@ -2183,6 +2192,54 @@
             "deleteWarning": "Mail can be sent to {email} again after deletion. The action is audited.",
             "justification": "Reason (required)",
             "deleteAndLog": "Delete and log"
+        },
+        "stats": {
+            "title": "Sending statistics",
+            "lead": "Per domain and over time. The numbers remain after the log retention period.",
+            "range": "Period",
+            "overTime": "Over time",
+            "byDomain": "By domain",
+            "empty": "No data for this period yet.",
+            "noDomain": "(no domain)",
+            "tooExpensive": "The query is too expensive — choose a shorter period or a single domain.",
+            "note": "Bounce and complaint rates are relative to sent; opens and clicks to delivered. Opens/clicks are event counts (Apple MPP may inflate them).",
+            "metric": {
+                "sent": "Sent",
+                "delivered": "Delivered",
+                "bounced": "Bounced",
+                "complained": "Complaints",
+                "opened": "Opens",
+                "clicked": "Clicks"
+            }
+        },
+        "infra": {
+            "title": "Sending infrastructure",
+            "lead": "IP pools, reputation, blocklist monitoring and rate limits — read-only; the sending mode is switched by the owner.",
+            "type": "Type",
+            "owner": "Owner",
+            "addresses": "IPs",
+            "anyChannel": "any",
+            "warmup": "Warm-up",
+            "blocklist": "Blocklist",
+            "ips": "IP addresses",
+            "receivers": "Per-receiver throttle",
+            "otherReceivers": "all other receivers",
+            "perMinute": "messages / minute",
+            "perMinuteN": "{n} messages / minute",
+            "listedWarning": "{count} IP(s) are on a blocklist — check the console and quarantine if needed.",
+            "readOnly": "Limits come from configuration and cannot be changed here.",
+            "on": "On",
+            "off": "Off",
+            "mode": {
+                "live": "Live sending",
+                "allowlist": "Seed allowlist enforced",
+                "allowlistSize": "{count} entries",
+                "marketing": "Marketing sending"
+            },
+            "rate": {
+                "workspace": "Workspace limit",
+                "smtp": "SMTP credential limit"
+            }
         }
     }
 }

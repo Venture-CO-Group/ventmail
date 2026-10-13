@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace App\Modules\Logs\Http\Controllers;
 
 use App\Modules\Domains\Models\Domain;
+use App\Modules\Logs\Services\DomainStatistics;
 use App\Modules\Logs\Services\LogExport;
 use App\Modules\Logs\Services\MessageLogQuery;
 use App\Modules\Logs\Services\MessageTrace;
 use App\Modules\Logs\Services\TagStatistics;
 use App\Modules\Sending\Models\Message;
+use App\Support\QueryTooExpensive;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -150,6 +152,33 @@ final class LogController
                 now()->endOfDay(),
                 $request->string('channel')->toString() ?: null,
             ),
+        ]);
+    }
+
+    /**
+     * KÜLDÉSI STATISZTIKA domainenként és időben (v1.1 · 7. modul, D175) — a
+     * `domain_daily_stats` számlálóiból, korlátos időablakkal és lekérdezési kerettel.
+     */
+    public function domainStatistics(Request $request, DomainStatistics $statistics): Response
+    {
+        Gate::authorize('analytics.view');
+
+        $days = in_array((int) $request->integer('days', 30), [7, 30, 90, 365], true) ? (int) $request->integer('days', 30) : 30;
+
+        $domains = Domain::query()->orderBy('name')->limit(500)->get(['id', 'uuid', 'name']);
+        $selected = $request->filled('domain') ? $domains->firstWhere('uuid', $request->string('domain')->toString()) : null;
+
+        try {
+            $report = $statistics->report(now()->subDays($days - 1)->startOfDay(), now()->endOfDay(), $selected?->getKey());
+        } catch (QueryTooExpensive) {
+            $report = null;
+        }
+
+        return Inertia::render('Logs/DomainStats', [
+            'days' => $days,
+            'domain' => $selected?->uuid,
+            'domains' => $domains->map(fn (Domain $domain) => ['uuid' => (string) $domain->uuid, 'name' => (string) $domain->name])->values()->all(),
+            'report' => $report,
         ]);
     }
 

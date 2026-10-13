@@ -55,10 +55,14 @@
             "profile": "Sprache, Formate, Benachrichtigungen",
             "console": "Cluster-Zustand und Support-Ansicht",
             "audit": "Audit-Protokoll durchsuchen",
-            "segments": "UND/ODER-Bedingungen mit Live-Zählung"
+            "segments": "UND/ODER-Bedingungen mit Live-Zählung",
+            "domainStats": "Gesendet, zugestellt, Bounces, Beschwerden, Öffnungen, Klicks je Domain",
+            "infrastructure": "IP-Pools, Reputation, Blocklisten, Ratenlimits"
         },
         "profile": "Profileinstellungen",
-        "segments": "Segmente"
+        "segments": "Segmente",
+        "domainStats": "Versandstatistik",
+        "infrastructure": "Versandinfrastruktur"
     },
     "shell": {
         "workspace": "Workspace",
@@ -2043,7 +2047,10 @@
             "quarantined": "In Quarantäne",
             "warming": "Warm-up",
             "test": "Test",
-            "propagating": "Wird verbreitet…"
+            "propagating": "Wird verbreitet…",
+            "unknown": "Keine Daten",
+            "cold": "Kalt",
+            "warm": "Aufgewärmt"
         },
         "eyebrow": {
             "domains": "Plattform · Domains",
@@ -2051,7 +2058,9 @@
             "smtp": "Plattform · SMTP",
             "webhooks": "Plattform · Webhooks",
             "logs": "Plattform · Ereignisprotokoll",
-            "suppressions": "Plattform · Sperrlisten"
+            "suppressions": "Plattform · Sperrlisten",
+            "stats": "Plattform · Statistik",
+            "infra": "Plattformkonsole · Infrastruktur"
         },
         "domains": {
             "title": "Absender-Domains",
@@ -2183,6 +2192,54 @@
             "deleteWarning": "Nach dem Löschen kann wieder an {email} gesendet werden. Die Aktion wird protokolliert.",
             "justification": "Begründung (Pflicht)",
             "deleteAndLog": "Löschen und protokollieren"
+        },
+        "stats": {
+            "title": "Versandstatistik",
+            "lead": "Je Domain und im Zeitverlauf. Die Zahlen bleiben nach Ablauf der Protokollaufbewahrung erhalten.",
+            "range": "Zeitraum",
+            "overTime": "Im Zeitverlauf",
+            "byDomain": "Nach Domain",
+            "empty": "Für diesen Zeitraum liegen noch keine Daten vor.",
+            "noDomain": "(ohne Domain)",
+            "tooExpensive": "Die Abfrage ist zu aufwendig — wähle einen kürzeren Zeitraum oder eine Domain.",
+            "note": "Bounce- und Beschwerderaten beziehen sich auf Gesendet, Öffnungen und Klicks auf Zugestellt. Öffnungen/Klicks sind Ereigniszahlen (Apple MPP kann sie verzerren).",
+            "metric": {
+                "sent": "Gesendet",
+                "delivered": "Zugestellt",
+                "bounced": "Bounces",
+                "complained": "Beschwerden",
+                "opened": "Öffnungen",
+                "clicked": "Klicks"
+            }
+        },
+        "infra": {
+            "title": "Versandinfrastruktur",
+            "lead": "IP-Pools, Reputation, Blocklisten-Überwachung und Ratenlimits — nur lesend; den Versandmodus schaltet der Eigentümer.",
+            "type": "Typ",
+            "owner": "Eigentümer",
+            "addresses": "IPs",
+            "anyChannel": "alle",
+            "warmup": "Warm-up",
+            "blocklist": "Blocklist",
+            "ips": "IP-Adressen",
+            "receivers": "Drosselung je Empfänger",
+            "otherReceivers": "alle anderen Empfänger",
+            "perMinute": "Nachrichten / Minute",
+            "perMinuteN": "{n} Nachrichten / Minute",
+            "listedWarning": "{count} IP(s) stehen auf einer Blocklist — prüfe die Konsole und setze sie bei Bedarf in Quarantäne.",
+            "readOnly": "Die Limits stammen aus der Konfiguration und sind hier nicht änderbar.",
+            "on": "An",
+            "off": "Aus",
+            "mode": {
+                "live": "Live-Versand",
+                "allowlist": "Seed-Allowlist erzwungen",
+                "allowlistSize": "{count} Einträge",
+                "marketing": "Marketing-Versand"
+            },
+            "rate": {
+                "workspace": "Workspace-Limit",
+                "smtp": "SMTP-Zugangslimit"
+            }
         }
     }
 }
