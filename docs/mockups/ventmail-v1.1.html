@@ -1378,7 +1378,7 @@ info@pelda-vendeg.example</textarea><span class="hint">5 cím felismerve · 1 sz
      <div style="margin-top:var(--vt-space-4)">
 <div class="tp on" data-cp="curl"><pre class="code"><span class="k">curl</span> -X POST https://api.ventmail.app/v1/messages \
   -H <span class="s">"Authorization: Bearer $VENTMAIL_API_KEY"</span> \
-  -H <span class="s">"Idempotency-Key: 4f0c2b6e-8d31-4c7e-9a52-0d1e7b9a6c11"</span> \
+  -H <span class="s">"Idempotency-Key: &lt;uuid&gt;"</span> \
   -H <span class="s">"Content-Type: application/json"</span> \
   -d <span class="s">'{
     "from": "Nádor Kávéház &lt;foglalas@mail.nador-kavehaz.example&gt;",

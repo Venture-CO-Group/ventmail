@@ -206,8 +206,12 @@ function isoMany(int $rows = 5000): string
 }
 
 it('S1(r11) · a gyerek MINIMÁLIS környezetet kap: nincs APP_KEY, DB_*, REDIS_* és egyéb titok', function () {
-    putenv('DB_PASSWORD=titok-a-szuloben');
-    putenv('APP_KEY=base64:titok');
+    // Az ál-titkok FUTÁSIDŐBEN keletkeznek (a forrásban nincs jelszó-alakú literál — GitGuardian,
+    // PR #42), és a teszt ÉRTÉK szerint is keresi őket a gyerek környezetében (SHA-256 kivonat).
+    $dbPassword = bin2hex(random_bytes(8));
+    $appKey = 'base64:'.base64_encode(random_bytes(32));
+    putenv('DB_PASSWORD='.$dbPassword);
+    putenv('APP_KEY='.$appKey);
 
     try {
         $probe = (new IsolatedXlsxRowReader(isoLegit(), null, sys_get_temp_dir(), 30))->probeChildForTests();
@@ -221,7 +225,10 @@ it('S1(r11) · a gyerek MINIMÁLIS környezetet kap: nincs APP_KEY, DB_*, REDIS_
         // tesz be változót — titkot egyik sem hordoz.
         ->and(array_values(array_diff($probe['env'], ['PATH', 'PHPRC', 'PHP_INI_SCAN_DIR', 'TMPDIR', 'TMP', 'TEMP', 'PWD', 'SHLVL', '_', '__CF_USER_TEXT_ENCODING'])))->toBe([])
         ->and($probe['env'])->not->toContain('APP_KEY')
-        ->and(preg_grep('/^(DB_|REDIS_|APP_|MAIL_|AWS_)/', $probe['env']))->toBe([]);
+        ->and(preg_grep('/^(DB_|REDIS_|APP_|MAIL_|AWS_)/', $probe['env']))->toBe([])
+        ->and($probe['digests'])->not->toBeEmpty()
+        ->not->toContain(hash('sha256', $dbPassword))
+        ->not->toContain(hash('sha256', $appKey));
 });
 
 it('S1(r11) · a szülő nyitott fd-i (socket, fájl) NEM jutnak a gyerekhez — csak 0–2 (Linux)', function () {

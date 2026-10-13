@@ -68,7 +68,10 @@ if (($options['probe'] ?? false) === true) {
         }
     }
 
-    $emit(['probe' => ['env' => array_keys(getenv()), 'fds' => $fds]]);
+    // Az env ÉRTÉKEI csak SHA-256 kivonatként mennek ki (a teszt a szülő futásidejű ál-titkát a
+    // kivonattal keresi): a probe így sem ad ki értéket, de érték szerint is bizonyítható a tisztítás.
+    $environment = getenv();
+    $emit(['probe' => ['env' => array_keys($environment), 'digests' => array_values(array_map(static fn ($value) => hash('sha256', (string) $value), $environment)), 'fds' => $fds]]);
     exit(0);
 }
 

@@ -47,7 +47,42 @@ regexes = [
 # fake teszt-hitelesítőért aránytalan (más ágakat törne el), viszont ha ugyanezekben a
 # fájlokban ÚJRA megjelenik egy ilyen alak, annak el KELL buknia. Egy fájl-alapú kivétel
 # ezt örökre kinyitná.
-commits = ["aa43085b20a32fbdb415764ff2473a6675aa2489"]
+#
+# A v1.1 · 8. modul COMMITJA (`c4be6c8c…`) — TÖRTÉNETI kivétel, egyetlen SHA-ra (CI, PR #42).
+#
+# A `GotenbergPdfRendererTest` SSRF-őr tesztje egy userinfo-s Gotenberg-URL-lel bizonyította, hogy a
+# renderer a hitelesítőt hordozó célt ELUTASÍTJA (`renderer_misconfigured`). A „hitelesítő" a
+# kitalált `user`/`pw` pár egy belső, nem létező sidecar-hoszton — nincs mit visszavonni. A
+# jelenlegi tartalomban az URL futásidőben, részekből áll össze (a forrásban nincs ilyen alak);
+# a történet átírása egy fake teszt-értékért aránytalan, ezért SHA-ra szól, nem fájlra.
+commits = [
+  "aa43085b20a32fbdb415764ff2473a6675aa2489",
+  "c4be6c8cce250438d0a5b11c535f0156a7d3ac3a",
+]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# A GITLEAKS ALAP `generic-api-key` SZABÁLYA — TÖRTÉNETI kivételek, kizárólag SHA-ra (CI, PR #42).
+#
+# Ugyanaz az elv, mint a C2-nél: a jelenlegi tartalom már nem hordoz titok-alakot (a hiba a
+# commit ELŐTT bukna el), a már létező történet átírása viszont aránytalan. A kivétel CSAK erre a
+# szabályra és CSAK ezekre a commitokra szól — ugyanabban a fájlban egy ÚJ találat el KELL, hogy bukjon.
+# ─────────────────────────────────────────────────────────────────────────────
+[[rules]]
+id = "generic-api-key"
+
+[rules.allowlist]
+# - `91e8eac0…` és `c3fed929…`: az `e2e/layout-overlap.spec.ts` hosszú webhook-teszt-URL-je
+#   `?token=abcdefghijklmnopqrstuvwxyz0123456789` lekérdezéssel — az ábécé és a számjegyek sorban,
+#   a cél a SZÖVEGHOSSZ (tördelés-mérés), nem hitelesítés; a cél egy publikus dokumentációs IP
+#   helyi `/e2e/` fogadója. A jelenlegi URL nem token-alakú (`?oldal=…`).
+# - `a9700eee…`: a `docs/mockups/ventmail-v1.1.html` API-doksi képernyőjének curl-példája egy
+#   KITALÁLT `Idempotency-Key` UUID-dal (az idempotencia-kulcs a kliens által generált kérés-
+#   azonosító, nem titok). A jelenlegi mockup `<uuid>` helykitöltőt mutat.
+commits = [
+  "91e8eac078dfeaf709be1b630c58b631c9693b26",
+  "c3fed9295c9633eb291814241bb4703efc2b1497",
+  "a9700eee35d8de35d5451bd6a72f7337e57c0248",
+]
 
 [allowlist]
 description = """

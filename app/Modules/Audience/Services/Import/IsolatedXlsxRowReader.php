@@ -226,7 +226,7 @@ final class IsolatedXlsxRowReader implements ImportRowReader
 
         $probe = json_decode(trim($output), true);
 
-        return is_array($probe['probe'] ?? null) ? $probe['probe'] : ['env' => [], 'fds' => []];
+        return is_array($probe['probe'] ?? null) ? $probe['probe'] : ['env' => [], 'digests' => [], 'fds' => []];
     }
 
     /**
