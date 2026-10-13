@@ -13,7 +13,12 @@ return [
     'pdf' => [
         // Üres érték (`ANALYTICS_PDF_RENDERER=` a mintából) = az alapértelmezés. Élesben/stagingen a
         // `fake` TILOS, ismeretlen érték mindenhol hiba (AnalyticsServiceProvider, D263).
-        'renderer' => env('ANALYTICS_PDF_RENDERER') ?: (in_array(env('APP_ENV'), ['production', 'staging'], true) ? 'gotenberg' : 'fake'),
+        //
+        // A környezet UGYANABBÓL a forrásból jön, mint az alkalmazásé (`config/app.php`:
+        // `env('APP_ENV', 'production')`): beállítatlan APP_ENV = éles = gotenberg. Korábban a
+        // null `fake`-et adott, miközben az app élesnek tekintette magát — a `composer install`
+        // utáni `package:discover` a D263 ellenőrzésen halt meg (CI, PR #42).
+        'renderer' => env('ANALYTICS_PDF_RENDERER') ?: (in_array(env('APP_ENV', 'production'), ['production', 'staging'], true) ? 'gotenberg' : 'fake'),
         'gotenberg_url' => env('GOTENBERG_URL', 'http://gotenberg:3000'),
         // A hívható Gotenberg-hosztok (SSRF-őr: a renderer csak belső sidecarra küld tenant-adatot).
         'allowed_hosts' => array_values(array_filter(array_map('trim', explode(',', (string) env('GOTENBERG_ALLOWED_HOSTS', 'gotenberg,localhost,127.0.0.1'))))),

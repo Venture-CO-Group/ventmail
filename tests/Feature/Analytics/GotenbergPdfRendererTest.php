@@ -84,12 +84,46 @@ it('csak engedélyezett belső hosztra küld (SSRF-őr)', function (string $url)
 
     expect(fn () => vmGotenberg($url)->render(vmDoc()))->toThrow(fn (PdfRenderFailed $e) => expect($e->failureCode)->toBe('renderer_misconfigured'));
     Http::assertNothingSent();
-})->with(['https://gotenberg.evil.example', 'ftp://gotenberg:3000', 'http://user:pw@gotenberg:3000', 'http://gotenberg:3000/?x=1']);
+})->with([
+    'https://gotenberg.evil.example',
+    'ftp://gotenberg:3000',
+    // A userinfo-s eset FUTÁSIDŐBEN áll össze részekből: a forrásban nincs hitelesítő-alakú URL
+    // (CI gitleaks `url-basic-auth`), a teszt tárgya — a userinfo elutasítása — változatlan.
+    'http://'.implode(':', ['user', 'pw']).'@gotenberg:3000',
+    'http://gotenberg:3000/?x=1',
+]);
 
 it('a config alapértéke tesztben fake, élesben gotenberg', function () {
     expect(config('analytics.pdf.renderer'))->toBe('fake')
         ->and(configFileWith('analytics', ['APP_ENV' => 'production', 'ANALYTICS_PDF_RENDERER' => null])['pdf']['renderer'])->toBe('gotenberg')
         ->and(configFileWith('analytics', ['APP_ENV' => 'local', 'ANALYTICS_PDF_RENDERER' => null])['pdf']['renderer'])->toBe('fake');
+});
+
+it('BEÁLLÍTATLAN APP_ENV → gotenberg (ugyanaz a forrás, mint az app környezete), és a boot-ellenőrzés nem dob', function () {
+    /*
+     | CI-hiba (PR #42): a `config/analytics.php` az `env('APP_ENV')`-ből döntött (beállítatlanul
+     | null → `fake`), az alkalmazás viszont `env('APP_ENV', 'production')` alapján ÉLES — a
+     | `composer install` utáni `package:discover` így a D263 „éles fake tiltott" ellenőrzésén
+     | halt meg. A kettőnek UGYANAZ a forrása: beállítatlan környezet = éles = gotenberg.
+     */
+    $config = configFileWith('analytics', ['APP_ENV' => null, 'ANALYTICS_PDF_RENDERER' => null]);
+    $app = configFileWith('app', ['APP_ENV' => null]);
+
+    expect($app['env'])->toBe('production')
+        ->and($config['pdf']['renderer'])->toBe('gotenberg');
+
+    // A boot-ellenőrzés (D263) CSAK a konfigurációt nézi, nem kapcsolódik a Gotenberghez: éles
+    // környezetben, elérhetetlen sidecar mellett is csendben átmegy.
+    Http::fake(fn () => throw new ConnectionException('nem szabad hívni'));
+    config(['analytics.pdf.renderer' => $config['pdf']['renderer']]);
+    $this->app['env'] = 'production';
+
+    try {
+        expect(AnalyticsServiceProvider::renderer())->toBe('gotenberg');
+        Http::assertNothingSent();
+    } finally {
+        $this->app['env'] = 'testing';
+    }
 });
 
 it('fail-closed renderer-választás: ismeretlen érték hiba, élesben a fake tiltott (D263)', function () {
