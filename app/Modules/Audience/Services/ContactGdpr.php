@@ -11,6 +11,7 @@ use App\Modules\Consent\Models\Consent;
 use App\Modules\Consent\Models\ConsentEvent;
 use App\Modules\Events\Models\MessageEvent;
 use App\Modules\Sending\Services\DomainNormalizer;
+use App\Modules\Suppression\Enums\SuppressionReason;
 use App\Modules\Suppression\Models\Suppression;
 use App\Modules\Tenancy\Services\WorkspaceContext;
 use Illuminate\Support\Facades\Artisan;
@@ -112,8 +113,11 @@ final class ContactGdpr
             // állítaná, hogy ennyi az összes — pedig nem.
             'activity_truncated' => $this->activityCount($email) > self::ACTIVITY_LIMIT,
             'activity_total' => $this->activityCount($email),
+            // A NORMALIZÁLT ok (a legacy `hard_bounce`/`soft_bounce` → `bounce`) és a jelleg (`detail`) — az
+            // érintett ugyanazt lássa, mint a felület és a `/v1` (m7 polish, D274).
             'suppressions' => Suppression::query()->where('email', $email)->get()->map(fn (Suppression $row) => [
-                'reason' => (string) $row->reason,
+                'reason' => SuppressionReason::fromStored((string) $row->reason)?->value ?? (string) $row->reason,
+                'detail' => $row->detail ?? SuppressionReason::legacyDetail((string) $row->reason),
                 'applies_to' => (string) $row->applies_to,
                 'created_at' => $row->created_at?->toIso8601String(),
             ])->all(),

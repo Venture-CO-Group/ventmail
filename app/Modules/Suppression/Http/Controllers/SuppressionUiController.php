@@ -59,11 +59,7 @@ final class SuppressionUiController
                     'appliesTo' => (string) $suppression->applies_to,
                     'source' => (string) $suppression->source,
                     'detail' => $suppression->detail === null
-                        ? match ((string) $suppression->reason) {
-                            'hard_bounce' => 'hard',
-                            'soft_bounce' => 'soft',
-                            default => null,
-                        }
+                        ? SuppressionReason::legacyDetail((string) $suppression->reason)
                         : mb_substr((string) $suppression->detail, 0, 160),
                     'expiresAt' => $suppression->expires_at?->toIso8601String(),
                     'createdAt' => $suppression->created_at?->toIso8601String(),

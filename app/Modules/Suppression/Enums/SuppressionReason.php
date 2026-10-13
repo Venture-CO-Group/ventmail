@@ -106,6 +106,20 @@ enum SuppressionReason: string
      */
     public const LEGACY_BOUNCE = ['hard_bounce', 'soft_bounce'];
 
+    /**
+     * A legacy tárolt ok `detail`-je (m7 polish, D273): a v1.1 előtti `hard_bounce` / `soft_bounce`
+     * a hard/soft jelleget magában az okban hordozta. A felület, a `/v1` és a GDPR-export EGY helyről
+     * képezi le (korábban két controllerben duplikálva).
+     */
+    public static function legacyDetail(?string $storedReason): ?string
+    {
+        return match ($storedReason) {
+            'hard_bounce' => 'hard',
+            'soft_bounce' => 'soft',
+            default => null,
+        };
+    }
+
     /** A tárolt érték → enum, a legacy bounce-alias feloldásával. */
     public static function fromStored(?string $value): ?self
     {

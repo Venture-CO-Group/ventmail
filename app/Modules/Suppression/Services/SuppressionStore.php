@@ -141,9 +141,20 @@ final class SuppressionStore
             $existingScope = SuppressionScope::tryFrom((string) $existing->applies_to) ?? SuppressionScope::All;
             $merged = SuppressionReason::merged($existingReason, $reasonEnum);
 
+            // A DETAIL fésülése (m7 polish, D272): a legacy `hard_bounce`/`soft_bounce` sor a jellegét az
+            // okban hordozta — a `bounce`-ra írt okkal ez nem veszhet el. Hiányzó detail a legacy (vagy a
+            // beérkező) értéket kapja; bounce-nál a „hard" felülírja a „soft"-ot, fordítva nem.
+            $existingDetail = $existing->detail ?? SuppressionReason::legacyDetail((string) $existing->reason);
+            $mergedDetail = match (true) {
+                $existingDetail === null => $detail,
+                $reasonEnum === SuppressionReason::Bounce && $detail === 'hard' && $existingDetail === 'soft' => 'hard',
+                default => $existingDetail,
+            };
+
             $existing->update([
                 // A visszavonhatatlan ok RAGADÓS, egyébként a súlyosabb marad (D186).
                 'reason' => $merged->value,
+                'detail' => $mergedDetail,
                 // A hatókör csak BŐVÜLHET (marketing → all), soha nem szűkül.
                 'applies_to' => $scopeEnum->isStricterThan($existingScope)
                     ? $scopeEnum->value

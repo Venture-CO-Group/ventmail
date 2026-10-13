@@ -3,11 +3,14 @@
 declare(strict_types=1);
 
 use App\Models\User;
+use App\Modules\Audience\Models\Contact;
+use App\Modules\Audience\Services\ContactGdpr;
 use App\Modules\Audit\Models\AuditLog;
 use App\Modules\Domains\Models\Domain;
 use App\Modules\Identity\Models\ApiKey;
 use App\Modules\Sending\Actions\SendMessage;
 use App\Modules\Sending\Models\Message;
+use App\Modules\Suppression\Enums\SuppressionReason;
 use App\Modules\Suppression\Models\Suppression;
 use App\Modules\Suppression\Services\SuppressionStore;
 use App\Modules\Tenancy\Models\Workspace;
@@ -275,4 +278,55 @@ it('az automatikus bounce-tiltás bounce okkal íródik, hard/soft a detailben, 
 
     supApi()->postJson('/v1/suppressions', ['email' => 'uj.bounce@example.test', 'reason' => 'manual'])
         ->assertCreated()->assertJsonPath('reason', 'bounce');
+});
+
+/*
+ | ZÁRÓ POLÍROZÁS (m7-final-nits): legacy detail az upsertnél, közös leképezés, GDPR-export.
+ */
+
+it('m7-polish · a legacyDetail() a régi hard/soft okot detail-lé képezi, a többire null', function () {
+    expect(SuppressionReason::legacyDetail('hard_bounce'))->toBe('hard')
+        ->and(SuppressionReason::legacyDetail('soft_bounce'))->toBe('soft')
+        ->and(SuppressionReason::legacyDetail('bounce'))->toBeNull()
+        ->and(SuppressionReason::legacyDetail('manual'))->toBeNull();
+});
+
+it('m7-polish · a legacy hard_bounce sor fésülésekor a detail kitöltődik (hard), az ok bounce lesz', function () {
+    $row = app(WorkspaceContext::class)->runFor($this->workspace, function () {
+        Suppression::create(['email' => 'regi2@example.test', 'reason' => 'hard_bounce', 'applies_to' => 'all', 'source' => 'legacy']);
+
+        return app(SuppressionStore::class)->recordBounce('regi2@example.test', false);
+    });
+
+    expect($row->reason)->toBe('bounce')
+        // A legacy „hard" nem romlik „soft"-ra egy későbbi soft bounce miatt.
+        ->and($row->detail)->toBe('hard');
+});
+
+it('m7-polish · bounce érkezésekor a hard felülírja a soft-ot (fordítva nem)', function () {
+    $store = app(SuppressionStore::class);
+
+    $row = app(WorkspaceContext::class)->runFor($this->workspace, function () use ($store) {
+        $store->recordBounce('pattan@example.test', false);
+
+        return $store->recordBounce('pattan@example.test', true);
+    });
+
+    expect($row->detail)->toBe('hard');
+
+    $row = app(WorkspaceContext::class)->runFor($this->workspace, fn () => $store->recordBounce('pattan@example.test', false));
+
+    expect($row->detail)->toBe('hard');
+});
+
+it('m7-polish · a GDPR-export a normalizált okot és a detailt adja (legacy sornál is)', function () {
+    $export = app(WorkspaceContext::class)->runFor($this->workspace, function () {
+        Suppression::create(['email' => 'gdpr-regi@example.test', 'reason' => 'soft_bounce', 'applies_to' => 'all', 'source' => 'legacy']);
+        $contact = Contact::create(['email' => 'gdpr-regi@example.test', 'status' => 'subscribed']);
+
+        return app(ContactGdpr::class)->export($contact);
+    });
+
+    expect($export['suppressions'][0]['reason'])->toBe('bounce')
+        ->and($export['suppressions'][0]['detail'])->toBe('soft');
 });

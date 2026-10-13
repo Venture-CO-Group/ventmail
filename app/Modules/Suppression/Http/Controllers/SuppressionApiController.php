@@ -148,10 +148,6 @@ final class SuppressionApiController
             return mb_substr((string) $suppression->detail, 0, 160);
         }
 
-        return match ((string) $suppression->reason) {
-            'hard_bounce' => 'hard',
-            'soft_bounce' => 'soft',
-            default => null,
-        };
+        return SuppressionReason::legacyDetail((string) $suppression->reason);
     }
 }
