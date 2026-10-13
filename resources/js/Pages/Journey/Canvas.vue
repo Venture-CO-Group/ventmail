@@ -2,31 +2,18 @@
 import { Head, router } from '@inertiajs/vue3';
 import { MiniMap } from '@vue-flow/minimap';
 import { Background } from '@vue-flow/background';
-import { VueFlow, useVueFlow, type Connection, type Edge, type Node, type NodeMouseEvent } from '@vue-flow/core';
+import { VueFlow, useVueFlow, type NodeMouseEvent } from '@vue-flow/core';
 import '@vue-flow/core/dist/style.css';
 import { VtBadge, VtButton, VtInput } from '@venture/ui';
 import axios, { AxiosError } from 'axios';
-import { computed, onBeforeUnmount, onMounted, provide, ref, watch, type Ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import JourneyNode from '../../Components/Journey/JourneyNode.vue';
 import NodeConfigPanel from '../../Components/Journey/NodeConfigPanel.vue';
 import NodePalette from '../../Components/Journey/NodePalette.vue';
 import TestRunPanel from '../../Components/Journey/TestRunPanel.vue';
-import {
-    CanvasKey,
-    DRAG_MIME,
-    defaultConfig,
-    isTrigger,
-    newId,
-    outputs,
-    type CatalogDef,
-    type Config,
-    type Issue,
-    type JGraph,
-    type NodeStat,
-    type Options,
-    type TestRunResult,
-} from '../../Components/Journey/catalog';
+import { CanvasKey, DRAG_MIME, type CatalogDef, type Issue, type JGraph, type NodeStat, type Options, type TestRunResult } from '../../Components/Journey/catalog';
+import { useJourneyGraph } from '../../Components/Journey/useJourneyGraph';
 import VmIcon from '../../Components/Shell/VmIcon.vue';
 import { useCompactNav } from '../../composables/useCompactNav';
 import AppLayout from '../../Layouts/AppLayout.vue';
@@ -39,13 +26,11 @@ import '../../journey.css';
  | Csomópont a palettáról húzással vagy kattintással; él a kimenetről a bemenetre húzással —
  | vagy a jobb panel „Kimenetek" választóival (billentyűzettel is bejárható).
  |
- | A VÁSZON ÁLLAPOTA a Vue Flow csomópont-listája (`data: {kind, label, config}`); mentéskor a
- | szerver `JourneyGraph` alakjára fordul. A validálás a szerveré — itt csak megjelenik.
+ | A VÁSZON ÁLLAPOTA a Vue Flow csomópont-listája (`data: {kind, label, config}`) a
+ | `useJourneyGraph` composable-ben (unit-tesztelt); mentéskor a szerver `JourneyGraph` alakjára fordul. A validálás a szerveré — itt csak megjelenik.
  |
  | Szerkesztő mód (`<AppLayout editor-mode>`): kompakt felső sáv, mint a sablonszerkesztőnél.
  */
-type FlowData = { kind: string; label: string; config: Config };
-
 const props = defineProps<{
     journey: { uuid: string; name: string; status: string; version: number | null; dirty: boolean };
     graph: JGraph;
@@ -67,80 +52,53 @@ const name = ref(props.journey.name);
 const status = ref(props.journey.status);
 const version = ref(props.journey.version);
 const unpublished = ref(props.journey.dirty);
-const issues = ref<Issue[]>(props.issues);
 // A STATISZTIKA csak publikált journey-nél jelenik meg — egy vázlaton a nullák zajt adnának.
 const stats = ref<Record<string, NodeStat>>(props.journey.version === null ? {} : props.stats.nodes);
 const options = ref<Options>(props.options);
-const testPath = ref<string[]>([]);
+
+// A GRÁF-ÁLLAPOT (csomópontok, élek, kapcsolódási szabályok, szerializálás) a composable-ben él.
+const {
+    nodes,
+    edges,
+    selectedId,
+    selected,
+    changed,
+    saveState,
+    testPath,
+    issues,
+    hasTrigger,
+    errorCount,
+    warningCount,
+    nodeIssues,
+    connections,
+    targetIds,
+    graphPayload,
+    touch,
+    clear,
+    addNode: addGraphNode,
+    updateNode,
+    removeNode,
+    duplicateNode,
+    connect,
+    onConnect,
+} = useJourneyGraph(props.graph, { unavailable: props.catalog.unavailableTriggers, issues: props.issues });
 
 provide(CanvasKey, { stats, issues, options, testPath });
 
-// `Ref` kasztolással: a Vue Flow `Node` típusának mély `UnwrapRef`-je a tsc-t végtelen
-// példányosításba vinné (TS2589).
-const nodes = ref(
-    props.graph.nodes.map((node) => ({
-        id: node.id,
-        type: 'journey',
-        position: { ...node.position },
-        data: { kind: node.type, label: node.label, config: { ...node.config } },
-    })),
-) as Ref<Node<FlowData>[]>;
-
-const edges = ref(props.graph.edges.map((edge) => toFlowEdge(edge.id, edge.source, edge.sourceHandle, edge.target))) as Ref<Edge[]>;
-
-const selectedId = ref<string | null>(null);
-const changed = ref(false);
-const saveState = ref<'saved' | 'dirty' | 'saving' | 'error'>('saved');
 const notice = ref<{ tone: 'info' | 'danger'; text: string } | null>(null);
 const issuesOpen = ref(false);
 const busy = ref<'' | 'validate' | 'publish' | 'pause' | 'test'>('');
 const testEmail = ref('');
 const testResult = ref<TestRunResult | null>(null);
 
-function toFlowEdge(id: string, source: string, sourceHandle: string, target: string): Edge {
-    return { id, source, sourceHandle, target, targetHandle: 'in', type: 'smoothstep', class: 'vm-jedge' };
-}
-
-const selected = computed(() => nodes.value.find((node) => node.id === selectedId.value) ?? null);
-const hasTrigger = computed(() => nodes.value.some((node) => isTrigger(node.data?.kind ?? '')));
-const errorCount = computed(() => issues.value.filter((issue) => issue.severity === 'error').length);
-const warningCount = computed(() => issues.value.length - errorCount.value);
-
-function graphPayload(): JGraph {
-    return {
-        nodes: nodes.value.map((node) => ({
-            id: node.id,
-            type: node.data?.kind ?? '',
-            position: { x: Math.round(node.position.x), y: Math.round(node.position.y) },
-            label: node.data?.label ?? '',
-            config: node.data?.config ?? {},
-        })),
-        edges: edges.value.map((edge) => ({ id: edge.id, source: edge.source, sourceHandle: edge.sourceHandle ?? 'out', target: edge.target })),
-    };
-}
-
-function touch(): void {
-    changed.value = true;
-    saveState.value = 'dirty';
-    testPath.value = [];
-}
-
 /* ------------------------------------------------------------------ csomópontok */
 
 function addNode(type: string, position?: { x: number; y: number }): void {
-    if (isTrigger(type) && hasTrigger.value) {
-        notice.value = { tone: 'danger', text: t('journeyCanvas.palette.oneTrigger') };
+    const result = addGraphNode(type, position ?? nextFreePosition);
 
-        return;
+    if (!result.ok) {
+        notice.value = { tone: 'danger', text: t(result.reason === 'unavailable' ? 'journeyCanvas.palette.soonHint' : 'journeyCanvas.palette.oneTrigger') };
     }
-
-    const taken = new Set(nodes.value.map((node) => node.id));
-    const id = isTrigger(type) && !taken.has('trigger') ? 'trigger' : newId(type.replace(/_/g, '-'), taken);
-    const at = position ?? nextFreePosition();
-
-    nodes.value = [...nodes.value, { id, type: 'journey', position: at, data: { kind: type, label: '', config: defaultConfig(type) } }];
-    selectedId.value = id;
-    touch();
 }
 
 /** A kattintással hozzáadott csomópont helye: a kijelölt mellé jobbra, különben a látható közép. */
@@ -164,19 +122,6 @@ function nextFreePosition(): { x: number; y: number } {
     return clear({ x, y });
 }
 
-/** Rácsra illeszt, és jobbra tolja (a folyam iránya), amíg egy meglévő csomópontra esne. */
-function clear(point: { x: number; y: number }): { x: number; y: number } {
-    const grid = 16;
-    let x = Math.round(point.x / grid) * grid;
-    const y = Math.round(point.y / grid) * grid;
-
-    while (nodes.value.some((node) => Math.abs(node.position.x - x) < 15 * grid && Math.abs(node.position.y - y) < 7 * grid)) {
-        x += 18 * grid;
-    }
-
-    return { x, y };
-}
-
 function onDragOver(event: DragEvent): void {
     if (event.dataTransfer?.types.includes(DRAG_MIME)) {
         event.preventDefault();
@@ -197,66 +142,7 @@ function onDrop(event: DragEvent): void {
     addNode(type, clear(point));
 }
 
-function updateNode(id: string, patch: Partial<FlowData>): void {
-    nodes.value = nodes.value.map((node) => (node.id === id && node.data ? { ...node, data: { ...node.data, ...patch } } : node));
-
-    // A megszűnt kimenetek (pl. törölt ág) éle is megy.
-    const node = nodes.value.find((item) => item.id === id);
-
-    if (node?.data) {
-        const valid = new Set(outputs(node.data.kind, node.data.config));
-
-        edges.value = edges.value.filter((edge) => edge.source !== id || valid.has(edge.sourceHandle ?? 'out'));
-    }
-
-    touch();
-}
-
-function removeNode(id: string): void {
-    nodes.value = nodes.value.filter((node) => node.id !== id);
-    edges.value = edges.value.filter((edge) => edge.source !== id && edge.target !== id);
-
-    if (selectedId.value === id) selectedId.value = null;
-
-    touch();
-}
-
-function duplicateNode(id: string): void {
-    const source = nodes.value.find((node) => node.id === id);
-
-    if (!source?.data || isTrigger(source.data.kind)) return;
-
-    const taken = new Set(nodes.value.map((node) => node.id));
-    const copy = newId(source.data.kind.replace(/_/g, '-'), taken);
-
-    nodes.value = [
-        ...nodes.value,
-        { id: copy, type: 'journey', position: { x: source.position.x + 32, y: source.position.y + 96 }, data: { ...source.data, config: JSON.parse(JSON.stringify(source.data.config)) } },
-    ];
-    selectedId.value = copy;
-    touch();
-}
-
 /* ------------------------------------------------------------------ élek */
-
-/** EGY kimenet EGY cél: az új él lecseréli a kimenet régi élét. */
-function connect(source: string, handle: string, target: string | null): void {
-    edges.value = edges.value.filter((edge) => !(edge.source === source && (edge.sourceHandle ?? 'out') === handle));
-
-    if (target && target !== source) {
-        edges.value = [...edges.value, toFlowEdge(`e-${source}-${handle}-${target}`, source, handle, target)];
-    }
-
-    touch();
-}
-
-function onConnect(connection: Connection): void {
-    const target = nodes.value.find((node) => node.id === connection.target);
-
-    if (!target?.data || isTrigger(target.data.kind)) return;
-
-    connect(connection.source, connection.sourceHandle ?? 'out', connection.target);
-}
 
 function onNodeClick(event: NodeMouseEvent): void {
     selectedId.value = event.node.id;
@@ -275,21 +161,7 @@ function onEdgesChange(changes: Array<{ type: string; id?: string }>): void {
     if (changes.some((change) => change.type === 'remove')) touch();
 }
 
-const connections = computed<Record<string, string>>(() => {
-    const map: Record<string, string> = {};
-
-    for (const edge of edges.value) {
-        if (edge.source === selectedId.value) map[edge.sourceHandle ?? 'out'] = edge.target;
-    }
-
-    return map;
-});
-
-const targets = computed(() =>
-    nodes.value
-        .filter((node) => node.id !== selectedId.value && node.data && !isTrigger(node.data.kind))
-        .map((node) => ({ value: node.id, label: titleOf(node.id) })),
-);
+const targets = computed(() => targetIds.value.map((id) => ({ value: id, label: titleOf(id) })));
 
 function titleOf(id: string | null): string {
     const node = nodes.value.find((item) => item.id === id);
@@ -298,8 +170,6 @@ function titleOf(id: string | null): string {
 
     return node.data.label || t(`journeyCanvas.nodes.${node.data.kind}`);
 }
-
-const nodeIssues = computed(() => issues.value.filter((issue) => issue.node === selectedId.value));
 
 /* ------------------------------------------------------------------ szerver */
 

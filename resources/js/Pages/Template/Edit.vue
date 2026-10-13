@@ -23,21 +23,18 @@ import {
     duplicateSection,
     eachBlock,
     getBlock,
-    insertBlock,
-    insertSection,
-    moveBlock,
     moveSection,
     nudgeBlock,
     parsePath,
     removeBlock,
     removeSection,
-    section,
     sectionFromLayout,
     setAttrs,
     setSectionAttrs,
     setSectionLayout,
 } from '../../Components/Editor/tree';
 import type { AssetDef, Attrs, Block, BlockPath, DragPayload, DropTarget, EditorCatalog, LayoutDef, SavedBlockDef, TemplateData } from '../../Components/Editor/types';
+import { placeAdd, placeDrop } from '../../Components/Editor/placement';
 import { useEditor } from '../../Components/Editor/useEditor';
 import VmIcon from '../../Components/Shell/VmIcon.vue';
 import { useCompactNav } from '../../composables/useCompactNav';
@@ -124,15 +121,6 @@ watch(
 
 /* ------------------------------------------------------------------ beszúrás */
 
-/** A lábléc-szakasz ELÉ szúrunk, ha a levél végén lábléc áll — a kötelező elem maradjon alul. */
-function appendIndex(): number {
-    const blocks = editor.blocks.value;
-    const last = blocks[blocks.length - 1];
-    const lastHasFooter = (last?.children ?? []).some((column) => (column.children ?? []).some((block) => ['footer', 'unsubscribe'].includes(block.type)));
-
-    return lastHasFooter ? blocks.length - 1 : blocks.length;
-}
-
 function resolvePayload(payload: DragPayload): { kind: 'section'; block: Block } | { kind: 'block'; block: Block } | null {
     switch (payload.source) {
         case 'palette': {
@@ -160,36 +148,20 @@ function resolvePayload(payload: DragPayload): { kind: 'section'; block: Block }
     }
 }
 
-/** KATTINTÁSSAL / ENTERREL beszúrás (a húzás billentyűzetes alternatívája). */
+/** KATTINTÁSSAL / ENTERREL beszúrás (a húzás billentyűzetes alternatívája) — lásd `placement.ts`. */
 function add(payload: DragPayload): void {
     const resolved = resolvePayload(payload);
-    const selection = editor.selection.value;
 
     if (!resolved) return;
 
-    if (resolved.kind === 'section') {
-        const index = selection ? selection.s + 1 : appendIndex();
-        editor.setBlocks(insertSection(editor.blocks.value, index, resolved.block));
-        editor.selection.value = { kind: 'section', s: index };
-    } else if (selection?.kind === 'block') {
-        editor.setBlocks(insertBlock(editor.blocks.value, { s: selection.s, c: selection.c, index: selection.b + 1 }, resolved.block));
-        editor.selection.value = { kind: 'block', s: selection.s, c: selection.c, b: selection.b + 1 };
-    } else if (selection?.kind === 'section') {
-        const length = editor.blocks.value[selection.s]?.children?.[0]?.children?.length ?? 0;
-        editor.setBlocks(insertBlock(editor.blocks.value, { s: selection.s, c: 0, index: length }, resolved.block));
-        editor.selection.value = { kind: 'block', s: selection.s, c: 0, b: length };
-    } else {
-        const index = appendIndex();
-        const wrapper = section();
-        wrapper.children![0].children = [resolved.block];
-        editor.setBlocks(insertSection(editor.blocks.value, index, wrapper));
-        editor.selection.value = { kind: 'block', s: index, c: 0, b: 0 };
-    }
+    const placed = placeAdd(editor.blocks.value, resolved, editor.selection.value);
+    editor.setBlocks(placed.blocks);
+    editor.selection.value = placed.selection;
 
     panelSheet.value = false;
 }
 
-/** HÚZÁS vége: a cél a jelző helye, a forrás a `dragging` állapot. */
+/** HÚZÁS vége: a cél a jelző helye, a forrás a `dragging` állapot — lásd `placement.ts`. */
 function drop(dropTarget: DropTarget): void {
     const payload = dragging.value;
 
@@ -198,58 +170,12 @@ function drop(dropTarget: DropTarget): void {
 
     if (!payload || !dropTarget) return;
 
-    if (payload.source === 'canvas-block') {
-        if (dropTarget.kind === 'block') {
-            const moved = moveBlock(editor.blocks.value, payload.path, dropTarget);
-            editor.setBlocks(moved.blocks);
-            editor.selection.value = { kind: 'block', ...moved.path };
-        } else {
-            const block = getBlock(editor.blocks.value, payload.path);
+    const placed = placeDrop(editor.blocks.value, payload, dropTarget, () => resolvePayload(payload));
 
-            if (!block) return;
+    if (!placed) return;
 
-            const wrapper = section();
-            wrapper.children![0].children = [clone(block)];
-            const inserted = insertSection(editor.blocks.value, dropTarget.index, wrapper);
-            const shifted = payload.path.s >= dropTarget.index ? { ...payload.path, s: payload.path.s + 1 } : payload.path;
-            editor.setBlocks(removeBlock(inserted, shifted));
-            editor.selection.value = { kind: 'block', s: dropTarget.index, c: 0, b: 0 };
-        }
-
-        return;
-    }
-
-    if (payload.source === 'canvas-section') {
-        if (dropTarget.kind !== 'section') return;
-
-        const moved = moveSection(editor.blocks.value, payload.s, dropTarget.index);
-        editor.setBlocks(moved.blocks);
-        editor.selection.value = { kind: 'section', s: moved.index };
-
-        return;
-    }
-
-    const resolved = resolvePayload(payload);
-
-    if (!resolved) return;
-
-    if (resolved.kind === 'block' && dropTarget.kind === 'block') {
-        editor.setBlocks(insertBlock(editor.blocks.value, dropTarget, resolved.block));
-        editor.selection.value = { kind: 'block', s: dropTarget.s, c: dropTarget.c, b: dropTarget.index };
-
-        return;
-    }
-
-    const index = dropTarget.kind === 'section' ? dropTarget.index : dropTarget.s + 1;
-    let sectionBlock = resolved.block;
-
-    if (resolved.kind === 'block') {
-        sectionBlock = section();
-        sectionBlock.children![0].children = [resolved.block];
-    }
-
-    editor.setBlocks(insertSection(editor.blocks.value, index, sectionBlock));
-    editor.selection.value = resolved.kind === 'block' ? { kind: 'block', s: index, c: 0, b: 0 } : { kind: 'section', s: index };
+    editor.setBlocks(placed.blocks);
+    editor.selection.value = placed.selection;
 }
 
 function onDragEnd(): void {

@@ -6,7 +6,8 @@
         "dev": "vite",
         "build": "vite build && vite build --config vite.report.config.ts",
         "typecheck": "vue-tsc --noEmit",
-        "e2e": "playwright test"
+        "e2e": "playwright test",
+        "test:unit": "vitest run"
     },
     "dependencies": {
         "@inertiajs/vue3": "^2.0.0",
@@ -27,9 +28,11 @@
         "@types/node": "^26.4.1",
         "@vitejs/plugin-vue": "^6.0.0",
         "axios": "^1.11.0",
+        "happy-dom": "20.14.5",
         "laravel-vite-plugin": "^2.0.0",
         "typescript": "^5.7.2",
         "vite": "^7.0.7",
+        "vitest": "4.1.11",
         "vue-tsc": "^2.2.0"
     }
 }

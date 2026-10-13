@@ -226,6 +226,11 @@ jobs:
       - name: vue-tsc (típusellenőrzés)
         run: npm run typecheck
 
+      # Frontend unit tesztek (v1.1 · 13. pont): a sablonszerkesztő és a journey-vászon
+      # állapotkezelése (Vitest + happy-dom, `tests/js/`).
+      - name: vitest (frontend unit tesztek)
+        run: npm run test:unit
+
       - name: vite build
         run: npm run build
 
