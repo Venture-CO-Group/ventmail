@@ -115,6 +115,24 @@ $supervisors = [
         'timeout' => 900,
         'nice' => 0,
     ],
+
+    /*
+     | v1.1 · 8. modul — a PDF-RIPORT renderelése (Gotenberg-hívás + adatgyűjtés). Külön supervisor és
+     | kapcsolat (`redis_reports`, retry_after 180 > timeout 120): egy lassú Chromium-futás sem a küldő,
+     | sem a háttér-sort nem foglalja. Egy folyamat — a sidecar is egyszerre egy-két renderelést bír.
+     */
+    'reports' => [
+        'connection' => 'redis_reports',
+        'queue' => ['reports'],
+        'balance' => 'simple',
+        'maxProcesses' => 1,
+        'maxTime' => 0,
+        'maxJobs' => 0,
+        'memory' => 256,
+        'tries' => 2,
+        'timeout' => 120,
+        'nice' => 0,
+    ],
 ];
 
 return [
@@ -153,6 +171,7 @@ return [
             'sending' => [...$supervisors['sending'], 'maxProcesses' => 20, 'balanceMaxShift' => 3, 'balanceCooldown' => 3],
             'background' => [...$supervisors['background'], 'maxProcesses' => 6],
             'campaign-start' => [...$supervisors['campaign-start'], 'maxProcesses' => 2],
+            'reports' => [...$supervisors['reports'], 'maxProcesses' => 1],
         ],
         // Fejlesztői és teszt-környezet: EGY Horizon mind az öt supervisorral.
         'local' => [
@@ -161,6 +180,7 @@ return [
             'campaign-start' => [...$supervisors['campaign-start'], 'maxProcesses' => 1],
             'imports' => [...$supervisors['imports'], 'maxProcesses' => 1],
             'imports-inspect' => [...$supervisors['imports-inspect'], 'maxProcesses' => 1],
+            'reports' => [...$supervisors['reports'], 'maxProcesses' => 1],
         ],
         'testing' => [
             'sending' => [...$supervisors['sending'], 'maxProcesses' => 1],
@@ -168,6 +188,7 @@ return [
             'campaign-start' => [...$supervisors['campaign-start'], 'maxProcesses' => 1],
             'imports' => [...$supervisors['imports'], 'maxProcesses' => 1],
             'imports-inspect' => [...$supervisors['imports-inspect'], 'maxProcesses' => 1],
+            'reports' => [...$supervisors['reports'], 'maxProcesses' => 1],
         ],
     ],
 ];

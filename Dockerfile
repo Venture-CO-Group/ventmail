@@ -59,6 +59,8 @@ COPY --from=vendor --chown=10001:10001 /app/vendor ./vendor
 
 RUN test -f public/build/manifest.json \
         || { echo 'public/build is missing: build the frontend first (CI frontend job).' >&2; exit 1; } \
+    && test -f public/build/report/report.js && test -f public/build/report/report.css \
+        || { echo 'public/build/report is missing: the PDF report bundle (vite.report.config.ts) is part of npm run build.' >&2; exit 1; } \
     && rm -f public/hot .env \
     && mkdir -p storage/framework/cache storage/framework/sessions storage/framework/views storage/logs storage/app/private storage/app/public bootstrap/cache \
     && chown -R 10001:10001 storage bootstrap/cache \

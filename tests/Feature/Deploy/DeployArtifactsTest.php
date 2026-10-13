@@ -261,11 +261,11 @@ it('az import külön worker-konténerben fut (saját limit), és az entrypoint/
     $plan = (new ProvisioningPlan('teszt', config('horizon.environments'), config('horizon.defaults')))->toSupervisorOptions();
     $started = fn (string $env): array => collect($plan[$env])->keys()->sort()->values()->all();
 
-    expect($started('production'))->toBe(['background', 'campaign-start', 'sending'])
+    expect($started('production'))->toBe(['background', 'campaign-start', 'reports', 'sending'])
         ->and($started('imports'))->toBe(['imports', 'imports-inspect'])
-        // A fejlesztői és a teszt-környezet egyetlen Horizonon mind az öt supervisort futtatja.
-        ->and($started('local'))->toBe(['background', 'campaign-start', 'imports', 'imports-inspect', 'sending'])
-        ->and($started('testing'))->toBe(['background', 'campaign-start', 'imports', 'imports-inspect', 'sending']);
+        // A fejlesztői és a teszt-környezet egyetlen Horizonon mind a hat supervisort futtatja.
+        ->and($started('local'))->toBe(['background', 'campaign-start', 'imports', 'imports-inspect', 'reports', 'sending'])
+        ->and($started('testing'))->toBe(['background', 'campaign-start', 'imports', 'imports-inspect', 'reports', 'sending']);
 
     // A felülírt értékek a ténylegesen induló supervisoron is érvényesek (nem csak a configban).
     expect($plan['production']['sending']->maxProcesses)->toBe(20)
@@ -273,7 +273,12 @@ it('az import külön worker-konténerben fut (saját limit), és az entrypoint/
         ->and($plan['imports']['imports']->timeout)->toBe(3600)
         ->and($plan['imports']['imports']->connection)->toBe('redis_imports')
         ->and($plan['imports']['imports-inspect']->timeout)->toBe(60)
-        ->and($plan['production']['campaign-start']->timeout)->toBe(900);
+        ->and($plan['production']['campaign-start']->timeout)->toBe(900)
+        // v1.1 · 8. modul: a PDF-riport saját supervisora; a kapcsolat retry_after-e a timeout fölött.
+        ->and($plan['production']['reports']->timeout)->toBe(120)
+        ->and($plan['production']['reports']->maxProcesses)->toBe(1)
+        ->and($plan['production']['reports']->connection)->toBe('redis_reports')
+        ->and(config('queue.connections.redis_reports.retry_after'))->toBeGreaterThan(120);
 });
 
 it('a php.ini kivétel-trace-e nem tartalmaz függvény-argumentumot', function () {
@@ -293,4 +298,42 @@ it('az image ellenőrzi, hogy a gyerekfolyamat címtér-limitje (ulimit -v) műk
 
     // A gyerek címtér-limitje a worker-imports konténerbe négy párhuzamos folyamattal is belefér (3g).
     expect(4 * (150 + (int) config('audience.import.xlsx_child_address_space_mb')))->toBeLessThan(3 * 1024);
+});
+
+it('a Gotenberg-sidecar tag+digest szerint pinelt, belső hálón, kimenő forgalom és host-port nélkül (D238)', function () {
+    $render = Yaml::parseFile(base_path('deploy/compose.render.yml'));
+    $gotenberg = $render['services']['gotenberg'];
+    $command = implode(' ', (array) $gotenberg['command']);
+
+    expect($render['name'])->toBe('ventmail-render')
+        ->and($gotenberg['image'])->toMatch('/^gotenberg\/gotenberg:8\.\d+\.\d+-chromium@sha256:[0-9a-f]{64}$/')
+        ->and($gotenberg)->not->toHaveKey('ports')
+        ->and($gotenberg)->not->toHaveKey('build')
+        ->and($render['networks']['render'])->toBe(['name' => 'ventmail-render', 'internal' => true])
+        ->and(vmNetworks($gotenberg))->toBe(['render'])
+        ->and($gotenberg['read_only'])->toBeTrue()
+        ->and($gotenberg['cap_drop'])->toBe(['ALL'])
+        ->and($gotenberg['security_opt'])->toContain('no-new-privileges:true')
+        ->and($gotenberg['mem_limit'])->toBe('1g')
+        ->and($gotenberg['restart'])->toBe('unless-stopped')
+        ->and($command)->toContain('--chromium-allow-list=^file:///tmp/.*')
+        ->toContain('--api-disable-download-from=true')
+        ->toContain('--webhook-disable=true')
+        ->toContain('--chromium-clear-storage=true');
+
+    // CSAK az app és a worker éri el (a riport-job a worker `reports` során fut, a letöltés az appon).
+    foreach (vmProdCompose()['services'] as $name => $service) {
+        expect(in_array('render', vmNetworks($service), true))->toBe(in_array($name, ['app', 'worker'], true), "{$name} render membership");
+    }
+
+    expect(vmProdCompose()['networks']['render'])->toBe(['name' => 'ventmail-render', 'external' => true]);
+
+    // A CI kontraktus-jobja UGYANAZT az image-et futtatja.
+    expect((string) file_get_contents(base_path('.github/workflows/ci.yml')))->toContain('image: '.$gotenberg['image']);
+});
+
+it('az image buildje bukik a PDF-riport csomagja nélkül, a production-env a Gotenberget kéri', function () {
+    expect((string) file_get_contents(base_path('Dockerfile')))->toContain('test -f public/build/report/report.js')
+        ->and((string) file_get_contents(base_path('package.json')))->toContain('vite build --config vite.report.config.ts')
+        ->and((string) file_get_contents(base_path('deploy/init-env.sh')))->toContain('ANALYTICS_PDF_RENDERER=gotenberg');
 });

@@ -7,8 +7,9 @@
 # SHA for an emergency rollback); never :latest, never a local build.
 #
 #   1. pull the image                     - fails: nothing changed
-#   2. data stack (Redis) up + the shared  - shared by both colours; a no-op once running
-#      storage volumes (D227)
+#   2. data stack (Redis), render stack   - shared by both colours; a no-op once running
+#      (Gotenberg, D238) + shared storage
+#      volumes (D227)
 #   3. config/route/view/event:cache      - one-off container; proves the release
 #                                           boots with this .env. Fails: nothing changed
 #   4. pg_dump of the app database        - the way back if a migration misbehaves
@@ -47,7 +48,7 @@ fi
 
 cd "$APP_DIR"
 [ -f .env ] || die ".env missing in $APP_DIR"
-if [ ! -f compose.prod.yml ] || [ ! -f compose.data.yml ]; then
+if [ ! -f compose.prod.yml ] || [ ! -f compose.data.yml ] || [ ! -f compose.render.yml ]; then
     die "compose files missing in $APP_DIR"
 fi
 # The apex landing host must be a trusted host, or production answers it with 400.
@@ -88,6 +89,7 @@ colour() { # colour <name> <tag> <compose args...>
     VENTMAIL_TAG="$release" VENTMAIL_COLOR="$name" docker compose -p "ventmail-$name" -f compose.prod.yml "$@"
 }
 data() { docker compose -p ventmail-data -f compose.data.yml "$@"; }
+render() { docker compose -p ventmail-render -f compose.render.yml "$@"; }
 ops() { colour ops "$tag" --profile ops run --rm --no-deps -T ops artisan "$@"; }
 
 log "deploying $tag to $next (serving: ${previous:-nothing} on ${active:-no colour})"
@@ -98,6 +100,9 @@ log "pulled $(docker image inspect --format '{{index .RepoDigests 0}}' "$IMAGE:$
 
 # 2. the data stack must exist before any colour or one-off (they join its network).
 data up -d --wait --wait-timeout "$WAIT_TIMEOUT" >/dev/null || die "data stack (Redis) did not become healthy; nothing changed"
+# The PDF renderer (D238): colour-independent Gotenberg sidecar on the internal `ventmail-render`
+# network, which the app and worker colours join. It must be healthy before a colour starts.
+render up -d --wait --wait-timeout "$WAIT_TIMEOUT" >/dev/null || die "render stack (Gotenberg) did not become healthy; nothing changed"
 # The shared storage volumes (D227): every colour and one-off mounts them. `volume create` is
 # idempotent (an existing volume is kept as is); nothing here ever removes them.
 for volume in ventmail-storage ventmail-storage-public; do

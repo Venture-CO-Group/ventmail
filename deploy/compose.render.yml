@@ -1,0 +1,54 @@
+# ventMail PDF-renderer sidecar (v1.1 module 8, D7/D238): Gotenberg (MIT) = headless Chromium behind
+# an HTTP API. Colour-independent singleton (compose project `ventmail-render`), started by deploy.sh
+# step 2 next to the data stack; never removed by a deploy.
+#
+# Isolation (R4: Chromium renders tenant data):
+#   - network `ventmail-render` is `internal: true`: no egress at all (no DNS, no internet), and no
+#     host port. Only `app` and `worker` (compose.prod.yml) join it and call http://gotenberg:3000.
+#   - Chromium may load only file:///tmp/* (the multipart upload: report HTML, JS, CSS, logo);
+#     the downloadFrom feature, webhooks and metrics collection are disabled; cache, cookies and
+#     storage are cleared between conversions (one tenant's report never sees another's state).
+#   - read-only root, tmpfs /tmp (uploads) and /home/gotenberg (Chromium's profile/crashpad dir:
+#     without it Chromium does not start on a read-only root - measured), no capabilities,
+#     no-new-privileges, memory/CPU/pid limits.
+# The image is pinned by tag AND digest (pinned 2026-10-13); flag names verified against 8.37.0.
+name: ventmail-render
+
+services:
+  gotenberg:
+    image: gotenberg/gotenberg:8.37.0-chromium@sha256:0d28ae9a96441588ef739623726bd500ad0720b77266c6f1351a13e333fbd61c
+    command:
+      - gotenberg
+      - --api-timeout=60s
+      - --chromium-allow-list=^file:///tmp/.*
+      - --chromium-max-queue-size=4
+      - --chromium-restart-after=50
+      - --chromium-clear-cache=true
+      - --chromium-clear-cookies=true
+      - --chromium-clear-storage=true
+      - --webhook-disable=true
+      - --api-disable-download-from=true
+      - --prometheus-disable-collect=true
+      - --log-level=warn
+    networks: [render]
+    read_only: true
+    tmpfs:
+      - /tmp:size=512m
+      - /home/gotenberg:size=64m,uid=1001,gid=1001
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    mem_limit: 1g
+    cpus: 1.0
+    pids_limit: 512
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:3000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+
+networks:
+  render:
+    name: ventmail-render
+    internal: true

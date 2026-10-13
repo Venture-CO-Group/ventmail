@@ -57,6 +57,29 @@
 - [ ] **Kampány-megnyitás trigger:** az Apple MPP / képproxy gépi megnyitásai is beléptetnek — maradjon-e
       a megnyitás triggerként, vagy csak a kattintás.
 
+## P2 — analitika, PDF-riport, branding (v1.1 · 8. modul)
+- [ ] **Első deploy a `ventmail-render` stackkel:** a `deploy.sh` a 2. lépésben indítja a Gotenberg
+      sidecart (`deploy/compose.render.yml`) és létrehozza a `ventmail-storage` / `ventmail-storage-public`
+      volume-okat. A boxra a `compose.render.yml`-t is fel kell másolni (a `deploy/` mellé), és a meglévő
+      `.env`-be `set-env.sh`-val: `ANALYTICS_PDF_RENDERER=gotenberg`, `GOTENBERG_URL=http://gotenberg:3000`,
+      `ANALYTICS_PDF_TIMEOUT=60`. Deploy után: `php artisan analytics:render-smoke` (ops) → `OK … oldal`.
+- [ ] **Meglévő sablon-képek és import-fájlok átköltöztetése:** a D227 előtti, konténer-lokális
+      `storage/app` tartalma a régi színnel együtt eltűnik; ha élesben volt feltöltött sablon-kép, azt a
+      váltás előtt a futó `app` konténerből a `ventmail-storage-public` volume-ra kell másolni.
+- [ ] **Memória-keret:** +1 GB a Gotenbergnek (mem_limit 1g) + a worker `reports` supervisora (256 MB a
+      2g-n belül). A deploy-ovh 12. pont költségvetését jóvá kell hagyni.
+- [ ] **ventVault:** a riport-PDF (`reports/…`) és a workspace-logó (`branding/…`) ma a privát helyi
+      diszken (megosztott volume) él — a ventVault fájltár élesítésekor oda költözik (`ReportArtifactStore`,
+      `BrandingService`).
+- [ ] **Saját (OFL) betűk a riportban (D234):** a Gotenberg hálózat nélkül fut, a Google Fonts nem
+      érhető el — a PDF a rendszer-fallback betűt használja. Döntés: Inter / Space Grotesk / JetBrains Mono
+      OFL-fájlok a riport-csomagba (licenc-felülvizsgálat: OFL ≠ MIT/BSD/Apache, D178-kivétel kell).
+- [ ] **@venture/ui:** hiányzó komponensek jelentve — chart (vonal/oszlop/kör/tölcsér) + PNG-export menü,
+      A4-borító-előnézet. A ventMail lokálisan pótolja (`Components/Charts/*`, `Components/Analytics/*`).
+- [ ] **Gotenberg-image frissítés:** a pinelt `8.37.0-chromium@sha256:0d28ae9a…` (2026-10-13). Új verziónál
+      a CI `gotenberg-contract` jobja és a deploy-teszt digest-egyezése vezet; a Chromium-biztonsági
+      frissítések miatt negyedévente.
+
 ## Review-eszközök
 - [ ] coderabbit, aikido, nightvision, pr-review-toolkit — CLI-ből nem érhetők el ebben a futásban;
       a PR-eken kézzel futtatandók.

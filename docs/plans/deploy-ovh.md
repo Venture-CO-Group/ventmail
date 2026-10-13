@@ -111,7 +111,7 @@
       = **7.75g**. A blue/green váltás alatt a régi és az új szín együtt fut: **+7.75g** a váltás idejére
       (a review „+6g” becslése a scheduler/web nélkül számolt). A migrációhoz egyszer futó `ops` +1g.
     - Közös (színfüggetlen): Postgres 6g, Redis 1.25g, MariaDB 2g, Postal worker 2 × 1.5g, Postal
-      web/smtp, edge 0.25g.
+      web/smtp, edge 0.25g, **Gotenberg 1g (v1.1 modul 8, 17. pont)**.
     - **worker-imports (3g) belső költségvetése (D224, modul 5 r10):** 4 folyamat (imports 2 +
       imports-inspect 2), mindegyik legfeljebb EGY izolált XLSX-olvasó gyerekkel (D220). A gyerek
       címtér-limitje 512 MB (`AUDIENCE_IMPORT_XLSX_CHILD_AS_MB`, Linuxon `ulimit -v`; a libxml
@@ -158,6 +158,17 @@
     ugyanaz a worker írja és olvassa, a purge (1 óránál régebbi) a volume-on takarít; a konténer-lokális
     `/tmp`-n egy OOM-maradék a konténer élettartamáig foglalna. A `storage/framework` (cache, view)
     konténer-lokális marad.
+
+17. **PDF-renderer sidecar (v1.1 modul 8, D238).** `deploy/compose.render.yml` (projekt `ventmail-render`,
+    színfüggetlen, a `deploy.sh` 2. lépése indítja és health-re vár): Gotenberg `8.37.0-chromium`, tag ÉS
+    digest szerint pinelve. Csak a `ventmail-render` (`internal: true`) hálón — nincs host-port, nincs
+    kimenő forgalom; csak az `app` és a `worker` csatlakozik. Chromium csak `file:///tmp/*`-t tölthet,
+    `downloadFrom`/webhook/metrika kikapcsolva, a böngésző-állapot konverziónként törlődik. Read-only root,
+    tmpfs `/tmp` + `/home/gotenberg` (enélkül a Chromium nem indul read-only rooton — mérve), `cap_drop: ALL`,
+    `no-new-privileges`, `mem_limit 1g`, `cpus 1.0`, `pids_limit 512`. Az image GPL-es segédeszközöket is
+    tartalmaz (pl. pdftk) — külön konténerben, HTTP-n át használjuk, a ventMail kódjával nem linkelődik.
+    **Memória:** a 12. pont költségvetése +1 GB (Gotenberg, színfüggetlen, a váltáskor nem duplázódik);
+    a worker `reports` supervisora (1 folyamat, 256 MB) a worker 2g-s keretén belül fut.
 
 ## PLAN (sorrend)
 

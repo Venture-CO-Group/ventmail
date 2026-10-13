@@ -24,7 +24,7 @@ if [ -n "${FAKE_RUNNING:-}" ] && [[ "$*" == ps* ]] && [[ "$*" == *"project=$FAKE
 exit 0
 STUB
     chmod +x "$WORK/bin/docker"
-    cp "$HERE/../compose.prod.yml" "$HERE/../compose.data.yml" "$WORK/app/"
+    cp "$HERE/../compose.prod.yml" "$HERE/../compose.data.yml" "$HERE/../compose.render.yml" "$WORK/app/"
     printf 'DB_DATABASE=ventmail\nTRUSTED_HOSTS=app.ventmail.app,api.ventmail.app,ventmail.app,ventmail-web\n' >"$WORK/app/.env"
     export PATH="$WORK/bin:$PATH" CALLS="$WORK/calls" APP_DIR="$WORK/app" BACKUP_DIR="$WORK/backups"
     export WAIT_TIMEOUT=5 DRAIN_SECONDS=0
@@ -90,6 +90,9 @@ expect "pull -> data stack -> caches -> backup -> migrate -> colour up, in that 
 expect "creates the shared storage volumes before any colour or one-off (D227)" \
     'order "volume create ventmail-storage$" "volume create ventmail-storage-public$" "ops artisan config:cache" "^VENTMAIL_TAG=v1.0.0 VENTMAIL_COLOR=blue .*up -d"'
 expect "never removes or prunes a volume" '! called "volume (rm|prune)"'
+expect "brings the render stack (Gotenberg) up and healthy before any colour (D238)" \
+    'order "-p ventmail-data .*up -d --wait" "-p ventmail-render -f compose.render.yml up -d --wait" "^VENTMAIL_TAG=v1.0.0 VENTMAIL_COLOR=blue .*up -d"'
+expect "never takes the render stack down" '! called "-p ventmail-render .*down"'
 expect "the pre-migration dump lands in the backup dir" 'ls "$BACKUP_DIR"/ventmail/ventmail-predeploy-v1.0.0-*.dump >/dev/null 2>&1'
 APP_URL=https://shell.example TRUSTED_PROXIES=0.0.0.0/0 "$DEPLOY" v1.1.0 >/dev/null 2>&1
 expect "the next release starts on the other colour" 'called "^VENTMAIL_TAG=v1.1.0 VENTMAIL_COLOR=green .*-p ventmail-green .*up -d --remove-orphans --wait" && [ "$(color)" = green ] && [ "$(deployed)" = v1.1.0 ]'
@@ -146,6 +149,12 @@ setup
 printf 'DB_DATABASE="ventmail"\nTRUSTED_HOSTS=app.ventmail.app,ventmail.app\n' >"$APP_DIR/.env"
 "$DEPLOY" v1.0.0 >/dev/null 2>&1
 expect "reads a quoted DB_DATABASE" 'called "pg_dump -U postgres -Fc ventmail$"'
+teardown
+
+setup
+export FAKE_FAIL='-p ventmail-render .*up'
+rc=0; "$DEPLOY" v1.0.0 >/dev/null 2>&1 || rc=$?
+expect "an unhealthy render stack stops before any change" '[ "$rc" -ne 0 ] && ! called migrate && ! called "-p ventmail-(blue|green) .*up" && [ "$(deployed)" = "<none>" ]'
 teardown
 
 setup
@@ -208,6 +217,7 @@ expect "writes .env with mode 600" '[ "$(stat -c %a "$APP_DIR/.env" 2>/dev/null 
 expect "never prints a secret" '! grep -qF "$FAKE_APP_KEY" <<<"$out" && ! grep -qF "$DB_PW" <<<"$out" && ! grep -qF "$FAKE_PEPPER" <<<"$out"'
 expect "lists every key the production example lists" \
     'missing=0; for k in $(sed -n "s/^\([A-Z][A-Z0-9_]*\)=$/\1/p" "$HERE/../.env.production.example"); do grep -q "^$k=" "$APP_DIR/.env" || { echo "missing $k"; missing=1; }; done; [ "$missing" = 0 ]'
+expect "the PDF renderer is the internal Gotenberg sidecar" 'grep -qx "ANALYTICS_PDF_RENDERER=gotenberg" "$APP_DIR/.env" && grep -qx "GOTENBERG_URL=http://gotenberg:3000" "$APP_DIR/.env"'
 expect "production values" 'grep -qx "APP_ENV=production" "$APP_DIR/.env" && grep -qx "APP_DEBUG=false" "$APP_DIR/.env" && grep -qx "LOG_CHANNEL=stderr" "$APP_DIR/.env" && grep -qx "IDENTITY_DEV_LOGIN=false" "$APP_DIR/.env" && grep -qx "OIDC_PROVIDER_URL=https://sso.ventureco.app" "$APP_DIR/.env"'
 expect "the sending switches start CLOSED (deploy rule 3)" 'grep -qx "SENDING_LIVE=false" "$APP_DIR/.env" && grep -qx "SENDING_MARKETING_ENABLED=false" "$APP_DIR/.env" && grep -qx "SEND_ALLOWLIST_ENFORCED=true" "$APP_DIR/.env" && grep -qx "SEND_ALLOWLIST=seed-a@example.test,seed-b@example.test" "$APP_DIR/.env"'
 expect "a __Host- session cookie and the app, api and apex trusted hosts" 'grep -qx "SESSION_COOKIE=__Host-ventmail_session" "$APP_DIR/.env" && grep -qx "TRUSTED_HOSTS=app.ventmail.app,api.ventmail.app,ventmail.app,ventmail-web" "$APP_DIR/.env"'

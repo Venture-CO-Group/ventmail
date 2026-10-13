@@ -121,6 +121,20 @@ return [
             'after_commit' => false,
         ],
 
+        /*
+         | v1.1 · 8. modul — a PDF-RIPORT kapcsolata: a `RenderAnalyticsReport` timeoutja 120 mp, az alap
+         | 90 mp-es `retry_after` alatt a sor a futó renderelést újra kiadná (két Chromium-futás ugyanarra
+         | a riportra). A `retry_after` a timeout + ráhagyás.
+         */
+        'redis_reports' => [
+            'driver' => 'redis',
+            'connection' => env('REDIS_QUEUE_CONNECTION', 'default'),
+            'queue' => 'reports',
+            'retry_after' => (int) env('REDIS_REPORTS_RETRY_AFTER', 180),
+            'block_for' => null,
+            'after_commit' => false,
+        ],
+
         'deferred' => [
             'driver' => 'deferred',
         ],

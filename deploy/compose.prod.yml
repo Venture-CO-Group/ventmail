@@ -9,6 +9,8 @@
 #   postal-api  the two Postal instances (internal): the app/worker call their
 #               HTTP API, and they deliver signed webhooks to `ventmail-web`
 #   data        Redis (this app's own)
+#   render      the Gotenberg PDF sidecar (compose.render.yml, internal, no egress): only `app`
+#               and `worker` call it (the report job runs on the worker's `reports` queue)
 #
 # Shared storage (D227): every PHP role (app, worker, worker-imports, scheduler,
 # ops) sees ONE storage/app: an import upload written by `app` is read by
@@ -31,6 +33,7 @@ services:
   app:
     <<: *php
     command: ["app"]
+    networks: [default, data, mail-db, postal-api, render]
     volumes:
       - fpm:/run/php
       - storage:/app/storage/app
@@ -44,6 +47,7 @@ services:
   worker:
     <<: *php
     command: ["worker"]
+    networks: [default, data, mail-db, postal-api, render]
     volumes:
       - storage:/app/storage/app
       - storage-public:/app/storage/app/public
@@ -127,6 +131,9 @@ networks:
     external: true
   edge:
     name: edge
+    external: true
+  render:
+    name: ventmail-render
     external: true
 
 volumes:
