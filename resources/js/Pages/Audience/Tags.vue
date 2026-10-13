@@ -10,6 +10,7 @@ import VmFormSection from '../../Components/Form/VmFormSection.vue';
 import VmIcon from '../../Components/Shell/VmIcon.vue';
 import VmPageHeader from '../../Components/Studio/VmPageHeader.vue';
 import AppLayout from '../../Layouts/AppLayout.vue';
+import { useFormat } from '../../composables/useFormat';
 
 /**
  * CÍMKÉK (v1.1 · 5. modul): létrehozás, átnevezés, összevonás, törlés — darabszámokkal.
@@ -28,6 +29,7 @@ interface TagRow {
 const props = defineProps<{ tags: TagRow[] }>();
 
 const { t } = useI18n();
+const format = useFormat();
 
 const newName = ref('');
 const renaming = ref<TagRow | null>(null);
@@ -113,7 +115,7 @@ function remove(): void {
                         <VmIcon name="tag" />
                         <strong class="vm-truncate" :title="tag.name">{{ tag.name }}</strong>
                     </span>
-                    <span class="vm-tag-list__count" :data-testid="`tag-count-${tag.name}`">{{ t('tags.contacts', { count: tag.contacts.toLocaleString() }) }}</span>
+                    <span class="vm-tag-list__count" :data-testid="`tag-count-${tag.name}`">{{ t('tags.contacts', { count: format.number(tag.contacts) }) }}</span>
                     <span class="vm-tag-list__actions">
                         <VtButton variant="ghost" size="sm" :data-testid="`tag-rename-${tag.name}`" @click="startRename(tag)">{{ t('tags.rename') }}</VtButton>
                         <VtButton variant="ghost" size="sm" :disabled="tags.length < 2" :data-testid="`tag-merge-${tag.name}`" @click="startMerge(tag)">

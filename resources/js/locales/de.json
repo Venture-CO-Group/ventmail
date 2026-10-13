@@ -120,7 +120,73 @@
         "recent": "Letzte Nachrichten",
         "noAccess": "Du darfst das Protokoll nicht einsehen.",
         "unverifiedWarning": "Du hast eine nicht verifizierte Domain — von dieser sendet ventMail nicht.",
-        "empty": "Noch keine ausgehenden Nachrichten."
+        "empty": "Noch keine ausgehenden Nachrichten.",
+        "eyebrow": "{workspace} · letzte {days} Tage",
+        "lead": "Ausgehender Versand, Zielgruppe und Zustellbarkeit an einem Ort.",
+        "import": "Import",
+        "newCampaign": "Neue Kampagne",
+        "mode": {
+            "allowlist": "Versandmodus: Seed-Allowlist.",
+            "marketingOff": "Der Marketing-Versand ist ausgeschaltet.",
+            "hint": "Der Versand läuft im eingeschränkten Modus; das PreSendGate gilt überall."
+        },
+        "kpi": {
+            "sent": "Gesendete E-Mails",
+            "deliveryRate": "Zustellrate",
+            "openRate": "Eindeutige Öffnungen",
+            "activeContacts": "Aktive Kontakte",
+            "vsPrevious": "{delta} ggü. Vorperiode",
+            "points": "{delta} Pkt.",
+            "added": "{count} neu im Zeitraum",
+            "newActivity": "Neuer Versand gegenüber der Vorperiode",
+            "noPrevious": "Keine Daten aus der Vorperiode",
+            "unavailable": "Die Zahlen sind gerade nicht verfügbar — bitte in einigen Minuten erneut versuchen."
+        },
+        "campaigns": {
+            "title": "Letzte Kampagnen",
+            "all": "Alle",
+            "empty": "Noch keine Kampagnen.",
+            "name": "Kampagne",
+            "status": "Status",
+            "recipients": "Empfänger",
+            "open": "Öffnungen",
+            "click": "Klicks"
+        },
+        "deliverability": {
+            "title": "Zustellbarkeit",
+            "healthy": "Gesund",
+            "attention": "Prüfen",
+            "bounce": "Bounce-Rate",
+            "complaint": "Spam-Beschwerden",
+            "spf": "SPF",
+            "dkim": "DKIM",
+            "dmarc": "DMARC",
+            "tracking": "Tracking-CNAME",
+            "openDomains": "Domains öffnen"
+        },
+        "todos": {
+            "title": "Aufgaben",
+            "drafts": "{count} Kampagnenentwürfe warten auf Inhalt",
+            "unverifiedDomains": "{count} Domains noch nicht verifiziert",
+            "pendingContacts": "{count} Kontakte warten auf Bestätigung",
+            "deadLetters": "{count} Webhook-Zustellungen im Dead-Letter (7 Tage)",
+            "draftsNone": "Keine offenen Entwürfe",
+            "unverifiedDomainsNone": "Alle Domains verifiziert",
+            "pendingContactsNone": "Keine Kontakte warten auf Bestätigung",
+            "deadLettersNone": "Alle Webhooks antworten mit 2xx",
+            "action": {
+                "drafts": "Kampagnen",
+                "unverifiedDomains": "Domains",
+                "pendingContacts": "Zielgruppe",
+                "deadLetters": "Webhooks"
+            }
+        },
+        "recentColumns": {
+            "created": "Zeitpunkt",
+            "subject": "Betreff",
+            "recipient": "Empfänger",
+            "status": "Status"
+        }
     },
     "domains": {
         "title": "Domains",
@@ -658,7 +724,10 @@
         "customFields": "Eigene Felder",
         "customFieldsHint": "Standardmäßig wird kein Feld im Preference Center angezeigt. Aktiviere nur, was der Empfänger sehen und ändern darf — der Link in der E-Mail kann weitergeleitet werden.",
         "noCustomFields": "Noch keine eigenen Felder — lege sie im Import an.",
-        "preferenceVisible": "Im Preference Center sichtbar"
+        "preferenceVisible": "Im Preference Center sichtbar",
+        "listSearch": "Listen durchsuchen",
+        "segmentSearch": "Segmente durchsuchen",
+        "noMatch": "Keine Treffer für diese Suche."
     },
     "templates": {
         "title": "Vorlagen",
@@ -2223,7 +2292,16 @@
             "propagating": "Wird verbreitet…",
             "unknown": "Keine Daten",
             "cold": "Kalt",
-            "warm": "Aufgewärmt"
+            "warm": "Aufgewärmt",
+            "queued": "In Warteschlange",
+            "accepted": "Angenommen",
+            "delivered": "Zugestellt",
+            "deferred": "Verzögert",
+            "bounced": "Unzustellbar",
+            "rejected": "Abgelehnt",
+            "opened": "Geöffnet",
+            "clicked": "Geklickt",
+            "complained": "Beschwerde"
         },
         "eyebrow": {
             "domains": "Plattform · Domains",
@@ -2476,5 +2554,19 @@
         "company": "Firmenname auf dem Deckblatt",
         "preview": "Live-Vorschau — Deckblatt",
         "previewSample": "Beispielkampagne"
+    },
+    "pager": {
+        "label": "Seitennavigation",
+        "info": "{page} / {last} · {total} Treffer",
+        "prev": "Vorherige Seite",
+        "next": "Nächste Seite"
+    },
+    "picker": {
+        "selected": "Ausgewählt",
+        "remove": "{name} entfernen",
+        "search": "Nach Namen suchen",
+        "failed": "Die Liste kann gerade nicht geladen werden.",
+        "noMatch": "Keine Treffer.",
+        "none": "Noch keine Einträge."
     }
 }

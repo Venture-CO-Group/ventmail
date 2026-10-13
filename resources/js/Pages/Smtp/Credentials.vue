@@ -13,6 +13,7 @@ import VmPageHeader from '../../Components/Studio/VmPageHeader.vue';
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import AppLayout from '../../Layouts/AppLayout.vue';
+import { useFormat } from '../../composables/useFormat';
 
 /**
  * SMTP-HITELESÍTŐK. A jelszó EGYSZER látszik; a lista a csatorna-korlátot és az utolsó
@@ -39,7 +40,8 @@ const props = defineProps<{
     submission: { host: string; ports: Array<{ port: number; tls: string }> };
 }>();
 
-const { t, locale } = useI18n();
+const { t } = useI18n();
+const format = useFormat();
 const page = usePage<{ flash: { secret: { kind: string; username?: string; password?: string } | null } }>();
 
 const name = ref('');
@@ -81,7 +83,7 @@ const rows = computed<Row[]>(() =>
         username: credential.username,
         domain: credential.domain ?? t('smtp.anyDomain'),
         channel: credential.channel,
-        used: credential.lastUsedAt ? new Date(credential.lastUsedAt).toLocaleString(locale.value) : t('smtp.neverUsed'),
+        used: credential.lastUsedAt ? format.dateTime(credential.lastUsedAt) : t('smtp.neverUsed'),
         state: credential.revokedAt ? 'revoked' : 'active',
         uuid: credential.uuid,
     })),

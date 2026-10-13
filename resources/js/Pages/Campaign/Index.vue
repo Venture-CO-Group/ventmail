@@ -13,6 +13,7 @@ import VmIcon from '../../Components/Shell/VmIcon.vue';
 import VmPageHeader from '../../Components/Studio/VmPageHeader.vue';
 import VmStatusBadge from '../../Components/Studio/VmStatusBadge.vue';
 import AppLayout from '../../Layouts/AppLayout.vue';
+import { useFormat } from '../../composables/useFormat';
 
 /**
  * KAMPÁNYLISTA (v1.1 · 5. modul): állapot-jelvények, szűrők, keresés, sor-statisztika.
@@ -47,8 +48,10 @@ const props = defineProps<{
 }>();
 
 const { t } = useI18n();
+const format = useFormat();
 
-const creating = ref(false);
+// Az áttekintés „Új kampány" gombja `?new=1`-gyel érkezik: a létrehozó űrlap rögtön nyitva.
+const creating = ref(typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('new'));
 const name = ref('');
 const subject = ref('');
 const search = ref(props.filters.search);
@@ -68,11 +71,11 @@ const columns: VtColumn<Row>[] = [
 ];
 
 const dash = '—';
-const percent = (value: number | null): string => (value === null ? dash : `${value.toLocaleString()}%`);
+const percent = (value: number | null): string => (value === null ? dash : `${format.number(value)}%`);
 const when = (campaign: CampaignRow): string => {
     const value = campaign.status === 'scheduled' ? campaign.scheduledAt : campaign.startedAt;
 
-    return value ? new Date(value).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : dash;
+    return value ? format.dateTime(value) : dash;
 };
 
 const rows = computed<Row[]>(() =>
@@ -80,8 +83,8 @@ const rows = computed<Row[]>(() =>
         uuid: campaign.uuid,
         name: campaign.name,
         status: campaign.displayStatus,
-        recipients: campaign.recipients ? campaign.recipients.toLocaleString() : dash,
-        sent: campaign.sent ? campaign.sent.toLocaleString() : dash,
+        recipients: campaign.recipients ? format.number(campaign.recipients) : dash,
+        sent: campaign.sent ? format.number(campaign.sent) : dash,
         when: when(campaign),
         open: percent(campaign.openRate),
         click: percent(campaign.clickRate),

@@ -13,6 +13,7 @@ import VmSecretReveal from '../../Components/Platform/VmSecretReveal.vue';
 import VmStateBadge from '../../Components/Platform/VmStateBadge.vue';
 import VmPageHeader from '../../Components/Studio/VmPageHeader.vue';
 import AppLayout from '../../Layouts/AppLayout.vue';
+import { useFormat } from '../../composables/useFormat';
 
 /**
  * API-KULCSOK (v1.1 · 7. modul). A nyers kulcs EGYSZER látszik — utána már csak a prefix.
@@ -39,7 +40,8 @@ const props = defineProps<{
     availableChannels: string[];
 }>();
 
-const { t, locale } = useI18n();
+const { t } = useI18n();
+const format = useFormat();
 const page = usePage<{ flash: { secret: { kind: string; value?: string } | null }; errors: Record<string, string> }>();
 
 const creating = ref(false);
@@ -78,7 +80,7 @@ const rows = computed<Row[]>(() =>
         prefix: key.prefix,
         scopes: key.scopes.join(' '),
         allowlist: key.ip_allowlist.length ? key.ip_allowlist.join(', ') : t('plat.keys.anyAddress'),
-        used: key.last_used_at ? new Date(key.last_used_at).toLocaleString(locale.value) : t('apiKeys.neverUsed'),
+        used: key.last_used_at ? format.dateTime(key.last_used_at) : t('apiKeys.neverUsed'),
         state: key.revoked_at ? 'revoked' : 'active',
         uuid: key.uuid,
     })),

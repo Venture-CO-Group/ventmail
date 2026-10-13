@@ -37,6 +37,8 @@ const LONG_URL = `https://93.184.216.34/e2e/nagyon/hosszu/utvonal/amely/sokszegm
 const STATIC_PAGES = [
     '/dashboard',
     '/audience',
+    // D284: a lapozott listák között a hosszú nevű seed-lista kereséssel kerül a képernyőre.
+    `/audience?lists_search=${run}`,
     '/audience/segments',
     '/audience/segments/new',
     '/audience/tags',
@@ -124,7 +126,8 @@ test.beforeAll(async ({ browser }) => {
     await seedOnce('/api-keys', LONG, '/api-keys', { name: LONG, scopes: ['messages:send'], channels: [], testmode: false });
     await seedOnce('/suppressions?list=manual', LONG_EMAIL, '/suppressions', { email: LONG_EMAIL, reason: 'manual', appliesTo: 'all' });
     await seedOnce('/webhooks', LONG, '/webhooks', { name: LONG, url: LONG_URL, events: ['delivered', 'bounced'] });
-    await seedOnce('/audience', LONG_WORDS, '/audience/lists', { name: LONG_WORDS });
+    // A listák lapozva jönnek (D284): a meglétet KERESÉSSEL nézzük (a név tenantonként egyedi).
+    await seedOnce(`/audience?lists_search=${run}`, LONG_WORDS, '/audience/lists', { name: LONG_WORDS });
     await seedOnce('/forms', LONG_WORDS, '/forms', {
         name: LONG_WORDS,
         listUuid: null,
@@ -370,7 +373,7 @@ test('a seed hosszú adatot ad a képernyőknek', async ({ page }) => {
         ['/webhooks', LONG_URL],
         ['/domains', LONG_DOMAIN],
         ['/members', LONG_EMAIL],
-        ['/audience', LONG_WORDS],
+        [`/audience?lists_search=${run}`, LONG_WORDS],
         ['/forms', LONG_WORDS],
     ] as const) {
         await page.goto(path);

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Head, Link, router } from '@inertiajs/vue3';
-import { VtButton, VtCheckbox, VtField, VtInput, VtRadio, VtSelect } from '@venture/ui';
+import { VtButton, VtField, VtInput, VtRadio, VtSelect } from '@venture/ui';
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import MergeTagPicker from '../../Components/Editor/MergeTagPicker.vue';
@@ -14,6 +14,8 @@ import VmIcon from '../../Components/Shell/VmIcon.vue';
 import VmStatusBadge from '../../Components/Studio/VmStatusBadge.vue';
 import AppLayout from '../../Layouts/AppLayout.vue';
 import '../../editor.css';
+import { useFormat } from '../../composables/useFormat';
+import VmTargetPicker, { type TargetOption } from '../../Components/Campaign/VmTargetPicker.vue';
 
 /**
  * KAMPÁNY-LÉTREHOZÓ CHECKLIST (v1.1 · 5. modul).
@@ -87,8 +89,9 @@ const props = defineProps<{
     };
     outcomes: Array<{ status: string; reason: string; count: number }>;
     templates: Array<{ uuid: string; name: string }>;
-    lists: Array<{ uuid: string; name: string; contacts: number }>;
-    segments: Array<{ uuid: string; name: string; contacts: number | null }>;
+    // v1.1 · D284: a választó szerverről lapoz; itt csak a kiválasztottak neve + a darabszám.
+    selectedTargets: { lists: TargetOption[]; segments: TargetOption[] };
+    targetCounts: { lists: number; segments: number };
     domains: string[];
     mergeTags: MergeTagDef[];
     defaultTimezone: string;
@@ -97,6 +100,7 @@ const props = defineProps<{
 }>();
 
 const { t } = useI18n();
+const format = useFormat();
 
 /* ---------- az űrlap-állapot (a teljes kampány egy PUT-tal mentődik) ---------- */
 
@@ -194,8 +198,21 @@ function toggle(key: Section['key']): void {
     open.value = open.value === key ? null : key;
 }
 
-const listName = (uuid: string): string => props.lists.find((list) => list.uuid === uuid)?.name ?? uuid;
-const segmentName = (uuid: string): string => props.segments.find((segment) => segment.uuid === uuid)?.name ?? uuid;
+/*
+ | A NÉVTÁR: a kiválasztottak neve a kampánnyal jön, a többi a választó betöltött lapjaiból — így
+ | az összegzés („Hírlevél · VIP — 1 234 címzett") lapozás után is nevet mutat, nem uuid-ot.
+ */
+const knownLists = ref<Record<string, TargetOption>>(Object.fromEntries(props.selectedTargets.lists.map((item) => [item.uuid, item])));
+const knownSegments = ref<Record<string, TargetOption>>(Object.fromEntries(props.selectedTargets.segments.map((item) => [item.uuid, item])));
+
+function remember(kind: 'lists' | 'segments', options: TargetOption[]): void {
+    const store = kind === 'lists' ? knownLists : knownSegments;
+
+    store.value = { ...store.value, ...Object.fromEntries(options.map((item) => [item.uuid, item])) };
+}
+
+const listName = (uuid: string): string => knownLists.value[uuid]?.name ?? uuid;
+const segmentName = (uuid: string): string => knownSegments.value[uuid]?.name ?? uuid;
 
 const summary = computed<Record<Section['key'], string>>(() => {
     const recipients = section('recipients');
@@ -210,7 +227,7 @@ const summary = computed<Record<Section['key'], string>>(() => {
             ...(form.value.targetLists.map(listName)),
             ...(form.value.targetSegments.map(segmentName)),
         ].join(' · ')
-            ? `${[...form.value.targetLists.map(listName), ...form.value.targetSegments.map(segmentName)].join(' · ')} — ${recipients.estimate === null ? t('checklist.estimateUnavailable') : t('checklist.estimate', { count: Number(recipients.estimate).toLocaleString() })}`
+            ? `${[...form.value.targetLists.map(listName), ...form.value.targetSegments.map(segmentName)].join(' · ')} — ${recipients.estimate === null ? t('checklist.estimateUnavailable') : t('checklist.estimate', { count: format.number(Number(recipients.estimate)) })}`
             : t('checklist.recipientsMissing'),
         sender: sender.fromEmail
             ? `${props.campaign.fromName ? `${props.campaign.fromName} ` : ''}<${sender.fromEmail}> · ${sender.verified ? t('checklist.domainVerified') : t('checklist.domainUnverified')}`
@@ -380,59 +397,61 @@ const sectionTitle = (key: string): string => t(`checklist.section.${key}`);
                     <div v-if="open === item.key" :id="`section-body-${item.key}`" class="vm-cl-section__body">
                         <!-- 1. CÍMZETTEK -->
                         <template v-if="item.key === 'recipients'">
-                            <p data-testid="campaign-estimate">{{ estimate === null ? t('checklist.estimateUnavailable') : t('campaigns.estimate', { count: estimate.toLocaleString() }) }}</p>
-                            <VmFieldGroup :legend="t('campaigns.lists')">
-                                <p v-if="!lists.length">{{ t('checklist.noLists') }}</p>
-                                <VtCheckbox
-                                    v-for="list in lists"
-                                    :key="list.uuid"
-                                    :model-value="form.targetLists.includes(list.uuid)"
-                                    :disabled="readonly"
-                                    :data-testid="`target-list-${list.uuid}`"
-                                    @update:model-value="toggleIn('targetLists', list.uuid)"
-                                >
-                                    {{ list.name }} · {{ t('checklist.contacts', { count: list.contacts.toLocaleString() }) }}
-                                </VtCheckbox>
-                            </VmFieldGroup>
-                            <VmFieldGroup :legend="t('campaigns.segments')">
-                                <p v-if="!segments.length">
+                            <p data-testid="campaign-estimate">{{ estimate === null ? t('checklist.estimateUnavailable') : t('campaigns.estimate', { count: format.number(estimate) }) }}</p>
+                            <VmTargetPicker
+                                kind="lists"
+                                testid="target-list"
+                                :legend="t('campaigns.lists')"
+                                :model-value="form.targetLists"
+                                :known="knownLists"
+                                :readonly="readonly"
+                                @toggle="toggleIn('targetLists', $event)"
+                                @resolve="remember('lists', $event)"
+                            >
+                                <template v-if="!targetCounts.lists" #empty>{{ t('checklist.noLists') }}</template>
+                            </VmTargetPicker>
+                            <VmTargetPicker
+                                kind="segments"
+                                testid="target-segment"
+                                :legend="t('campaigns.segments')"
+                                :model-value="form.targetSegments"
+                                :known="knownSegments"
+                                :readonly="readonly"
+                                @toggle="toggleIn('targetSegments', $event)"
+                                @resolve="remember('segments', $event)"
+                            >
+                                <template v-if="!targetCounts.segments" #empty>
                                     <Link href="/audience/segments/new">{{ t('checklist.buildSegment') }}</Link>
-                                </p>
-                                <VtCheckbox
-                                    v-for="segment in segments"
-                                    :key="segment.uuid"
-                                    :model-value="form.targetSegments.includes(segment.uuid)"
-                                    :disabled="readonly"
-                                    :data-testid="`target-segment-${segment.uuid}`"
-                                    @update:model-value="toggleIn('targetSegments', segment.uuid)"
-                                >
-                                    {{ segment.name }}<template v-if="segment.contacts !== null"> · {{ t('checklist.contacts', { count: segment.contacts.toLocaleString() }) }}</template>
-                                </VtCheckbox>
-                            </VmFieldGroup>
+                                </template>
+                            </VmTargetPicker>
                             <!-- Nem <details>: a zárt tartalom méretlen dobozai a mérőnek (és a
                                  képernyőolvasónak) zavaróak; egy kapcsoló gomb + v-if tisztább. -->
                             <VtButton variant="ghost" size="sm" :aria-expanded="showExclude" data-testid="toggle-exclude" @click="showExclude = !showExclude">
                                 {{ t('checklist.exclude') }}
                             </VtButton>
                             <div v-if="showExclude" class="vm-cl-exclude">
-                                <VmFieldGroup :legend="t('checklist.excludeLists')">
-                                    <VtCheckbox
-                                        v-for="list in lists"
-                                        :key="list.uuid"
-                                        :model-value="form.excludeLists.includes(list.uuid)"
-                                        :disabled="readonly"
-                                        @update:model-value="toggleIn('excludeLists', list.uuid)"
-                                    >{{ list.name }}</VtCheckbox>
-                                </VmFieldGroup>
-                                <VmFieldGroup :legend="t('checklist.excludeSegments')">
-                                    <VtCheckbox
-                                        v-for="segment in segments"
-                                        :key="segment.uuid"
-                                        :model-value="form.excludeSegments.includes(segment.uuid)"
-                                        :disabled="readonly"
-                                        @update:model-value="toggleIn('excludeSegments', segment.uuid)"
-                                    >{{ segment.name }}</VtCheckbox>
-                                </VmFieldGroup>
+                                <VmTargetPicker
+                                    kind="lists"
+                                    testid="exclude-list"
+                                    :legend="t('checklist.excludeLists')"
+                                    :model-value="form.excludeLists"
+                                    :known="knownLists"
+                                    :readonly="readonly"
+                                    :show-counts="false"
+                                    @toggle="toggleIn('excludeLists', $event)"
+                                    @resolve="remember('lists', $event)"
+                                />
+                                <VmTargetPicker
+                                    kind="segments"
+                                    testid="exclude-segment"
+                                    :legend="t('checklist.excludeSegments')"
+                                    :model-value="form.excludeSegments"
+                                    :known="knownSegments"
+                                    :readonly="readonly"
+                                    :show-counts="false"
+                                    @toggle="toggleIn('excludeSegments', $event)"
+                                    @resolve="remember('segments', $event)"
+                                />
                             </div>
                         </template>
 
@@ -656,7 +675,7 @@ const sectionTitle = (key: string): string => t(`checklist.section.${key}`);
                             <span class="vm-cl-checks__text">
                                 <strong>{{ t(`checklist.check.${item.key}`) }}</strong>
                                 <small v-if="item.key === 'consent' && item.unavailable">{{ t('checklist.estimateUnavailable') }}</small>
-                                <small v-else-if="item.key === 'consent'">{{ t('checklist.consentCount', { confirmed: Number(item.confirmed).toLocaleString(), total: Number(item.total).toLocaleString() }) }}</small>
+                                <small v-else-if="item.key === 'consent'">{{ t('checklist.consentCount', { confirmed: format.number(Number(item.confirmed)), total: format.number(Number(item.total)) }) }}</small>
                                 <small v-else-if="item.key === 'domain' && !item.ok">{{ (item.unverified as string[]).length ? t('checklist.unverifiedList', { domains: (item.unverified as string[]).join(', ') }) : t('checklist.senderMissing') }}</small>
                                 <small v-else-if="item.key === 'compliance' && !item.ok">
                                     {{ (item.missing as string[]).length ? (item.missing as string[]).map((key) => t(`checklist.missing.${key}`)).join(' · ') : t('checklist.contentMissing') }}
@@ -693,7 +712,7 @@ const sectionTitle = (key: string): string => t(`checklist.section.${key}`);
                         <li v-for="row in outcomes" :key="`${row.status}-${row.reason}`" :data-testid="`outcome-${row.status}`" :data-reason="row.reason">
                             <span>{{ t(`checklist.recipientStatus.${row.status}`) }}</span>
                             <code v-if="row.reason">{{ row.reason }}</code>
-                            <strong>{{ row.count.toLocaleString() }}</strong>
+                            <strong>{{ format.number(row.count) }}</strong>
                         </li>
                     </ul>
                     <Link :href="`/analytics/campaigns/${campaign.uuid}`">{{ t('checklist.openReport') }}</Link>

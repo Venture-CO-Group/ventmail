@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Link, router } from '@inertiajs/vue3';
+import { Link, router, usePage } from '@inertiajs/vue3';
 import { VtBadge, VtButton, VtCheckbox, VtField, VtInput, VtSegmented, VtSelect, type VtColumn } from '@venture/ui';
 import axios from 'axios';
 import VmStat from '../../Components/Form/VmStat.vue';
@@ -11,9 +11,11 @@ import VmCard from '../../Components/Form/VmCard.vue';
 import VmForm from '../../Components/Form/VmForm.vue';
 import VmFormActions from '../../Components/Form/VmFormActions.vue';
 import VmFormSection from '../../Components/Form/VmFormSection.vue';
+import VmPager from '../../Components/Form/VmPager.vue';
 import { computed, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import AppLayout from '../../Layouts/AppLayout.vue';
+import { useFormat } from '../../composables/useFormat';
 
 /**
  * KÖZÖNSÉG. A consent-állapot a kapcsolat MELLETT van, nem külön képernyőn: a marketing
@@ -31,9 +33,18 @@ interface ContactRow {
     tags: string[];
 }
 
+interface Paged<T> {
+    items: T[];
+    page: number;
+    last: number;
+    total: number;
+    search: string;
+}
+
 const props = defineProps<{
     search: string;
-    lists: Array<{
+    // v1.1 · D284: szerveroldali lapozás + keresés (`App\\Support\\Paged`).
+    lists: Paged<{
         uuid: string;
         name: string;
         description: string | null;
@@ -41,15 +52,19 @@ const props = defineProps<{
         fromName: string | null;
         contacts: number;
     }>;
-    segments: Array<{ uuid: string; name: string; description: string | null; estimatedSize: number | null; estimatedAt: string | null }>;
+    segments: Paged<{ uuid: string; name: string; description: string | null; estimatedSize: number | null; estimatedAt: string | null }>;
     tags: Array<{ uuid: string; name: string }>;
     fields: Array<{ uuid: string; key: string; label: string; type: string; preferenceVisible: boolean }>;
     contacts: { items: ContactRow[]; nextCursor: string | null };
 }>();
 
 const { t } = useI18n();
+const format = useFormat();
 
 const search = ref(props.search);
+// A szerver validációs hibái (pl. „a név már foglalt") a mező alatt — nem csendes elnyelés.
+const inertiaPage = usePage();
+const pageErrors = computed(() => (inertiaPage.props.errors ?? {}) as Record<string, string | undefined>);
 const listName = ref('');
 
 /*
@@ -193,6 +208,25 @@ function setPreferenceVisible(uuid: string, visible: boolean): void {
     router.post(`/audience/fields/${uuid}/preference`, { visible }, { preserveScroll: true });
 }
 
+/*
+ | LISTÁK / SZEGMENSEK lapozása és keresése — csak az érintett prop töltődik újra (`only`), a
+ | kontaktlista kurzora és a másik blokk állapota marad (a többi query-paraméter megőrizve).
+ */
+const listSearch = ref(props.lists.search);
+const segmentSearch = ref(props.segments.search);
+
+function reloadBlock(prefix: 'lists' | 'segments', page: number, term: string): void {
+    const query = Object.fromEntries(new URLSearchParams(window.location.search).entries());
+
+    query[`${prefix}_page`] = String(page);
+    query[`${prefix}_search`] = term.trim();
+
+    if (page <= 1) delete query[`${prefix}_page`];
+    if (!query[`${prefix}_search`]) delete query[`${prefix}_search`];
+
+    router.get('/audience', query, { only: [prefix], preserveState: true, preserveScroll: true, replace: true });
+}
+
 function applySearch(): void {
     router.get('/audience', { search: search.value }, { preserveState: true, preserveScroll: true });
 }
@@ -225,7 +259,14 @@ function createList(): void {
 
     router.post('/audience/lists', { name: listName.value.trim() }, {
         preserveScroll: true,
-        onSuccess: () => (listName.value = ''),
+        onSuccess: () => {
+            listName.value = '';
+            // Az új lista a legfrissebb: az első, szűretlen lapon látszik.
+            if (props.lists.page > 1 || props.lists.search) {
+                listSearch.value = '';
+                reloadBlock('lists', 1, '');
+            }
+        },
     });
 }
 </script>
@@ -252,12 +293,12 @@ function createList(): void {
 
         <section v-if="insights" class="vm-insights" data-testid="audience-insights" :aria-label="t('insights.title')">
             <div class="vm-insights__stats">
-                <VmStat :label="t('insights.total')" :value="insights.totals.total.toLocaleString()" :hint="t('insights.addedInWindow', { count: growthTotals.added, days: insights.days })" />
-                <VmStat :label="t('insights.subscribed')" :value="insights.totals.subscribed.toLocaleString()" tone="success" />
-                <VmStat :label="t('insights.pending')" :value="insights.totals.pending.toLocaleString()" :hint="t('insights.pendingHint')" :tone="insights.totals.pending ? 'warning' : 'neutral'" />
+                <VmStat :label="t('insights.total')" :value="format.number(insights.totals.total)" :hint="t('insights.addedInWindow', { count: growthTotals.added, days: insights.days })" />
+                <VmStat :label="t('insights.subscribed')" :value="format.number(insights.totals.subscribed)" tone="success" />
+                <VmStat :label="t('insights.pending')" :value="format.number(insights.totals.pending)" :hint="t('insights.pendingHint')" :tone="insights.totals.pending ? 'warning' : 'neutral'" />
                 <VmStat
                     :label="t('insights.unsubscribed')"
-                    :value="(insights.totals.unsubscribed + insights.totals.cleaned).toLocaleString()"
+                    :value="format.number((insights.totals.unsubscribed + insights.totals.cleaned))"
                     :hint="t('insights.lostInWindow', { count: growthTotals.lost, days: insights.days })"
                 />
             </div>
@@ -296,12 +337,18 @@ function createList(): void {
         </p>
 
         <VmCard>
-            <h2>{{ t('audience.lists') }}</h2>
+            <div class="vm-audience-card-head">
+                <h2>{{ t('audience.lists') }}</h2>
+                <form class="vm-audience-block-search" role="search" @submit.prevent="reloadBlock('lists', 1, listSearch)">
+                    <VtInput v-model="listSearch" :aria-label="t('audience.listSearch')" :placeholder="t('audience.listSearch')" data-testid="lists-search" />
+                    <VtButton type="submit" variant="ghost" size="sm" data-testid="lists-search-submit"><VmIcon name="search" /> {{ t('audience.searchAction') }}</VtButton>
+                </form>
+            </div>
 
-            <div v-for="list in lists" :key="list.uuid" class="vm-stack" :data-testid="`list-${list.uuid}`">
+            <div v-for="list in lists.items" :key="list.uuid" class="vm-stack" :data-testid="`list-${list.uuid}`">
                 <div class="vm-cluster">
                     <strong>{{ list.name }}</strong>
-                    <span>{{ t('audience.contactCount', { count: list.contacts }) }}</span>
+                    <span>{{ t('audience.contactCount', { count: format.number(list.contacts) }) }}</span>
                     <span v-if="list.fromEmail" class="vt-text-mono">{{ list.fromEmail }}</span>
 
                     <VtButton variant="ghost" :data-testid="`list-edit-${list.uuid}`" @click="startListEdit(list)">
@@ -315,7 +362,7 @@ function createList(): void {
                     @submit.prevent="saveList(list.uuid)"
                 >
                     <VmFormSection>
-                        <VtField :label="t('audience.listName')">
+                        <VtField :label="t('audience.listName')" :error="pageErrors.name">
                             <VtInput v-model="listForm.name" :data-testid="`list-edit-name-${list.uuid}`" />
                         </VtField>
 
@@ -340,11 +387,13 @@ function createList(): void {
                 </VmForm>
             </div>
 
-            <p v-if="!lists.length" data-testid="lists-empty">{{ t('audience.noLists') }}</p>
+            <p v-if="!lists.items.length" data-testid="lists-empty">{{ lists.search ? t('audience.noMatch') : t('audience.noLists') }}</p>
+
+            <VmPager :page="lists.page" :last="lists.last" :total="lists.total" testid="lists-pager" @change="reloadBlock('lists', $event, lists.search)" />
 
             <VmForm @submit.prevent="createList">
                 <VmFormSection>
-                    <VtField :label="t('audience.newList')">
+                    <VtField :label="t('audience.newList')" :error="editingList ? undefined : pageErrors.name">
                         <VtInput v-model="listName" data-testid="list-name" placeholder="Hírlevél" />
                     </VtField>
                 </VmFormSection>
@@ -381,19 +430,26 @@ function createList(): void {
                 <Link href="/audience/segments/new" data-testid="segment-build-link">{{ t('audience.newSegment') }}</Link>
             </div>
 
-            <p v-if="!segments.length" data-testid="segments-empty">{{ t('audience.noSegments') }}</p>
+            <form class="vm-audience-block-search" role="search" @submit.prevent="reloadBlock('segments', 1, segmentSearch)">
+                <VtInput v-model="segmentSearch" :aria-label="t('audience.segmentSearch')" :placeholder="t('audience.segmentSearch')" data-testid="segments-search" />
+                <VtButton type="submit" variant="ghost" size="sm" data-testid="segments-search-submit"><VmIcon name="search" /> {{ t('audience.searchAction') }}</VtButton>
+            </form>
 
-            <div v-for="segment in segments" :key="segment.uuid" class="vm-cluster" :data-testid="`segment-${segment.uuid}`">
+            <p v-if="!segments.items.length" data-testid="segments-empty">{{ segments.search ? t('audience.noMatch') : t('audience.noSegments') }}</p>
+
+            <div v-for="segment in segments.items" :key="segment.uuid" class="vm-cluster" :data-testid="`segment-${segment.uuid}`">
                 <Link :href="`/audience/segments/${segment.uuid}`"><strong>{{ segment.name }}</strong></Link>
                 <!-- A MÉRET BECSÜLT, és a számítás ideje is látszik: a szegmens definíció
                      szerint él, a mérete azonnal elavul. -->
                 <span>
-                    {{ segment.estimatedSize === null ? t('audience.notEstimated') : segment.estimatedSize }}
+                    {{ segment.estimatedSize === null ? t('audience.notEstimated') : format.number(segment.estimatedSize) }}
                     <template v-if="segment.estimatedAt">
-                        ({{ new Date(segment.estimatedAt).toLocaleDateString() }})
+                        ({{ format.date(segment.estimatedAt) }})
                     </template>
                 </span>
             </div>
+
+            <VmPager :page="segments.page" :last="segments.last" :total="segments.total" testid="segments-pager" @change="reloadBlock('segments', $event, segments.search)" />
         </VmCard>
 
         <VmCard>
@@ -516,6 +572,20 @@ function createList(): void {
 .vm-audience-card-head h2,
 .vm-insights__head h2 {
     margin: 0;
+}
+
+/* A lista- és szegmenskeresés: a mező kitölti a sort, a gomb mellette (keskenyen tördel). */
+.vm-audience-block-search {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: var(--vt-space-2);
+    min-width: 0;
+}
+
+.vm-audience-block-search > :first-child {
+    flex: 1 1 calc(var(--vt-space-24) * 2);
+    min-width: 0;
 }
 
 .vm-insights__window {

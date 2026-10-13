@@ -23,6 +23,13 @@ test('domainek: a kiválasztott domain rekordjai másolhatók, élő állapottal
         await expect(page.getByTestId(`dns-row-${key}`)).toBeVisible();
     }
 
+    // D284: a név és az érték 1440 px-en is TELJESEN olvasható (tördelve, nem „demo.peld…"-re vágva).
+    await page.setViewportSize({ width: 1440, height: 900 });
+    for (const cell of await page.getByTestId('dns-records').locator('.vm-dns__cell code').all()) {
+        const clipped = await cell.evaluate((element) => element.scrollWidth > element.clientWidth + 1 || getComputedStyle(element).textOverflow === 'ellipsis');
+        expect(clipped, `csonkolt DNS-cella: ${await cell.textContent()}`).toBe(false);
+    }
+
     // A rekord ÉRTÉKE egy kattintással másolható.
     await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
     await page.getByTestId('copy-value-spf').click();

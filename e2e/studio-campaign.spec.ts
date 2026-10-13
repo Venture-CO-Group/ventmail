@@ -36,7 +36,14 @@ test('checklist-flow: a gomb csak zöld ellenőrzéseknél él, és a kapu okkó
 
     // 1. CÍMZETTEK — a seedelt lista (3 kontakt: megerősített, függő, hozzájárulás nélküli).
     await expect(page.getByTestId('section-recipients')).toHaveAttribute('data-done', 'false');
+    // D284: a választó SZERVEROLDALON keres és lapoz; a kiválasztott elem felül, chipként látszik.
+    await page.getByTestId('target-list-search').fill(seed.list.name);
+    await expect(page.getByTestId(`target-list-${seed.list.uuid}`)).toBeVisible();
+    await expect(page.getByTestId('target-list-pager-info')).toContainText('1');
     await page.getByTestId(`target-list-${seed.list.uuid}`).click();
+    await expect(page.getByTestId(`target-list-selected-${seed.list.uuid}`)).toContainText(seed.list.name);
+    await page.getByTestId('target-list-search').fill('');
+    await expect(page.getByTestId(`target-list-selected-${seed.list.uuid}`)).toBeVisible();
     await save(page, 'recipients');
     await expect(page.getByTestId('section-recipients')).toHaveAttribute('data-done', 'true');
 

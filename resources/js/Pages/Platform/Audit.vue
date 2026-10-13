@@ -10,6 +10,7 @@ import VmFormSection from '../../Components/Form/VmFormSection.vue';
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import AppLayout from '../../Layouts/AppLayout.vue';
+import { useFormat } from '../../composables/useFormat';
 
 /**
  * AUDIT-KERESŐ (85. kritérium) — és a keresés MAGA is auditált.
@@ -33,6 +34,7 @@ const props = defineProps<{
 }>();
 
 const { t } = useI18n();
+const format = useFormat();
 
 const action = ref(props.filters.action ?? '');
 const actor = ref(props.filters.actor ?? '');
@@ -48,7 +50,7 @@ const columns: VtColumn<Row>[] = [
 
 const rows = computed<Row[]>(() =>
     props.items.map((item) => ({
-        time: item.created_at ? new Date(item.created_at).toLocaleString() : '—',
+        time: item.created_at ? format.dateTime(item.created_at) : '—',
         action: item.action,
         actor: item.actor_email ?? '—',
         // A PLATFORM-SZINTŰ sor (nincs workspace) nem „hiányzó adat": azt jelenti, hogy a

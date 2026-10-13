@@ -5,6 +5,7 @@ import VmCard from '../../Components/Form/VmCard.vue';
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import AppLayout from '../../Layouts/AppLayout.vue';
+import { useFormat } from '../../composables/useFormat';
 
 /**
  * SZÁMLÁZÁS ÉS FOGYÁS. A felfüggesztés itt LÁTSZIK, mielőtt a küldés leáll — különben a
@@ -29,6 +30,7 @@ const props = defineProps<{
 }>();
 
 const { t } = useI18n();
+const format = useFormat();
 
 type Row = { period: string; state: string; due: string; paid: string };
 
@@ -43,8 +45,8 @@ const rows = computed<Row[]>(() =>
     props.invoices.map((invoice) => ({
         period: invoice.period,
         state: invoice.state,
-        due: invoice.dueAt ? new Date(invoice.dueAt).toLocaleDateString() : '—',
-        paid: invoice.paidAt ? new Date(invoice.paidAt).toLocaleDateString() : '—',
+        due: invoice.dueAt ? format.date(invoice.dueAt) : '—',
+        paid: invoice.paidAt ? format.date(invoice.paidAt) : '—',
     })),
 );
 
@@ -65,7 +67,7 @@ const enabledFeatures = computed(() => props.features.filter((feature) => featur
         <div class="vm-metrics">
             <VmCard>
                 <p class="vm-metric__label">{{ t('billing.remainingQuota') }}</p>
-                <p class="vm-metric__value" data-testid="billing-quota">{{ remainingQuota.toLocaleString() }}</p>
+                <p class="vm-metric__value" data-testid="billing-quota">{{ format.number(remainingQuota) }}</p>
             </VmCard>
 
             <VmCard>
@@ -79,7 +81,7 @@ const enabledFeatures = computed(() => props.features.filter((feature) => featur
 
             <div v-for="item in usage" :key="item.dimension" class="vm-cluster" :data-testid="`usage-${item.dimension}`">
                 <span>{{ item.dimension }}</span>
-                <strong>{{ item.current.toLocaleString() }}</strong>
+                <strong>{{ format.number(item.current) }}</strong>
             </div>
         </VmCard>
 

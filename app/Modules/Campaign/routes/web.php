@@ -13,6 +13,9 @@ use Illuminate\Support\Facades\Route;
  */
 Route::get('/campaigns', [CampaignUiController::class, 'index'])->name('campaigns.index');
 Route::post('/campaigns', [CampaignUiController::class, 'store'])->name('campaigns.store');
+// A címzett-választó (D284): a `{uuid}` ELŐTT, különben a show nyelné el.
+Route::get('/campaigns/targets/{kind}', [CampaignUiController::class, 'targets'])
+    ->whereIn('kind', ['lists', 'segments'])->name('campaigns.targets');
 Route::get('/campaigns/{uuid}', [CampaignUiController::class, 'show'])->name('campaigns.show');
 Route::put('/campaigns/{uuid}', [CampaignUiController::class, 'update'])->name('campaigns.update');
 Route::post('/campaigns/{uuid}/variants', [CampaignUiController::class, 'addVariant'])->name('campaigns.variants.store');

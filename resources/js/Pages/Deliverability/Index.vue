@@ -5,6 +5,7 @@ import VmCard from '../../Components/Form/VmCard.vue';
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import AppLayout from '../../Layouts/AppLayout.vue';
+import { useFormat } from '../../composables/useFormat';
 
 /**
  * KÉZBESÍTHETŐSÉG — a három jel, ami elárulja, hogy baj lesz, mielőtt az ügyfél telefonál.
@@ -20,6 +21,7 @@ const props = defineProps<{
 }>();
 
 const { t } = useI18n();
+const format = useFormat();
 
 const unverified = computed(() => props.domains.filter((domain) => domain.status !== 'verified'));
 
@@ -37,7 +39,7 @@ const blocklistRows = computed<BlocklistRow[]>(() =>
         address: item.address,
         zone: item.zone,
         listed: item.listed ? t('deliverability.yes') : t('deliverability.no'),
-        checked: item.checkedAt ? new Date(item.checkedAt).toLocaleString() : '—',
+        checked: item.checkedAt ? format.dateTime(item.checkedAt) : '—',
     })),
 );
 

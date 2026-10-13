@@ -204,8 +204,16 @@
     cursor: not-allowed;
 }
 
+.vm-jpal__text {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--vt-space-1);
+    min-inline-size: 0;
+}
+
 .vm-jpal__soon {
-    margin-inline-start: auto;
     padding: 0 var(--vt-space-2);
     border-radius: var(--vt-radius-full);
     background: var(--vt-surface-2);
@@ -231,7 +239,8 @@
 
 .vm-jpal__label {
     min-inline-size: 0;
-    overflow-wrap: anywhere;
+    /* Szóhatáron tördel; szó közepén csak akkor, ha egyetlen szó sem fér el (`break-word`). */
+    overflow-wrap: break-word;
 }
 
 /* ------------------------------------------------------------------ hibák sávja */
@@ -793,6 +802,11 @@
 
 .vm-jc--compact .vm-jpal__label {
     white-space: nowrap;
+}
+
+.vm-jc--compact .vm-jpal__text {
+    flex-direction: row;
+    align-items: center;
 }
 
 .vm-jc--compact .vm-jc-stage {

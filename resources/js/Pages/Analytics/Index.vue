@@ -15,6 +15,7 @@ import { CATEGORY_TOKENS } from '../../Components/Charts/chartTheme';
 import VmPageHeader from '../../Components/Studio/VmPageHeader.vue';
 import VmIcon from '../../Components/Shell/VmIcon.vue';
 import AppLayout from '../../Layouts/AppLayout.vue';
+import { useFormat } from '../../composables/useFormat';
 
 /**
  * ANALITIKA (v1.1 · 8. modul) — kampány, közönség, journey és platform egy oldalon, minden
@@ -35,7 +36,8 @@ const props = defineProps<{
     platformSection?: PlatformSection;
 }>();
 
-const { t, locale } = useI18n();
+const { t } = useI18n();
+const format = useFormat();
 
 const custom = reactive({ from: props.selection.from, to: props.selection.to });
 const showCustom = ref(props.selection.range === 'custom');
@@ -82,8 +84,8 @@ function onRange(value: string): void {
 const periodLabel = computed(() => `${props.selection.from} – ${props.selection.to}`);
 const campaignName = computed(() => props.campaignSection?.campaign?.name ?? '');
 
-const fmt = (value: number | undefined | null) => (value ?? 0).toLocaleString(locale.value);
-const pct = (value: number | undefined | null, digits = 1) => `${(value ?? 0).toLocaleString(locale.value, { maximumFractionDigits: digits })}%`;
+const fmt = (value: number | undefined | null) => format.number((value ?? 0));
+const pct = (value: number | undefined | null, digits = 1) => `${format.number((value ?? 0), { maximumFractionDigits: digits })}%`;
 
 // --- Kampány: idősor -------------------------------------------------------------------
 const timeline = computed(() => props.campaignSection?.timeline ?? { bucket: 'day' as const, points: [] });

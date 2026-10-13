@@ -13,6 +13,7 @@ import { useCompactNav } from '../composables/useCompactNav';
 import { useLocaleSync } from '../composables/useLocaleSync';
 import { useNavigation, type NavGroupId } from '../composables/useNavigation';
 import { readStoredList, writeStoredList } from '../composables/useStoredState';
+import { useFormat } from '../composables/useFormat';
 
 /**
  * AZ APP-HÉJ: FELSŐ NAVIGÁCIÓ (az oldalsáv megszűnt, hogy a szerkesztőknek legyen hely).
@@ -43,6 +44,7 @@ const page = usePage<SharedProps>();
 // `editorMode: true` prop-ja (a kontroller dönt) — a kettő vagy-kapcsolata számít.
 const isEditor = computed(() => props.editorMode || page.props.editorMode === true);
 const { t } = useI18n({ useScope: 'global' });
+const format = useFormat();
 const { groups, activeHref, isOverviewActive } = useNavigation();
 const compact = useCompactNav();
 
@@ -220,7 +222,7 @@ function onMobileKeydown(event: KeyboardEvent): void {
             >
                 {{ t('shell.impersonation', {
                     workspace: page.props.impersonation.workspace,
-                    expires: new Date(page.props.impersonation.expiresAt).toLocaleTimeString(),
+                    expires: format.time(page.props.impersonation.expiresAt),
                 }) }}
             </p>
 

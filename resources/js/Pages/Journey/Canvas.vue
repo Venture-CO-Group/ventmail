@@ -18,6 +18,7 @@ import VmIcon from '../../Components/Shell/VmIcon.vue';
 import { useCompactNav } from '../../composables/useCompactNav';
 import AppLayout from '../../Layouts/AppLayout.vue';
 import '../../journey.css';
+import { useFormat } from '../../composables/useFormat';
 
 /*
  | A JOURNEY VÁSZON (v1.1 · 6. modul, D4/D5).
@@ -43,6 +44,7 @@ const props = defineProps<{
 }>();
 
 const { t } = useI18n();
+const format = useFormat();
 const compact = useCompactNav();
 
 const flowId = `journey-${props.journey.uuid}`;
@@ -441,7 +443,7 @@ function issueText(issue: Issue): string {
                         <dl v-if="versions.length" class="vm-jc-versions" data-testid="journey-versions">
                             <dt>{{ t('journeyCanvas.panel.versions') }}</dt>
                             <dd v-for="item in versions" :key="item.number">
-                                v{{ item.number }}<span v-if="item.publishedAt"> · {{ new Date(item.publishedAt).toLocaleString() }}</span>
+                                v{{ item.number }}<span v-if="item.publishedAt"> · {{ format.dateTime(item.publishedAt) }}</span>
                             </dd>
                         </dl>
                     </div>

@@ -120,7 +120,73 @@
         "recent": "Recent messages",
         "noAccess": "You are not allowed to view the log.",
         "unverifiedWarning": "You have an unverified domain — ventMail will not send from it.",
-        "empty": "No outgoing messages yet."
+        "empty": "No outgoing messages yet.",
+        "eyebrow": "{workspace} · last {days} days",
+        "lead": "Outbound traffic, audience and deliverability in one place.",
+        "import": "Import",
+        "newCampaign": "New campaign",
+        "mode": {
+            "allowlist": "Sending mode: seed allowlist.",
+            "marketingOff": "Marketing sending is switched off.",
+            "hint": "Sending runs in restricted mode; the PreSendGate applies everywhere."
+        },
+        "kpi": {
+            "sent": "Emails sent",
+            "deliveryRate": "Delivery rate",
+            "openRate": "Unique opens",
+            "activeContacts": "Active contacts",
+            "vsPrevious": "{delta} vs previous period",
+            "points": "{delta} pts",
+            "added": "{count} new in this period",
+            "newActivity": "New traffic compared with the previous period",
+            "noPrevious": "No data for the previous period",
+            "unavailable": "These figures are not available right now — try again in a few minutes."
+        },
+        "campaigns": {
+            "title": "Recent campaigns",
+            "all": "All",
+            "empty": "No campaigns yet.",
+            "name": "Campaign",
+            "status": "Status",
+            "recipients": "Recipients",
+            "open": "Opens",
+            "click": "Clicks"
+        },
+        "deliverability": {
+            "title": "Deliverability",
+            "healthy": "Healthy",
+            "attention": "Needs attention",
+            "bounce": "Bounce rate",
+            "complaint": "Spam complaints",
+            "spf": "SPF",
+            "dkim": "DKIM",
+            "dmarc": "DMARC",
+            "tracking": "Tracking CNAME",
+            "openDomains": "Open domains"
+        },
+        "todos": {
+            "title": "To do",
+            "drafts": "{count} draft campaigns waiting for content",
+            "unverifiedDomains": "{count} domains not verified yet",
+            "pendingContacts": "{count} contacts awaiting confirmation",
+            "deadLetters": "{count} webhook deliveries in dead-letter (7 days)",
+            "draftsNone": "No unfinished drafts",
+            "unverifiedDomainsNone": "All domains verified",
+            "pendingContactsNone": "No contacts awaiting confirmation",
+            "deadLettersNone": "All webhooks return 2xx",
+            "action": {
+                "drafts": "Campaigns",
+                "unverifiedDomains": "Domains",
+                "pendingContacts": "Audience",
+                "deadLetters": "Webhooks"
+            }
+        },
+        "recentColumns": {
+            "created": "Time",
+            "subject": "Subject",
+            "recipient": "Recipient",
+            "status": "Status"
+        }
     },
     "domains": {
         "title": "Domains",
@@ -658,7 +724,10 @@
         "customFields": "Custom fields",
         "customFieldsHint": "By default no field is shown in the preference center. Only enable what the recipient may see and change — the link in the email can be forwarded.",
         "noCustomFields": "No custom fields yet — create them in the import.",
-        "preferenceVisible": "Visible in the preference center"
+        "preferenceVisible": "Visible in the preference center",
+        "listSearch": "Search lists",
+        "segmentSearch": "Search segments",
+        "noMatch": "No results for this search."
     },
     "templates": {
         "title": "Templates",
@@ -2223,7 +2292,16 @@
             "propagating": "Propagating…",
             "unknown": "No data",
             "cold": "Cold",
-            "warm": "Warm"
+            "warm": "Warm",
+            "queued": "Queued",
+            "accepted": "Accepted",
+            "delivered": "Delivered",
+            "deferred": "Deferred",
+            "bounced": "Bounced",
+            "rejected": "Rejected",
+            "opened": "Opened",
+            "clicked": "Clicked",
+            "complained": "Complaint"
         },
         "eyebrow": {
             "domains": "Platform · Domains",
@@ -2476,5 +2554,19 @@
         "company": "Company name on the cover",
         "preview": "Live preview — cover page",
         "previewSample": "Sample campaign"
+    },
+    "pager": {
+        "label": "Pagination",
+        "info": "{page} / {last} · {total} results",
+        "prev": "Previous page",
+        "next": "Next page"
+    },
+    "picker": {
+        "selected": "Selected",
+        "remove": "Remove {name}",
+        "search": "Search by name",
+        "failed": "The list could not be loaded right now.",
+        "noMatch": "No matches.",
+        "none": "Nothing here yet."
     }
 }

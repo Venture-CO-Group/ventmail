@@ -3,6 +3,7 @@ import axios from 'axios';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { TopLink } from './types';
+import { useFormat } from '../../composables/useFormat';
 
 /**
  * KATTINTÁSI HŐTÉRKÉP (v1.1 · 8. modul) — a kampány sablonja a küldéskori verzióban, fölötte a
@@ -18,6 +19,7 @@ import type { TopLink } from './types';
 const props = defineProps<{ campaignUuid: string; links: TopLink[] }>();
 
 const { t } = useI18n();
+const format = useFormat();
 
 const frame = ref<HTMLIFrameElement | null>(null);
 const html = ref<string | null>(null);
@@ -100,7 +102,7 @@ watch(shareByKey, () => void nextTick(measure));
 onMounted(() => void load());
 onBeforeUnmount(() => observer?.disconnect());
 
-const percent = (value: number) => `${value.toLocaleString(undefined, { maximumFractionDigits: 1 })}%`;
+const percent = (value: number) => `${format.number(value, { maximumFractionDigits: 1 })}%`;
 </script>
 
 <template>

@@ -8,6 +8,7 @@ import VmTable from '../../Components/Form/VmTable.vue';
 import VmStateBadge from '../../Components/Platform/VmStateBadge.vue';
 import VmPageHeader from '../../Components/Studio/VmPageHeader.vue';
 import AppLayout from '../../Layouts/AppLayout.vue';
+import { useFormat } from '../../composables/useFormat';
 
 /**
  * KÜLDÉSI INFRASTRUKTÚRA (v1.1 · 7. modul, D176) — csak platform-adminnak, CSAK OLVASÁS.
@@ -39,7 +40,8 @@ const props = defineProps<{
     sendingMode: { live: boolean; marketingEnabled: boolean; allowlistEnforced: boolean; allowlistSize: number };
 }>();
 
-const { t, locale } = useI18n();
+const { t } = useI18n();
+const format = useFormat();
 
 type PoolRow = { name: string; type: string; channel: string; owner: string; addresses: string };
 
@@ -81,7 +83,7 @@ const ipRows = computed<IpRow[]>(() =>
         pool: ip.pool,
         status: ip.status,
         warmup: ip.warmup_state,
-        usage: `${ip.sent_today.toLocaleString(locale.value)} / ${ip.daily_limit.toLocaleString(locale.value)}${ip.utilisation === null ? '' : ` · ${ip.utilisation}%`}`,
+        usage: `${format.number(ip.sent_today)} / ${format.number(ip.daily_limit)}${ip.utilisation === null ? '' : ` · ${ip.utilisation}%`}`,
         reputation: ip.reputation_score === null ? '—' : ip.reputation_score.toFixed(2),
         blocklist: ip.blocklist.some((check) => check.listed) ? 'listed' : ip.blocklist.length ? 'clean' : 'unknown',
     })),

@@ -15,6 +15,7 @@ import VmSplit from '../../Components/Platform/VmSplit.vue';
 import VmStateBadge from '../../Components/Platform/VmStateBadge.vue';
 import VmPageHeader from '../../Components/Studio/VmPageHeader.vue';
 import AppLayout from '../../Layouts/AppLayout.vue';
+import { useFormat } from '../../composables/useFormat';
 
 /**
  * WEBHOOKOK (v1.1 · 7. modul) — egy képernyőn, mert a kérdés is egy: „miért nem kapom meg
@@ -65,7 +66,8 @@ const props = defineProps<{
     graceHours: number;
 }>();
 
-const { t, locale } = useI18n();
+const { t } = useI18n();
+const format = useFormat();
 const page = usePage<{ flash: { secret: { kind: string; value?: string } | null } }>();
 
 const creating = ref(false);
@@ -123,7 +125,7 @@ const byUuid = computed(() => new Map(props.deliveries.map((delivery) => [delive
 
 const deliveryRows = computed<DeliveryRow[]>(() =>
     props.deliveries.map((delivery) => ({
-        created: delivery.createdAt ? new Date(delivery.createdAt).toLocaleString(locale.value) : '—',
+        created: delivery.createdAt ? format.dateTime(delivery.createdAt) : '—',
         event: delivery.event,
         endpoint: delivery.endpoint,
         response: delivery.responseCode === null ? (delivery.responseExcerpt ?? '—') : String(delivery.responseCode),
@@ -314,7 +316,7 @@ function successRate(endpoint: Endpoint): string {
                     <p class="vm-muted">
                         {{ t('plat.webhooks.signatureHint') }}
                         <template v-if="selected.previousSecretUntil">
-                            {{ t('plat.webhooks.previousUntil', { at: new Date(selected.previousSecretUntil).toLocaleString(locale) }) }}
+                            {{ t('plat.webhooks.previousUntil', { at: format.dateTime(selected.previousSecretUntil) }) }}
                         </template>
                     </p>
                 </section>

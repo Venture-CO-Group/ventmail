@@ -140,3 +140,19 @@ test('a közönség-dashboard a szerver aggregátumait mutatja', async ({ page }
     await expect(page.getByTestId('insights-sources-manual')).toBeVisible();
     await expect(page.getByTestId('insights-engagement-not_mailed')).toBeVisible();
 });
+
+test('a listák és a szegmensek lapozva + kereshetően jönnek (D284)', async ({ page }) => {
+    const seed = await seedStudio(page, `${run}-pg`);
+
+    await page.goto('/audience');
+
+    // Legfeljebb egy lapnyi lista és szegmens — a többi lapozással / kereséssel érhető el.
+    expect(await page.locator('[data-testid^="list-edit-"]').count()).toBeLessThanOrEqual(10);
+    await expect(page.getByTestId('lists-pager-info')).toBeVisible();
+    await expect(page.getByTestId('segments-pager-info')).toBeVisible();
+
+    await page.getByTestId('lists-search').fill(seed.list.name);
+    await page.getByTestId('lists-search-submit').click();
+    await expect(page.getByTestId(`list-${seed.list.uuid}`)).toBeVisible();
+    await expect(page.getByTestId('lists-pager-info')).toContainText('1 / 1');
+});

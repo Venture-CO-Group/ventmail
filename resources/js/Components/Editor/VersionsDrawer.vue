@@ -4,6 +4,7 @@ import axios from 'axios';
 import { ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { TemplateData } from './types';
+import { useFormat } from '../../composables/useFormat';
 
 /*
  | VERZIÓTÖRTÉNET. A visszaállítás ÚJ verziót ír (a régiek megmaradnak), tehát maga a
@@ -24,7 +25,8 @@ const props = defineProps<{ open: boolean; uuid: string; beforeRestore: () => Pr
 
 const emit = defineEmits<{ 'update:open': [value: boolean]; restored: [template: TemplateData] }>();
 
-const { t, locale } = useI18n();
+const { t } = useI18n();
+const format = useFormat();
 const versions = ref<VersionRow[]>([]);
 const busy = ref<number | null>(null);
 const error = ref<string | null>(null);
@@ -69,7 +71,7 @@ async function restore(number: number): Promise<void> {
                         v{{ version.number }}
                         <span v-if="index === 0" class="vm-ed-badge">{{ t('editor.versions.current') }}</span>
                     </strong>
-                    <small>{{ version.createdAt ? new Date(version.createdAt).toLocaleString(locale) : '' }} · {{ version.author ?? t('editor.versions.system') }}</small>
+                    <small>{{ version.createdAt ? format.dateTime(version.createdAt) : '' }} · {{ version.author ?? t('editor.versions.system') }}</small>
                     <small>{{ t(`editor.versions.reasons.${version.reason}`, { from: version.restoredFrom ?? '' }) }}</small>
                     <VtButton v-if="index > 0 && !readOnly" size="sm" variant="ghost" :loading="busy === version.number" :data-testid="`restore-${version.number}`" @click="restore(version.number)">
                         {{ t('editor.versions.restore') }}

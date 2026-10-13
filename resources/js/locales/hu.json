@@ -120,7 +120,73 @@
         "recent": "Legutóbbi üzenetek",
         "noAccess": "A napló megtekintéséhez nincs jogosultságod.",
         "unverifiedWarning": "Van hitelesítetlen domained — arról a ventMail nem küld.",
-        "empty": "Még nincs kimenő üzenet."
+        "empty": "Még nincs kimenő üzenet.",
+        "eyebrow": "{workspace} · elmúlt {days} nap",
+        "lead": "Kimenő forgalom, közönség és kézbesíthetőség egy helyen.",
+        "import": "Import",
+        "newCampaign": "Új kampány",
+        "mode": {
+            "allowlist": "Küldési mód: seed-allowlist.",
+            "marketingOff": "A marketing-küldés ki van kapcsolva.",
+            "hint": "A küldés korlátozott módban fut; a PreSendGate mindenhol él."
+        },
+        "kpi": {
+            "sent": "Elküldött levelek",
+            "deliveryRate": "Kézbesítési arány",
+            "openRate": "Egyedi megnyitás",
+            "activeContacts": "Aktív kontaktok",
+            "vsPrevious": "{delta} az előző időszakhoz",
+            "points": "{delta} pont",
+            "added": "{count} új az időszakban",
+            "newActivity": "Új forgalom az előző időszakhoz képest",
+            "noPrevious": "Nincs előző időszaki adat",
+            "unavailable": "A számok most nem érhetők el — próbáld újra néhány perc múlva."
+        },
+        "campaigns": {
+            "title": "Legutóbbi kampányok",
+            "all": "Összes",
+            "empty": "Még nincs kampány.",
+            "name": "Kampány",
+            "status": "Állapot",
+            "recipients": "Címzett",
+            "open": "Nyitás",
+            "click": "Kattintás"
+        },
+        "deliverability": {
+            "title": "Kézbesíthetőség",
+            "healthy": "Egészséges",
+            "attention": "Figyelmet igényel",
+            "bounce": "Bounce-arány",
+            "complaint": "Spam-panasz",
+            "spf": "SPF",
+            "dkim": "DKIM",
+            "dmarc": "DMARC",
+            "tracking": "Tracking CNAME",
+            "openDomains": "Domainek megnyitása"
+        },
+        "todos": {
+            "title": "Teendők",
+            "drafts": "{count} vázlat kampány vár tartalomra",
+            "unverifiedDomains": "{count} domain még nincs hitelesítve",
+            "pendingContacts": "{count} kontakt megerősítésre vár",
+            "deadLetters": "{count} webhook-kézbesítés dead-letterben (7 nap)",
+            "draftsNone": "Nincs félbehagyott vázlat",
+            "unverifiedDomainsNone": "Minden domain hitelesítve",
+            "pendingContactsNone": "Nincs megerősítésre váró kontakt",
+            "deadLettersNone": "A webhookok mind 2xx-et adnak",
+            "action": {
+                "drafts": "Kampányok",
+                "unverifiedDomains": "Domainek",
+                "pendingContacts": "Közönség",
+                "deadLetters": "Webhookok"
+            }
+        },
+        "recentColumns": {
+            "created": "Időpont",
+            "subject": "Tárgy",
+            "recipient": "Címzett",
+            "status": "Állapot"
+        }
     },
     "domains": {
         "title": "Domainek",
@@ -658,7 +724,10 @@
         "customFields": "Egyéni mezők",
         "customFieldsHint": "Alapból egyik mező sem látszik a preference centerben. Csak azt kapcsold be, amit a címzett maga láthat és módosíthat — a levélben lévő link továbbítható.",
         "noCustomFields": "Még nincs egyéni mező — az importban hozhatsz létre.",
-        "preferenceVisible": "Látható a preference centerben"
+        "preferenceVisible": "Látható a preference centerben",
+        "listSearch": "Lista keresése",
+        "segmentSearch": "Szegmens keresése",
+        "noMatch": "Nincs találat erre a keresésre."
     },
     "templates": {
         "title": "Sablonok",
@@ -2223,7 +2292,16 @@
             "propagating": "Terjed…",
             "unknown": "Nincs adat",
             "cold": "Hideg",
-            "warm": "Bemelegedett"
+            "warm": "Bemelegedett",
+            "queued": "Sorban",
+            "accepted": "Elfogadva",
+            "delivered": "Kézbesítve",
+            "deferred": "Késleltetve",
+            "bounced": "Visszapattant",
+            "rejected": "Elutasítva",
+            "opened": "Megnyitva",
+            "clicked": "Kattintva",
+            "complained": "Panasz"
         },
         "eyebrow": {
             "domains": "Platform · Domainek",
@@ -2476,5 +2554,19 @@
         "company": "Cégnév a borítón",
         "preview": "Élő előnézet — borítólap",
         "previewSample": "Minta kampány"
+    },
+    "pager": {
+        "label": "Lapozás",
+        "info": "{page} / {last} · {total} találat",
+        "prev": "Előző oldal",
+        "next": "Következő oldal"
+    },
+    "picker": {
+        "selected": "Kiválasztva",
+        "remove": "{name} eltávolítása",
+        "search": "Keresés név szerint",
+        "failed": "A lista most nem tölthető be.",
+        "noMatch": "Nincs találat.",
+        "none": "Még nincs elem."
     }
 }

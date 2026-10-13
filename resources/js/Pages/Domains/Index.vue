@@ -10,6 +10,7 @@ import VmSplit from '../../Components/Platform/VmSplit.vue';
 import VmStateBadge from '../../Components/Platform/VmStateBadge.vue';
 import VmPageHeader from '../../Components/Studio/VmPageHeader.vue';
 import AppLayout from '../../Layouts/AppLayout.vue';
+import { useFormat } from '../../composables/useFormat';
 
 /**
  * KÜLDŐ DOMAINEK (v1.1 · 7. modul).
@@ -62,7 +63,8 @@ interface Selected {
 
 const props = defineProps<{ domains: DomainRow[]; selected: Selected | null }>();
 
-const { t, locale } = useI18n();
+const { t } = useI18n();
+const format = useFormat();
 
 const checking = ref(false);
 const rotating = ref(false);
@@ -74,7 +76,7 @@ const pendingOptional = computed(() =>
 );
 
 function when(iso: string | null): string {
-    return iso ? new Date(iso).toLocaleString(locale.value) : '—';
+    return iso ? format.dateTime(iso) : '—';
 }
 
 function recordLabel(key: string): string {
@@ -192,6 +194,14 @@ onBeforeUnmount(() => {
                 <div class="vm-scroll-x">
                     <table class="vm-dns" data-testid="dns-records">
                         <caption class="vm-visually-hidden">{{ t('wizard.dnsCaption') }}</caption>
+                        <!-- D284: a név és az érték kapja a szélesség nagyját — teljes szövegként, tördelve. -->
+                        <colgroup>
+                            <col class="vm-dns__col--purpose" />
+                            <col class="vm-dns__col--type" />
+                            <col class="vm-dns__col--name" />
+                            <col class="vm-dns__col--value" />
+                            <col class="vm-dns__col--state" />
+                        </colgroup>
                         <thead>
                             <tr>
                                 <th scope="col">{{ t('plat.domains.purpose') }}</th>
@@ -207,13 +217,13 @@ onBeforeUnmount(() => {
                                 <td class="vt-text-mono">{{ record.type }}</td>
                                 <td>
                                     <span class="vm-dns__cell">
-                                        <code class="vm-truncate" :title="record.name">{{ record.name }}</code>
+                                        <code>{{ record.name }}</code>
                                         <VmCopyButton :value="record.name" :testid="`copy-name-${record.key}`" icon-only />
                                     </span>
                                 </td>
                                 <td>
                                     <span class="vm-dns__cell">
-                                        <code class="vm-truncate" :title="record.value">{{ record.value }}</code>
+                                        <code>{{ record.value }}</code>
                                         <VmCopyButton :value="record.value" :testid="`copy-value-${record.key}`" icon-only />
                                     </span>
                                 </td>
@@ -378,18 +388,45 @@ onBeforeUnmount(() => {
     font-weight: var(--vt-weight-semibold);
 }
 
+.vm-dns__col--purpose {
+    width: 17%;
+}
+
+.vm-dns__col--type {
+    width: 9%;
+}
+
+.vm-dns__col--name {
+    width: 27%;
+}
+
+.vm-dns__col--value {
+    width: 32%;
+}
+
+.vm-dns__col--state {
+    width: 15%;
+}
+
 .vm-dns__cell {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: var(--vt-space-2);
     min-width: 0;
 }
 
+/*
+ | D284: a DNS-név és -érték NEM vágható le („demo.peld…") — a felhasználó szemmel is ellenőrzi,
+ | mit vesz fel a szolgáltatónál. A DKIM-kulcs egyetlen hosszú „szó", ezért bárhol törhet.
+ */
 .vm-dns__cell code {
     flex: 1 1 auto;
     min-width: 0;
     font-family: var(--vt-font-mono);
     font-size: var(--vt-fs-body-sm);
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-all;
 }
 
 .vm-link {

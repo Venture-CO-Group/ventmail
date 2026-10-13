@@ -11,6 +11,7 @@ import SegmentGroupEditor from '../../Components/Segment/SegmentGroupEditor.vue'
 import { countRules, normalise, type NamedRef, type SegmentCatalog, type SegmentGroup } from '../../Components/Segment/types';
 import VmPageHeader from '../../Components/Studio/VmPageHeader.vue';
 import AppLayout from '../../Layouts/AppLayout.vue';
+import { useFormat } from '../../composables/useFormat';
 
 /**
  * SZEGMENSÉPÍTŐ (v1.1 · 5. modul): vizuális ÉS/VAGY csoportok, élő számláló, mentés.
@@ -27,6 +28,7 @@ const props = defineProps<{
 }>();
 
 const { t } = useI18n();
+const format = useFormat();
 
 const name = ref(props.segment?.name ?? '');
 const description = ref(props.segment?.description ?? '');
@@ -161,7 +163,7 @@ function save(): void {
                 <VmCard glass glow>
                     <p class="vm-seg-count__label">{{ t('segments.matching') }}</p>
                     <p class="vm-seg-count" data-testid="segment-count" :data-loading="loading ? 'true' : 'false'" aria-live="polite">
-                        {{ count === null ? '—' : count.toLocaleString() }}
+                        {{ count === null ? '—' : format.number(count) }}
                     </p>
                     <p v-if="previewError" class="vm-banner vm-banner--danger" role="alert" data-testid="segment-error">{{ previewError }}</p>
                     <p class="vm-seg-count__hint">{{ t('segments.reachableHint') }}</p>

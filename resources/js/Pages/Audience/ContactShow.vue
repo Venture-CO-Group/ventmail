@@ -6,6 +6,7 @@ import { useI18n } from 'vue-i18n';
 import VmCard from '../../Components/Form/VmCard.vue';
 import VmTable from '../../Components/Form/VmTable.vue';
 import AppLayout from '../../Layouts/AppLayout.vue';
+import { useFormat } from '../../composables/useFormat';
 
 /**
  * KONTAKT ADATLAPJA: mezők, listák, címkék, a marketing-hozzájárulás állapota és a
@@ -40,9 +41,10 @@ const props = defineProps<{
     history: HistoryEvent[];
 }>();
 
-const { t, locale } = useI18n({ useScope: 'global' });
+const { t } = useI18n({ useScope: 'global' });
+const format = useFormat();
 
-const fmt = (iso: string | null): string => (iso ? new Date(iso).toLocaleString(locale.value) : '—');
+const fmt = (iso: string | null): string => (iso ? format.dateTime(iso) : '—');
 
 const fullName = computed(() => [props.contact.firstName, props.contact.lastName].filter(Boolean).join(' ') || '—');
 

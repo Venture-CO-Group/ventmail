@@ -7,6 +7,7 @@ import VmIcon from '../Shell/VmIcon.vue';
 import EdSegment from './EdSegment.vue';
 import TestSendForm from './TestSendForm.vue';
 import type { OptimizeReport } from './types';
+import { useFormat } from '../../composables/useFormat';
 
 /*
  | OPTIMALIZÁLÁS: eszköz-nézet (desktop / mobil / sötét), linkek (törött, hiányzó UTM),
@@ -28,6 +29,7 @@ const props = defineProps<{
 const emit = defineEmits<{ device: [value: 'desktop' | 'mobile' | 'dark']; focus: [path: string]; addUtm: [] }>();
 
 const { t, te } = useI18n();
+const format = useFormat();
 const report = ref<OptimizeReport | null>(null);
 const loading = ref(false);
 const failed = ref<string | null>(null);
@@ -120,7 +122,7 @@ const deviceOptions = computed(() => [
             </article>
 
             <article class="vm-ed-card" :class="tone(report.spam.warns, report.spam.score > 0)" data-testid="optimize-spam">
-                <h3 class="vm-ed-card__title"><VmIcon name="shield" /> {{ t('editor.optimize.spam', { score: report.spam.score.toLocaleString(), max: 10 }) }}</h3>
+                <h3 class="vm-ed-card__title"><VmIcon name="shield" /> {{ t('editor.optimize.spam', { score: format.number(report.spam.score), max: 10 }) }}</h3>
                 <p class="vm-ed-hint">{{ report.spam.findings.length ? t('editor.optimize.spamFindings') : t('editor.optimize.spamClean') }}</p>
                 <div class="vm-ed-meter" :class="{ 'vm-ed-meter--bad': report.spam.warns, 'vm-ed-meter--warn': !report.spam.warns && report.spam.score > 0 }" role="meter" :aria-valuenow="spamRatio" aria-valuemin="0" aria-valuemax="100">
                     <span :style="{ inlineSize: `${spamRatio}%` }" />

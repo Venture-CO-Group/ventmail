@@ -9,6 +9,7 @@ import VmFormActions from '../Form/VmFormActions.vue';
 import VmFormRow from '../Form/VmFormRow.vue';
 import VmFormSection from '../Form/VmFormSection.vue';
 import type { ImportErrors, ImportState } from './types';
+import { useFormat } from '../../composables/useFormat';
 
 /**
  * 1. LÉPÉS — feltöltés vagy bevitel: kézi egyedi, beillesztett lista, CSV, XLSX.
@@ -25,7 +26,10 @@ const props = defineProps<{
 
 const emit = defineEmits<{ (e: 'created'): void; (e: 'next'): void; (e: 'errors', value: ImportErrors): void }>();
 
-const { t, n } = useI18n({ useScope: 'global' });
+const { t } = useI18n({ useScope: 'global' });
+const format = useFormat();
+// A számok a PROFIL számformátuma szerint (D11), nem a vue-i18n locale-ja szerint.
+const n = (value: number): string => format.number(value);
 
 const tab = ref<string>(props.state?.sourceType === 'xlsx' ? 'xlsx' : props.state?.sourceType === 'csv' ? 'csv' : 'manual');
 const busy = ref(false);

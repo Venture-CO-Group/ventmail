@@ -8,6 +8,7 @@ import VmFormActions from '../Form/VmFormActions.vue';
 import VmFormRow from '../Form/VmFormRow.vue';
 import VmTagInput from '../Form/VmTagInput.vue';
 import type { ImportErrors, ImportList, ImportState } from './types';
+import { useFormat } from '../../composables/useFormat';
 
 /**
  * 3. LÉPÉS — beállítások: cél lista, címkék, a meglévők frissítése, és a KÖTELEZŐ jogalap.
@@ -20,7 +21,10 @@ const props = defineProps<{ state: ImportState; lists: ImportList[]; errors: Imp
 
 const emit = defineEmits<{ (e: 'saved'): void; (e: 'back'): void; (e: 'errors', value: ImportErrors): void }>();
 
-const { t, n } = useI18n({ useScope: 'global' });
+const { t } = useI18n({ useScope: 'global' });
+const format = useFormat();
+// A számok a PROFIL számformátuma szerint (D11), nem a vue-i18n locale-ja szerint.
+const n = (value: number): string => format.number(value);
 
 const initial = props.state.settings;
 

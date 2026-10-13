@@ -36,6 +36,9 @@ final class AnalyticsSections
     /** A panasz-arány küszöbe (%) — a Gmail/Yahoo bulk-sender követelménye. */
     public const COMPLAINT_THRESHOLD = 0.3;
 
+    /** A bounce-arány figyelmeztetési küszöbe (%) — a bulk-sender gyakorlat 2%-os felső határa. */
+    public const BOUNCE_THRESHOLD = 2.0;
+
     private int $budgetMs = self::BUDGET_MS;
 
     private bool $fresh = false;
@@ -131,6 +134,68 @@ final class AnalyticsSections
                 'sum' => $report['sum'],
                 'bounces' => $this->domains->bounceTypes($range->from, $range->to),
                 'complaintThreshold' => self::COMPLAINT_THRESHOLD,
+            ];
+        });
+    }
+
+    /**
+     * AZ ÁTTEKINTÉS KPI-SORA (v1.1 · D284): küldött, kézbesítési arány, egyedi megnyitás, aktív
+     * kontaktok — napi sorozattal (sparkline) és az ELŐZŐ, azonos hosszú időszakkal. Ugyanazokból
+     * az aggregátumokból, mint a platform- és a közönség-szekció (`domain_daily_stats`,
+     * `AudienceInsights`), tehát az áttekintés és az analitika nem mondhat mást.
+     *
+     * @return array<string, mixed>
+     */
+    public function overview(AnalyticsRange $range): array
+    {
+        return $this->section('overview', $range->toArray(), function () use ($range): array {
+            $days = $range->days();
+            $current = $this->domains->report($range->from, $range->to);
+            $previous = $this->domains->report($range->from->copy()->subDays($days), $range->from->copy()->subDay())['sum'];
+            $sum = $current['sum'];
+
+            $byDay = [];
+
+            foreach ($current['series'] as $row) {
+                $byDay[(string) $row['day']] = $row;
+            }
+
+            $growth = $this->audience->growthBetween($range->from, $range->to, $range->timezone);
+            $totals = $this->audience->totals();
+            $churn = $this->audience->churnBetween($range->from, $range->to, $range->timezone);
+
+            $sent = $delivered = $opened = [];
+
+            foreach ($growth as $index => $row) {
+                $day = $byDay[$row['date']] ?? null;
+                $sent[$index] = (int) ($day['sent'] ?? 0);
+                $delivered[$index] = $day === null || (int) $day['sent'] === 0 ? null : Rates::percent((int) $day['delivered'], (int) $day['sent']);
+                $opened[$index] = $day === null || (int) $day['delivered'] === 0 ? null : Rates::percent((int) $day['opened'], (int) $day['delivered']);
+            }
+
+            // AZ AKTÍV KONTAKTOK napi állapota visszafelé a mai feliratkozott létszámból (a napi nettó
+            // változással) — a sparkline alakja, nem könyvelési pontosságú múltbeli létszám.
+            $active = [];
+            $running = (int) $totals['subscribed'];
+
+            for ($i = count($growth) - 1; $i >= 0; $i--) {
+                $active[$i] = max(0, $running);
+                $running -= (int) $growth[$i]['net'];
+            }
+
+            ksort($active);
+
+            $rate = static fn (int $numerator, int $denominator): ?float => $denominator > 0 ? Rates::percent($numerator, $denominator) : null;
+
+            return [
+                'days' => $days,
+                'sent' => ['value' => (int) $sum['sent'], 'previous' => (int) $previous['sent'], 'series' => array_values($sent)],
+                'deliveryRate' => ['value' => $rate((int) $sum['delivered'], (int) $sum['sent']), 'previous' => $rate((int) $previous['delivered'], (int) $previous['sent']), 'series' => array_values($delivered)],
+                'openRate' => ['value' => $rate((int) $sum['opened'], (int) $sum['delivered']), 'previous' => $rate((int) $previous['opened'], (int) $previous['delivered']), 'series' => array_values($opened)],
+                'activeContacts' => ['value' => (int) $totals['subscribed'], 'added' => (int) $churn['newSubscribed'], 'series' => array_values($active)],
+                // A kézbesíthetőség-kártya arányai (a nevező a KÜLDÖTT — a platform-szekcióval egyezően).
+                'bounceRate' => $rate((int) $sum['bounced'], (int) $sum['sent']),
+                'complaintRate' => (int) $sum['sent'] > 0 ? round((int) $sum['complained'] / (int) $sum['sent'] * 100, 3) : null,
             ];
         });
     }

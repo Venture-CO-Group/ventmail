@@ -21,6 +21,10 @@ final class ProfileSettings
     /** space_comma: 1 234 567,89 · comma_dot: 1,234,567.89 · dot_comma: 1.234.567,89 · apostrophe_dot: 1’234’567.89 */
     public const NUMBER_FORMATS = ['space_comma', 'comma_dot', 'dot_comma', 'apostrophe_dot'];
 
+    public const DEFAULT_DATE_FORMAT = 'ymd';
+
+    public const DEFAULT_NUMBER_FORMAT = 'space_comma';
+
     /** Az alkalmazás-értesítések és alapértékük. */
     public const NOTIFICATION_DEFAULTS = [
         'import_finished' => true,
@@ -41,8 +45,8 @@ final class ProfileSettings
             'locale' => app()->getLocale(),
             'localeSource' => $user->raw('locale_source'),
             'timezone' => $user->raw('timezone') ?? (string) config('app.timezone'),
-            'date_format' => $user->raw('date_format') ?? 'ymd',
-            'number_format' => $user->raw('number_format') ?? 'space_comma',
+            'date_format' => $user->raw('date_format') ?? self::DEFAULT_DATE_FORMAT,
+            'number_format' => $user->raw('number_format') ?? self::DEFAULT_NUMBER_FORMAT,
             'notifications' => self::normaliseNotifications([], $user->notificationPrefs()),
             'default_workspace' => $default === null ? null : (string) $default,
         ];

@@ -3,6 +3,7 @@ import { VtGlowLine, type VtColumn } from '@venture/ui';
 import VmTable from '../../Components/Form/VmTable.vue';
 import VmCard from '../../Components/Form/VmCard.vue';
 import AppLayout from '../../Layouts/AppLayout.vue';
+import { useFormat } from '../../composables/useFormat';
 
 /**
  * BEJÖVŐ ROUTE-SZABÁLYOK ÉS LEVELEK (A4 · 30. kritérium).
@@ -41,6 +42,7 @@ interface InboundMessage {
 }
 
 const props = defineProps<{ routes: InboundRoute[]; messages: InboundMessage[] }>();
+const format = useFormat();
 
 type RouteRow = {
     priority: string;
@@ -76,7 +78,7 @@ const routeRows = (): RouteRow[] =>
         match: describeMatch(route),
         actions: describeActions(route),
         active: route.active ? 'igen' : 'nem',
-        last_matched_at: route.last_matched_at ? new Date(route.last_matched_at).toLocaleString('hu-HU') : '—',
+        last_matched_at: route.last_matched_at ? format.dateTime(route.last_matched_at) : '—',
     }));
 
 type MessageRow = { received_at: string; sender: string; recipient: string; subject: string; status: string };
@@ -91,7 +93,7 @@ const messageColumns: VtColumn<MessageRow>[] = [
 
 const messageRows = (): MessageRow[] =>
     props.messages.map((message) => ({
-        received_at: message.received_at ? new Date(message.received_at).toLocaleString('hu-HU') : '—',
+        received_at: message.received_at ? format.dateTime(message.received_at) : '—',
         // A null-sender NEM hiányzó adat: a bounce-ok így érkeznek (RFC 5321).
         sender: message.sender ?? '(bounce)',
         recipient: message.recipient,

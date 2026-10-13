@@ -294,7 +294,7 @@ it('a Studio képernyői MÁS tenant adatát nem mutatják', function () {
     $session = ['workspace_uuid' => $enyem->uuid];
 
     $this->actingAs($user)->withSession($session)->get('/audience')
-        ->assertInertia(fn ($page) => $page->has('lists', 0)->has('contacts.items', 0));
+        ->assertInertia(fn ($page) => $page->has('lists.items', 0)->has('contacts.items', 0));
 
     $this->actingAs($user)->withSession($session)->get('/templates')
         ->assertInertia(fn ($page) => $page->has('templates', 0));

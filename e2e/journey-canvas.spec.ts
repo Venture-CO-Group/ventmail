@@ -60,6 +60,28 @@ test('journey-vászon: vázlat összerakása, validálás, mentés és teszt-fut
     await expect(page.getByTestId('palette-soon-tag_removed')).toBeVisible();
     await expect(page.getByTestId('palette-tag_removed')).toBeDisabled();
 
+    // D284: a „Hamarosan" jelvény NEM nyomhatja össze a trigger nevét — a név szóhatáron tördel
+    // (nem szó közepén: „Címke hozzáa / dva"), és a jelvény nem fedi a nevet.
+    for (const type of ['tag_added', 'tag_removed', 'field_changed']) {
+        const item = page.getByTestId(`palette-${type}`);
+        const metrics = await item.evaluate((button) => {
+            const label = button.querySelector('.vm-jpal__label') as HTMLElement;
+            const badge = button.querySelector('.vm-jpal__soon') as HTMLElement;
+            const range = document.createRange();
+            range.selectNodeContents(label);
+            const lines = new Set([...range.getClientRects()].map((rect) => Math.round(rect.top))).size;
+            const words = (label.textContent ?? '').trim().split(/\s+/).length;
+            const a = label.getBoundingClientRect();
+            const b = badge.getBoundingClientRect();
+            const overlap = a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+
+            return { lines, words, overlap };
+        });
+
+        expect(metrics.lines, `${type}: a név szó közepén tört`).toBeLessThanOrEqual(metrics.words);
+        expect(metrics.overlap, `${type}: a jelvény fedi a nevet`).toBe(false);
+    }
+
     // 2. A TRIGGER kijelölése BILLENTYŰZETTEL (review REV-S7) — a panel megnyílik.
     await page.locator('.vue-flow__node[data-id="trigger"]').focus();
     await page.keyboard.press('Enter');

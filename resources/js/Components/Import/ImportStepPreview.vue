@@ -6,6 +6,7 @@ import VmFormActions from '../Form/VmFormActions.vue';
 import VmStat from '../Form/VmStat.vue';
 import VmTable from '../Form/VmTable.vue';
 import type { ImportState } from './types';
+import { useFormat } from '../../composables/useFormat';
 
 /**
  * 4. LÉPÉS — előnézet és validáció: kategóriánként számok, és minta a problémás sorokból.
@@ -15,7 +16,10 @@ const props = defineProps<{ state: ImportState; starting: boolean }>();
 
 const emit = defineEmits<{ (e: 'back'): void; (e: 'start'): void }>();
 
-const { t, n } = useI18n({ useScope: 'global' });
+const { t } = useI18n({ useScope: 'global' });
+const format = useFormat();
+// A számok a PROFIL számformátuma szerint (D11), nem a vue-i18n locale-ja szerint.
+const n = (value: number): string => format.number(value);
 
 const computing = computed(() => props.state.status === 'previewing');
 const failed = computed(() => props.state.status === 'failed');

@@ -4,6 +4,7 @@ import VmTable from '../../Components/Form/VmTable.vue';
 import VmCard from '../../Components/Form/VmCard.vue';
 import AppLayout from '../../Layouts/AppLayout.vue';
 import { useI18n } from 'vue-i18n';
+import { useFormat } from '../../composables/useFormat';
 
 /**
  * ÜZENET-TRACE (A3 · 23. kritérium) — a „miért nem érkezett meg?" képernyője.
@@ -41,7 +42,8 @@ interface Trace {
 
 const props = defineProps<{ trace: Trace }>();
 
-const { t, te, locale } = useI18n({ useScope: 'global' });
+const { t, te } = useI18n({ useScope: 'global' });
+const format = useFormat();
 
 type GateRow = { gate: string; result: string; detail: string };
 
@@ -72,7 +74,7 @@ const eventRows = (): EventRow[] =>
         type: event.type,
         recipient: event.recipient ?? '—',
         reason: event.reason ?? '—',
-        at: event.occurred_at ? new Date(event.occurred_at).toLocaleString(locale.value) : '—',
+        at: event.occurred_at ? format.dateTime(event.occurred_at) : '—',
     }));
 
 type AttemptRow = { attempt: string; recipient: string; code: string; classification: string; response: string };
@@ -137,7 +139,7 @@ const attemptRows = (): AttemptRow[] =>
                     <div class="vm-timeline__body">
                         <strong>{{ te(`plat.trace.kind.${item.kind}`) ? t(`plat.trace.kind.${item.kind}`) : item.kind }}</strong>
                         <span class="vm-timeline__meta vt-text-mono">
-                            {{ item.at ? new Date(item.at).toLocaleString(locale) : '—' }}<template v-if="item.recipient"> · {{ item.recipient }}</template>
+                            {{ item.at ? format.dateTime(item.at) : '—' }}<template v-if="item.recipient"> · {{ item.recipient }}</template>
                         </span>
                         <code v-if="item.detail" class="vm-timeline__detail">{{ item.detail }}</code>
                     </div>

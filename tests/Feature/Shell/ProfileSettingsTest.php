@@ -245,3 +245,27 @@ it('az értesítések tömb mérete korlátos', function () {
         ->put('/profile', ['notifications' => array_fill_keys(range(1, 50), true)])
         ->assertSessionHasErrors('notifications');
 });
+
+it('a héj megosztott `format` propja a profil EFFEKTÍV formázási beállításait adja (D11 / D284)', function () {
+    // A felület MINDEN szám- és dátumkiírása ebből formáz (`useFormat`), nem a böngésző nyelvéből.
+    [$user, $workspace] = profileUser(['timezone' => 'Europe/Paris', 'date_format' => 'iso', 'number_format' => 'comma_dot']);
+
+    $this->actingAs($user)->withSession(['workspace_uuid' => $workspace->uuid])
+        ->get('/profile')
+        ->assertInertia(fn ($page) => $page
+            ->where('format.timezone', 'Europe/Paris')
+            ->where('format.dateFormat', 'iso')
+            ->where('format.numberFormat', 'comma_dot'));
+});
+
+it('beállítás híján a `format` prop a kanonikus alapértékeket adja', function () {
+    config(['app.timezone' => 'UTC']);
+    [$user, $workspace] = profileUser(['timezone' => null, 'date_format' => null, 'number_format' => null]);
+
+    $this->actingAs($user)->withSession(['workspace_uuid' => $workspace->uuid])
+        ->get('/profile')
+        ->assertInertia(fn ($page) => $page
+            ->where('format.timezone', 'UTC')
+            ->where('format.dateFormat', 'ymd')
+            ->where('format.numberFormat', 'space_comma'));
+});

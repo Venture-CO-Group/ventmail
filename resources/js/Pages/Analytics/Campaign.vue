@@ -11,6 +11,7 @@ import VmCard from '../../Components/Form/VmCard.vue';
 import VmTable from '../../Components/Form/VmTable.vue';
 import VmPageHeader from '../../Components/Studio/VmPageHeader.vue';
 import AppLayout from '../../Layouts/AppLayout.vue';
+import { useFormat } from '../../composables/useFormat';
 
 /**
  * KAMPÁNY-RIPORT.
@@ -33,7 +34,8 @@ const props = defineProps<{
     charts?: CampaignSection;
 }>();
 
-const { t, locale } = useI18n();
+const { t } = useI18n();
+const format = useFormat();
 
 type LinkRow = { url: string; clicks: string; unique: string; last: string };
 
@@ -49,7 +51,7 @@ const linkRows = computed<LinkRow[]>(() =>
         url: link.url,
         clicks: String(link.clicks),
         unique: String(link.unique_clicks),
-        last: link.last_clicked_at ? new Date(link.last_clicked_at).toLocaleString(locale.value) : '—',
+        last: link.last_clicked_at ? format.dateTime(link.last_clicked_at) : '—',
     })),
 );
 
@@ -57,7 +59,7 @@ const metrics = computed(() =>
     ['recipients', 'delivered', 'opened', 'clicked', 'bounced', 'unsubscribed'].filter((key) => key in props.summary),
 );
 
-const pct = (value: unknown) => `${Number(value ?? 0).toLocaleString(locale.value, { maximumFractionDigits: 2 })}%`;
+const pct = (value: unknown) => `${format.number(Number(value ?? 0), { maximumFractionDigits: 2 })}%`;
 
 const dailySeries = computed(() => [
     { name: t('analytics.metric.delivered'), data: props.daily.map((d) => d.delivered), token: '--vt-color-success' },

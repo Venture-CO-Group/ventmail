@@ -37,8 +37,11 @@ function onDragStart(event: DragEvent, type: string): void {
             @click="emit('add', type)"
         >
             <span class="vm-jpal__icon"><VmIcon :name="ICONS[type] ?? 'plus'" /></span>
-            <span class="vm-jpal__label">{{ t(`journeyCanvas.nodes.${type}`) }}</span>
-            <span v-if="unavailable.includes(type)" class="vm-jpal__soon" :data-testid="`palette-soon-${type}`">{{ t('journeyCanvas.palette.soon') }}</span>
+            <!-- D284: a név és a „Hamarosan" jelvény EGYMÁS ALATT — a jelvény nem veszi el a név helyét. -->
+            <span class="vm-jpal__text">
+                <span class="vm-jpal__label">{{ t(`journeyCanvas.nodes.${type}`) }}</span>
+                <span v-if="unavailable.includes(type)" class="vm-jpal__soon" :data-testid="`palette-soon-${type}`">{{ t('journeyCanvas.palette.soon') }}</span>
+            </span>
         </button>
 
         <p class="vm-jpal__group">{{ t('journeyCanvas.palette.actions') }}</p>

@@ -11,6 +11,7 @@ import VmFormSection from '../../Components/Form/VmFormSection.vue';
 import VmTable from '../../Components/Form/VmTable.vue';
 import VmPageHeader from '../../Components/Studio/VmPageHeader.vue';
 import AppLayout from '../../Layouts/AppLayout.vue';
+import { useFormat } from '../../composables/useFormat';
 
 /**
  * TILTÓLISTÁK (v1.1 · 7. modul) — a PreSendGate 2. kapujának a tartalma, KÜLÖN listákon:
@@ -41,7 +42,8 @@ const props = defineProps<{
     scopes: string[];
 }>();
 
-const { t, locale } = useI18n();
+const { t } = useI18n();
+const format = useFormat();
 
 const LISTS = ['bounces', 'complaints', 'unsubscribes', 'manual'] as const;
 
@@ -54,7 +56,7 @@ const removing = ref<SuppressionRow | null>(null);
 const justification = ref('');
 
 const tabs = computed(() =>
-    LISTS.map((id) => ({ id, label: `${t(`plat.suppressions.list.${id}`)} · ${(props.counts[id] ?? 0).toLocaleString(locale.value)}` })),
+    LISTS.map((id) => ({ id, label: `${t(`plat.suppressions.list.${id}`)} · ${format.number((props.counts[id] ?? 0))}` })),
 );
 
 const reasonOptions = computed(() =>
@@ -81,7 +83,7 @@ const rows = computed<Row[]>(() =>
         reason: item.detail ? `${item.reason} · ${item.detail}` : item.reason,
         scope: item.appliesTo,
         source: item.source,
-        created: item.createdAt ? new Date(item.createdAt).toLocaleDateString(locale.value) : '—',
+        created: item.createdAt ? format.date(item.createdAt) : '—',
         uuid: item.uuid,
     })),
 );

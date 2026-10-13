@@ -4,28 +4,27 @@ declare(strict_types=1);
 
 namespace App\Modules\Campaign\Http\Controllers;
 
-use App\Modules\Analytics\Services\Rates;
 use App\Modules\Audience\Models\ContactList;
 use App\Modules\Audience\Models\Segment;
 use App\Modules\Audit\Services\AuditLogger;
-use App\Modules\Campaign\Jobs\RefreshCampaignStats;
 use App\Modules\Campaign\Jobs\StartCampaignJob;
 use App\Modules\Campaign\Models\Campaign;
 use App\Modules\Campaign\Models\CampaignRecipient;
 use App\Modules\Campaign\Services\CampaignChecklist;
 use App\Modules\Campaign\Services\CampaignLifecycle;
+use App\Modules\Campaign\Services\CampaignRowStats;
 use App\Modules\Campaign\Services\CampaignStateChanged;
 use App\Modules\Domains\Models\Domain;
 use App\Modules\Template\Data\EditorCatalog;
 use App\Modules\Template\Models\Template;
 use App\Modules\Template\Services\TemplateUsage;
 use App\Modules\Tenancy\Services\WorkspaceContext;
+use App\Support\Paged;
 use App\Support\WorkspaceTimezone;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
@@ -82,12 +81,12 @@ final class CampaignUiController
             ->paginate(self::PER_PAGE)
             ->withQueryString();
 
-        $stats = $this->engagementStats(collect($page->items()));
+        $rowStats = app(CampaignRowStats::class);
+        $stats = $rowStats->engagement(collect($page->items()));
 
         return Inertia::render('Campaign/Index', [
             'filters' => ['status' => $status, 'search' => $search],
-            'campaigns' => collect($page->items())->map(function (Campaign $campaign) use ($stats) {
-                $engagement = $stats[(string) $campaign->uuid] ?? ['delivered' => 0, 'opened' => 0, 'clicked' => 0];
+            'campaigns' => collect($page->items())->map(function (Campaign $campaign) use ($stats, $rowStats) {
 
                 return [
                     'uuid' => (string) $campaign->uuid,
@@ -104,10 +103,7 @@ final class CampaignUiController
                     'variants' => (int) $campaign->variants_count,
                     'recipients' => (int) $campaign->recipient_count,
                     'sent' => (int) $campaign->sent_count,
-                    // A RÁTÁK nevezője a KÉZBESÍTETT (Rates docblock): a nem kézbesített levél
-                    // nem nyitható meg.
-                    'openRate' => $engagement['delivered'] > 0 ? Rates::percent($engagement['opened'], $engagement['delivered']) : null,
-                    'clickRate' => $engagement['delivered'] > 0 ? Rates::percent($engagement['clicked'], $engagement['delivered']) : null,
+                    ...$rowStats->rates($stats[(string) $campaign->uuid] ?? null),
                     'progress' => $campaign->recipient_count > 0
                         ? (int) round(($campaign->sent_count + $campaign->failed_count) / $campaign->recipient_count * 100)
                         : 0,
@@ -123,55 +119,15 @@ final class CampaignUiController
         ]);
     }
 
-    /**
-     * A FELÜLETI állapot: a hat gépi állapot + a SZÁRMAZTATOTT `failed`.
-     *
-     * A `failed` nem állapotgép-állapot (expand-only: az enumot és az átmeneteket nem
-     * bővítjük): az a lezárt kampány, aminek volt címzettje, de EGYETLEN levele sem ment ki —
-     * jellemzően mert a PreSendGate mindet elutasította (seed-mód, consent, domain). A
-     * „Kiküldve" jelvény erre hazugság lenne.
-     */
-    private function displayStatus(Campaign $campaign): string
-    {
-        return $campaign->status === 'sent' && (int) $campaign->recipient_count > 0 && (int) $campaign->sent_count === 0
-            ? 'failed'
-            : (string) $campaign->status;
-    }
-
     /** @param Builder<Campaign> $query */
     private function failedScope(Builder $query): Builder
     {
         return $query->where('status', 'sent')->where('recipient_count', '>', 0)->where('sent_count', 0);
     }
 
-    /**
-     * Egyedi kézbesített / nyitó / kattintó címzettek kampányonként — egy lekérdezés a lapra.
-     *
-     * @param  Collection<int, Campaign>  $campaigns
-     * @return array<string, array{delivered: int, opened: int, clicked: int}>
-     */
-    private function engagementStats(Collection $campaigns): array
+    private function displayStatus(Campaign $campaign): string
     {
-        $stats = [];
-
-        foreach ($campaigns as $campaign) {
-            // A KÜLDÉS NÉLKÜLI kampánynak nincs mit számolni.
-            if (! in_array((string) $campaign->status, ['sending', 'paused', 'sent', 'canceled'], true)) {
-                continue;
-            }
-
-            $cached = Cache::get(RefreshCampaignStats::cacheKey((string) $campaign->uuid));
-
-            // A KÉRÉSBEN SOSEM számolunk (review RS6): a hiányzó érték háttérben töltődik, a
-            // sor addig „—"-t mutat.
-            if (is_array($cached)) {
-                $stats[(string) $campaign->uuid] = $cached;
-            } else {
-                RefreshCampaignStats::dispatch((string) $campaign->uuid, (int) $campaign->workspace_id);
-            }
-        }
-
-        return $stats;
+        return app(CampaignRowStats::class)->displayStatus($campaign);
     }
 
     /**
@@ -244,13 +200,10 @@ final class CampaignUiController
             'templates' => Template::query()->where('marketing', true)->orderBy('name')->get(['uuid', 'name'])
                 ->map(fn (Template $template) => ['uuid' => (string) $template->uuid, 'name' => (string) $template->name])
                 ->values()->all(),
-            'lists' => ContactList::query()->withCount(['contacts' => fn ($query) => $query->where('contact_list_memberships.status', 'subscribed')])
-                ->orderBy('name')->get(['id', 'uuid', 'name'])
-                ->map(fn (ContactList $list) => ['uuid' => (string) $list->uuid, 'name' => (string) $list->name, 'contacts' => (int) $list->contacts_count])
-                ->values()->all(),
-            'segments' => Segment::query()->orderBy('name')->get(['uuid', 'name', 'estimated_size'])
-                ->map(fn (Segment $segment) => ['uuid' => (string) $segment->uuid, 'name' => (string) $segment->name, 'contacts' => $segment->estimated_size === null ? null : (int) $segment->estimated_size])
-                ->values()->all(),
+            // v1.1 · D284: a választó a listákat/szegmenseket a `targets()` végpontról kéri
+            // (keresve, lapozva); itt csak a KIVÁLASZTOTTAK neve jön — azok mindig látszanak.
+            'selectedTargets' => $this->selectedTargets($campaign),
+            'targetCounts' => ['lists' => ContactList::query()->count(), 'segments' => Segment::query()->count()],
             // A FELADÓ csak HITELESÍTETT domainről választható (golden rule 8).
             'domains' => Domain::query()->where('status', 'verified')->orderBy('name')->pluck('name')->map(fn ($name) => (string) $name)->values()->all(),
             'mergeTags' => array_values(array_filter(EditorCatalog::mergeTags(), static fn (array $tag) => ! ($tag['link'] ?? false))),
@@ -260,6 +213,54 @@ final class CampaignUiController
             // `null` = a keretezett becslés nem készült el (review SN3): „becslés nem elérhető".
             'estimate' => $state['sections'][0]['estimate'] ?? null,
         ]);
+    }
+
+    /**
+     * CÍMZETT-VÁLASZTÓ (v1.1 · D284): listák vagy szegmensek, keresve és lapozva (JSON). A lista
+     * mellett a FELIRATKOZOTT tagok száma, a szegmens mellett a legutóbbi becsült méret.
+     */
+    public function targets(Request $request, string $kind): JsonResponse
+    {
+        Gate::authorize('campaign.create');
+
+        return response()->json($kind === 'lists'
+            ? Paged::names(
+                $request,
+                ContactList::query()->withCount(['contacts' => fn ($query) => $query->where('contact_list_memberships.status', 'subscribed')]),
+                'targets',
+                fn (ContactList $list) => ['uuid' => (string) $list->uuid, 'name' => (string) $list->name, 'contacts' => (int) $list->contacts_count],
+            )
+            : Paged::names(
+                $request,
+                Segment::query(),
+                'targets',
+                fn (Segment $segment) => ['uuid' => (string) $segment->uuid, 'name' => (string) $segment->name, 'contacts' => $segment->estimated_size === null ? null : (int) $segment->estimated_size],
+            ));
+    }
+
+    /**
+     * A kampány célzott ÉS kizárt listáinak / szegmenseinek neve (a választó ezekből mutatja a
+     * kiválasztottakat, lapozástól függetlenül). Az idegen / törölt uuid egyszerűen kimarad.
+     *
+     * @return array{lists: list<array{uuid: string, name: string, contacts: int}>, segments: list<array{uuid: string, name: string, contacts: int|null}>}
+     */
+    private function selectedTargets(Campaign $campaign): array
+    {
+        $uuids = static fn (mixed ...$sets): array => array_values(array_unique(array_filter(array_merge(...array_map(static fn ($set) => array_values((array) $set), $sets)), 'is_string')));
+
+        return [
+            'lists' => ContactList::query()
+                ->whereIn('uuid', $uuids($campaign->target_lists, $campaign->exclude_lists))
+                ->withCount(['contacts' => fn ($query) => $query->where('contact_list_memberships.status', 'subscribed')])
+                ->get(['id', 'uuid', 'name'])
+                ->map(fn (ContactList $list) => ['uuid' => (string) $list->uuid, 'name' => (string) $list->name, 'contacts' => (int) $list->contacts_count])
+                ->values()->all(),
+            'segments' => Segment::query()
+                ->whereIn('uuid', $uuids($campaign->target_segments, $campaign->exclude_segments))
+                ->get(['uuid', 'name', 'estimated_size'])
+                ->map(fn (Segment $segment) => ['uuid' => (string) $segment->uuid, 'name' => (string) $segment->name, 'contacts' => $segment->estimated_size === null ? null : (int) $segment->estimated_size])
+                ->values()->all(),
+        ];
     }
 
     public function store(Request $request, WorkspaceContext $context): RedirectResponse

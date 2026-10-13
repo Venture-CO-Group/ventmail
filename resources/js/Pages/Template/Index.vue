@@ -10,6 +10,7 @@ import VmFormSection from '../../Components/Form/VmFormSection.vue';
 import VmIcon from '../../Components/Shell/VmIcon.vue';
 import AppLayout from '../../Layouts/AppLayout.vue';
 import '../../editor.css';
+import { useFormat } from '../../composables/useFormat';
 
 /*
  | SABLONKÖNYVTÁR (v1.1): saját sablonok, mentett blokkok és a hat indulósablon. Új sablon
@@ -33,7 +34,8 @@ const props = defineProps<{
     starters: Array<{ key: string; name: string; description: string; accent: string }>;
 }>();
 
-const { t, locale } = useI18n();
+const { t } = useI18n();
+const format = useFormat();
 
 const filter = ref<'all' | 'own' | 'blocks' | 'starters'>('all');
 const search = ref('');
@@ -105,7 +107,7 @@ function removeBlock(uuid: string): void {
 }
 
 function updated(value: string | null): string {
-    return value ? new Date(value).toLocaleString(locale.value, { dateStyle: 'medium', timeStyle: 'short' }) : '';
+    return value ? format.dateTime(value) : '';
 }
 
 const blockIcon: Record<string, string> = {

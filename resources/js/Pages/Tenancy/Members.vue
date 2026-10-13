@@ -10,6 +10,7 @@ import VmFormSection from '../../Components/Form/VmFormSection.vue';
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import AppLayout from '../../Layouts/AppLayout.vue';
+import { useFormat } from '../../composables/useFormat';
 
 /**
  * TAGOK, MEGHÍVÓK, SUB-ACCOUNTOK.
@@ -52,6 +53,7 @@ const props = defineProps<{
 }>();
 
 const { t } = useI18n();
+const format = useFormat();
 
 const inviteEmail = ref('');
 const inviteRoles = ref<string[]>([]);
@@ -77,7 +79,7 @@ const rows = computed<Row[]>(() =>
         name: member.name,
         email: member.email,
         roles: member.roles.join(', '),
-        lastLogin: member.lastLoginAt ? new Date(member.lastLoginAt).toLocaleString() : '—',
+        lastLogin: member.lastLoginAt ? format.dateTime(member.lastLoginAt) : '—',
     })),
 );
 
@@ -264,7 +266,7 @@ function createSubAccount(): void {
                 <span v-if="invitation.expired" :data-testid="`expired-${invitation.uuid}`">
                     {{ t('members.expired') }}
                 </span>
-                <span v-else>{{ invitation.expiresAt ? new Date(invitation.expiresAt).toLocaleDateString() : '—' }}</span>
+                <span v-else>{{ invitation.expiresAt ? format.date(invitation.expiresAt) : '—' }}</span>
 
                 <VtButton variant="ghost" :data-testid="`revoke-${invitation.uuid}`" @click="revoke(invitation)">
                     {{ t('members.revoke') }}

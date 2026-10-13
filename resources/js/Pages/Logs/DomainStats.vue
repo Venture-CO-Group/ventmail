@@ -9,6 +9,7 @@ import VmStat from '../../Components/Form/VmStat.vue';
 import VmTable from '../../Components/Form/VmTable.vue';
 import VmPageHeader from '../../Components/Studio/VmPageHeader.vue';
 import AppLayout from '../../Layouts/AppLayout.vue';
+import { useFormat } from '../../composables/useFormat';
 
 /**
  * KÜLDÉSI STATISZTIKA (v1.1 · 7. modul, D175): küldött, kézbesített, bounce, panasz,
@@ -42,7 +43,8 @@ const props = defineProps<{
     report: Report | null;
 }>();
 
-const { t, locale } = useI18n();
+const { t } = useI18n();
+const format = useFormat();
 
 const rangeOptions = computed(() => [7, 30, 90, 365].map((days) => ({ value: String(days), label: t('plat.logs.lastDays', { days }) })));
 const domainOptions = computed(() => [{ value: '', label: t('plat.logs.anyDomain') }, ...props.domains.map((item) => ({ value: item.uuid, label: item.name }))]);
@@ -54,8 +56,8 @@ function go(days: number, domain: string | null): void {
     router.get('/statistics', query, { preserveState: true, preserveScroll: true });
 }
 
-const fmt = (value: number): string => value.toLocaleString(locale.value);
-const pct = (value: number | null | undefined): string => (value === null || value === undefined ? '—' : `${value.toLocaleString(locale.value)}%`);
+const fmt = (value: number): string => format.number(value);
+const pct = (value: number | null | undefined): string => (value === null || value === undefined ? '—' : `${format.number(value)}%`);
 
 const rate = (part: number, whole: number, digits = 1): number | null => (whole > 0 ? Math.round((part / whole) * 100 * 10 ** digits) / 10 ** digits : null);
 

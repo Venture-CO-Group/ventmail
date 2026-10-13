@@ -12,6 +12,7 @@ import VmTable from '../../Components/Form/VmTable.vue';
 import VmStateBadge from '../../Components/Platform/VmStateBadge.vue';
 import VmPageHeader from '../../Components/Studio/VmPageHeader.vue';
 import AppLayout from '../../Layouts/AppLayout.vue';
+import { useFormat } from '../../composables/useFormat';
 
 /**
  * ESEMÉNYNAPLÓ (A3 · 22. kritérium, v1.1 · 7. modul).
@@ -44,7 +45,8 @@ const props = defineProps<{
     exportMaxRows: number;
 }>();
 
-const { t, locale } = useI18n({ useScope: 'global' });
+const { t, te } = useI18n({ useScope: 'global' });
+const format = useFormat();
 
 const dateOnly = (value: string | null | undefined): string => (value ? value.slice(0, 10) : '');
 
@@ -61,7 +63,7 @@ const filters = reactive({
 
 const pii = ref(false);
 
-const statusOptions = computed(() => [{ value: '', label: t('plat.logs.anyStatus') }, ...props.statuses.map((status) => ({ value: status, label: status }))]);
+const statusOptions = computed(() => [{ value: '', label: t('plat.logs.anyStatus') }, ...props.statuses.map((status) => ({ value: status, label: te(`plat.state.${status}`) ? t(`plat.state.${status}`) : status }))]);
 const domainOptions = computed(() => [{ value: '', label: t('plat.logs.anyDomain') }, ...props.domains.map((domain) => ({ value: domain, label: domain }))]);
 const channelOptions = computed(() => [
     { value: '', label: t('plat.logs.anyChannel') },
@@ -105,7 +107,7 @@ const rows = computed<Row[]>(() =>
         status: message.status,
         channel: message.channel,
         tags: message.tags.join(', ') || '—',
-        created_at: message.created_at ? new Date(message.created_at).toLocaleString(locale.value) : '—',
+        created_at: message.created_at ? format.dateTime(message.created_at) : '—',
         trace: t('logs.trace'),
     })),
 );

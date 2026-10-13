@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+import { useFormat } from '../../composables/useFormat';
 
 /**
  * ARÁNY-SÁV + JELMAGYARÁZAT (v1.1 · 5. modul) — forrás- és engagement-bontás.
@@ -20,6 +21,8 @@ const props = defineProps<{
     items: BarItem[];
     testid?: string;
 }>();
+
+const format = useFormat();
 
 const total = computed(() => props.items.reduce((sum, item) => sum + item.count, 0));
 
@@ -49,7 +52,7 @@ const rows = computed(() =>
             <li v-for="row in rows" :key="row.key" class="vm-bars__row" :data-testid="testid ? `${testid}-${row.key}` : undefined">
                 <span class="vm-bars__dot" :class="row.tone" aria-hidden="true" />
                 <span class="vm-bars__label vm-truncate" :title="row.label">{{ row.label }}</span>
-                <span class="vm-bars__count">{{ row.count.toLocaleString() }}</span>
+                <span class="vm-bars__count">{{ format.number(row.count) }}</span>
                 <span class="vm-bars__percent">{{ row.percent }}%</span>
             </li>
         </ul>

@@ -7,6 +7,7 @@ import VmCard from '../Form/VmCard.vue';
 import VmFormActions from '../Form/VmFormActions.vue';
 import VmStat from '../Form/VmStat.vue';
 import type { ImportState } from './types';
+import { useFormat } from '../../composables/useFormat';
 
 /**
  * 6. LÉPÉS — eredmény: új, frissített, kihagyott, hibás; a hibariport letöltése; és az
@@ -14,9 +15,12 @@ import type { ImportState } from './types';
  */
 const props = defineProps<{ state: ImportState }>();
 
-const { t, n, locale } = useI18n({ useScope: 'global' });
+const { t } = useI18n({ useScope: 'global' });
+const format = useFormat();
+// A számok a PROFIL számformátuma szerint (D11), nem a vue-i18n locale-ja szerint.
+const n = (value: number): string => format.number(value);
 
-const fmt = (iso: string | null): string => (iso ? new Date(iso).toLocaleString(locale.value) : '—');
+const fmt = (iso: string | null): string => (iso ? format.dateTime(iso) : '—');
 
 const counts = computed(() => props.state.counts);
 const stats = computed(() => props.state.stats);

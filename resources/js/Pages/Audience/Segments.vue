@@ -7,6 +7,7 @@ import VmCard from '../../Components/Form/VmCard.vue';
 import VmIcon from '../../Components/Shell/VmIcon.vue';
 import VmPageHeader from '../../Components/Studio/VmPageHeader.vue';
 import AppLayout from '../../Layouts/AppLayout.vue';
+import { useFormat } from '../../composables/useFormat';
 
 /**
  * SZEGMENSEK (v1.1 · 5. modul): mentett szegmensek, becsült mérettel és használattal.
@@ -25,6 +26,7 @@ interface SegmentRow {
 defineProps<{ segments: SegmentRow[] }>();
 
 const { t } = useI18n();
+const format = useFormat();
 
 const deleting = ref<SegmentRow | null>(null);
 
@@ -61,7 +63,7 @@ function remove(): void {
                         <small v-if="segment.description" class="vm-truncate" :title="segment.description">{{ segment.description }}</small>
                     </div>
                     <span class="vm-seg-list__meta">
-                        {{ segment.estimatedSize === null ? t('segments.notEstimated') : t('segments.size', { count: segment.estimatedSize.toLocaleString() }) }}
+                        {{ segment.estimatedSize === null ? t('segments.notEstimated') : t('segments.size', { count: format.number(segment.estimatedSize) }) }}
                     </span>
                     <span class="vm-seg-list__meta">{{ t('segments.usedBy', { count: segment.campaigns }) }}</span>
                     <VtButton variant="ghost" size="sm" :data-testid="`segment-delete-${segment.uuid}`" @click="deleting = segment">

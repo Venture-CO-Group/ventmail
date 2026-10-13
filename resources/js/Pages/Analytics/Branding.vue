@@ -12,6 +12,7 @@ import VmFormSection from '../../Components/Form/VmFormSection.vue';
 import VmIcon from '../../Components/Shell/VmIcon.vue';
 import VmPageHeader from '../../Components/Studio/VmPageHeader.vue';
 import AppLayout from '../../Layouts/AppLayout.vue';
+import { useFormat } from '../../composables/useFormat';
 
 /**
  * WORKSPACE-BRANDING (v1.1 · 8. modul, D233, D236) — Settings ▾ Branding.
@@ -29,6 +30,7 @@ const props = defineProps<{
 
 const page = usePage<{ errors: Record<string, string> }>();
 const { t } = useI18n();
+const format = useFormat();
 
 const form = reactive({
     primary_color: props.branding.primaryColor ?? '',
@@ -136,7 +138,7 @@ const maxMb = computed(() => Math.round(props.limits.maxBytes / 1024 / 1024));
                             <p class="vm-brand__hint" data-testid="branding-contrast" aria-live="polite">
                                 <template v-if="!color">{{ t('branding.colorDefaultHint') }}</template>
                                 <template v-else-if="contrast && contrast.text">
-                                    {{ t('branding.contrastOk', { ratio: contrast.ratio.toLocaleString(), text: t(contrast.text === 'light' ? 'branding.textLight' : 'branding.textDark') }) }}
+                                    {{ t('branding.contrastOk', { ratio: format.number(contrast.ratio), text: t(contrast.text === 'light' ? 'branding.textLight' : 'branding.textDark') }) }}
                                     <span v-if="contrast.weakOnDark"> {{ t('branding.contrastWeak') }}</span>
                                 </template>
                                 <template v-else-if="contrast">{{ t('branding.contrastFail') }}</template>

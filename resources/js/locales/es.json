@@ -120,7 +120,73 @@
         "recent": "Mensajes recientes",
         "noAccess": "No tienes permiso para ver el registro.",
         "unverifiedWarning": "Tienes un dominio sin verificar — ventMail no envía desde él.",
-        "empty": "Aún no hay mensajes salientes."
+        "empty": "Aún no hay mensajes salientes.",
+        "eyebrow": "{workspace} · últimos {days} días",
+        "lead": "Tráfico saliente, audiencia y entregabilidad en un solo lugar.",
+        "import": "Importar",
+        "newCampaign": "Nueva campaña",
+        "mode": {
+            "allowlist": "Modo de envío: lista de semillas.",
+            "marketingOff": "El envío de marketing está desactivado.",
+            "hint": "El envío funciona en modo restringido; el PreSendGate se aplica en todas partes."
+        },
+        "kpi": {
+            "sent": "Correos enviados",
+            "deliveryRate": "Tasa de entrega",
+            "openRate": "Aperturas únicas",
+            "activeContacts": "Contactos activos",
+            "vsPrevious": "{delta} frente al periodo anterior",
+            "points": "{delta} pts",
+            "added": "{count} nuevos en el periodo",
+            "newActivity": "Tráfico nuevo respecto al periodo anterior",
+            "noPrevious": "Sin datos del periodo anterior",
+            "unavailable": "Las cifras no están disponibles ahora; inténtalo de nuevo en unos minutos."
+        },
+        "campaigns": {
+            "title": "Campañas recientes",
+            "all": "Todas",
+            "empty": "Aún no hay campañas.",
+            "name": "Campaña",
+            "status": "Estado",
+            "recipients": "Destinatarios",
+            "open": "Aperturas",
+            "click": "Clics"
+        },
+        "deliverability": {
+            "title": "Entregabilidad",
+            "healthy": "Saludable",
+            "attention": "Requiere atención",
+            "bounce": "Tasa de rebote",
+            "complaint": "Quejas de spam",
+            "spf": "SPF",
+            "dkim": "DKIM",
+            "dmarc": "DMARC",
+            "tracking": "CNAME de seguimiento",
+            "openDomains": "Abrir dominios"
+        },
+        "todos": {
+            "title": "Pendientes",
+            "drafts": "{count} borradores de campaña esperan contenido",
+            "unverifiedDomains": "{count} dominios aún sin verificar",
+            "pendingContacts": "{count} contactos esperan confirmación",
+            "deadLetters": "{count} entregas de webhook en dead-letter (7 días)",
+            "draftsNone": "No hay borradores pendientes",
+            "unverifiedDomainsNone": "Todos los dominios están verificados",
+            "pendingContactsNone": "Ningún contacto espera confirmación",
+            "deadLettersNone": "Todos los webhooks responden 2xx",
+            "action": {
+                "drafts": "Campañas",
+                "unverifiedDomains": "Dominios",
+                "pendingContacts": "Audiencia",
+                "deadLetters": "Webhooks"
+            }
+        },
+        "recentColumns": {
+            "created": "Hora",
+            "subject": "Asunto",
+            "recipient": "Destinatario",
+            "status": "Estado"
+        }
     },
     "domains": {
         "title": "Dominios",
@@ -658,7 +724,10 @@
         "customFields": "Campos personalizados",
         "customFieldsHint": "Por defecto ningún campo aparece en el centro de preferencias. Activa solo lo que el destinatario puede ver y cambiar: el enlace del correo puede reenviarse.",
         "noCustomFields": "Aún no hay campos personalizados: créalos en la importación.",
-        "preferenceVisible": "Visible en el centro de preferencias"
+        "preferenceVisible": "Visible en el centro de preferencias",
+        "listSearch": "Buscar listas",
+        "segmentSearch": "Buscar segmentos",
+        "noMatch": "No hay resultados para esta búsqueda."
     },
     "templates": {
         "title": "Plantillas",
@@ -2223,7 +2292,16 @@
             "propagating": "Propagándose…",
             "unknown": "Sin datos",
             "cold": "Frío",
-            "warm": "Caliente"
+            "warm": "Caliente",
+            "queued": "En cola",
+            "accepted": "Aceptado",
+            "delivered": "Entregado",
+            "deferred": "Aplazado",
+            "bounced": "Rebotado",
+            "rejected": "Rechazado",
+            "opened": "Abierto",
+            "clicked": "Clic",
+            "complained": "Queja"
         },
         "eyebrow": {
             "domains": "Plataforma · Dominios",
@@ -2476,5 +2554,19 @@
         "company": "Nombre de la empresa en la portada",
         "preview": "Vista previa en directo — portada",
         "previewSample": "Campaña de ejemplo"
+    },
+    "pager": {
+        "label": "Paginación",
+        "info": "{page} / {last} · {total} resultados",
+        "prev": "Página anterior",
+        "next": "Página siguiente"
+    },
+    "picker": {
+        "selected": "Seleccionados",
+        "remove": "Quitar {name}",
+        "search": "Buscar por nombre",
+        "failed": "No se puede cargar la lista ahora.",
+        "noMatch": "Sin resultados.",
+        "none": "Aún no hay elementos."
     }
 }

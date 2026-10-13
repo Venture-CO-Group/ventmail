@@ -8,6 +8,7 @@ import VmCard from '../Form/VmCard.vue';
 import VmIcon from '../Shell/VmIcon.vue';
 import type { ReportRow } from './types';
 import VmCoverPreview from './VmCoverPreview.vue';
+import { useFormat } from '../../composables/useFormat';
 
 /**
  * BRANDELT PDF-RIPORT (v1.1 · 8. modul) — kérés (kampány vagy időszak, szekciók), a háttér-
@@ -25,7 +26,8 @@ const props = defineProps<{
     dateRange: string;
 }>();
 
-const { t, locale } = useI18n();
+const { t } = useI18n();
+const format = useFormat();
 
 const SECTIONS = ['kpis', 'charts', 'top_links', 'journeys', 'deliverability'] as const;
 
@@ -104,8 +106,8 @@ async function download(uuid: string): Promise<void> {
     if (fresh) window.location.assign(fresh);
 }
 
-const formatSize = (bytes: number | null) => (bytes === null ? '' : `${Math.max(1, Math.round(bytes / 1024)).toLocaleString(locale.value)} KB`);
-const formatDate = (iso: string | null) => (iso ? new Date(iso).toLocaleString(locale.value) : '');
+const formatSize = (bytes: number | null) => (bytes === null ? '' : `${format.number(Math.max(1, Math.round(bytes / 1024)))} KB`);
+const formatDate = (iso: string | null) => (iso ? format.dateTime(iso) : '');
 
 onMounted(() => void refresh());
 onBeforeUnmount(() => window.clearTimeout(timer));

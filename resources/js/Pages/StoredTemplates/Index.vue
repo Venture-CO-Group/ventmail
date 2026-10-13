@@ -8,6 +8,7 @@ import VmFormSection from '../../Components/Form/VmFormSection.vue';
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import AppLayout from '../../Layouts/AppLayout.vue';
+import { useFormat } from '../../composables/useFormat';
 
 /**
  * TÁROLT SABLONOK + VERZIÓ-ÖSSZEHASONLÍTÁS.
@@ -51,6 +52,7 @@ const props = defineProps<{
 }>();
 
 const { t } = useI18n();
+const format = useFormat();
 
 const template = ref(props.selected?.name ?? '');
 const left = ref(String(props.comparison?.left ?? ''));
@@ -111,7 +113,7 @@ function activate(version: number): void {
 
             <div v-for="version in selected.versions" :key="version.version" class="vm-cluster">
                 <span class="vt-text-mono">v{{ version.version }}</span>
-                <span>{{ version.createdAt ? new Date(version.createdAt).toLocaleString() : '—' }}</span>
+                <span>{{ version.createdAt ? format.dateTime(version.createdAt) : '—' }}</span>
                 <span>{{ version.bytes }} B</span>
 
                 <span v-if="version.active" :data-testid="`active-${version.version}`">

@@ -3,6 +3,7 @@ import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import VmProgress from '../Form/VmProgress.vue';
 import type { ImportState } from './types';
+import { useFormat } from '../../composables/useFormat';
 
 /**
  * 5. LÉPÉS — a futás haladása. Az oldal bezárható: a feladat a `imports` queue-n fut, az
@@ -10,7 +11,10 @@ import type { ImportState } from './types';
  */
 const props = defineProps<{ state: ImportState }>();
 
-const { t, n } = useI18n({ useScope: 'global' });
+const { t } = useI18n({ useScope: 'global' });
+const format = useFormat();
+// A számok a PROFIL számformátuma szerint (D11), nem a vue-i18n locale-ja szerint.
+const n = (value: number): string => format.number(value);
 
 const counts = computed(() => props.state.counts);
 const total = computed(() => props.state.profile.rows || counts.value.total);
