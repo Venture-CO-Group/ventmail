@@ -39,6 +39,7 @@ const STATIC_PAGES = [
     '/audience',
     // D284: a lapozott listák között a hosszú nevű seed-lista kereséssel kerül a képernyőre.
     `/audience?lists_search=${run}`,
+    '/audience/import',
     '/audience/segments',
     '/audience/segments/new',
     '/audience/tags',
@@ -232,6 +233,9 @@ async function measure(page: Page, tolerance: number): Promise<Finding[]> {
 
                 if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') return false;
                 if (node.classList.contains('vm-visually-hidden') || node.getAttribute('aria-hidden') === 'true') return false;
+                // Bármely sr-only minta (pl. a @venture/ui `vt-stepper__sr`): 1 px-es, vágott, abszolút doboz —
+                // képernyőolvasónak szól, szemmel nem látszik, tehát nem „túlcsordulás".
+                if (style.position === 'absolute' && style.overflow === 'hidden' && (node as HTMLElement).clientWidth <= 1) return false;
             }
 
             return true;

@@ -136,13 +136,17 @@ function leave(): void {
         </header>
 
         <div data-testid="import-wizard" class="vm-import-wizard">
-            <VtStepper
-                :steps="steps"
-                :current="step"
-                :label="t('audience.import.title')"
-                :status-labels="{ complete: t('audience.import.stepDone'), current: t('audience.import.stepCurrent'), upcoming: '' }"
-                data-testid="import-steps"
-            />
+            <!-- D284: keskeny képernyőn a hat lépés VÍZSZINTESEN görgethető (a mockup szerint), nem
+                 nyomódik betűnkénti oszlopokká. -->
+            <div class="vm-import-steps">
+                <VtStepper
+                    :steps="steps"
+                    :current="step"
+                    :label="t('audience.import.title')"
+                    :status-labels="{ complete: t('audience.import.stepDone'), current: t('audience.import.stepCurrent'), upcoming: '' }"
+                    data-testid="import-steps"
+                />
+            </div>
 
             <p v-if="errors.import" class="vm-banner vm-banner--warning" role="alert" data-testid="import-error">{{ errors.import }}</p>
 
@@ -208,6 +212,16 @@ function leave(): void {
 </template>
 
 <style scoped>
+.vm-import-steps {
+    max-inline-size: 100%;
+    overflow-x: auto;
+    min-width: 0;
+}
+
+.vm-import-steps > * {
+    min-inline-size: calc(var(--vt-space-24) * 9.5);
+}
+
 .vm-import-head {
     display: flex;
     flex-wrap: wrap;
