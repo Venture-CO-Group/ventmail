@@ -24,6 +24,7 @@ const { t } = useI18n();
         </header>
 
         <p class="vm-jtest__note">{{ t('journeyCanvas.test.note', { contact: result.contact }) }}</p>
+        <p v-if="result.redacted" class="vm-jtest__note" data-testid="test-run-redacted">{{ t('journeyCanvas.test.redacted') }}</p>
 
         <p v-if="result.stopped" class="vm-banner vm-banner--warning" role="status" data-testid="test-run-stopped">
             {{ t(`journeyCanvas.test.stopped.${result.stopped}`) }}

@@ -54,7 +54,7 @@ const props = defineProps<{
     issues: Issue[];
     stats: { available: boolean; nodes: Record<string, NodeStat> };
     versions: Array<{ number: number; publishedAt: string | null }>;
-    can: { publish: boolean };
+    can: { publish: boolean; webhooks: boolean; testRunDetails: boolean };
 }>();
 
 const { t } = useI18n();
@@ -262,8 +262,10 @@ function onNodeClick(event: NodeMouseEvent): void {
     selectedId.value = event.node.id;
 }
 
-function onNodesChange(changes: Array<{ type: string; id?: string; dragging?: boolean }>): void {
+function onNodesChange(changes: Array<{ type: string; id?: string; dragging?: boolean; selected?: boolean }>): void {
     for (const change of changes) {
+        // A BILLENTYŰZETTEL (vagy dobozzal) kijelölt csomópont is megnyitja a panelt (review REV-S7).
+        if (change.type === 'select' && change.selected && change.id) selectedId.value = change.id;
         if (change.type === 'remove' && change.id) removeNode(change.id);
         if (change.type === 'position' && change.dragging === false) touch();
     }
@@ -477,7 +479,7 @@ function issueText(issue: Issue): string {
             <div class="vm-jc-body">
                 <!-- PALETTA -->
                 <aside class="vm-jc-palette">
-                    <NodePalette :triggers="catalog.triggers" :actions="catalog.actions" :has-trigger="hasTrigger" @add="addNode($event)" />
+                    <NodePalette :triggers="catalog.triggers" :actions="catalog.actions" :has-trigger="hasTrigger" :unavailable="catalog.unavailableTriggers" @add="addNode($event)" />
                 </aside>
 
                 <!-- VÁSZON -->
@@ -519,7 +521,7 @@ function issueText(issue: Issue): string {
                             </template>
 
                             <Background variant="dots" :gap="16" class="vm-jc-bg" />
-                            <MiniMap pannable zoomable :width="160" :height="100" class="vm-jc-minimap" node-class-name="vm-jc-minimap__node" :aria-label="t('journeyCanvas.minimap')" />
+                            <MiniMap pannable zoomable class="vm-jc-minimap" node-class-name="vm-jc-minimap__node" :aria-label="t('journeyCanvas.minimap')" />
                         </VueFlow>
 
                         <div class="vm-jc-zoom" role="group" :aria-label="t('journeyCanvas.zoom.label')">
@@ -545,6 +547,7 @@ function issueText(issue: Issue): string {
                         :catalog="catalog"
                         :stats="stats[selected.id] ?? null"
                         :issues="nodeIssues"
+                        :can-choose-endpoint="can.webhooks"
                         @config="updateNode(selected.id, { config: $event })"
                         @label="updateNode(selected.id, { label: $event })"
                         @connect="(handle, target) => connect(selected!.id, handle, target)"

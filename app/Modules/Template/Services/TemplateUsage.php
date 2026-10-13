@@ -10,6 +10,7 @@ use App\Modules\Journey\Models\Journey;
 use App\Modules\Journey\Models\JourneyStep;
 use App\Modules\Template\Models\Template;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Str;
 
 /**
  * HOL HASZNÁLJÁK a sablont úgy, hogy a törlése egy FUTÓ küldést törne el (B2)?
@@ -81,7 +82,12 @@ final class TemplateUsage
     /** @param list<string> $uuids sablon-uuid-k (a journey lépései uuid-dal hivatkoznak) */
     public function lockForActivationByUuid(array $uuids): void
     {
-        $uuids = array_values(array_unique(array_filter(array_map(static fn ($uuid): string => strtolower(trim((string) $uuid)), $uuids))));
+        // CSAK érvényes uuid (review m5-r5 S1): a `uuid` oszlop típusos, egy `"x"` hivatkozás
+        // `22P02`-vel 500-at adna a validátor `reference_missing` hibája helyett.
+        $uuids = array_values(array_unique(array_filter(
+            array_map(static fn ($uuid): string => strtolower(trim((string) $uuid)), $uuids),
+            static fn (string $uuid): bool => Str::isUuid($uuid),
+        )));
 
         if ($uuids !== []) {
             Template::query()->whereIn('uuid', $uuids)->orderBy('id')->sharedLock()->get(['id']);

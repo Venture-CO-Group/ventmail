@@ -1820,7 +1820,8 @@
                 "contact_missing": "No such contact in this workspace.",
                 "missing_trigger": "The journey has no trigger.",
                 "step_limit": "The test hit the step limit (possible loop).",
-                "invalid_node": "The path stopped at an invalid node."
+                "invalid_node": "The path stopped at an invalid node.",
+                "condition_limit": "The test reached the limit of evaluated conditions."
             },
             "outcomes": {
                 "entered": "entered",
@@ -1837,8 +1838,10 @@
                 "skipped_test_mode": "webhook — skipped (test mode)",
                 "goal": "goal reached — the run completes",
                 "exit": "exit",
-                "end": "end of path"
-            }
+                "end": "end of path",
+                "visited": "step visited"
+            },
+            "redacted": "Path only: gate reasons and condition details require audience management rights."
         },
         "validation": {
             "summary": "{errors} errors · {warnings} warnings",
@@ -1876,7 +1879,9 @@
             "triggers": "Triggers",
             "actions": "Actions",
             "hint": "Drag onto the canvas or click to add",
-            "oneTrigger": "A journey can have one trigger."
+            "oneTrigger": "A journey can have one trigger.",
+            "soon": "Soon",
+            "soonHint": "This trigger is not wired yet — coming soon."
         },
         "nodes": {
             "list_subscribe": "List subscription",
@@ -1955,7 +1960,8 @@
             "duplicate_output": "An output can point to one step only.",
             "ab_weights_invalid": "A/B weights must total 100% (2–5 branches).",
             "multiple_goals": "Only one goal condition is allowed.",
-            "unconnected_output": "Unconnected output ({field}) — the run ends here."
+            "unconnected_output": "Unconnected output ({field}) — the run ends here.",
+            "trigger_unavailable": "This trigger is not available yet (coming soon) — the journey would never start."
         },
         "config": {
             "label": "Name on canvas",
@@ -2008,7 +2014,13 @@
             "outputs": "Outputs",
             "notConnected": "— not connected —",
             "duplicate": "Duplicate",
-            "delete": "Delete"
+            "delete": "Delete",
+            "dateMode": "Repeat",
+            "endpointLocked": "Only users who can manage webhooks may choose an endpoint."
+        },
+        "dateModes": {
+            "anniversary": "Every year (anniversary)",
+            "once": "Once (on the exact date)"
         }
     }
 }

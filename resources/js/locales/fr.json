@@ -1820,7 +1820,8 @@
                 "contact_missing": "Aucun contact de ce type dans cet espace de travail.",
                 "missing_trigger": "Le parcours n'a pas de déclencheur.",
                 "step_limit": "Le test a atteint la limite d'étapes (boucle possible).",
-                "invalid_node": "Le chemin s’est arrêté sur un nœud invalide."
+                "invalid_node": "Le chemin s’est arrêté sur un nœud invalide.",
+                "condition_limit": "Le test a atteint la limite de conditions évaluées."
             },
             "outcomes": {
                 "entered": "entré",
@@ -1837,8 +1838,10 @@
                 "skipped_test_mode": "webhook — ignoré (mode test)",
                 "goal": "objectif atteint — le parcours se termine",
                 "exit": "sortie",
-                "end": "fin du chemin"
-            }
+                "end": "fin du chemin",
+                "visited": "étape parcourue"
+            },
+            "redacted": "Chemin uniquement : les motifs et détails des conditions exigent le droit de gérer l'audience."
         },
         "validation": {
             "summary": "{errors} erreurs · {warnings} avertissements",
@@ -1876,7 +1879,9 @@
             "triggers": "Déclencheurs",
             "actions": "Actions",
             "hint": "Faites glisser sur le canevas ou cliquez pour ajouter",
-            "oneTrigger": "Un parcours ne peut avoir qu’un déclencheur."
+            "oneTrigger": "Un parcours ne peut avoir qu’un déclencheur.",
+            "soon": "Bientôt",
+            "soonHint": "Ce déclencheur n'est pas encore branché — bientôt disponible."
         },
         "nodes": {
             "list_subscribe": "Inscription à une liste",
@@ -1955,7 +1960,8 @@
             "duplicate_output": "Une sortie ne peut pointer que vers une étape.",
             "ab_weights_invalid": "Les poids A/B doivent totaliser 100 % (2 à 5 branches).",
             "multiple_goals": "Une seule condition d'objectif est autorisée.",
-            "unconnected_output": "Sortie non reliée ({field}) — le parcours se termine ici."
+            "unconnected_output": "Sortie non reliée ({field}) — le parcours se termine ici.",
+            "trigger_unavailable": "Ce déclencheur n'est pas encore disponible (bientôt) — le parcours ne démarrerait jamais."
         },
         "config": {
             "label": "Nom sur le canevas",
@@ -2008,7 +2014,13 @@
             "outputs": "Sorties",
             "notConnected": "— non relié —",
             "duplicate": "Dupliquer",
-            "delete": "Supprimer"
+            "delete": "Supprimer",
+            "dateMode": "Répétition",
+            "endpointLocked": "Seuls les utilisateurs gérant les webhooks peuvent choisir un point de terminaison."
+        },
+        "dateModes": {
+            "anniversary": "Chaque année (anniversaire)",
+            "once": "Une fois (à la date exacte)"
         }
     }
 }

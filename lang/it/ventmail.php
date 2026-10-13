@@ -135,6 +135,8 @@ return [
         'publishInvalid' => 'Il grafo del percorso contiene errori: correggi i nodi evidenziati e riprova.',
         'published' => 'Pubblicato: versione :version.',
         'notActive' => 'Il percorso non è attivo.',
+        'testRunTooExpensive' => "L'esecuzione di prova è diventata troppo costosa: semplifica le condizioni e riprova.",
+        'webhookForbidden' => 'Solo chi può gestire i webhook può scegliere un endpoint webhook.',
     ],
     'gate' => [
         'domain_unverified' => 'Il dominio di invio non è verificato.',

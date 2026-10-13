@@ -135,6 +135,8 @@ return [
         'publishInvalid' => 'A journey gráfja hibás — javítsd a jelölt csomópontokat, és próbáld újra.',
         'published' => 'Publikálva: :version. verzió.',
         'notActive' => 'A journey nem aktív.',
+        'testRunTooExpensive' => 'A teszt-futtatás túl költséges lett — egyszerűsítsd a feltételeket, és próbáld újra.',
+        'webhookForbidden' => 'Webhook-végpontot csak webhook-kezelési joggal lehet kiválasztani.',
     ],
     'gate' => [
         'domain_unverified' => 'A küldő domain nincs hitelesítve.',

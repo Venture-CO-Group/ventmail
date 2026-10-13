@@ -146,6 +146,8 @@ return [
         'publishInvalid' => 'The journey graph has errors — fix the highlighted nodes and try again.',
         'published' => 'Published: version :version.',
         'notActive' => 'The journey is not active.',
+        'testRunTooExpensive' => 'The test run became too expensive — simplify the conditions and try again.',
+        'webhookForbidden' => 'Only users who can manage webhooks may choose a webhook endpoint.',
     ],
     'gate' => [
         'domain_unverified' => 'The sending domain is not verified.',

@@ -102,7 +102,7 @@ final class JourneyUiController
         // óta saját képesség (`journey.publish`), ugyanazokkal a szerepekkel.
         Gate::authorize('journey.publish');
 
-        $journey = Journey::query()->with('steps')->where('uuid', $uuid)->firstOrFail();
+        $journey = Journey::query()->where('uuid', $uuid)->firstOrFail();
 
         // A VÁSZON journey-je a publikálón megy (verzió + lépések), a régi lánc a régi úton.
         if (is_array($journey->graph)) {
@@ -117,31 +117,40 @@ final class JourneyUiController
             return back()->with('success', __('ventmail.journeys.activated'));
         }
 
-        try {
-            $validator->validateChain($journey);
-            $validator->validateGoal($journey);
-        } catch (InvalidArgumentException $e) {
-            /*
-             | A LÁNC HIBÁJA az AKTIVÁLÁSNÁL derül ki, nem a századik címzettnél.
-             |
-             | Egy körkörös lánc vagy kilépés nélküli journey a futásban ragadna be — és
-             | ott már címzettek vannak benne.
-             */
-            return back()->with('error', $e->getMessage());
-        }
+        /*
+         | A RÉGI LÁNC aktiválása SOR-ZÁR alatt (review m5-r5 N4): a journey sora zárolt, a lépések
+         | és a validálás a zár ALATT olvasódnak, és a sablonok megosztott zárja is ugyanebben a
+         | tranzakcióban jön — egy közben futó szerkesztés nem csúszhat a validálás és az
+         | aktiválás közé.
+         */
+        $error = DB::transaction(function () use ($journey, $validator, $audit): ?string {
+            $locked = Journey::query()->whereKey($journey->getKey())->lockForUpdate()->firstOrFail();
+            $locked->load('steps');
 
-        DB::transaction(function () use ($journey, $audit): void {
-            // A `send_email` lépések sablonjainak megosztott zárja (review SEC4-S1) — mint a vászon
-            // publikálásánál: az aktiválás után a szerző már nem írhatja át a kiküldendő tartalmat.
-            app(TemplateUsage::class)->lockForActivationByUuid($journey->steps
+            try {
+                $validator->validateChain($locked);
+                $validator->validateGoal($locked);
+            } catch (InvalidArgumentException $e) {
+                // A LÁNC HIBÁJA az AKTIVÁLÁSNÁL derül ki, nem a századik címzettnél.
+                return $e->getMessage();
+            }
+
+            // A `send_email` lépések sablonjainak megosztott zárja (review SEC4-S1).
+            app(TemplateUsage::class)->lockForActivationByUuid($locked->steps
                 ->where('type', 'send_email')
                 ->map(static fn ($step): string => (string) (((array) $step->config)['template'] ?? ''))
                 ->values()->all());
 
-            $journey->forceFill(['status' => 'active'])->save();
+            $locked->forceFill(['status' => 'active'])->save();
 
-            $audit->log('journey.activated', $journey, context: ['legacy_chain' => true]);
+            $audit->log('journey.activated', $locked, context: ['legacy_chain' => true]);
+
+            return null;
         });
+
+        if ($error !== null) {
+            return back()->with('error', $error);
+        }
 
         return back()->with('success', __('ventmail.journeys.activated'));
     }

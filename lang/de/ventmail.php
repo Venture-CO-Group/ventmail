@@ -135,6 +135,8 @@ return [
         'publishInvalid' => 'Der Journey-Graph enthält Fehler – korrigiere die markierten Knoten und versuche es erneut.',
         'published' => 'Veröffentlicht: Version :version.',
         'notActive' => 'Die Journey ist nicht aktiv.',
+        'testRunTooExpensive' => 'Der Testlauf wurde zu aufwendig – vereinfache die Bedingungen und versuche es erneut.',
+        'webhookForbidden' => 'Nur Nutzer mit Webhook-Verwaltungsrecht dürfen einen Webhook-Endpunkt wählen.',
     ],
     'gate' => [
         'domain_unverified' => 'Die Absenderdomain ist nicht verifiziert.',

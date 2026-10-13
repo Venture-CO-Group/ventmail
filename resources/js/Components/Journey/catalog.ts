@@ -52,6 +52,8 @@ export interface CatalogDef {
     conditionTypes: string[];
     goalTypes: string[];
     waitEvents: string[];
+    unavailableTriggers: string[];
+    dateModes: string[];
 }
 
 export type Options = Record<'templates' | 'lists' | 'tags' | 'segments' | 'forms' | 'endpoints' | 'campaigns' | 'routes' | 'fields', Option[]>;
@@ -69,6 +71,7 @@ export interface TestRunStep {
 export interface TestRunResult {
     contact: string;
     found: boolean;
+    redacted: boolean;
     steps: TestRunStep[];
     sends: number;
     realSends: number;

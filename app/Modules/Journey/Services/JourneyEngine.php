@@ -15,6 +15,7 @@ use App\Modules\Journey\Models\Journey;
 use App\Modules\Journey\Models\JourneyRun;
 use App\Modules\Journey\Models\JourneyRunStep;
 use App\Modules\Journey\Models\JourneyStep;
+use App\Modules\Journey\Models\JourneyVersion;
 use App\Modules\Sending\Actions\SendMessage;
 use App\Modules\Sending\Enums\Channel;
 use App\Modules\Sending\Gate\GateReason;
@@ -97,10 +98,14 @@ final class JourneyEngine
     public const MAX_WAIT_MINUTES = 525600;
 
     /**
-     * Az ESEMÉNYRE VÁRÓ `wait` ennyi időnként néz rá, megtörtént-e a nyitás / kattintás.
-     * Nem esemény-vezérelt: a futás a saját ütemében, a meglévő tickben ellenőriz.
+     * Az ESEMÉNYRE VÁRÓ `wait` BIZTONSÁGI ránézése (review REV-S3).
+     *
+     * Az ébresztés ESEMÉNY-VEZÉRELT: a nyitás / kattintás rögzítésekor a `TrackingController`
+     * a címzett várakozó futásait azonnal esedékessé teszi (`JourneyWaitWaker`). Ez a ritka
+     * ránézés csak tartalék (elveszett ébresztés, másik úton érkezett esemény) — korábban
+     * 15 percenként szkennelt minden várakozó futás a `message_events` táblán.
      */
-    public const EVENT_POLL_MINUTES = 15;
+    public const EVENT_POLL_MINUTES = 360;
 
     public function __construct(
         private readonly EntitlementChecker $checker,
@@ -378,7 +383,10 @@ final class JourneyEngine
             // A „TOVÁBBLÉPETT" ELŐRE ÖSSZESÍTETT számlálója — a csomópont-statisztika nem
             // számol a futás-táblán. Query-builder, nem modell: a lépés auditált, és egy
             // végrehajtás nem admin-művelet.
-            JourneyStep::query()->whereKey($step->getKey())->increment('executed_count');
+            // A HIBÁVAL záruló lépés (pl. `config_invalid`) nem „továbblépés" (review NIT).
+            if ((string) $locked->status !== 'failed') {
+                JourneyStep::query()->whereKey($step->getKey())->increment('executed_count');
+            }
 
             return $outcome;
         });
@@ -403,7 +411,7 @@ final class JourneyEngine
             StepType::Split => $this->split($run, $step, $config, $claim),
             StepType::AbSplit => $this->abSplit($run, $step, $config, $claim),
             StepType::UpdateContact => $this->updateContact($run, $step, $config),
-            StepType::ListMembership => $this->listMembership($run, $step, $config),
+            StepType::ListMembership => $this->listMembership($run, $step, $config, $claim),
             StepType::Webhook => $this->webhook($run, $step, $config, $claim),
             StepType::Goal => $this->goalStep($run),
         };
@@ -591,13 +599,22 @@ final class JourneyEngine
     }
 
     /**
-     * LISTA-TAGSÁG. A hozzáadás NEM ad hozzájárulást: a tagság `pending`, ha a kontaktnak
-     * nincs használható marketing-consentje — a levelet úgyis a PreSendGate consent-kapuja
-     * dönti el, de a lista-riport ne mutasson „feliratkozottat" jogalap nélkül.
+     * LISTA-TAGSÁG — csak BESZÚRÁS, ha még nincs tagság; a meglévő tagság állapota SOSEM
+     * emelkedik (review SEC-B1 / REV-B1, a D126 mintája).
+     *
+     * - A hozzáadás NEM ad hozzájárulást: az új tagság `pending`, ha a kontaktnak nincs
+     *   használható marketing-consentje.
+     * - A MEGLÉVŐ tagság (`unsubscribed`, `pending`, `subscribed`) érintetlen. Korábban a
+     *   `syncWithoutDetaching` felülírta: a listáról leiratkozott kontakt (a workspace-consentje
+     *   még `confirmed`) újra `subscribed` lett, és a következő kampány kiküldte neki — vagy
+     *   consent nélkül `pending`-re írta, ami a leiratkozás bizonyítékát rontotta el.
+     * - A globálisan leiratkozott (`contacts.status = unsubscribed`) vagy suppressiont viselő
+     *   kontaktnál a lépés NO-OP.
+     * - Az eltávolítás NEM töröl sort (a leiratkozás bizonyítéka maradjon): `unsubscribed`.
      *
      * @param  array<string, mixed>  $config
      */
-    private function listMembership(JourneyRun $run, JourneyStep $step, array $config): bool
+    private function listMembership(JourneyRun $run, JourneyStep $step, array $config, JourneyRunStep $claim): bool
     {
         $uuid = self::uuidOrNull((string) ($config['list'] ?? ''));
         $list = $uuid === null ? null : ContactList::query()->where('uuid', $uuid)->first();
@@ -608,24 +625,58 @@ final class JourneyEngine
             return false;
         }
 
-        $contact = $run->contact;
-
-        if ($contact !== null) {
-            if (($config['operation'] ?? 'add') === 'remove') {
-                $contact->lists()->detach($list->getKey());
-            } else {
-                $consented = Consent::query()->usable()
-                    ->where('email', (string) $run->email)
-                    ->where('channel', Channel::Journey->consentScope())
-                    ->exists();
-
-                $contact->lists()->syncWithoutDetaching([
-                    $list->getKey() => ['status' => $consented ? 'subscribed' : 'pending', 'subscribed_at' => $consented ? now() : null],
-                ]);
-            }
-        }
+        $claim->forceFill(['outcome' => $this->applyListMembership($run, $list, ($config['operation'] ?? 'add') === 'remove')])->save();
 
         return $this->advance($run, $step);
+    }
+
+    /** @return string a lépés kimenete a naplóba */
+    private function applyListMembership(JourneyRun $run, ContactList $list, bool $remove): string
+    {
+        $contact = $run->contact;
+
+        if ($contact === null) {
+            return 'no_contact';
+        }
+
+        // A RELÁCIÓN át (tenant-szűrt pivot), sor-zárral: két párhuzamos lépés ne írjon egymásra.
+        $member = $contact->lists()->whereKey($list->getKey())->lockForUpdate()->first();
+        $pivot = $member?->pivot;
+
+        if ($remove) {
+            if ($pivot === null || (string) $pivot->status === 'unsubscribed') {
+                return 'unchanged';
+            }
+
+            $contact->lists()->updateExistingPivot($list->getKey(), ['status' => 'unsubscribed', 'unsubscribed_at' => now()]);
+
+            return 'unsubscribed';
+        }
+
+        if ($pivot !== null) {
+            return 'unchanged';
+        }
+
+        $suppressed = Suppression::query()
+            ->where('email', (string) $run->email)
+            ->get()
+            ->contains(fn (Suppression $row) => $row->isActive());
+
+        if ((string) $contact->status === 'unsubscribed' || $suppressed) {
+            return 'skipped_unsubscribed';
+        }
+
+        $consented = Consent::query()->usable()
+            ->where('email', (string) $run->email)
+            ->where('channel', Channel::Journey->consentScope())
+            ->exists();
+
+        $contact->lists()->attach($list->getKey(), [
+            'status' => $consented ? 'subscribed' : 'pending',
+            'subscribed_at' => $consented ? now() : null,
+        ]);
+
+        return $consented ? 'added_subscribed' : 'added_pending';
     }
 
     /**
@@ -643,7 +694,9 @@ final class JourneyEngine
         $uuid = self::uuidOrNull((string) ($config['endpoint'] ?? ''));
         $endpoint = $uuid === null ? null : WebhookEndpoint::query()->where('uuid', $uuid)->where('active', true)->first();
 
-        if ($endpoint === null) {
+        // A végpont FELIRATKOZÁSA is számít (review SEC-S2): egy csak `delivered`-re
+        // feliratkozott végpont nem kaphat journey-eseményt csak azért, mert valaki kiválasztotta.
+        if ($endpoint === null || ! $endpoint->listensTo('journey.step')) {
             $this->finish($run, 'failed', 'config_invalid');
 
             return false;
@@ -1147,12 +1200,26 @@ final class JourneyEngine
             ->exists();
     }
 
+    /**
+     * A CÉL a FUTÁS VERZIÓJÁBÓL jön (review REV-B2): a verzión haladó futás a saját verziójának
+     * célját nézi, a v1.1 előtti, verzió nélküli futás a journey-szintű célt. Egy újabb
+     * publikálás így nem veheti el a régi verzión haladók kilépési feltételét.
+     */
     private function goalReached(Journey $journey, JourneyRun $run): bool
     {
-        return match ((string) $journey->goal_type) {
-            'in_segment' => $this->inSegment($run, (string) data_get((array) $journey->goal_config, 'segment', '')),
-            'clicked_email' => $this->hadEvent($run, 'clicked', (int) data_get((array) $journey->goal_config, 'within_hours', 720)),
-            'has_tag' => $this->hasTag($run, (string) data_get((array) $journey->goal_config, 'tag', '')),
+        if ($run->journey_version_id !== null) {
+            $version = JourneyVersion::query()->whereKey($run->journey_version_id)->first(['id', 'goal_type', 'goal_config']);
+            $type = (string) $version?->goal_type;
+            $config = (array) $version?->goal_config;
+        } else {
+            $type = (string) $journey->goal_type;
+            $config = (array) $journey->goal_config;
+        }
+
+        return match ($type) {
+            'in_segment' => $this->inSegment($run, (string) data_get($config, 'segment', '')),
+            'clicked_email' => $this->hadEvent($run, 'clicked', (int) data_get($config, 'within_hours', 720)),
+            'has_tag' => $this->hasTag($run, (string) data_get($config, 'tag', '')),
             default => false,
         };
     }

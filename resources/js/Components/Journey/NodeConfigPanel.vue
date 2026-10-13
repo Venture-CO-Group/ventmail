@@ -19,6 +19,7 @@ const props = defineProps<{
     catalog: CatalogDef;
     stats: NodeStat | null;
     issues: Issue[];
+    canChooseEndpoint: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -165,6 +166,14 @@ function issueText(issue: Issue): string {
         <template v-if="node.type === 'field_changed' || node.type === 'date_anniversary'">
             <VtField :label="t('journeyCanvas.config.field')">
                 <VtSelect :model-value="String(config.field ?? '')" :options="options.fields" :placeholder="t('journeyCanvas.config.choose')" data-testid="cfg-field" @update:model-value="set('field', String($event))" />
+            </VtField>
+            <VtField v-if="node.type === 'date_anniversary'" :label="t('journeyCanvas.config.dateMode')">
+                <VtSelect
+                    :model-value="String(config.mode ?? 'anniversary')"
+                    :options="catalog.dateModes.map((value) => ({ value, label: t(`journeyCanvas.dateModes.${value}`) }))"
+                    data-testid="cfg-date-mode"
+                    @update:model-value="set('mode', String($event))"
+                />
             </VtField>
             <VtField v-if="node.type === 'date_anniversary'" :label="t('journeyCanvas.config.offsetDays')" :hint="t('journeyCanvas.config.offsetHint')">
                 <VtInput type="number" :model-value="Number(config.offset_days ?? 0)" data-testid="cfg-offset" @update:model-value="set('offset_days', Number($event))" />
@@ -319,8 +328,12 @@ function issueText(issue: Issue): string {
             </VtField>
         </template>
 
-        <VtField v-if="node.type === 'webhook'" :label="t('journeyCanvas.config.endpoint')" :hint="t('journeyCanvas.config.endpointHint')">
-            <VtSelect :model-value="String(config.endpoint ?? '')" :options="options.endpoints" :placeholder="t('journeyCanvas.config.choose')" data-testid="cfg-endpoint" @update:model-value="set('endpoint', String($event))" />
+        <VtField
+            v-if="node.type === 'webhook'"
+            :label="t('journeyCanvas.config.endpoint')"
+            :hint="canChooseEndpoint ? t('journeyCanvas.config.endpointHint') : t('journeyCanvas.config.endpointLocked')"
+        >
+            <VtSelect :model-value="String(config.endpoint ?? '')" :disabled="!canChooseEndpoint" :options="options.endpoints" :placeholder="t('journeyCanvas.config.choose')" data-testid="cfg-endpoint" @update:model-value="set('endpoint', String($event))" />
         </VtField>
 
         <template v-if="node.type === 'goal'">

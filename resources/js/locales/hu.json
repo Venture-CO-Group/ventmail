@@ -1820,7 +1820,8 @@
                 "contact_missing": "Nincs ilyen kontakt ebben a workspace-ben.",
                 "missing_trigger": "A journey-nek nincs triggere.",
                 "step_limit": "A teszt elérte a lépés-korlátot (lehetséges hurok).",
-                "invalid_node": "Az út egy érvénytelen csomóponton megszakadt."
+                "invalid_node": "Az út egy érvénytelen csomóponton megszakadt.",
+                "condition_limit": "A teszt elérte a kiértékelhető feltételek plafonját."
             },
             "outcomes": {
                 "entered": "belépett",
@@ -1837,8 +1838,10 @@
                 "skipped_test_mode": "webhook — kihagyva (teszt-mód)",
                 "goal": "cél elérve — a futás sikerrel zárul",
                 "exit": "kilépés",
-                "end": "a lánc vége"
-            }
+                "end": "a lánc vége",
+                "visited": "érintett lépés"
+            },
+            "redacted": "Csak az út látszik: a kapu-okokhoz és a feltétel-részletekhez közönség-kezelési jog kell."
         },
         "validation": {
             "summary": "{errors} hiba · {warnings} figyelmeztetés",
@@ -1876,7 +1879,9 @@
             "triggers": "Triggerek",
             "actions": "Akciók",
             "hint": "Húzd a vászonra, vagy kattints a hozzáadáshoz",
-            "oneTrigger": "Egy journey-nek egy triggere lehet."
+            "oneTrigger": "Egy journey-nek egy triggere lehet.",
+            "soon": "Hamarosan",
+            "soonHint": "Ez a trigger még nincs bekötve — hamarosan."
         },
         "nodes": {
             "list_subscribe": "Feliratkozás listára",
@@ -1955,7 +1960,8 @@
             "duplicate_output": "Egy kimenet csak egy lépésre mutathat.",
             "ab_weights_invalid": "Az A/B ágak aránya összesen 100% kell legyen (2–5 ág).",
             "multiple_goals": "Csak egy cél-feltétel lehet.",
-            "unconnected_output": "Bekötetlen kimenet ({field}) — a futás itt véget ér."
+            "unconnected_output": "Bekötetlen kimenet ({field}) — a futás itt véget ér.",
+            "trigger_unavailable": "Ez a trigger még nem elérhető (hamarosan) — így a journey sosem indulna."
         },
         "config": {
             "label": "Név a vásznon",
@@ -2008,7 +2014,13 @@
             "outputs": "Kimenetek",
             "notConnected": "— nincs bekötve —",
             "duplicate": "Duplikálás",
-            "delete": "Törlés"
+            "delete": "Törlés",
+            "dateMode": "Ismétlődés",
+            "endpointLocked": "Végpontot csak webhook-kezelési joggal lehet választani."
+        },
+        "dateModes": {
+            "anniversary": "Évente (évforduló)",
+            "once": "Egyszer (a pontos dátumon)"
         }
     }
 }

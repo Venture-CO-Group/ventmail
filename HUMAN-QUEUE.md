@@ -41,6 +41,20 @@
 - [ ] A ventMail saját rendszer-levelei (meghívó stb.) a saját motoron (`MAIL_MAILER=log` ma).
 - [ ] `@venture/sdk` hibakód-unió: `SENDING_RESTRICTED`, `CHANNEL_DISABLED` felvétele.
 
+## P2 — journey vászon (v1.1 · 6. modul)
+- [ ] **RUNBOOK-mail kiegészítése (venture-infra repó) — VISSZAÁLLÁS v1.1 előttire:** a régi kód a
+      vászon lépéseit nem ismeri (`StepType::from()` ValueError az új típusokon, a `wait` másként
+      vár, a szüneteltetett journey futásait kilépteti). Visszaállítás ELŐTT minden gráf-alapú
+      journey-t szüneteltetni kell (`journeys.current_version_id is not null and status = 'active'`
+      → `paused`), és a futó gráf-futásokat ellenőrizni (`journey_runs.journey_version_id is not null`).
+      Az előre-telepítés után folytatható (publikálás változatlan gráffal = folytatás).
+- [ ] **Bekötetlen journey-triggerek döntése:** `tag_added`, `tag_removed`, `field_changed` — a forrásnak
+      ma nincs egykontaktos hívója (a címkézés tömeges `TagOperations`, a mezők importból jönnek). A
+      vásznon „hamarosan", a validátor nem engedi publikálni. Döntés: tüzeljen-e tömeges műveletből
+      (tömeges beléptetés!) vagy csak egykontaktos szerkesztési útról.
+- [ ] **Kampány-megnyitás trigger:** az Apple MPP / képproxy gépi megnyitásai is beléptetnek — maradjon-e
+      a megnyitás triggerként, vagy csak a kattintás.
+
 ## Review-eszközök
 - [ ] coderabbit, aikido, nightvision, pr-review-toolkit — CLI-ből nem érhetők el ebben a futásban;
       a PR-eken kézzel futtatandók.

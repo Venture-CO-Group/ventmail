@@ -7,7 +7,7 @@ import { DRAG_MIME, ICONS } from './catalog';
  | A CSOMÓPONT-PALETTA: húzás a vászonra (HTML5 DnD), vagy — billentyűzettel és kattintással
  | — hozzáadás a látható terület közepére. A húzás nem lehet az egyetlen út (akadálymentesség).
  */
-defineProps<{ triggers: string[]; actions: string[]; hasTrigger: boolean }>();
+defineProps<{ triggers: string[]; actions: string[]; hasTrigger: boolean; unavailable: string[] }>();
 
 const emit = defineEmits<{ add: [type: string] }>();
 
@@ -29,15 +29,16 @@ function onDragStart(event: DragEvent, type: string): void {
             :key="type"
             type="button"
             class="vm-jpal__item"
-            draggable="true"
-            :disabled="hasTrigger"
-            :title="hasTrigger ? t('journeyCanvas.palette.oneTrigger') : t('journeyCanvas.palette.hint')"
+            :draggable="!hasTrigger && !unavailable.includes(type)"
+            :disabled="hasTrigger || unavailable.includes(type)"
+            :title="unavailable.includes(type) ? t('journeyCanvas.palette.soonHint') : hasTrigger ? t('journeyCanvas.palette.oneTrigger') : t('journeyCanvas.palette.hint')"
             :data-testid="`palette-${type}`"
             @dragstart="onDragStart($event, type)"
             @click="emit('add', type)"
         >
             <span class="vm-jpal__icon"><VmIcon :name="ICONS[type] ?? 'plus'" /></span>
             <span class="vm-jpal__label">{{ t(`journeyCanvas.nodes.${type}`) }}</span>
+            <span v-if="unavailable.includes(type)" class="vm-jpal__soon" :data-testid="`palette-soon-${type}`">{{ t('journeyCanvas.palette.soon') }}</span>
         </button>
 
         <p class="vm-jpal__group">{{ t('journeyCanvas.palette.actions') }}</p>

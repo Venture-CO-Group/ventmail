@@ -64,7 +64,7 @@ const onPath = computed(() => canvas.testPath.value.includes(props.id));
             </li>
         </ul>
 
-        <div v-if="stats" class="vm-jn__stats" :aria-label="t('journeyCanvas.stats.label')">
+        <div v-if="stats" class="vm-jn__stats" role="group" :aria-label="t('journeyCanvas.stats.label')">
             <span :title="t('journeyCanvas.stats.entered')"><VmIcon name="users" />{{ stats.entered }}</span>
             <span class="vm-jn__stat--waiting" :title="t('journeyCanvas.stats.waiting')"><VmIcon name="history" />{{ stats.waiting }}</span>
             <span class="vm-jn__stat--moved" :title="t('journeyCanvas.stats.movedOn')"><VmIcon name="check" />{{ stats.movedOn }}</span>

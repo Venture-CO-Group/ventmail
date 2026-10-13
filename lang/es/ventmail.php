@@ -135,6 +135,8 @@ return [
         'publishInvalid' => 'El grafo del recorrido tiene errores: corrige los nodos marcados e inténtalo de nuevo.',
         'published' => 'Publicado: versión :version.',
         'notActive' => 'El recorrido no está activo.',
+        'testRunTooExpensive' => 'La ejecución de prueba resultó demasiado costosa: simplifica las condiciones e inténtalo de nuevo.',
+        'webhookForbidden' => 'Solo quien puede gestionar webhooks puede elegir un endpoint de webhook.',
     ],
     'gate' => [
         'domain_unverified' => 'El dominio de envío no está verificado.',

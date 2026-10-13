@@ -8,14 +8,19 @@ use App\Modules\Audience\Models\ContactField;
 use App\Modules\Audience\Models\ContactList;
 use App\Modules\Audience\Models\ContactTag;
 use App\Modules\Audit\Models\AuditLog;
+use App\Modules\Audit\Services\KeyedHash;
+use App\Modules\Consent\Services\ConfirmationTokens;
 use App\Modules\Consent\Services\ConsentRecorder;
 use App\Modules\Domains\Models\Domain;
 use App\Modules\Events\Models\MessageEvent;
+use App\Modules\Events\Services\TrackingTokens;
 use App\Modules\Identity\Enums\Role;
 use App\Modules\Journey\Actions\FireJourneyEvent;
+use App\Modules\Journey\Console\TickJourneysCommand;
 use App\Modules\Journey\Enums\TriggerType;
 use App\Modules\Journey\Graph\JourneyGraph;
 use App\Modules\Journey\Graph\JourneyGraphValidator;
+use App\Modules\Journey\Graph\LegacyChainGraph;
 use App\Modules\Journey\Models\Journey;
 use App\Modules\Journey\Models\JourneyRun;
 use App\Modules\Journey\Models\JourneyRunStep;
@@ -26,6 +31,7 @@ use App\Modules\Journey\Services\JourneyGraphInvalid;
 use App\Modules\Journey\Services\JourneyNodeStats;
 use App\Modules\Journey\Services\JourneyPublisher;
 use App\Modules\Journey\Services\JourneyTrigger;
+use App\Modules\Journey\Services\JourneyWaitWaker;
 use App\Modules\Sending\Drivers\FakeDriver;
 use App\Modules\Sending\Models\Message;
 use App\Modules\Template\Models\Template;
@@ -37,6 +43,8 @@ use App\Modules\Webhooks\Models\WebhookDelivery;
 use App\Modules\Webhooks\Models\WebhookEndpoint;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 
@@ -367,6 +375,8 @@ it('az ESEMÉNYRE váró wait: a nyitás az „out", a lejárat a „timeout" á
 
     $this->travel(5)->minutes();
     MessageEvent::create(['message_uuid' => null, 'type' => 'opened', 'recipient' => 'anna@pelda.hu', 'channel' => 'journey', 'tags' => [], 'variables' => [], 'payload' => []]);
+    // Az ÉBRESZTÉS esemény-vezérelt (review REV-S3) — a tracking-végpont ugyanezt hívja.
+    expect(app(JourneyWaitWaker::class)->wake('anna@pelda.hu'))->toBe(1);
 
     $this->travel(20)->minutes();
     app(JourneyEngine::class)->tick($anna->fresh());
@@ -602,7 +612,7 @@ it('a TESZT-FUTTATÁS nem küld, nem hoz létre futást, és a kapu-döntést cs
 
     [$nodes, $edges] = welcomeGraph((string) $this->template->uuid);
     $journey = canvasJourney($nodes, $edges);
-    $user = canvasUser($this->workspace, Role::Author->value);
+    $user = canvasUser($this->workspace, Role::Editor->value);
 
     $response = $this->actingAs($user)->withSession(['workspace_uuid' => $this->workspace->uuid])
         ->postJson('/journeys/'.$journey->uuid.'/test-run', ['email' => 'anna@pelda.hu'])
@@ -676,4 +686,402 @@ it('a RÉGI, láncolt journey a vásznon is megnyílik', function () {
             ->has('graph.edges', 2)
             ->where('graph.nodes.0.type', 'form_signup')
         );
+});
+
+/*
+ | REVIEW 1 — lista-tagság, verziózott cél, teszt-futtatás jogosultsága, webhook-feliratkozás,
+ | bekötetlen triggerek, dátum-mód, esemény-vezérelt ébresztés, HTTP-szintű triggerek.
+ */
+
+/** trigger → list_membership(op) → exit, publikálva; a futás egy tickkel végigmegy. */
+function runListNode(string $email, ContactList $list, string $operation): JourneyRun
+{
+    $journey = canvasJourney([
+        cnode('t', 'api_event', ['event' => 'x']),
+        cnode('l', 'list_membership', ['operation' => $operation, 'list' => (string) $list->uuid], 100),
+        cnode('e', 'exit', [], 200),
+    ], [cedge('t', 'l'), cedge('l', 'e')]);
+    app(JourneyPublisher::class)->publish($journey);
+
+    $run = app(JourneyTrigger::class)->fire(TriggerType::ApiEvent, $email, ['event' => 'x'])[0];
+    app(JourneyEngine::class)->tick($run);
+
+    return $run;
+}
+
+function membershipStatus(Contact $contact, ContactList $list): ?string
+{
+    $row = DB::table('contact_list_memberships')
+        ->where('contact_id', $contact->getKey())->where('contact_list_id', $list->getKey())->first();
+
+    return $row?->status;
+}
+
+it('a LISTA-TAGSÁG nem emeli fel a listáról leiratkozottat — confirmed consenttel sem (SEC-B1)', function () {
+    $contact = canvasContact('anna@pelda.hu');
+    $list = ContactList::create(['name' => 'Hírlevél']);
+    $contact->lists()->attach($list->getKey(), ['status' => 'unsubscribed', 'unsubscribed_at' => now()]);
+
+    $run = runListNode('anna@pelda.hu', $list, 'add');
+
+    expect(membershipStatus($contact, $list))->toBe('unsubscribed')
+        ->and(JourneyRunStep::query()->where('journey_run_id', $run->getKey())->orderBy('id')->value('outcome'))->toBe('unchanged');
+});
+
+it('a LISTA-TAGSÁG a globálisan leiratkozott kontaktnál no-op, az új tagság consent nélkül pending (SEC-B1)', function () {
+    $leiratkozott = canvasContact('anna@pelda.hu');
+    $leiratkozott->forceFill(['status' => 'unsubscribed'])->save();
+    $uj = canvasContact('bela@pelda.hu', confirmed: false);
+    $list = ContactList::create(['name' => 'Hírlevél']);
+
+    runListNode('anna@pelda.hu', $list, 'add');
+    expect(membershipStatus($leiratkozott, $list))->toBeNull();
+
+    runListNode('bela@pelda.hu', $list, 'add');
+    expect(membershipStatus($uj, $list))->toBe('pending');
+});
+
+it('a LISTA-ELTÁVOLÍTÁS nem töröl sort, hanem unsubscribed-re állít (REV-B1)', function () {
+    $contact = canvasContact('anna@pelda.hu');
+    $list = ContactList::create(['name' => 'Hírlevél']);
+    $contact->lists()->attach($list->getKey(), ['status' => 'subscribed', 'subscribed_at' => now()]);
+
+    runListNode('anna@pelda.hu', $list, 'remove');
+
+    expect(membershipStatus($contact, $list))->toBe('unsubscribed');
+});
+
+it('a RÉGI LÁNC CÉLJA a publikálás után is kilépteti a futót (REV-B2)', function () {
+    $contact = canvasContact('anna@pelda.hu');
+    $vasarlo = ContactTag::create(['name' => 'vásárló']);
+
+    $journey = Journey::create(['name' => 'Régi nurture', 'trigger_type' => 'form_signup', 'goal_type' => 'has_tag', 'goal_config' => ['tag' => (string) $vasarlo->uuid]]);
+    $send = JourneyStep::create(['journey_id' => $journey->getKey(), 'type' => 'send_email', 'config' => ['template' => (string) $this->template->uuid, 'from_email' => 'no-reply@pelda.hu'], 'position' => 1]);
+    $wait = JourneyStep::create(['journey_id' => $journey->getKey(), 'type' => 'wait', 'config' => ['minutes' => 60], 'next_step_id' => $send->getKey(), 'position' => 0]);
+    $journey->forceFill(['first_step_id' => $wait->getKey(), 'status' => 'active'])->save();
+
+    $run = app(JourneyTrigger::class)->fire(TriggerType::FormSignup, 'anna@pelda.hu')[0];
+    app(JourneyEngine::class)->tick($run);
+    expect($run->fresh()->status)->toBe('waiting');
+
+    // A vászon a régi célt cél-csomóponttá alakítja; a gráf publikálható.
+    $graph = LegacyChainGraph::from($journey->fresh());
+    expect(collect($graph->nodes)->firstWhere('type', 'goal')['config']['goal'])->toBe(['type' => 'has_tag', 'tag' => (string) $vasarlo->uuid]);
+
+    $journey->forceFill(['graph' => $graph->toArray()])->save();
+    $version = app(JourneyPublisher::class)->publish($journey->fresh());
+    expect($version->goal_type)->toBe('has_tag');
+
+    // A RÉGI futás célt ér.
+    $contact->tags()->attach($vasarlo->getKey());
+    $this->travel(2)->hours();
+    app(JourneyEngine::class)->tick($run->fresh());
+
+    expect($run->fresh()->exit_reason)->toBe('goal_reached')
+        ->and(Message::query()->count())->toBe(0);
+});
+
+it('a v1 célja a v1 futóira érvényes, akkor is, ha a v2-ből a cél kikerül (REV-B2)', function () {
+    $contact = canvasContact('anna@pelda.hu');
+    $vasarlo = ContactTag::create(['name' => 'vásárló']);
+
+    $journey = canvasJourney([
+        cnode('t', 'api_event', ['event' => 'x']),
+        cnode('w', 'wait', ['minutes' => 60], 100),
+        cnode('e', 'exit', [], 200),
+        cnode('g', 'goal', ['goal' => ['type' => 'has_tag', 'tag' => (string) $vasarlo->uuid]], 300),
+    ], [cedge('t', 'w'), cedge('w', 'e')]);
+    app(JourneyPublisher::class)->publish($journey);
+
+    $run = app(JourneyTrigger::class)->fire(TriggerType::ApiEvent, 'anna@pelda.hu', ['event' => 'x'])[0];
+    app(JourneyEngine::class)->tick($run);
+
+    $graph = $journey->fresh()->graph;
+    $graph['nodes'] = array_values(array_filter($graph['nodes'], fn ($node) => $node['id'] !== 'g'));
+    $journey->forceFill(['graph' => $graph])->save();
+    app(JourneyPublisher::class)->publish($journey->fresh());
+
+    $contact->tags()->attach($vasarlo->getKey());
+    app(JourneyEngine::class)->tick($run->fresh());
+
+    expect($run->fresh()->exit_reason)->toBe('goal_reached');
+});
+
+it('a verzió az ADATBÁZISBAN is megváltoztathatatlan (N2)', function () {
+    [$nodes, $edges] = welcomeGraph((string) $this->template->uuid);
+    $version = app(JourneyPublisher::class)->publish(canvasJourney($nodes, $edges));
+
+    expect(fn () => DB::table('journey_versions')->where('id', $version->getKey())->update(['graph_hash' => 'x']))
+        ->toThrow(QueryException::class);
+});
+
+it('a nem-uuid sablon-hivatkozás 422-es hiba, nem 500 (m5-r5 S1)', function () {
+    $journey = canvasJourney([
+        cnode('t', 'api_event', ['event' => 'x']),
+        cnode('s', 'send_email', ['template' => 'x'], 100),
+    ], [cedge('t', 's')]);
+
+    try {
+        app(JourneyPublisher::class)->publish($journey);
+        $this->fail('publikálható volt');
+    } catch (JourneyGraphInvalid $e) {
+        expect(issueCodes($e->issues))->toContain('reference_missing@s');
+    }
+});
+
+it('a TESZT-FUTTATÁS a szerzőnek csak az utat mutatja, és pszeudonim azonosítót auditál (SEC-S1)', function () {
+    canvasContact('anna@pelda.hu', confirmed: false);
+    [$nodes, $edges] = welcomeGraph((string) $this->template->uuid);
+    $journey = canvasJourney($nodes, $edges);
+    $session = ['workspace_uuid' => $this->workspace->uuid];
+
+    $author = $this->actingAs(canvasUser($this->workspace, Role::Author->value))->withSession($session)
+        ->postJson('/journeys/'.$journey->uuid.'/test-run', ['email' => 'anna@pelda.hu'])->assertOk()->json();
+
+    expect($author['redacted'])->toBeTrue()
+        ->and(array_column($author['steps'], 'outcome'))->toBe(['entered', 'visited', 'waited', 'exit'])
+        ->and(array_filter(array_column($author['steps'], 'detail'), fn ($detail) => $detail !== null && ! is_numeric($detail)))->toBe([]);
+
+    $editor = $this->actingAs(canvasUser($this->workspace, Role::Editor->value))->withSession($session)
+        ->postJson('/journeys/'.$journey->uuid.'/test-run', ['email' => 'anna@pelda.hu'])->assertOk()->json();
+
+    expect($editor['redacted'])->toBeFalse()
+        ->and($editor['steps'][1]['detail'])->toBe('NO_CONSENT');
+
+    $audit = AuditLog::query()->where('action', 'journey.test_run')->latest('id')->firstOrFail();
+    expect($audit->context['contact_hash'] ?? null)->toBe(KeyedHash::of('email', 'anna@pelda.hu'));
+});
+
+it('a TESZT-FUTTATÁS feltétel-plafonnal fut, és semmit nem ír (SEC-S1 / N3)', function () {
+    $contact = canvasContact('anna@pelda.hu');
+    $tag = ContactTag::create(['name' => 'vip']);
+    $list = ContactList::create(['name' => 'Lista']);
+    $endpoint = WebhookEndpoint::issue('CRM', 'https://93.184.216.34/hook', [])['endpoint'];
+
+    $nodes = [cnode('t', 'api_event', ['event' => 'x'])];
+    $edges = [];
+    $prev = 't';
+
+    foreach (range(1, 30) as $i) {
+        $nodes[] = cnode('c'.$i, 'condition', ['type' => 'context_equals', 'key' => 'k', 'value' => ''], $i * 100);
+        $edges[] = cedge($prev, 'c'.$i, $prev === 't' ? 'out' : 'yes');
+        $prev = 'c'.$i;
+    }
+
+    $limited = $this->actingAs(canvasUser($this->workspace))->withSession(['workspace_uuid' => $this->workspace->uuid])
+        ->postJson('/journeys/'.canvasJourney($nodes, $edges)->uuid.'/test-run', ['email' => 'anna@pelda.hu'])->assertOk()->json();
+
+    expect($limited['stopped'])->toBe('condition_limit');
+
+    $writes = canvasJourney([
+        cnode('t', 'api_event', ['event' => 'x']),
+        cnode('u', 'update_contact', ['operation' => 'add_tag', 'tag' => (string) $tag->uuid], 100),
+        cnode('l', 'list_membership', ['operation' => 'add', 'list' => (string) $list->uuid], 200),
+        cnode('h', 'webhook', ['endpoint' => (string) $endpoint->uuid], 300),
+        cnode('s', 'send_email', ['template' => (string) $this->template->uuid, 'from_email' => 'no-reply@pelda.hu'], 400),
+    ], [cedge('t', 'u'), cedge('u', 'l'), cedge('l', 'h'), cedge('h', 's')]);
+
+    $this->postJson('/journeys/'.$writes->uuid.'/test-run', ['email' => 'anna@pelda.hu'])->assertOk();
+
+    expect($contact->tags()->count())->toBe(0)
+        ->and($contact->lists()->count())->toBe(0)
+        ->and(WebhookDelivery::query()->count())->toBe(0)
+        ->and(Message::query()->count())->toBe(0)
+        ->and(AuditLog::query()->where('action', 'like', 'sending.%')->count())->toBe(0);
+});
+
+it('a WEBHOOK csomópont csak journey.step-re feliratkozott végpontot fogad el, és csak webhook-kezelő választhat (SEC-S2)', function () {
+    canvasContact();
+    $csakKezbesites = WebhookEndpoint::issue('Csak delivered', 'https://93.184.216.34/a', ['delivered'])['endpoint'];
+    $journeyos = WebhookEndpoint::issue('Journey', 'https://93.184.216.34/b', ['journey.step'])['endpoint'];
+
+    $graph = fn (WebhookEndpoint $endpoint) => [[
+        cnode('t', 'api_event', ['event' => 'x']),
+        cnode('h', 'webhook', ['endpoint' => (string) $endpoint->uuid], 100),
+    ], [cedge('t', 'h')]];
+
+    [$nodes, $edges] = $graph($csakKezbesites);
+    expect(issueCodes(app(JourneyGraphValidator::class)->validate(JourneyGraph::fromArray(['nodes' => $nodes, 'edges' => $edges]))))
+        ->toContain('reference_missing@h');
+
+    $journey = canvasJourney([cnode('t', 'api_event', ['event' => 'x'])], []);
+    [$nodes, $edges] = $graph($journeyos);
+    $session = ['workspace_uuid' => $this->workspace->uuid];
+
+    $this->actingAs(canvasUser($this->workspace, Role::Author->value))->withSession($session)
+        ->putJson('/journeys/'.$journey->uuid.'/graph', ['graph' => ['nodes' => $nodes, 'edges' => $edges]])
+        ->assertForbidden();
+
+    $this->actingAs(canvasUser($this->workspace, Role::Admin->value))->withSession($session)
+        ->putJson('/journeys/'.$journey->uuid.'/graph', ['graph' => ['nodes' => $nodes, 'edges' => $edges]])
+        ->assertOk();
+});
+
+it('a bekötetlen triggerek nem publikálhatók (REV-S1)', function () {
+    $tag = ContactTag::create(['name' => 'x']);
+
+    foreach (['tag_added', 'tag_removed'] as $type) {
+        $graph = JourneyGraph::fromArray(['nodes' => [
+            cnode('t', $type, ['tag' => (string) $tag->uuid]),
+            cnode('e', 'exit', [], 100),
+        ], 'edges' => [cedge('t', 'e')]]);
+
+        expect(issueCodes(app(JourneyGraphValidator::class)->validate($graph)))->toContain('trigger_unavailable@t');
+    }
+});
+
+it('az EGYSZERI dátum-trigger a pontos dátumon léptet, és nem engedi az újrabelépést (REV-S2)', function () {
+    $contact = canvasContact();
+    ContactField::create(['key' => 'esemeny', 'label' => 'Esemény', 'type' => 'date']);
+    $contact->setAttribute('attributes', ['esemeny' => now()->addDays(3)->toDateString()]);
+    $contact->save();
+
+    $journey = canvasJourney([
+        cnode('t', 'date_anniversary', ['field' => 'esemeny', 'mode' => 'once', 'offset_days' => -3]),
+        cnode('e', 'exit', [], 100),
+    ], [cedge('t', 'e')]);
+    app(JourneyPublisher::class)->publish($journey);
+
+    expect($journey->fresh()->allow_reentry)->toBeFalse();
+
+    app(WorkspaceContext::class)->forget();
+    $this->artisan('journeys:detect-dates')->assertSuccessful();
+    app(WorkspaceContext::class)->set($this->workspace);
+
+    expect(JourneyRun::query()->where('journey_id', $journey->getKey())->count())->toBe(1);
+
+    // Egy év múlva (ugyanaz a hónap-nap) az egyszeri mód NEM léptet újra.
+    $this->travel(1)->years();
+    app(WorkspaceContext::class)->forget();
+    $this->artisan('journeys:detect-dates')->assertSuccessful();
+    app(WorkspaceContext::class)->set($this->workspace);
+
+    expect(JourneyRun::query()->where('journey_id', $journey->getKey())->count())->toBe(1);
+});
+
+it('a DOI-megerősítés HTTP-n át lépteti a listás journey-t (REV-S5)', function () {
+    $list = ContactList::create(['name' => 'Hírlevél']);
+    $journey = canvasJourney([
+        cnode('t', 'list_subscribe', ['list' => (string) $list->uuid]),
+        cnode('e', 'exit', [], 100),
+    ], [cedge('t', 'e')]);
+    app(JourneyPublisher::class)->publish($journey);
+
+    Contact::create(['email' => 'uj@pelda.hu', 'status' => 'pending']);
+    app(ConsentRecorder::class)->request('uj@pelda.hu');
+    $token = app(ConfirmationTokens::class)->issue((int) $this->workspace->getKey(), 'uj@pelda.hu', 'marketing', (string) $list->uuid);
+
+    $this->post('/c/'.$token)->assertOk();
+
+    app(WorkspaceContext::class)->set($this->workspace);
+    expect(JourneyRun::query()->where('journey_id', $journey->getKey())->where('email', 'uj@pelda.hu')->count())->toBe(1);
+});
+
+it('a kampány-pixel HTTP-n át lépteti a kampány-interakciós journey-t, és ÉBRESZTI a várakozót (REV-S5 / REV-S3)', function () {
+    canvasContact('anna@pelda.hu');
+    $campaignUuid = (string) Str::uuid();
+
+    $interaction = canvasJourney([
+        cnode('t', 'campaign_interaction', ['interaction' => 'open']),
+        cnode('e', 'exit', [], 100),
+    ], [cedge('t', 'e')], 'Megnyitók');
+    app(JourneyPublisher::class)->publish($interaction);
+
+    $waiting = canvasJourney([
+        cnode('t', 'api_event', ['event' => 'x']),
+        cnode('w', 'wait', ['mode' => 'event', 'event' => 'opened', 'timeout_minutes' => 1440], 100),
+        cnode('e', 'exit', [], 200),
+    ], [cedge('t', 'w'), cedge('w', 'e', 'out')], 'Váró');
+    app(JourneyPublisher::class)->publish($waiting);
+    $run = app(JourneyTrigger::class)->fire(TriggerType::ApiEvent, 'anna@pelda.hu', ['event' => 'x'])[0];
+    app(JourneyEngine::class)->tick($run);
+    expect($run->fresh()->resume_at->isFuture())->toBeTrue();
+
+    Domain::query()->where('name', 'pelda.hu')->update(['tracking_domain' => 'localhost', 'tracking_status' => 'verified', 'tracking_enabled' => true]);
+    $message = Message::create([
+        'channel' => 'campaign', 'from_email' => 'no-reply@pelda.hu', 'recipients' => ['anna@pelda.hu'],
+        'subject' => 'Kampány', 'headers' => [], 'tags' => ['campaign:'.$campaignUuid],
+    ]);
+    $token = app(TrackingTokens::class)->issue((int) $this->workspace->getKey(), (string) $message->uuid, 'anna@pelda.hu', 'localhost');
+
+    $this->get('/t/o/'.$token)->assertOk();
+
+    app(WorkspaceContext::class)->set($this->workspace);
+    expect(JourneyRun::query()->where('journey_id', $interaction->getKey())->count())->toBe(1)
+        ->and($run->fresh()->resume_at->isFuture())->toBeFalse();
+
+    app(JourneyEngine::class)->tick($run->fresh());
+    expect($run->fresh()->exit_reason)->toBe('step_exit');
+});
+
+it('a motor: mező-beállítás, címke-eltávolítás, többágú else, cél-csomópont (REV-S6)', function () {
+    $contact = canvasContact();
+    ContactField::create(['key' => 'szint', 'label' => 'Szint', 'type' => 'text']);
+    $tag = ContactTag::create(['name' => 'régi']);
+    $contact->tags()->attach($tag->getKey());
+
+    $journey = canvasJourney([
+        cnode('t', 'api_event', ['event' => 'x']),
+        cnode('f', 'update_contact', ['operation' => 'set_field', 'field' => 'szint', 'value' => 'arany'], 100),
+        cnode('r', 'update_contact', ['operation' => 'remove_tag', 'tag' => (string) $tag->uuid], 200),
+        cnode('s', 'split', ['branches' => [['key' => 'b1', 'condition' => ['type' => 'field_equals', 'key' => 'szint', 'value' => 'ezüst']]]], 300),
+        cnode('g', 'goal', [], 400),
+        cnode('e', 'exit', [], 400),
+    ], [cedge('t', 'f'), cedge('f', 'r'), cedge('r', 's'), cedge('s', 'e', 'b1'), cedge('s', 'g', 'else')]);
+    app(JourneyPublisher::class)->publish($journey);
+
+    $run = app(JourneyTrigger::class)->fire(TriggerType::ApiEvent, 'anna@pelda.hu', ['event' => 'x'])[0];
+    app(JourneyEngine::class)->tick($run);
+
+    expect($contact->fresh()->getAttribute('attributes')['szint'])->toBe('arany')
+        ->and($contact->tags()->count())->toBe(0)
+        ->and(JourneyRunStep::query()->where('journey_run_id', $run->getKey())->where('outcome', 'else')->exists())->toBeTrue()
+        ->and($run->fresh()->exit_reason)->toBe('goal_reached');
+});
+
+it('a verzió-határon átmutató lépés megnevezett okkal zárul (REV-S6)', function () {
+    canvasContact();
+    [$nodes, $edges] = welcomeGraph((string) $this->template->uuid);
+    $a = canvasJourney($nodes, $edges, 'A');
+    app(JourneyPublisher::class)->publish($a);
+    $run = app(JourneyTrigger::class)->fire(TriggerType::ApiEvent, 'anna@pelda.hu', ['event' => 'signup'])[0];
+
+    $graph = $a->fresh()->graph;
+    $graph['nodes'][2]['config']['minutes'] = 30;
+    $a->forceFill(['graph' => $graph])->save();
+    $v2 = app(JourneyPublisher::class)->publish($a->fresh());
+
+    // A futás v1-en van, de (kézi adat-babrálással) v2 lépésére állítjuk.
+    $run->forceFill(['current_step_id' => JourneyStep::query()->where('journey_version_id', $v2->getKey())->where('node_key', 'send')->value('id')])->save();
+    app(JourneyEngine::class)->tick($run->fresh());
+
+    expect($run->fresh()->exit_reason)->toBe('step_version_mismatch')
+        ->and(Message::query()->count())->toBe(0);
+});
+
+it('a tick-parancs a szüneteltetett journey futásait kihagyja, és a workspace-sorrend forog (REV-S6 / REV-S3)', function () {
+    canvasContact();
+    [$nodes, $edges] = welcomeGraph((string) $this->template->uuid);
+    $journey = canvasJourney($nodes, $edges);
+    app(JourneyPublisher::class)->publish($journey);
+    $run = app(JourneyTrigger::class)->fire(TriggerType::ApiEvent, 'anna@pelda.hu', ['event' => 'signup'])[0];
+    $journey->forceFill(['status' => 'paused'])->save();
+
+    app(WorkspaceContext::class)->forget();
+    $this->artisan('journeys:tick')->assertSuccessful();
+    app(WorkspaceContext::class)->set($this->workspace);
+
+    expect(JourneyRunStep::query()->where('journey_run_id', $run->getKey())->count())->toBe(0)
+        ->and(Cache::get(TickJourneysCommand::CURSOR_KEY))->toBe(0);
+});
+
+it('a szüneteltetés csak aktív journey-n megy, sor-zár alatt (N6)', function () {
+    [$nodes, $edges] = welcomeGraph((string) $this->template->uuid);
+    $journey = canvasJourney($nodes, $edges);
+
+    $this->actingAs(canvasUser($this->workspace))->withSession(['workspace_uuid' => $this->workspace->uuid])
+        ->postJson('/journeys/'.$journey->uuid.'/pause')
+        ->assertStatus(409);
+
+    expect(AuditLog::query()->where('action', 'journey.paused')->exists())->toBeFalse();
 });

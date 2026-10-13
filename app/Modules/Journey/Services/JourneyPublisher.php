@@ -71,8 +71,13 @@ final class JourneyPublisher
             $current = $locked->currentVersion;
             $previousStatus = (string) $locked->status;
 
-            // VÁLTOZATLAN gráf: nincs új verzió — a szüneteltetett journey folytatása.
+            // VÁLTOZATLAN gráf: nincs új verzió — a szüneteltetett journey folytatása. Az AKTÍV,
+            // változatlan journey újrapublikálása no-op: se állapotváltás, se audit-sor (review NIT).
             if ($current !== null && $current->graph_hash === $hash) {
+                if ($previousStatus === 'active') {
+                    return $current;
+                }
+
                 $locked->forceFill(['status' => 'active'])->save();
 
                 $this->audit->log('journey.resumed', $locked, context: [
@@ -83,7 +88,17 @@ final class JourneyPublisher
                 return $current;
             }
 
+            /*
+             | A CÉL A VERZIÓ RÉSZE (review REV-B2): a futás a SAJÁT verziójának célját nézi. A
+             | journey-szintű `goal_type` / `goal_config` NEM íródik felül — azt a v1.1 előtti,
+             | verzió nélküli láncon haladó futások használják, és egy publikálás nem veheti el
+             | tőlük a kilépési feltételt.
+             */
+            $goal = $this->goal($graph);
+
             $version = JourneyVersion::query()->create([
+                'goal_type' => $goal['type'] ?: null,
+                'goal_config' => $goal['type'] ? $goal['config'] : null,
                 'journey_id' => $locked->getKey(),
                 'number' => (int) JourneyVersion::query()->where('journey_id', $locked->getKey())->max('number') + 1,
                 'graph' => $graph->toArray(),
@@ -98,28 +113,35 @@ final class JourneyPublisher
             $entryNode = $graph->target($trigger['id'], 'out');
             $entry = $entryNode === null ? null : ($steps[$entryNode] ?? null);
 
-            $version->forceFill(['entry_step_id' => $entry?->getKey()])->save();
-
-            $goal = $this->goal($graph);
+            if ($entry !== null) {
+                $version->forceFill(['entry_step_id' => $entry->getKey()])->save();
+            }
 
             /*
              | Az ÉVFORDULÓ évente ismétlődik: az újrabelépés alapból tiltott (egy kontakt egy
              | journey-ben egyszer), ami az évfordulós journey-t egyetlen évre korlátozná. Ennél
-             | a triggernél az újrabelépés engedélyezett, legalább 300 napos cooldown-nal — egy
-             | évben így legfeljebb egyszer léphet be ugyanaz a kontakt.
+             | a triggernél (`mode = anniversary`) az újrabelépés engedélyezett, legalább 300 napos
+             | cooldown-nal. Ha egy KORÁBBI verzió kapcsolta be (évfordulós volt), és az új már nem
+             | az, a publikáló VISSZAÁLLÍTJA az alapértéket (review N4) — a kézi beállítást (nincs
+             | rá felület, csak adat) nem írja felül.
              */
-            if ($trigger['type'] === 'date_anniversary') {
+            $anniversary = static fn (?array $node): bool => $node !== null
+                && $node['type'] === 'date_anniversary'
+                && ($node['config']['mode'] ?? 'anniversary') !== 'once';
+            $previousTrigger = $current === null ? null : (JourneyGraph::fromArray((array) $current->graph)->triggers()[0] ?? null);
+
+            if ($anniversary($trigger)) {
                 $locked->forceFill([
                     'allow_reentry' => true,
                     'reentry_cooldown_hours' => max((int) $locked->reentry_cooldown_hours, 300 * 24),
                 ]);
+            } elseif ($anniversary($previousTrigger)) {
+                $locked->forceFill(['allow_reentry' => false, 'reentry_cooldown_hours' => 720]);
             }
 
             $locked->forceFill([
                 'trigger_type' => $trigger['type'],
                 'trigger_config' => $this->triggerConfig($trigger),
-                'goal_type' => $goal['type'],
-                'goal_config' => $goal['config'],
                 'first_step_id' => $entry?->getKey(),
                 'current_version_id' => $version->getKey(),
                 'status' => 'active',
@@ -251,7 +273,7 @@ final class JourneyPublisher
     private function triggerConfig(array $trigger): array
     {
         return array_filter(
-            array_intersect_key($trigger['config'], array_flip(['list', 'tag', 'field', 'offset_days', 'form', 'event', 'campaign', 'interaction', 'segment', 'route'])),
+            array_intersect_key($trigger['config'], array_flip(['list', 'tag', 'field', 'mode', 'offset_days', 'form', 'event', 'campaign', 'interaction', 'segment', 'route'])),
             static fn ($value): bool => $value !== null && $value !== '',
         );
     }

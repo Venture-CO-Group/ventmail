@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Journey\Graph;
 
 use InvalidArgumentException;
+use JsonException;
 
 /**
  * A JOURNEY-GRÁF (v1.1 · 6. modul, D5) — a szerkesztő dokumentuma, normalizálva.
@@ -79,7 +80,15 @@ final class JourneyGraph
 
             $config = is_array($node['config'] ?? null) ? $node['config'] : [];
 
-            if (strlen((string) json_encode($config)) > self::MAX_CONFIG_BYTES) {
+            try {
+                // A KÓDOLÁSI HIBA nem lehet „0 bájt" (review N1): érvénytelen UTF-8 vagy mélység
+                // elutasítás, nem csendes átengedés.
+                $bytes = strlen(json_encode($config, JSON_THROW_ON_ERROR));
+            } catch (JsonException) {
+                throw new InvalidArgumentException('A csomópont konfigurációja nem kódolható: '.$id);
+            }
+
+            if ($bytes > self::MAX_CONFIG_BYTES) {
                 throw new InvalidArgumentException('A csomópont konfigurációja túl nagy: '.$id);
             }
 

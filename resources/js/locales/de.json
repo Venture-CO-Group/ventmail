@@ -1820,7 +1820,8 @@
                 "contact_missing": "Kein solcher Kontakt in diesem Workspace.",
                 "missing_trigger": "Die Journey hat keinen Auslöser.",
                 "step_limit": "Der Test hat das Schrittlimit erreicht (mögliche Schleife).",
-                "invalid_node": "Der Pfad endete an einem ungültigen Knoten."
+                "invalid_node": "Der Pfad endete an einem ungültigen Knoten.",
+                "condition_limit": "Der Test hat die Grenze der ausgewerteten Bedingungen erreicht."
             },
             "outcomes": {
                 "entered": "eingetreten",
@@ -1837,8 +1838,10 @@
                 "skipped_test_mode": "Webhook — übersprungen (Testmodus)",
                 "goal": "Ziel erreicht — der Lauf endet erfolgreich",
                 "exit": "Ausstieg",
-                "end": "Ende des Pfads"
-            }
+                "end": "Ende des Pfads",
+                "visited": "Schritt durchlaufen"
+            },
+            "redacted": "Nur der Pfad: Gründe und Bedingungsdetails erfordern das Recht zur Zielgruppenverwaltung."
         },
         "validation": {
             "summary": "{errors} Fehler · {warnings} Warnungen",
@@ -1876,7 +1879,9 @@
             "triggers": "Auslöser",
             "actions": "Aktionen",
             "hint": "Auf die Arbeitsfläche ziehen oder zum Hinzufügen klicken",
-            "oneTrigger": "Eine Journey kann einen Auslöser haben."
+            "oneTrigger": "Eine Journey kann einen Auslöser haben.",
+            "soon": "Bald",
+            "soonHint": "Dieser Auslöser ist noch nicht angebunden – bald verfügbar."
         },
         "nodes": {
             "list_subscribe": "Listenanmeldung",
@@ -1955,7 +1960,8 @@
             "duplicate_output": "Ein Ausgang kann nur auf einen Schritt zeigen.",
             "ab_weights_invalid": "A/B-Gewichte müssen 100 % ergeben (2–5 Zweige).",
             "multiple_goals": "Nur eine Zielbedingung ist erlaubt.",
-            "unconnected_output": "Nicht verbundener Ausgang ({field}) — der Lauf endet hier."
+            "unconnected_output": "Nicht verbundener Ausgang ({field}) — der Lauf endet hier.",
+            "trigger_unavailable": "Dieser Auslöser ist noch nicht verfügbar (bald) – die Journey würde nie starten."
         },
         "config": {
             "label": "Name auf der Fläche",
@@ -2008,7 +2014,13 @@
             "outputs": "Ausgänge",
             "notConnected": "— nicht verbunden —",
             "duplicate": "Duplizieren",
-            "delete": "Löschen"
+            "delete": "Löschen",
+            "dateMode": "Wiederholung",
+            "endpointLocked": "Nur Nutzer mit Webhook-Verwaltungsrecht können einen Endpunkt wählen."
+        },
+        "dateModes": {
+            "anniversary": "Jährlich (Jahrestag)",
+            "once": "Einmalig (am genauen Datum)"
         }
     }
 }

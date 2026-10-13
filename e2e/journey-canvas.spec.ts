@@ -56,8 +56,14 @@ test('journey-vászon: vázlat összerakása, validálás, mentés és teszt-fut
     await expect(canvas).toHaveAttribute('data-status', 'draft');
     await expect(page.getByTestId('jnode-trigger')).toBeVisible();
 
-    // 2. A TRIGGER beállítása a jobb panelen.
-    await page.getByTestId('jnode-trigger').click();
+    // A még bekötetlen triggerek „hamarosan" jelzéssel, választhatatlanul (review REV-S1).
+    await expect(page.getByTestId('palette-soon-tag_removed')).toBeVisible();
+    await expect(page.getByTestId('palette-tag_removed')).toBeDisabled();
+
+    // 2. A TRIGGER kijelölése BILLENTYŰZETTEL (review REV-S7) — a panel megnyílik.
+    await page.locator('.vue-flow__node[data-id="trigger"]').focus();
+    await page.keyboard.press('Enter');
+    await expect(page.getByTestId('cfg-event')).toBeVisible();
     await page.getByTestId('cfg-event').fill('signup');
 
     // 3. E-MAIL KÜLDÉSE — húzással a palettáról a vászonra.

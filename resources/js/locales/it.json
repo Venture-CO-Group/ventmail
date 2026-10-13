@@ -1820,7 +1820,8 @@
                 "contact_missing": "Nessun contatto del genere in questo workspace.",
                 "missing_trigger": "Il percorso non ha un trigger.",
                 "step_limit": "Il test ha raggiunto il limite di passi (possibile ciclo).",
-                "invalid_node": "Il percorso si è fermato su un nodo non valido."
+                "invalid_node": "Il percorso si è fermato su un nodo non valido.",
+                "condition_limit": "Il test ha raggiunto il limite di condizioni valutate."
             },
             "outcomes": {
                 "entered": "entrato",
@@ -1837,8 +1838,10 @@
                 "skipped_test_mode": "webhook — saltato (modalità test)",
                 "goal": "obiettivo raggiunto — il percorso si conclude",
                 "exit": "uscita",
-                "end": "fine del percorso"
-            }
+                "end": "fine del percorso",
+                "visited": "passo attraversato"
+            },
+            "redacted": "Solo il percorso: motivi e dettagli delle condizioni richiedono il diritto di gestire il pubblico."
         },
         "validation": {
             "summary": "{errors} errori · {warnings} avvisi",
@@ -1876,7 +1879,9 @@
             "triggers": "Trigger",
             "actions": "Azioni",
             "hint": "Trascina sulla tela o fai clic per aggiungere",
-            "oneTrigger": "Un percorso può avere un solo trigger."
+            "oneTrigger": "Un percorso può avere un solo trigger.",
+            "soon": "Presto",
+            "soonHint": "Questo trigger non è ancora collegato: presto disponibile."
         },
         "nodes": {
             "list_subscribe": "Iscrizione alla lista",
@@ -1955,7 +1960,8 @@
             "duplicate_output": "Un'uscita può puntare a un solo passo.",
             "ab_weights_invalid": "I pesi A/B devono sommare 100% (2–5 rami).",
             "multiple_goals": "È consentita una sola condizione obiettivo.",
-            "unconnected_output": "Uscita non collegata ({field}) — il percorso termina qui."
+            "unconnected_output": "Uscita non collegata ({field}) — il percorso termina qui.",
+            "trigger_unavailable": "Questo trigger non è ancora disponibile (presto): il percorso non partirebbe mai."
         },
         "config": {
             "label": "Nome sulla tela",
@@ -2008,7 +2014,13 @@
             "outputs": "Uscite",
             "notConnected": "— non collegato —",
             "duplicate": "Duplica",
-            "delete": "Elimina"
+            "delete": "Elimina",
+            "dateMode": "Ripetizione",
+            "endpointLocked": "Solo chi gestisce i webhook può scegliere un endpoint."
+        },
+        "dateModes": {
+            "anniversary": "Ogni anno (anniversario)",
+            "once": "Una volta (alla data esatta)"
         }
     }
 }

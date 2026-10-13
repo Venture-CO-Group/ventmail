@@ -66,6 +66,10 @@ final class JourneyGraphValidator
                 continue;
             }
 
+            if (in_array($node['type'], NodeCatalog::UNAVAILABLE_TRIGGERS, true)) {
+                $this->error('trigger_unavailable', $node['id']);
+            }
+
             if ($node['type'] === 'goal' && is_array($node['config']['goal'] ?? null)) {
                 $goals++;
 
@@ -175,6 +179,12 @@ final class JourneyGraphValidator
         }
 
         foreach ($graph->nodes as $node) {
+            // A FELTÉTELES cél-csomópont bekötetlenül is értelmes: a futás bármely pontján
+            // kiléptet, ha a feltétel teljesül (a journey cél-ellenőrzése) — nem árva.
+            if ($node['type'] === 'goal' && is_array($node['config']['goal'] ?? null)) {
+                continue;
+            }
+
             if (! isset($reached[$node['id']]) && ! NodeCatalog::isTrigger($node['type'])) {
                 $this->error('orphan_node', $node['id']);
             }
@@ -436,6 +446,10 @@ final class JourneyGraphValidator
     {
         $this->field($id, $config, 'field');
 
+        if (! in_array($config['mode'] ?? 'anniversary', NodeCatalog::DATE_MODES, true)) {
+            $this->error('config_invalid', $id, 'mode');
+        }
+
         $offset = $config['offset_days'] ?? 0;
 
         if (! is_numeric($offset) || abs((int) $offset) > 365) {
@@ -549,6 +563,9 @@ final class JourneyGraphValidator
                         ->whereIn('uuid', array_keys($wanted[$kind]))
                         // A KIKAPCSOLT webhook-végpont nem cél: a kézbesítés úgyis elmaradna.
                         ->when($kind === 'endpoint', fn ($query) => $query->where('active', true))
+                        ->get()
+                        // A végpontnak a `journey.step` eseményre FEL KELL iratkoznia (review SEC-S2).
+                        ->filter(fn ($row) => $kind !== 'endpoint' || $row->listensTo('journey.step'))
                         ->pluck('uuid')->map(fn ($uuid) => (string) $uuid)->all()),
                     true,
                 );

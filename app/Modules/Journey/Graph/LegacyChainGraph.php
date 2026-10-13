@@ -92,6 +92,23 @@ final class LegacyChainGraph
             }
         }
 
+        /*
+         | A MEGLÉVŐ CÉL cél-csomóponttá alakul (review REV-B2): enélkül a vászonról publikált
+         | első verzió cél nélkül indulna, és a vásárlók tovább kapnák a nurture-levelet. A
+         | csomópont bekötetlen — feltételes cél, ami a futás bármely pontján kiléptet.
+         */
+        $goalType = (string) $journey->goal_type;
+
+        if ($goalType !== '' && $goalType !== 'none') {
+            $nodes[] = [
+                'id' => 'goal',
+                'type' => 'goal',
+                'position' => ['x' => 0, 'y' => (max(array_values($rows) ?: [0]) + 2) * self::SPACING_Y],
+                'label' => '',
+                'config' => ['goal' => ['type' => $goalType, ...(array) $journey->goal_config]],
+            ];
+        }
+
         return JourneyGraph::fromArray(['nodes' => $nodes, 'edges' => $edges]);
     }
 }

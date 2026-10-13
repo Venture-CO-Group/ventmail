@@ -10,6 +10,7 @@ use App\Modules\Journey\Models\Journey;
 use App\Modules\Journey\Services\JourneyTrigger;
 use App\Modules\Tenancy\Models\Workspace;
 use App\Modules\Tenancy\Services\WorkspaceContext;
+use App\Support\WorkspaceTimezone;
 use Illuminate\Console\Command;
 use Throwable;
 
@@ -72,17 +73,40 @@ final class DetectDateTriggersCommand extends Command
             return 0;
         }
 
-        $target = now()->subDays((int) ($config['offset_days'] ?? 0))->format('m-d');
+        /*
+         | A CÉLNAP a WORKSPACE IDŐZÓNÁJÁBAN (review NIT): egy budapesti tenantnak éjfél után már
+         | „ma" van, amikor UTC-ben még tegnap.
+         */
+        $today = now(WorkspaceTimezone::for($journey->workspace))->startOfDay();
+        $target = $today->copy()->subDays((int) ($config['offset_days'] ?? 0));
         $entered = 0;
 
-        Contact::query()
+        $query = Contact::query()
             ->where('status', 'subscribed')
-            ->whereRaw("(attributes->>?) ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}'", [$field])
-            ->whereRaw('substring(attributes->>? from 6 for 5) = ?', [$field, $target])
+            ->whereRaw("(attributes->>?) ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}'", [$field]);
+
+        if (($config['mode'] ?? 'anniversary') === 'once') {
+            // EGYSZERI dátum (review REV-S2): a teljes dátum egyezik.
+            $query->whereRaw('substring(attributes->>? from 1 for 10) = ?', [$field, $target->format('Y-m-d')]);
+        } else {
+            // ÉVFORDULÓ: hónap-nap. A február 29-i dátum nem szökőévben február 28-án jön.
+            $days = [$target->format('m-d')];
+
+            if ($target->format('m-d') === '02-28' && ! $target->isLeapYear()) {
+                $days[] = '02-29';
+            }
+
+            $query->whereRaw(
+                'substring(attributes->>? from 6 for 5) in ('.implode(', ', array_fill(0, count($days), '?')).')',
+                [$field, ...$days],
+            );
+        }
+
+        $query
             ->orderBy('id')
-            ->chunkById(500, function ($contacts) use ($journey, $trigger, $field, &$entered): void {
+            ->chunkById(500, function ($contacts) use ($journey, $trigger, $field, $today, &$entered): void {
                 foreach ($contacts as $contact) {
-                    if ($trigger->enter($journey, (string) $contact->email, ['field' => $field, 'date' => now()->toDateString()]) !== null) {
+                    if ($trigger->enter($journey, (string) $contact->email, ['field' => $field, 'date' => $today->toDateString()]) !== null) {
                         $entered++;
                     }
                 }

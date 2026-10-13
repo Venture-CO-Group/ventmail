@@ -1820,7 +1820,8 @@
                 "contact_missing": "No existe ese contacto en este espacio de trabajo.",
                 "missing_trigger": "El recorrido no tiene disparador.",
                 "step_limit": "La prueba alcanzó el límite de pasos (posible bucle).",
-                "invalid_node": "La ruta se detuvo en un nodo no válido."
+                "invalid_node": "La ruta se detuvo en un nodo no válido.",
+                "condition_limit": "La prueba alcanzó el límite de condiciones evaluadas."
             },
             "outcomes": {
                 "entered": "entró",
@@ -1837,8 +1838,10 @@
                 "skipped_test_mode": "webhook — omitido (modo prueba)",
                 "goal": "objetivo alcanzado — el recorrido termina",
                 "exit": "salida",
-                "end": "fin de la ruta"
-            }
+                "end": "fin de la ruta",
+                "visited": "paso recorrido"
+            },
+            "redacted": "Solo la ruta: los motivos y detalles de condiciones requieren permiso de gestión de audiencia."
         },
         "validation": {
             "summary": "{errors} errores · {warnings} avisos",
@@ -1876,7 +1879,9 @@
             "triggers": "Disparadores",
             "actions": "Acciones",
             "hint": "Arrastra al lienzo o haz clic para añadir",
-            "oneTrigger": "Un recorrido solo puede tener un disparador."
+            "oneTrigger": "Un recorrido solo puede tener un disparador.",
+            "soon": "Pronto",
+            "soonHint": "Este disparador aún no está conectado: próximamente."
         },
         "nodes": {
             "list_subscribe": "Suscripción a lista",
@@ -1955,7 +1960,8 @@
             "duplicate_output": "Una salida solo puede apuntar a un paso.",
             "ab_weights_invalid": "Los pesos A/B deben sumar 100 % (2–5 ramas).",
             "multiple_goals": "Solo se permite una condición de objetivo.",
-            "unconnected_output": "Salida sin conectar ({field}) — el recorrido termina aquí."
+            "unconnected_output": "Salida sin conectar ({field}) — el recorrido termina aquí.",
+            "trigger_unavailable": "Este disparador aún no está disponible (próximamente): el recorrido nunca empezaría."
         },
         "config": {
             "label": "Nombre en el lienzo",
@@ -2008,7 +2014,13 @@
             "outputs": "Salidas",
             "notConnected": "— sin conectar —",
             "duplicate": "Duplicar",
-            "delete": "Eliminar"
+            "delete": "Eliminar",
+            "dateMode": "Repetición",
+            "endpointLocked": "Solo quien gestiona webhooks puede elegir un endpoint."
+        },
+        "dateModes": {
+            "anniversary": "Cada año (aniversario)",
+            "once": "Una vez (en la fecha exacta)"
         }
     }
 }

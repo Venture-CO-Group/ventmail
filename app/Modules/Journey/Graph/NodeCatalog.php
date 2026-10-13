@@ -39,6 +39,16 @@ final class NodeCatalog
         'update_contact', 'list_membership', 'webhook', 'goal', 'exit',
     ];
 
+    /**
+     * A még BEKÖTETLEN triggerek (review REV-S1): a forrásuknak ma nincs egykontaktos hívója
+     * (a címkézés tömeges `TagOperations`, a mezőváltozás importból / API-ból jön). A
+     * palettán „hamarosan", a validátor HIBÁT ad rájuk — egy némán sosem tüzelő journey nem
+     * élesíthető. A bekötés döntése HUMAN-QUEUE.
+     */
+    public const UNAVAILABLE_TRIGGERS = ['tag_added', 'tag_removed', 'field_changed'];
+
+    public const DATE_MODES = ['anniversary', 'once'];
+
     public static function isTrigger(string $type): bool
     {
         return TriggerType::tryFrom($type) !== null;
@@ -99,7 +109,7 @@ final class NodeCatalog
     /**
      * A felületnek: kategória + kimenetek alapértéke.
      *
-     * @return array{triggers: list<string>, actions: list<string>, conditionTypes: list<string>, goalTypes: list<string>, waitEvents: list<string>}
+     * @return array<string, list<string>>
      */
     public static function forUi(): array
     {
@@ -109,6 +119,8 @@ final class NodeCatalog
             'conditionTypes' => self::CONDITION_TYPES,
             'goalTypes' => self::GOAL_TYPES,
             'waitEvents' => self::WAIT_EVENTS,
+            'unavailableTriggers' => self::UNAVAILABLE_TRIGGERS,
+            'dateModes' => self::DATE_MODES,
         ];
     }
 }

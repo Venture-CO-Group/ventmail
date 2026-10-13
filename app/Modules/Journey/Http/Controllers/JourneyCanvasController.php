@@ -11,6 +11,7 @@ use App\Modules\Audience\Models\ContactTag;
 use App\Modules\Audience\Models\Form;
 use App\Modules\Audience\Models\Segment;
 use App\Modules\Audit\Services\AuditLogger;
+use App\Modules\Audit\Services\KeyedHash;
 use App\Modules\Campaign\Models\Campaign;
 use App\Modules\Inbound\Models\InboundRoute;
 use App\Modules\Journey\Graph\JourneyGraph;
@@ -23,12 +24,17 @@ use App\Modules\Journey\Services\JourneyGraphInvalid;
 use App\Modules\Journey\Services\JourneyNodeStats;
 use App\Modules\Journey\Services\JourneyPublisher;
 use App\Modules\Journey\Services\JourneySimulator;
+use App\Modules\Sending\Services\DomainNormalizer;
 use App\Modules\Template\Models\Template;
 use App\Modules\Webhooks\Models\WebhookEndpoint;
+use App\Support\QueryBudget;
+use App\Support\QueryTooExpensive;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 use InvalidArgumentException;
@@ -44,6 +50,9 @@ use InvalidArgumentException;
  */
 final class JourneyCanvasController
 {
+    /** A teszt-futtatás lekérdezés-büdzséje (ms, utasításonként). */
+    private const TEST_RUN_BUDGET_MS = 3000;
+
     private const OPTION_LIMIT = 200;
 
     public function show(string $uuid, JourneyGraphValidator $validator, JourneyNodeStats $stats): Response
@@ -64,7 +73,7 @@ final class JourneyCanvasController
             ],
             'graph' => $graph->toArray(),
             'catalog' => NodeCatalog::forUi(),
-            'options' => $this->options(),
+            'options' => $this->options($graph),
             'issues' => $validator->validate($graph),
             'stats' => $stats->forJourney($journey, $graph),
             'versions' => JourneyVersion::query()
@@ -76,7 +85,11 @@ final class JourneyCanvasController
                     'number' => (int) $version->number,
                     'publishedAt' => $version->published_at?->toIso8601String(),
                 ])->values()->all(),
-            'can' => ['publish' => Gate::allows('journey.publish')],
+            'can' => [
+                'publish' => Gate::allows('journey.publish'),
+                'webhooks' => Gate::allows('webhook.manage'),
+                'testRunDetails' => Gate::allows('audience.manage'),
+            ],
         ]);
     }
 
@@ -96,6 +109,15 @@ final class JourneyCanvasController
             $graph = JourneyGraph::fromArray($validated['graph']);
         } catch (InvalidArgumentException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        /*
+         | A WEBHOOK-VÉGPONT KIVÁLASZTÁSA `webhook.manage` (review SEC-S2): a végpont egy
+         | integráció szerződése, és a journey-esemény a kontakt címét viszi oda. A szerző a már
+         | bekötött végpontot megtarthatja, újat (vagy másikat) nem választhat.
+         */
+        if ($this->webhookDenied($journey, $graph)) {
+            return response()->json(['message' => __('ventmail.journeys.webhookForbidden')], 403);
         }
 
         $journey->forceFill(array_filter([
@@ -137,10 +159,16 @@ final class JourneyCanvasController
 
         if ($request->has('graph')) {
             try {
-                $journey->forceFill(['graph' => JourneyGraph::fromArray((array) $request->input('graph'))->toArray()])->save();
+                $graph = JourneyGraph::fromArray((array) $request->input('graph'));
             } catch (InvalidArgumentException $e) {
                 return response()->json(['message' => $e->getMessage()], 422);
             }
+
+            if ($this->webhookDenied($journey, $graph)) {
+                return response()->json(['message' => __('ventmail.journeys.webhookForbidden')], 403);
+            }
+
+            $journey->forceFill(['graph' => $graph->toArray()])->save();
         }
 
         try {
@@ -165,15 +193,30 @@ final class JourneyCanvasController
 
         $journey = Journey::query()->where('uuid', $uuid)->firstOrFail();
 
-        if ($journey->status !== 'active') {
+        /*
+         | SOR-ZÁR + ÖSSZEHASONLÍTÁS (review N6, a D124 kampány-mintája): a publikálás ugyanezt a
+         | sort zárolja, tehát egy közben futó publikálás és a szüneteltetés nem írhatja felül
+         | egymást, és csak AKTÍV journey szüneteltethető.
+         */
+        $paused = DB::transaction(function () use ($journey, $audit): bool {
+            $locked = Journey::query()->whereKey($journey->getKey())->lockForUpdate()->firstOrFail();
+
+            if ($locked->status !== 'active') {
+                return false;
+            }
+
+            $locked->forceFill(['status' => 'paused'])->save();
+
+            $audit->log('journey.paused', $locked, context: ['version' => $locked->currentVersion?->number]);
+
+            return true;
+        });
+
+        if (! $paused) {
             return $request->expectsJson()
-                ? response()->json(['message' => __('ventmail.journeys.notActive')], 422)
+                ? response()->json(['message' => __('ventmail.journeys.notActive')], 409)
                 : back()->with('error', __('ventmail.journeys.notActive'));
         }
-
-        $journey->forceFill(['status' => 'paused'])->save();
-
-        $audit->log('journey.paused', $journey, context: ['version' => $journey->currentVersion?->number]);
 
         return $request->expectsJson()
             ? response()->json(['message' => __('ventmail.journeys.paused'), 'status' => 'paused'])
@@ -201,15 +244,50 @@ final class JourneyCanvasController
             return response()->json(['message' => $e->getMessage()], 422);
         }
 
-        $result = $simulator->run($graph, (string) $validated['email']);
+        // A RÉSZLETEK (kapu-ok, feltétel-kimenet) csak a közönséget amúgy is látó szerepnek
+        // (review SEC-S1); a szerző az utat látja. A lekérdezések QueryBudget alatt futnak.
+        $detailed = Gate::allows('audience.manage');
+
+        try {
+            $result = app(QueryBudget::class)->run(fn () => $simulator->run($graph, (string) $validated['email'], $detailed), self::TEST_RUN_BUDGET_MS);
+        } catch (QueryTooExpensive) {
+            return response()->json(['message' => __('ventmail.journeys.testRunTooExpensive')], 422);
+        }
 
         $audit->log('journey.test_run', $journey, context: [
+            // A KONTAKT pszeudonim azonosítója (review SEC-S1): visszakereshető, ki kit tesztelt,
+            // nyers cím nélkül.
+            'contact_hash' => KeyedHash::of('email', DomainNormalizer::listKey(trim((string) $validated['email']))),
+            'detailed' => $detailed,
             'steps' => count($result['steps']),
             'would_send' => $result['sends'],
             'stopped' => $result['stopped'],
         ]);
 
         return response()->json($result);
+    }
+
+    /**
+     * Új (vagy másik) webhook-végpontot választana-e valaki `webhook.manage` nélkül?
+     */
+    private function webhookDenied(Journey $journey, JourneyGraph $graph): bool
+    {
+        if (Gate::allows('webhook.manage')) {
+            return false;
+        }
+
+        $before = self::endpointsOf(is_array($journey->graph) ? JourneyGraph::fromArray($journey->graph) : JourneyGraph::empty());
+
+        return array_diff(self::endpointsOf($graph), $before) !== [];
+    }
+
+    /** @return list<string> a gráf webhook-csomópontjainak végpontjai */
+    private static function endpointsOf(JourneyGraph $graph): array
+    {
+        return array_values(array_unique(array_map(
+            static fn (array $node): string => strtolower(trim((string) ($node['config']['endpoint'] ?? ''))),
+            array_filter($graph->nodes, static fn (array $node): bool => $node['type'] === 'webhook'),
+        )));
     }
 
     private function graphOf(Journey $journey): JourneyGraph
@@ -224,8 +302,10 @@ final class JourneyCanvasController
     }
 
     /** @return array<string, list<array{value: string, label: string}>> */
-    private function options(): array
+    private function options(JourneyGraph $graph): array
     {
+        $endpoints = array_values(array_filter(self::endpointsOf($graph), static fn (string $uuid): bool => Str::isUuid($uuid)));
+
         $pick = static fn ($query, string $label = 'name'): array => $query
             ->orderBy($label)
             ->limit(self::OPTION_LIMIT)
@@ -240,7 +320,9 @@ final class JourneyCanvasController
             'tags' => $pick(ContactTag::query()),
             'segments' => $pick(Segment::query()),
             'forms' => $pick(Form::query()),
-            'endpoints' => $pick(WebhookEndpoint::query()->where('active', true)),
+            // Végpontot csak `webhook.manage` választhat (review SEC-S2); a szerző a már bekötötteket látja.
+            'endpoints' => $pick(WebhookEndpoint::query()->where('active', true)
+                ->when(Gate::denies('webhook.manage'), fn ($query) => $query->whereIn('uuid', $endpoints))),
             'campaigns' => Campaign::query()->latest('id')->limit(self::OPTION_LIMIT)->get(['uuid', 'name'])
                 ->map(static fn ($row): array => ['value' => (string) $row->uuid, 'label' => (string) $row->name])->values()->all(),
             'routes' => $pick(InboundRoute::query(), 'description'),

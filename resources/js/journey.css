@@ -200,8 +200,18 @@
 }
 
 .vm-jpal__item:disabled {
-    opacity: 0.5;
+    color: var(--vt-text-subtle);
     cursor: not-allowed;
+}
+
+.vm-jpal__soon {
+    margin-inline-start: auto;
+    padding: 0 var(--vt-space-2);
+    border-radius: var(--vt-radius-full);
+    background: var(--vt-surface-2);
+    color: var(--vt-text-muted);
+    font-size: var(--vt-fs-caption);
+    white-space: nowrap;
 }
 
 .vm-jpal__icon {
@@ -338,9 +348,13 @@
     fill: var(--vt-border-strong);
 }
 
+.vm-jc-minimap svg {
+    inline-size: calc(var(--vt-space-32) * 1.25);
+    block-size: calc(var(--vt-space-20));
+}
+
 .vm-jc-minimap .vue-flow__minimap-mask {
-    fill: var(--vt-bg);
-    fill-opacity: 0.6;
+    fill: var(--vt-glass-thin-fill);
 }
 
 .vm-jc-zoom {

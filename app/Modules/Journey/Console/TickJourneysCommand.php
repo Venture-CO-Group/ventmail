@@ -10,6 +10,7 @@ use App\Modules\Journey\Services\JourneyEngine;
 use App\Modules\Tenancy\Models\Workspace;
 use App\Modules\Tenancy\Services\WorkspaceContext;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Cache;
 use Throwable;
 
 /**
@@ -29,6 +30,9 @@ final class TickJourneysCommand extends Command
     protected $signature = 'journeys:tick'
         .' {--limit=500 : legfeljebb ennyi futás egy tickben, workspace-enként}'
         .' {--max-seconds=50 : az egész futás időbüdzséje másodpercben}';
+
+    /** A forgó workspace-sorrend kurzora (review REV-S3). */
+    public const CURSOR_KEY = 'journeys:tick:cursor';
 
     protected $description = 'Az esedékes journey-futások léptetése.';
 
@@ -55,8 +59,16 @@ final class TickJourneysCommand extends Command
          */
         $previous = $context->hasWorkspace() ? $context->workspace() : null;
 
+        /*
+         | A WORKSPACE-SORREND FORGÓ (review REV-S3): a büdzsé lejártakor a következő tick a
+         | megszakított workspace UTÁNI tenanttal kezd, nem újra a legkisebb id-vel — különben
+         | a nagy id-jű tenantok egy terhelt időszakban soha nem jutnának sorra.
+         */
+        $cursor = (int) Cache::get(self::CURSOR_KEY, 0);
+        $interruptedAt = null;
+
         try {
-            Workspace::query()->orderBy('id')->chunkById(50, function ($workspaces) use ($context, $engine, $limit, $deadline, &$ticked, &$steps, &$failed): bool {
+            Workspace::query()->orderByRaw('case when id > ? then 0 else 1 end, id', [$cursor])->chunk(50, function ($workspaces) use ($context, $engine, $limit, $deadline, &$ticked, &$steps, &$failed, &$interruptedAt): bool {
                 foreach ($workspaces as $workspace) {
                     $context->set($workspace);
 
@@ -91,6 +103,7 @@ final class TickJourneysCommand extends Command
                          */
                         if (microtime(true) >= $deadline) {
                             $this->warn('Az időbüdzsé lejárt — a maradék futás a következő tickben jön.');
+                            $interruptedAt = (int) $workspace->getKey();
 
                             // A `false` a `chunkById`-t is MEGÁLLÍTJA: enélkül csak ezt a
                             // workspace-et hagynánk ki, a következőt viszont elkezdenénk.
@@ -112,6 +125,8 @@ final class TickJourneysCommand extends Command
         } finally {
             $previous === null ? $context->forget() : $context->set($previous);
         }
+
+        Cache::put(self::CURSOR_KEY, $interruptedAt ?? 0, now()->addDay());
 
         $this->info("Futás: {$ticked}, lépés: {$steps}, hibás: {$failed}");
 

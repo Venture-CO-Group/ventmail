@@ -24,7 +24,7 @@ final class JourneyVersion extends Model
 {
     use Auditable, BelongsToWorkspace, HasUuids;
 
-    protected $fillable = ['journey_id', 'number', 'graph', 'graph_hash', 'entry_step_id', 'published_by', 'published_at'];
+    protected $fillable = ['journey_id', 'number', 'graph', 'graph_hash', 'entry_step_id', 'published_by', 'published_at', 'goal_type', 'goal_config'];
 
     public function uniqueIds(): array
     {
@@ -33,7 +33,7 @@ final class JourneyVersion extends Model
 
     protected function casts(): array
     {
-        return ['graph' => 'array', 'number' => 'integer', 'published_at' => 'datetime'];
+        return ['graph' => 'array', 'goal_config' => 'array', 'number' => 'integer', 'published_at' => 'datetime'];
     }
 
     protected static function booted(): void

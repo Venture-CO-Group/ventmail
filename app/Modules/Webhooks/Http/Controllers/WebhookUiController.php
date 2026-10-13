@@ -37,6 +37,9 @@ final class WebhookUiController
     private const TYPES = [
         'accepted', 'rejected', 'delivered', 'deferred', 'bounced',
         'complained', 'unsubscribed', 'opened', 'clicked', 'stored',
+        // v1.1 · 6. modul (review SEC-S2): a journey webhook-csomópontja csak az erre
+        // feliratkozott végpontnak küld. (A `/v1` szerződés eseménylistája változatlan.)
+        'journey.step',
     ];
 
     public function index(Request $request): Response

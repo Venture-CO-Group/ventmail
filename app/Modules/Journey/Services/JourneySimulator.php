@@ -41,13 +41,33 @@ final class JourneySimulator
 {
     public const MAX_STEPS = 100;
 
+    /**
+     * A kiértékelt FELTÉTELEK plafonja futásonként (review SEC-S1 / SEC-S3): a teszt-futtatás
+     * nem lehet tetszőleges számú lekérdezés orákuluma. A szegmens-feltétel külön, szűkebb
+     * plafont kap (a szegmens-lekérdezés a legdrágább).
+     */
+    public const MAX_CONDITIONS = 25;
+
+    public const MAX_SEGMENT_CONDITIONS = 5;
+
+    private int $conditionsEvaluated = 0;
+
+    private int $segmentsEvaluated = 0;
+
     public function __construct(private readonly JourneyConditions $conditions) {}
 
     /**
      * @return array{contact: string, found: bool, steps: list<array<string, mixed>>, sends: int, realSends: int, simulatedMinutes: int, stopped: ?string}
      */
-    public function run(JourneyGraph $graph, string $email): array
+    /**
+     * @param  bool  $detailed  a kapu-okok és a feltétel-kimenetek láthatók-e (review SEC-S1:
+     *                          `audience.manage` nélkül csak az út — a csomópontok sorrendje)
+     */
+    public function run(JourneyGraph $graph, string $email, bool $detailed = true): array
     {
+        $this->conditionsEvaluated = 0;
+        $this->segmentsEvaluated = 0;
+
         $email = DomainNormalizer::listKey(trim($email));
         $contact = Contact::query()->where('email', $email)->first();
         $clock = 0;
@@ -55,12 +75,13 @@ final class JourneySimulator
         $sends = 0;
 
         // REFERENCIÁVAL: az eredmény a lezáráskori állapotot adja, nem a definíciókorit.
-        $result = function (?string $stopped) use ($email, $contact, &$steps, &$sends, &$clock): array {
+        $result = function (?string $stopped) use ($email, $contact, $detailed, &$steps, &$sends, &$clock): array {
             return [
                 'contact' => $email,
                 'found' => $contact !== null,
-                'steps' => $steps,
-                'sends' => $sends,
+                'redacted' => ! $detailed,
+                'steps' => $detailed ? $steps : array_map(self::redact(...), $steps),
+                'sends' => $detailed ? $sends : 0,
                 // A VALÓDI küldések száma — mindig nulla; a felület ezt írja ki.
                 'realSends' => 0,
                 'simulatedMinutes' => $clock,
@@ -88,7 +109,11 @@ final class JourneySimulator
                 return $result('invalid_node');
             }
 
-            [$outcome, $handle, $detail, $minutes] = $this->simulate($node, $email, $contact);
+            try {
+                [$outcome, $handle, $detail, $minutes] = $this->simulate($node, $email, $contact);
+            } catch (SimulationLimitReached) {
+                return $result('condition_limit');
+            }
 
             $clock += $minutes;
 
@@ -121,7 +146,7 @@ final class JourneySimulator
         return match ($node['type']) {
             'send_email' => [...$this->send($config, $email), 0],
             'wait' => $this->wait($config, $email),
-            'condition' => $this->conditions->evaluate($config, $email, $contact)
+            'condition' => $this->evaluate($config, $email, $contact)
                 ? ['condition_true', 'yes', null, 0]
                 : ['condition_false', 'no', null, 0],
             'split' => $this->split($config, $email, $contact),
@@ -204,12 +229,52 @@ final class JourneySimulator
     private function split(array $config, string $email, Contact $contact): array
     {
         foreach ((array) ($config['branches'] ?? []) as $branch) {
-            if (is_array($branch) && $this->conditions->evaluate((array) ($branch['condition'] ?? []), $email, $contact)) {
+            if (is_array($branch) && $this->evaluate((array) ($branch['condition'] ?? []), $email, $contact)) {
                 return ['split_branch', (string) ($branch['key'] ?? 'else'), (string) ($branch['key'] ?? ''), 0];
             }
         }
 
         return ['split_branch', 'else', 'else', 0];
+    }
+
+    /**
+     * Feltétel-kiértékelés PLAFONNAL.
+     *
+     * @param  array<string, mixed>  $config
+     *
+     * @throws SimulationLimitReached
+     */
+    private function evaluate(array $config, string $email, Contact $contact): bool
+    {
+        if (++$this->conditionsEvaluated > self::MAX_CONDITIONS) {
+            throw new SimulationLimitReached;
+        }
+
+        if (($config['type'] ?? null) === 'in_segment' && ++$this->segmentsEvaluated > self::MAX_SEGMENT_CONDITIONS) {
+            throw new SimulationLimitReached;
+        }
+
+        return $this->conditions->evaluate($config, $email, $contact);
+    }
+
+    /**
+     * CSAK AZ ÚT (review SEC-S1): a csomópont és az idő marad, a kapu-ok, a feltétel-kimenet és
+     * az ág neve nem — a teszt-futtatás ne legyen a kontakt-adatok (suppression, consent,
+     * nyitás, címke, mezőérték) orákuluma annak, aki a közönséget amúgy nem láthatja.
+     *
+     * @param  array<string, mixed>  $step
+     * @return array<string, mixed>
+     */
+    private static function redact(array $step): array
+    {
+        $keep = ['entered', 'goal', 'exit', 'end', 'waited'];
+
+        return [
+            ...$step,
+            'outcome' => in_array($step['outcome'], $keep, true) ? $step['outcome'] : 'visited',
+            'detail' => null,
+            'handle' => null,
+        ];
     }
 
     /** @return array<string, mixed> */

@@ -132,6 +132,8 @@ return [
         'publishInvalid' => 'Le graphe du parcours contient des erreurs — corrigez les nœuds signalés et réessayez.',
         'published' => 'Publié : version :version.',
         'notActive' => "Le parcours n'est pas actif.",
+        'testRunTooExpensive' => "L'exécution de test est devenue trop coûteuse — simplifiez les conditions et réessayez.",
+        'webhookForbidden' => 'Seuls les utilisateurs pouvant gérer les webhooks peuvent choisir un point de terminaison.',
     ],
     'gate' => [
         'domain_unverified' => 'Le domaine d\'envoi n\'est pas vérifié.',

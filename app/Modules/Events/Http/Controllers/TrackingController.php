@@ -9,6 +9,7 @@ use App\Modules\Events\Data\TrackingClaim;
 use App\Modules\Events\Models\MessageEvent;
 use App\Modules\Events\Services\TrackingTokens;
 use App\Modules\Journey\Actions\FireJourneyEvent;
+use App\Modules\Journey\Services\JourneyWaitWaker;
 use App\Modules\Logs\Models\ErasedRecipient;
 use App\Modules\Sending\Models\Message;
 use App\Modules\Tenancy\Models\Workspace;
@@ -240,6 +241,7 @@ final class TrackingController
             }
 
             $this->fireCampaignInteraction($message, (string) $claim->recipient, $type);
+            $this->wakeWaitingJourneys((string) $claim->recipient);
         } finally {
             // A végpont NYILVÁNOS: a bent felejtett kontextus a következő, akár egészen más
             // tenanthoz tartozó kérést szennyezné. A hívó korábbi kontextusát viszont nem a
@@ -271,6 +273,19 @@ final class TrackingController
                 substr($campaign, strlen('campaign:')),
                 $type === 'clicked' ? 'click' : 'open',
             );
+        } catch (Throwable $e) {
+            report($e);
+        }
+    }
+
+    /**
+     * v1.1 · 6. modul (review REV-S3) — az eseményre váró journey-futások ÉBRESZTÉSE: a címzett
+     * várakozó futásai azonnal esedékesek lesznek. A hiba itt sem bukhatja el a követést.
+     */
+    private function wakeWaitingJourneys(string $recipient): void
+    {
+        try {
+            app(JourneyWaitWaker::class)->wake($recipient);
         } catch (Throwable $e) {
             report($e);
         }

@@ -76,6 +76,9 @@ final class JourneyTrigger
             : null;
 
         $journeys = Journey::query()
+            // A jogosultság-ellenőrzés a workspace-et olvassa: több illeszkedő journey-nél a
+            // lusta betöltés N+1 (és tesztben LazyLoadingViolation) lenne.
+            ->with('workspace')
             ->where('status', 'active')
             ->where('trigger_type', $type->value)
             ->when($target !== null, fn ($query) => $query->where('uuid', $target))
