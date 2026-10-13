@@ -42,7 +42,7 @@ function build(token: TokenResolver): Record<string, unknown> {
         tooltip: { trigger: 'axis', valueFormatter: (value: number) => formatter(value) },
         legend: { top: 0, textStyle: { color: text } },
         grid: { left: 8, right: 24, top: 36, bottom: 8, containLabel: true },
-        xAxis: { type: 'category', boundaryGap: false, data: props.categories, axisLine: { lineStyle: { color: grid } }, axisLabel: { color: text, formatter: (value: string) => format.day(value) } },
+        xAxis: { type: 'category', boundaryGap: false, data: props.categories, axisLine: { lineStyle: { color: grid } }, axisLabel: { color: text, formatter: (value: string) => format.day(value), hideOverlap: true, alignMinLabel: 'left', alignMaxLabel: 'right' } },
         yAxis: { type: 'value', minInterval: props.percent ? undefined : 1, splitLine: { lineStyle: { color: grid } }, axisLabel: { color: text, formatter } },
         series: props.series.map((serie, index) => ({
             name: serie.name,

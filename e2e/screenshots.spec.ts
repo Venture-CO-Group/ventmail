@@ -65,7 +65,22 @@ async function settle(page: Page): Promise<void> {
 
 async function shot(page: Page, kind: Kind, name: string, options: { fullPage?: boolean } = {}): Promise<void> {
     await settle(page);
-    await page.screenshot({ path: join(OUT, kind, `${name}.png`), fullPage: options.fullPage ?? true, animations: 'disabled', caret: 'hide' });
+
+    const fullPage = options.fullPage ?? true;
+    const viewport = page.viewportSize();
+
+    // A teljes oldalas kép ÁTMÉRETEZI a nézetet; az ECharts (`autoresize`) erre újrarajzol, és a
+    // rögzítés pillanatában üres vásznat adott. Ezért előbb mi nyújtjuk ki a nézetet, megvárjuk
+    // az újrarajzolást, és csak utána fényképezünk.
+    if (fullPage && viewport && (await page.locator('canvas').count()) > 0) {
+        const height = await page.evaluate(() => document.documentElement.scrollHeight);
+        await page.setViewportSize({ width: viewport.width, height: Math.max(viewport.height, height) });
+        await page.waitForTimeout(1200);
+    }
+
+    await page.screenshot({ path: join(OUT, kind, `${name}.png`), fullPage, animations: 'disabled', caret: 'hide' });
+
+    if (viewport) await page.setViewportSize(viewport);
 }
 
 async function visit(page: Page, path: string): Promise<void> {
