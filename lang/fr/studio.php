@@ -67,5 +67,6 @@ return [
     ],
     'templates' => [
         'publishLocked' => 'Ce modèle est utilisé par une campagne ou un parcours actif (:uses) — il ne peut être modifié qu\'avec le droit de publication. Faites-en une copie ou demandez à une personne autorisée.',
+        'assetInSavedBlock' => 'Cette image est utilisée par un bloc enregistré — elle ne peut être supprimée qu\'avec le droit de publication.',
     ],
 ];

@@ -684,7 +684,7 @@ function openTest(): void {
         </VtDrawer>
 
         <PreviewModal v-model:open="previewOpen" :uuid="template.uuid" :payload="() => editor.payload(false)" />
-        <VersionsDrawer v-model:open="versionsOpen" :uuid="template.uuid" :before-restore="() => editor.save(true)" @restored="restored" />
+        <VersionsDrawer v-model:open="versionsOpen" :uuid="template.uuid" :read-only="locked" :before-restore="() => editor.save(true)" @restored="restored" />
 
         <VtModal :open="testOpen" :title="t('editor.testSend.title')" @update:open="testOpen = $event" @close="testOpen = false">
             <TestSendForm :uuid="template.uuid" :recipients="testRecipients" :domains="senderDomains" :before-send="beforeSend" />

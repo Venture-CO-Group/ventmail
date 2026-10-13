@@ -67,5 +67,6 @@ return [
     ],
     'templates' => [
         'publishLocked' => 'This template is used by an active campaign or journey (:uses) — it can only be changed with publish rights. Make a copy, or ask a publisher.',
+        'assetInSavedBlock' => 'This image is used by a saved block — it can only be deleted with publish rights.',
     ],
 ];

@@ -210,19 +210,26 @@ final class TemplateUiController
 
         $template = Template::query()->where('uuid', $uuid)->firstOrFail();
 
-        // B2 · FUTÓ kampány / változat / aktív journey sablonja nem törölhető: a folytatás
-        // `no_template`-re futna, és a címzettek levél nélkül maradnának.
-        $blockers = $usage->blockers($template);
+        // A TÖRLÉS a sablon-sor ZÁRJA ALATT kérdezi a használatokat (review r5 N2): az élesítés
+        // (kampány-indítás / ütemezés, journey-publikálás) ugyanezt a sort `FOR SHARE` zárolja, tehát
+        // egy közben élesített kampány sablonja nem csúszhat át a törlésen.
+        DB::transaction(function () use ($template, $usage): void {
+            $locked = Template::query()->whereKey($template->getKey())->lockForUpdate()->firstOrFail();
 
-        if ($blockers['campaigns'] !== [] || $blockers['journeys'] !== []) {
-            throw ValidationException::withMessages(['template' => [__('ventmail.editor.inUse', [
-                'names' => implode(', ', [...$blockers['campaigns'], ...$blockers['journeys']]),
-            ])]]);
-        }
+            // B2 · FUTÓ kampány / változat / aktív journey sablonja nem törölhető: a folytatás
+            // `no_template`-re futna, és a címzettek levél nélkül maradnának.
+            $blockers = $usage->blockers($locked);
 
-        // SOFT delete: a kampányok `template_id`-je nem lóg a levegőben, és az audit a tényt
-        // (`deleted`) megőrzi.
-        $template->delete();
+            if ($blockers['campaigns'] !== [] || $blockers['journeys'] !== []) {
+                throw ValidationException::withMessages(['template' => [__('ventmail.editor.inUse', [
+                    'names' => implode(', ', [...$blockers['campaigns'], ...$blockers['journeys']]),
+                ])]]);
+            }
+
+            // SOFT delete: a kampányok `template_id`-je nem lóg a levegőben, és az audit a tényt
+            // (`deleted`) megőrzi.
+            $locked->delete();
+        });
 
         return redirect()->route('templates.index')->with('success', __('ventmail.editor.deleted'));
     }

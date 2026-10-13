@@ -320,3 +320,19 @@ it('N-a · UTF-16 kódolású (BOM-os vagy NUL-os) XML-rész formátum-hiba — 
     'UTF-16BE BOM' => ["\xFE\xFF".mb_convert_encoding('<!DOCTYPE x><styleSheet/>', 'UTF-16BE', 'UTF-8')],
     'BOM nélküli UTF-16LE' => [mb_convert_encoding('<?xml version="1.0" encoding="UTF-16"?><styleSheet/>', 'UTF-16LE', 'UTF-8')],
 ]);
+
+it('N5(r5) · az XML-rész kódolása csak UTF-8 (vagy deklaráció nélküli) lehet', function (string $declaration, bool $ok) {
+    $path = r5Zip(array_merge(r5Base([]), ['xl/styles.xml' => $declaration.'<styleSheet/>']));
+
+    $guard = fn () => app(ImportFileInspector::class)->guard($path, 'xlsx');
+
+    $ok ? expect($guard)->not->toThrow(ImportLimitExceeded::class)
+        : expect($guard)->toThrow(fn (ImportLimitExceeded $e) => expect($e->reason)->toBe('format'));
+})->with([
+    'deklaráció nélkül' => ['', true],
+    'UTF-8' => ['<?xml version="1.0" encoding="UTF-8" standalone="yes"?>', true],
+    'utf-8 kisbetűvel, aposztróffal' => ["<?xml version='1.0' encoding='utf-8'?>", true],
+    'encoding nélküli deklaráció' => ['<?xml version="1.0"?>', true],
+    'ISO-8859-1' => ['<?xml version="1.0" encoding="ISO-8859-1"?>', false],
+    'UTF-7' => ['<?xml version="1.0" encoding="UTF-7"?>', false],
+]);

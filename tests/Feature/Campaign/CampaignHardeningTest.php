@@ -25,8 +25,10 @@ use App\Modules\Journey\Services\JourneyPublisher;
 use App\Modules\Sending\Actions\SendMessage;
 use App\Modules\Sending\Drivers\FakeDriver;
 use App\Modules\Sending\Models\Message;
+use App\Modules\Template\Models\SavedBlock;
 use App\Modules\Template\Models\Template;
 use App\Modules\Template\Models\TemplateAsset;
+use App\Modules\Template\Models\TemplateVersion;
 use App\Modules\Template\Services\TemplateEditorSaver;
 use App\Modules\Template\Services\TemplatePublishLocked;
 use App\Modules\Template\Services\TemplateVersions;
@@ -787,7 +789,7 @@ it('SEC4-S2 · köteg-generáció CAS: ha közben másik köteg íródott a kamp
 
     // Ez a dispatcher a `null` generációt látta; közben egy folytatás a saját kötegét írta fel.
     $seen = $campaign->fresh();
-    Campaign::query()->whereKey($campaign->getKey())->update(['batch_id' => 'masik-koteg']);
+    Campaign::query()->whereKey($campaign->getKey())->update(['batch_id' => 'masik-koteg', 'batch_generation' => 1]);
 
     Bus::fake();
     $batchId = app(CampaignBatchDispatcher::class)->dispatch($seen);
@@ -843,4 +845,107 @@ it('R4-S3 · a zárolt sablon szerkesztője a tiltás okát kapja (csak olvashat
 
     r3As($this, 'editor')->get('/templates/'.$this->template->uuid)->assertOk()
         ->assertInertia(fn ($page) => $page->where('writeDenial', null));
+});
+
+/* ---------------------------------------------------------------- 5. review-kör */
+
+it('S2(r5) · pause → resume a köteg-építés KÖZBEN: a régebbi építés veszít, a folytatás kötege él és minden pending sort lefed', function () {
+    hardMember('a@pelda.hu');
+    hardMember('b@pelda.hu');
+    Queue::fake();
+
+    $campaign = app(CampaignLifecycle::class)->start(hardCampaign());
+    app(StartCampaign::class)->materialize($campaign->fresh());
+
+    // R1: egy köteg-építés a szüneteltetés ELŐTTI generációval indul.
+    $r1Campaign = $campaign->fresh();
+    $r2Campaign = null;
+
+    // A pending-sorok beolvasása után: szüneteltetés, majd a folytatás ÁLLAPOTVÁLTÁSA — a folytatás
+    // saját köteg-építése (R2) még „úton van", és csak R1 UTÁN ír. (R1 jobjai a szünet alatt
+    // korán kiléptek volna — a címzettjeiket csak R2 viheti tovább.)
+    r4After(['from "campaign_recipients"', 'order by "id"'], function () use ($campaign, &$r2Campaign): void {
+        app(CampaignLifecycle::class)->pause($campaign->fresh());
+        DB::table('campaigns')->where('id', $campaign->getKey())->update(['status' => 'sending']);
+        $r2Campaign = $campaign->fresh();
+    });
+
+    $dispatcher = app(CampaignBatchDispatcher::class);
+    $r1 = $dispatcher->dispatch($r1Campaign);
+    $r2 = $dispatcher->dispatch($r2Campaign);
+
+    $fresh = $campaign->fresh();
+
+    expect($fresh->status)->toBe('sending')
+        // A régebbi (szüneteltetés előtti) generáció veszít és törlődik…
+        ->and(Bus::findBatch((string) $r1)?->cancelled())->toBeTrue()
+        // …a folytatás kötege él, és MINDEN pending sort lefed.
+        ->and((string) $fresh->batch_id)->toBe((string) $r2)
+        ->and(Bus::findBatch((string) $r2)?->cancelled())->toBeFalse()
+        ->and(Bus::findBatch((string) $r2)?->totalJobs)->toBe((int) ceil($fresh->recipients()->where('status', 'pending')->count() / CampaignBatchDispatcher::CHUNK))
+        ->and($fresh->recipients()->where('status', 'pending')->count())->toBe(2);
+});
+
+it('N1(r5) · a lezárás a számlálókat a címzett-sorokból egyezteti (kampány és variáns)', function () {
+    hardMember('a@pelda.hu');
+    hardMember('b@pelda.hu');
+    hardMember('c@pelda.hu');
+
+    $campaign = app(CampaignLifecycle::class)->start(hardCampaign());
+    $variant = $campaign->variants()->create(['label' => 'A', 'subject' => 'A tárgy', 'weight' => 100]);
+
+    $ids = Contact::query()->orderBy('email')->pluck('id', 'email');
+    $campaign->recipients()->create(['contact_id' => $ids['a@pelda.hu'], 'email' => 'a@pelda.hu', 'campaign_variant_id' => $variant->getKey()]);
+    $campaign->recipients()->create(['contact_id' => $ids['b@pelda.hu'], 'email' => 'b@pelda.hu', 'campaign_variant_id' => $variant->getKey()]);
+    $campaign->recipients()->create(['contact_id' => $ids['c@pelda.hu'], 'email' => 'c@pelda.hu']);
+    DB::table('campaign_recipients')->where('campaign_id', $campaign->getKey())->whereIn('email', ['a@pelda.hu', 'b@pelda.hu'])->update(['status' => 'sent']);
+    DB::table('campaign_recipients')->where('campaign_id', $campaign->getKey())->where('email', 'c@pelda.hu')->update(['status' => 'skipped', 'skip_reason' => 'NO_CONSENT']);
+
+    // Egy worker a címzett-sorok commitja után, a számlálás előtt meghalt: a számlálók alul vannak.
+    DB::table('campaigns')->where('id', $campaign->getKey())->update(['sent_count' => 1, 'failed_count' => 0]);
+
+    app(CampaignLifecycle::class)->complete($campaign->fresh());
+
+    $fresh = $campaign->fresh();
+
+    expect($fresh->status)->toBe('sent')
+        ->and($fresh->sent_count)->toBe(2)
+        ->and($fresh->failed_count)->toBe(1)
+        ->and((int) $variant->fresh()->sent_count)->toBe(2);
+});
+
+it('N2(r5) · a sablon törlése a sablon-sort zárolja, és a zár alatt kérdezi a használatokat', function () {
+    $template = hardTemplate('Törlendő', 'Nádor utca 1., 1051 Budapest');
+    $sql = [];
+    DB::listen(function ($query) use (&$sql): void {
+        $sql[] = strtolower($query->sql);
+    });
+
+    hardAs($this)->delete('/templates/'.$template->uuid)->assertRedirect();
+
+    $lock = collect($sql)->search(fn (string $q) => str_contains($q, 'from "templates"') && str_contains($q, 'for update'));
+    $usage = collect($sql)->search(fn (string $q) => str_contains($q, 'from "campaigns"'));
+
+    expect($lock)->not->toBeFalse()
+        ->and($usage)->not->toBeFalse()
+        ->and($lock)->toBeLessThan($usage);
+});
+
+it('N3(r5) · a kép törlése az AKTÍV sablon korábbi VERZIÓJÁBAN vagy mentett blokkban hivatkozott képre is publikálási jogot kér', function () {
+    hardMember('a@pelda.hu');
+    $inVersion = TemplateAsset::create(['driver' => 'local', 'path' => 'assets/v.png', 'url' => 'https://cdn.pelda.hu/assets/v-'.uniqid().'.png', 'mime' => 'image/png', 'size' => 10, 'width' => 10, 'height' => 10]);
+    $inBlock = TemplateAsset::create(['driver' => 'local', 'path' => 'assets/b.png', 'url' => 'https://cdn.pelda.hu/assets/b-'.uniqid().'.png', 'mime' => 'image/png', 'size' => 10, 'width' => 10, 'height' => 10]);
+
+    // A sablon egy KORÁBBI verziója hivatkozza a képet (visszaállítással visszajönne).
+    $blocks = $this->template->blocks;
+    $withImage = $blocks;
+    $withImage[0]['children'][0]['children'][] = ['type' => 'image', 'attrs' => ['src' => $inVersion->url, 'alt' => 'Kép']];
+    TemplateVersion::create(['template_id' => $this->template->getKey(), 'number' => 99, 'name' => 'v99', 'reason' => 'save', 'blocks' => $withImage, 'subject' => 'x', 'content_hash' => hash('sha256', 'v99')]);
+    r3Scheduled();
+
+    SavedBlock::create(['name' => 'Fejléc', 'kind' => 'block', 'block' => ['type' => 'image', 'attrs' => ['src' => $inBlock->url, 'alt' => 'Logó']]]);
+
+    r3As($this, 'author')->deleteJson('/template-assets/'.$inVersion->uuid)->assertForbidden();
+    r3As($this, 'author')->deleteJson('/template-assets/'.$inBlock->uuid)->assertForbidden();
+    r3As($this, 'editor')->deleteJson('/template-assets/'.$inBlock->uuid)->assertOk();
 });

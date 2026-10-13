@@ -67,5 +67,6 @@ return [
     ],
     'templates' => [
         'publishLocked' => 'Esta plantilla la usa una campaña o un journey activo (:uses): solo puede modificarse con permiso de publicación. Haz una copia o pide ayuda a una persona con ese permiso.',
+        'assetInSavedBlock' => 'Esta imagen la usa un bloque guardado: solo puede eliminarse con permiso de publicación.',
     ],
 ];

@@ -67,5 +67,6 @@ return [
     ],
     'templates' => [
         'publishLocked' => 'Ezt a sablont aktív kampány vagy journey használja (:uses) — csak közzétételi joggal módosítható. Készíts másolatot, vagy kérj meg egy közzétevőt.',
+        'assetInSavedBlock' => 'Ezt a képet egy mentett blokk használja — csak közzétételi joggal törölhető.',
     ],
 ];

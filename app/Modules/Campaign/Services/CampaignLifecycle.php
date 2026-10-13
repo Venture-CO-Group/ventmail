@@ -8,6 +8,7 @@ use App\Modules\Audit\Services\AuditLogger;
 use App\Modules\Campaign\Enums\CampaignStatus;
 use App\Modules\Campaign\Jobs\StartCampaignJob;
 use App\Modules\Campaign\Models\Campaign;
+use App\Modules\Campaign\Models\CampaignVariant;
 use App\Modules\Template\Models\Template;
 use App\Modules\Template\Services\TemplateCompliance;
 use App\Support\QueryBudget;
@@ -153,11 +154,18 @@ final class CampaignLifecycle
      */
     public function pause(Campaign $campaign): Campaign
     {
-        $paused = $this->change($campaign, CampaignStatus::Paused);
+        $batchId = null;
 
-        // A köteg törlése a COMMIT UTÁN (a friss `batch_id`-vel): a futó chunk-jobok ekkor már a
-        // `paused` állapotot látják.
-        $this->cancelBatch($paused);
+        // A KÖTEG-GENERÁCIÓ LÉPTETÉSE a sorzár alatt (review r5 S2): minden, a szüneteltetés ELŐTT
+        // indult köteg-építés a CAS-án veszít — akkor is, ha a kampányt közben folytatták. A
+        // törlendő köteg azonosítója is a zár alatt olvasódik (nem a commit utáni, már átírható érték).
+        $paused = $this->change($campaign, CampaignStatus::Paused, static function (Campaign $locked) use (&$batchId): void {
+            $batchId = $locked->batch_id === null ? null : (string) $locked->batch_id;
+            $locked->batch_generation = (int) $locked->batch_generation + 1;
+        });
+
+        // A köteg törlése a COMMIT UTÁN: a futó chunk-jobok ekkor már a `paused` állapotot látják.
+        $this->cancelBatchId($batchId);
 
         return $paused;
     }
@@ -224,6 +232,13 @@ final class CampaignLifecycle
      * A `Bus::findBatch` `null`-t ad, ha a batch már lejárt vagy törölve lett — ez nem hiba,
      * hanem a normális eset egy régen befejezett kampánynál.
      */
+    private function cancelBatchId(?string $batchId): void
+    {
+        if ($batchId !== null && $batchId !== '') {
+            Bus::findBatch($batchId)?->cancel();
+        }
+    }
+
     private function cancelBatch(Campaign $campaign): void
     {
         // FRISS érték az adatbázisból (review BN1): a háttér-materializálás a példány betöltése
@@ -237,10 +252,30 @@ final class CampaignLifecycle
         Bus::findBatch($batchId)?->cancel();
     }
 
+    /**
+     * LEZÁRÁS — a számlálók EGYEZTETÉSÉVEL (review r5 N1).
+     *
+     * A köteg-job a címzett-sorokat címzettenként commitolja, a számlálókat kötegenként: egy worker,
+     * amely a kettő között meghal, alulszámolást hagy. A számlálás így „legfeljebb egyszer" (D145) —
+     * és a lezáráskor a címzett-sorokból (az igazságforrásból) egyeztetünk: `sent` → `sent_count`,
+     * `failed` + `skipped` → `failed_count` (ugyanaz a felosztás, mint a köteg OUTCOME-jai), és a
+     * variánsok `sent_count`-ja (az A/B győztes ebből számol).
+     */
     public function complete(Campaign $campaign): Campaign
     {
         return $this->change($campaign, CampaignStatus::Sent, static function (Campaign $locked): void {
-            $locked->forceFill(['finished_at' => now()]);
+            $locked->forceFill([
+                'finished_at' => now(),
+                'sent_count' => $locked->recipients()->where('status', 'sent')->count(),
+                'failed_count' => $locked->recipients()->whereIn('status', ['failed', 'skipped'])->count(),
+            ]);
+
+            // A tenant-szűrt modellen (global scope), nem nyers táblán.
+            CampaignVariant::query()
+                ->where('campaign_id', $locked->getKey())
+                ->update(['sent_count' => DB::raw(
+                    "(select count(*) from campaign_recipients r where r.campaign_variant_id = campaign_variants.id and r.status = 'sent')"
+                )]);
         });
     }
 
@@ -261,7 +296,8 @@ final class CampaignLifecycle
     public function cancel(Campaign $campaign): Campaign
     {
         $canceled = $this->change($campaign, CampaignStatus::Canceled, static function (Campaign $locked): void {
-            $locked->forceFill(['finished_at' => now()]);
+            // A generáció léptetése: egy épp épülő köteg nem íródhat fel a visszavont kampányra.
+            $locked->forceFill(['finished_at' => now(), 'batch_generation' => (int) $locked->batch_generation + 1]);
         });
 
         $campaign = $canceled;

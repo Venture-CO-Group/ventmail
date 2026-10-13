@@ -5,12 +5,15 @@ declare(strict_types=1);
 namespace App\Modules\Template\Http\Controllers;
 
 use App\Modules\Template\Contracts\AssetStore;
+use App\Modules\Template\Models\SavedBlock;
 use App\Modules\Template\Models\Template;
 use App\Modules\Template\Models\TemplateAsset;
+use App\Modules\Template\Models\TemplateVersion;
 use App\Modules\Template\Services\Assets\AssetUploader;
 use App\Modules\Template\Services\TemplateUsage;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 
 /**
@@ -50,22 +53,47 @@ final class TemplateAssetController
 
         $asset = TemplateAsset::query()->where('uuid', $uuid)->firstOrFail();
 
-        // AZ AKTÍV SABLONBAN HIVATKOZOTT KÉP törlése a kiküldendő levelet változtatja (review N-d):
-        // ugyanaz a publikálási kapu, mint a sablon írásánál. A hivatkozás a kép URL-je a blokkfa
-        // (`src`) vagy a stílusok JSON-jában; a global scope a tenant-határ.
-        $needle = '%'.addcslashes((string) $asset->url, '%_\\').'%';
-        $users = Template::query()
-            ->where(fn ($query) => $query->whereRaw('blocks::text like ?', [$needle])->orWhereRaw('coalesce(styles::text, \'\') like ?', [$needle]))
-            ->get();
+        // AZ AKTÍV SABLON által (közvetve is) hivatkozott kép törlése a kiküldendő levelet változtatja
+        // (review N-d → r5 N3): ugyanaz a publikálási kapu, mint a sablon írásánál — a zárak alatt.
+        $denial = DB::transaction(function () use ($asset, $usage): ?string {
+            $locked = TemplateAsset::query()->whereKey($asset->getKey())->lockForUpdate()->firstOrFail();
+            $needle = '%'.addcslashes((string) $locked->url, '%_\\').'%';
+            $refers = static fn ($query) => $query->whereRaw('blocks::text like ?', [$needle])
+                ->orWhereRaw('coalesce(styles::text, \'\') like ?', [$needle]);
 
-        foreach ($users as $template) {
-            if (($denial = $usage->writeDenial($template)) !== null) {
-                return response()->json(['message' => $denial], 403);
+            // A hivatkozó sablonok: a mostani tartalom ÉS a korábbi verziók (egy visszaállítás a képet
+            // visszahozná). A global scope a tenant-határ.
+            $ids = Template::query()->where($refers)->pluck('id')
+                ->merge(TemplateVersion::query()->where($refers)->pluck('template_id'))
+                ->unique()->sort()->values()->all();
+
+            // A sablon-sorok zárja (FOR UPDATE, id-sorrendben): az élesítés (FOR SHARE) addig vár, és a
+            // `writeDenial()` a zár alatt látott aktív használatot nézi.
+            $templates = $ids === [] ? collect() : Template::query()->whereKey($ids)->orderBy('id')->lockForUpdate()->get();
+
+            foreach ($templates as $template) {
+                if (($denial = $usage->writeDenial($template)) !== null) {
+                    return $denial;
+                }
             }
+
+            // A MENTETT BLOKK a workspace közös tartalma: a hivatkozott képe csak publikálási joggal törölhető.
+            if (Gate::denies('template.publish')
+                && SavedBlock::query()->whereRaw('block::text like ?', [$needle])->exists()) {
+                return __('studio.templates.assetInSavedBlock');
+            }
+
+            $locked->delete();
+
+            return null;
+        });
+
+        if ($denial !== null) {
+            return response()->json(['message' => $denial], 403);
         }
 
+        // A tárhely-fájl a COMMIT UTÁN törlődik (a sor törlése visszagörgethető, a fájlé nem).
         $store->delete((string) $asset->path);
-        $asset->delete();
 
         return response()->json(['deleted' => true]);
     }

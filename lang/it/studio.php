@@ -67,5 +67,6 @@ return [
     ],
     'templates' => [
         'publishLocked' => 'Questo modello è usato da una campagna o un journey attivo (:uses) — può essere modificato solo con il permesso di pubblicazione. Creane una copia o chiedi a chi ha il permesso.',
+        'assetInSavedBlock' => 'Questa immagine è usata da un blocco salvato — può essere eliminata solo con il permesso di pubblicazione.',
     ],
 ];

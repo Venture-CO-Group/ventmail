@@ -436,6 +436,19 @@ final class ImportFileInspector
                         throw new ImportLimitExceeded('format');
                     }
 
+                    // KÓDOLÁS-ENGEDÉLYLISTA (review r5 N5): az XML-deklaráció csak UTF-8-at (vagy semmit)
+                    // mondhat. Egy más kódolású rész (ISO-8859-1, UTF-7, …) a fenti bájt-szintű
+                    // szűrőket (DTD, csomópont-számlálás) megkerülhetné.
+                    if ($isXmlPart && $entry === strlen($chunk)) {
+                        $head = ltrim(substr($chunk, 0, 512), "\xEF\xBB\xBF \t\r\n");
+
+                        if (str_starts_with($head, '<?xml')
+                            && preg_match('/^<\?xml[^>]*?\sencoding\s*=\s*["\']([^"\']*)["\']/i', $head, $declared) === 1
+                            && strtolower($declared[1]) !== 'utf-8') {
+                            throw new ImportLimitExceeded('format');
+                        }
+                    }
+
                     $scan = $declTail.$chunk;
 
                     if (stripos($scan, '<!DOCTYPE') !== false || stripos($scan, '<!ENTITY') !== false) {

@@ -19,7 +19,8 @@ interface VersionRow {
     blockCount: number;
 }
 
-const props = defineProps<{ open: boolean; uuid: string; beforeRestore: () => Promise<boolean> }>();
+/** `readOnly` (review r5 N5): a zárolt sablon verziói megnézhetők, de nem állíthatók vissza (a szerver úgyis 403-at adna). */
+const props = defineProps<{ open: boolean; uuid: string; beforeRestore: () => Promise<boolean>; readOnly?: boolean }>();
 
 const emit = defineEmits<{ 'update:open': [value: boolean]; restored: [template: TemplateData] }>();
 
@@ -70,7 +71,7 @@ async function restore(number: number): Promise<void> {
                     </strong>
                     <small>{{ version.createdAt ? new Date(version.createdAt).toLocaleString(locale) : '' }} · {{ version.author ?? t('editor.versions.system') }}</small>
                     <small>{{ t(`editor.versions.reasons.${version.reason}`, { from: version.restoredFrom ?? '' }) }}</small>
-                    <VtButton v-if="index > 0" size="sm" variant="ghost" :loading="busy === version.number" :data-testid="`restore-${version.number}`" @click="restore(version.number)">
+                    <VtButton v-if="index > 0 && !readOnly" size="sm" variant="ghost" :loading="busy === version.number" :data-testid="`restore-${version.number}`" @click="restore(version.number)">
                         {{ t('editor.versions.restore') }}
                     </VtButton>
                 </li>

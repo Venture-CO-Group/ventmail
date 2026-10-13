@@ -67,5 +67,6 @@ return [
     ],
     'templates' => [
         'publishLocked' => 'Diese Vorlage wird von einer aktiven Kampagne oder Journey verwendet (:uses) — sie kann nur mit Veröffentlichungsrecht geändert werden. Erstelle eine Kopie oder bitte eine berechtigte Person.',
+        'assetInSavedBlock' => 'Dieses Bild wird von einem gespeicherten Block verwendet — es kann nur mit Veröffentlichungsrecht gelöscht werden.',
     ],
 ];
