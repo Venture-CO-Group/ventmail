@@ -28,8 +28,19 @@ final class ContactField extends Model
 
     protected $fillable = ['key', 'label', 'type'];
 
+    /**
+     * v1.1 (review B1) · a mező a preference centerben látszik és a címzett írhatja — ALAPBÓL
+     * NEM. Szándékosan nem `fillable`: csak a mezőkezelő kapcsolója írja.
+     */
+    protected $attributes = ['preference_visible' => false];
+
     public function uniqueIds(): array
     {
         return ['uuid'];
+    }
+
+    protected function casts(): array
+    {
+        return ['preference_visible' => 'boolean'];
     }
 }

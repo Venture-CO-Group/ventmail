@@ -9,6 +9,7 @@ return [
         'inUse' => 'Eine noch nicht versendete Kampagne nutzt dieses Segment — entferne es dort zuerst.',
         'deleted' => 'Segment gelöscht.',
         'invalid' => 'Ungültige Segmentdefinition.',
+        'tooExpensive' => 'Das Segment ist zu aufwendig (es würde länger als 5 Sekunden laufen). Grenze die Bedingungen ein.',
     ],
     'tags' => [
         'created' => 'Tag angelegt.',
@@ -24,6 +25,7 @@ return [
     'checklist' => [
         'notReady' => 'Die Kampagne kann noch nicht gesendet werden — es fehlt: :blockers.',
         'canceled' => 'Kampagne abgebrochen.',
+        'unscheduled' => 'Nach der Änderung erfüllt die Kampagne die Checkliste nicht mehr; die Planung wurde zurückgenommen — korrigiere sie und plane erneut.',
     ],
     'hosted' => [
         'email' => 'E-Mail-Adresse',
@@ -54,5 +56,11 @@ return [
     ],
     'forms' => [
         'unknownField' => 'Unbekanntes Feld: :key. Nur Namensfelder und eigene Felder der Zielgruppe sind erlaubt.',
+    ],
+    'insights' => [
+        'tooExpensive' => 'Die Zielgruppen-Statistik würde gerade zu lange dauern — versuche es später erneut.',
+    ],
+    'fields' => [
+        'updated' => 'Feldeinstellung gespeichert.',
     ],
 ];

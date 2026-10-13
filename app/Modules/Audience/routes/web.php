@@ -81,6 +81,10 @@ Route::middleware(['auth', 'workspace'])->group(function (): void {
     Route::get('/audience/insights', [AudienceController::class, 'insights'])
         ->middleware('throttle:audience-insights')->name('audience.insights');
 
+    // MEZŐKEZELŐ (review B1): preference-center láthatóság.
+    Route::post('/audience/fields/{uuid}/preference', [AudienceController::class, 'fieldPreference'])
+        ->where('uuid', '[0-9a-fA-F\-]{36}')->name('audience.fields.preference');
+
     // SZEGMENSÉPÍTŐ (v1.1 · 5. modul). Az előnézet JSON (a szerkesztő debounce-szal kéri).
     Route::get('/audience/segments', [SegmentController::class, 'index'])->name('audience.segments.index');
     Route::get('/audience/segments/new', [SegmentController::class, 'create'])->name('audience.segments.create');

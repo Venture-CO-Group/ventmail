@@ -195,7 +195,10 @@ final class PreferenceCenterController
     /** @return Collection<int, ContactField> */
     private function editableFields(): Collection
     {
+        // CSAK a tenant által kifejezetten megjelölt mezők (review B1): a /p/{token} link
+        // továbbítható, egy jelöletlen mező értéke nem kerülhet a birtokosa elé, és nem írhatja.
         return ContactField::query()
+            ->where('preference_visible', true)
             ->whereIn('type', ['text', 'number', 'date'])
             ->orderBy('label')
             ->limit(20)

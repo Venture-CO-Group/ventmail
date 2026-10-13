@@ -643,7 +643,11 @@
         "bulkApply": "Applica",
         "selectContact": "Seleziona {email}",
         "selectPage": "Seleziona pagina",
-        "unselectPage": "Annulla selezione"
+        "unselectPage": "Annulla selezione",
+        "customFields": "Campi personalizzati",
+        "customFieldsHint": "Per impostazione predefinita nessun campo appare nel centro preferenze. Attiva solo ciò che il destinatario può vedere e modificare — il link nell'email può essere inoltrato.",
+        "noCustomFields": "Ancora nessun campo personalizzato — crealo nell'importazione.",
+        "preferenceVisible": "Visibile nel centro preferenze"
     },
     "templates": {
         "title": "Modelli",
@@ -931,7 +935,10 @@
         "openHosted": "Apri",
         "emailField": "Indirizzo email (obbligatorio)",
         "firstName": "Nome",
-        "lastName": "Cognome"
+        "lastName": "Cognome",
+        "requireTiming": "Misurazione del tempo obbligatoria (solo pagina ospitata / iframe)",
+        "requireTimingHint": "Se attivo, contano solo gli invii con il timestamp firmato: un incorporamento HTML proprio non funzionerà.",
+        "htmlNeedsTiming": "Questo modulo richiede la misurazione del tempo: il codice HTML funziona solo dopo averla disattivata. Usa il link ospitato o l'iframe."
     },
     "storedTemplates": {
         "title": "Modelli salvati",

@@ -9,6 +9,7 @@ return [
         'inUse' => 'A campaign that has not been sent yet uses this segment — remove it there first.',
         'deleted' => 'Segment deleted.',
         'invalid' => 'Invalid segment definition.',
+        'tooExpensive' => 'The segment is too expensive (it would run longer than 5 seconds). Narrow the conditions.',
     ],
     'tags' => [
         'created' => 'Tag created.',
@@ -24,6 +25,7 @@ return [
     'checklist' => [
         'notReady' => 'The campaign cannot be sent yet — missing: :blockers.',
         'canceled' => 'Campaign canceled.',
+        'unscheduled' => 'After the change the campaign no longer passes the checklist, so it was unscheduled — fix it and schedule again.',
     ],
     'hosted' => [
         'email' => 'Email address',
@@ -54,5 +56,11 @@ return [
     ],
     'forms' => [
         'unknownField' => 'Unknown field: :key. Only the name fields and the audience custom fields can be used.',
+    ],
+    'insights' => [
+        'tooExpensive' => 'Audience statistics would take too long right now — try again later.',
+    ],
+    'fields' => [
+        'updated' => 'Field setting saved.',
     ],
 ];

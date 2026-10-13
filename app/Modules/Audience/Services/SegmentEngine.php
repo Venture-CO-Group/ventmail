@@ -89,6 +89,13 @@ final class SegmentEngine
         .'where cs.workspace_id = contacts.workspace_id and cs.email = contacts.email '
         ."and cs.channel = 'marketing' limit 1), 'manual')";
 
+    /** @var array<string, list<string>> a típusos egyéni mezők saját operátorai */
+    private const TYPED_OPERATORS = [
+        'json_number' => ['is', 'is_not', 'gt', 'gte', 'lt', 'lte', 'set', 'not_set'],
+        'json_date' => ['is', 'gt', 'gte', 'lt', 'lte', 'within_days', 'not_within_days', 'set', 'not_set'],
+        'json_boolean' => ['is', 'set', 'not_set'],
+    ];
+
     /** A szabályok felső száma — a TELJES fára (csoportokkal együtt). */
     private const MAX_RULES = 50;
 
@@ -307,6 +314,15 @@ final class SegmentEngine
         // v1.1 · TÍPUSOS egyéni mező (szám / dátum / logikai): saját kifejezés, ami a nem
         // illeszkedő értéket NULL-nak látja — egy „sok" érték a számmezőben nem cast-hiba (500),
         // hanem egyszerűen nem felel meg a feltételnek.
+        // SZÖVEGES VISSZAESÉS (review RS3): ha a típusos mezőn a mentett operátor nem értelmezett
+        // (pl. egy szabad attribútumra mentett `starts_with`, mielőtt a mező számmá lett), a
+        // szabály a v1.1 előtti szöveges szemantikával fut — a mentett szegmens nem törik el, és
+        // a kampány / journey nem kap kivételt.
+        if (in_array($type, ['json_number', 'json_date', 'json_boolean'], true)
+            && ! in_array($operator, self::TYPED_OPERATORS[$type], true)) {
+            $type = 'json';
+        }
+
         if (in_array($type, ['json_number', 'json_date', 'json_boolean'], true)) {
             $this->applyTypedAttribute($query, $field, $type, $operator, $value);
 

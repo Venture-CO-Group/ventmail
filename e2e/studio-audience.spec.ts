@@ -56,8 +56,13 @@ test('a szegmensépítő ÉS/VAGY csoportokkal élő számot ad, és a mentett s
 
     await page.getByTestId('segment-bulk-tag').locator('select').selectOption('__new__');
     await page.getByTestId('segment-bulk-new-tag').fill(segmentTag);
-    await page.getByTestId('segment-bulk-apply').click();
-    await expect(page.getByTestId('flash-success')).toBeVisible();
+    // A KÉRÉS VÁLASZÁT várjuk: a mentés flash-e még látszhat, és a navigáció megszakítaná a
+    // folyamatban lévő Inertia-kérést.
+    await Promise.all([
+        page.waitForResponse((response) => response.url().includes('/audience/contacts/bulk-tags') && response.request().method() === 'POST'),
+        page.getByTestId('segment-bulk-apply').click(),
+    ]);
+    await page.waitForLoadState('networkidle');
     const segmentUrl = page.url();
 
     await page.goto('/audience/tags');
@@ -93,7 +98,10 @@ test('tömeges címkézés a kontaktlistából, a címke-darabszám a címkék o
 
     await page.getByTestId('bulk-tag').locator('select').selectOption('__new__');
     await page.getByTestId('bulk-new-tag').fill(tagName);
-    await page.getByTestId('bulk-apply').click();
+    await Promise.all([
+        page.waitForResponse((response) => response.url().includes('/audience/contacts/bulk-tags') && response.request().method() === 'POST'),
+        page.getByTestId('bulk-apply').click(),
+    ]);
     await expect(page.getByTestId('flash-success')).toBeVisible();
 
     await page.goto('/audience/tags');
@@ -104,7 +112,10 @@ test('tömeges címkézés a kontaktlistából, a címke-darabszám a címkék o
     await page.getByTestId('bulk-all').click();
     await page.getByTestId('bulk-action').locator('select').selectOption('untag');
     await page.getByTestId('bulk-tag').locator('select').selectOption({ label: tagName });
-    await page.getByTestId('bulk-apply').click();
+    await Promise.all([
+        page.waitForResponse((response) => response.url().includes('/audience/contacts/bulk-tags') && response.request().method() === 'POST'),
+        page.getByTestId('bulk-apply').click(),
+    ]);
     await expect(page.getByTestId('flash-success')).toBeVisible();
 
     await page.goto('/audience/tags');

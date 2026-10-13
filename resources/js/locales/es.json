@@ -643,7 +643,11 @@
         "bulkApply": "Aplicar",
         "selectContact": "Seleccionar {email}",
         "selectPage": "Seleccionar página",
-        "unselectPage": "Borrar selección"
+        "unselectPage": "Borrar selección",
+        "customFields": "Campos personalizados",
+        "customFieldsHint": "Por defecto ningún campo aparece en el centro de preferencias. Activa solo lo que el destinatario puede ver y cambiar: el enlace del correo puede reenviarse.",
+        "noCustomFields": "Aún no hay campos personalizados: créalos en la importación.",
+        "preferenceVisible": "Visible en el centro de preferencias"
     },
     "templates": {
         "title": "Plantillas",
@@ -931,7 +935,10 @@
         "openHosted": "Abrir",
         "emailField": "Correo electrónico (obligatorio)",
         "firstName": "Nombre",
-        "lastName": "Apellido"
+        "lastName": "Apellido",
+        "requireTiming": "Medición de tiempo obligatoria (solo página alojada / iframe)",
+        "requireTimingHint": "Si está activo, solo cuentan los envíos con la marca de tiempo firmada: una inserción HTML propia no funcionará.",
+        "htmlNeedsTiming": "Este formulario exige medición de tiempo: el código HTML solo funciona tras desactivarla. Usa el enlace alojado o el iframe."
     },
     "storedTemplates": {
         "title": "Plantillas almacenadas",

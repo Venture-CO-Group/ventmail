@@ -37,8 +37,9 @@ beforeEach(function () {
     $this->context->set($this->workspace);
     $this->user = StudioFixtures::user($this->workspace);
 
-    ContactField::create(['key' => 'city', 'label' => 'Város', 'type' => 'text']);
-    ContactField::create(['key' => 'age', 'label' => 'Életkor', 'type' => 'number']);
+    // A preference centerben CSAK a megjelölt mezők látszanak (review B1) — itt mindkettő az.
+    ContactField::create(['key' => 'city', 'label' => 'Város', 'type' => 'text'])->forceFill(['preference_visible' => true])->save();
+    ContactField::create(['key' => 'age', 'label' => 'Életkor', 'type' => 'number'])->forceFill(['preference_visible' => true])->save();
 
     $this->list = ContactList::create(['name' => 'Hírlevél', 'from_email' => 'hirlevel@pelda.hu']);
 });

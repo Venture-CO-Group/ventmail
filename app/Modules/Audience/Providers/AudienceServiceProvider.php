@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Audience\Providers;
 
+use App\Modules\Audience\Console\BackfillContactSourcesCommand;
 use App\Modules\Audience\Console\PurgeImportsCommand;
 use App\Modules\Audience\Console\ReindexContactsCommand;
 use App\Modules\Audience\Contracts\ContactSearchIndex;
@@ -33,7 +34,7 @@ final class AudienceServiceProvider extends ModuleServiceProvider
     protected function bootModule(): void
     {
         if ($this->app->runningInConsole()) {
-            $this->commands([ReindexContactsCommand::class, PurgeImportsCommand::class]);
+            $this->commands([ReindexContactsCommand::class, PurgeImportsCommand::class, BackfillContactSourcesCommand::class]);
         }
     }
 

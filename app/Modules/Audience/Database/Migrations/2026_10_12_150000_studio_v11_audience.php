@@ -23,30 +23,43 @@ use Illuminate\Support\Facades\Schema;
  */
 return new class extends Migration
 {
+    /**
+     * Az indexek `CONCURRENTLY` épülnek (review NIT): egy 300k+ soros `contacts` táblán a sima
+     * `CREATE INDEX` írás-zárat tart a teljes építés alatt — élesben a feliratkozások és az
+     * importok erre várnának. A `CONCURRENTLY` tranzakción belül nem futhat, ezért a migráció
+     * tranzakció nélküli; minden lépés idempotens (`if not exists`), egy félbeszakadt futás
+     * újraindítható.
+     */
+    public $withinTransaction = false;
+
     public function up(): void
     {
-        Schema::table('contacts', function (Blueprint $table): void {
-            $table->string('source', 16)->nullable();
-            $table->index(['workspace_id', 'created_at'], 'contacts_ws_created_idx');
-        });
+        if (! Schema::hasColumn('contacts', 'source')) {
+            Schema::table('contacts', function (Blueprint $table): void {
+                $table->string('source', 16)->nullable();
+            });
+        }
 
-        DB::statement('create index if not exists contacts_ws_unsubscribed_idx on contacts (workspace_id, unsubscribed_at) where unsubscribed_at is not null');
+        DB::statement('create index concurrently if not exists contacts_ws_created_idx on contacts (workspace_id, created_at)');
+        DB::statement('create index concurrently if not exists contacts_ws_unsubscribed_idx on contacts (workspace_id, unsubscribed_at) where unsubscribed_at is not null');
 
-        Schema::table('forms', function (Blueprint $table): void {
-            $table->jsonb('page')->default('{}');
-        });
+        if (! Schema::hasColumn('forms', 'page')) {
+            Schema::table('forms', function (Blueprint $table): void {
+                $table->jsonb('page')->default('{}');
+            });
+        }
     }
 
     public function down(): void
     {
-        DB::statement('drop index if exists contacts_ws_unsubscribed_idx');
+        DB::statement('drop index concurrently if exists contacts_ws_unsubscribed_idx');
+        DB::statement('drop index concurrently if exists contacts_ws_created_idx');
 
         Schema::table('forms', function (Blueprint $table): void {
             $table->dropColumn('page');
         });
 
         Schema::table('contacts', function (Blueprint $table): void {
-            $table->dropIndex('contacts_ws_created_idx');
             $table->dropColumn('source');
         });
     }

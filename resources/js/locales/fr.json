@@ -643,7 +643,11 @@
         "bulkApply": "Appliquer",
         "selectContact": "Sélectionner {email}",
         "selectPage": "Sélectionner la page",
-        "unselectPage": "Effacer la sélection"
+        "unselectPage": "Effacer la sélection",
+        "customFields": "Champs personnalisés",
+        "customFieldsHint": "Par défaut, aucun champ n'apparaît dans le centre de préférences. N'activez que ce que le destinataire peut voir et modifier — le lien de l'e-mail peut être transféré.",
+        "noCustomFields": "Aucun champ personnalisé pour le moment — créez-les lors de l'import.",
+        "preferenceVisible": "Visible dans le centre de préférences"
     },
     "templates": {
         "title": "Modèles",
@@ -931,7 +935,10 @@
         "openHosted": "Ouvrir",
         "emailField": "Adresse e-mail (obligatoire)",
         "firstName": "Prénom",
-        "lastName": "Nom"
+        "lastName": "Nom",
+        "requireTiming": "Mesure du temps obligatoire (page hébergée / iframe uniquement)",
+        "requireTimingHint": "Activé, seules les soumissions avec l'horodatage signé comptent : une intégration HTML maison ne fonctionnera pas.",
+        "htmlNeedsTiming": "Ce formulaire exige la mesure du temps : le code HTML ne fonctionne qu'après désactivation. Utilisez le lien hébergé ou l'iframe."
     },
     "storedTemplates": {
         "title": "Modèles enregistrés",

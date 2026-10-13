@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /*
@@ -20,19 +21,26 @@ use Illuminate\Support\Facades\Schema;
  */
 return new class extends Migration
 {
+    /** Az index `CONCURRENTLY` épül (a ténytábla kampányonként százezres) — tranzakción kívül. */
+    public $withinTransaction = false;
+
     public function up(): void
     {
-        Schema::table('campaign_engagement', function (Blueprint $table): void {
-            $table->timestampTz('last_opened_at')->nullable();
-            $table->timestampTz('last_clicked_at')->nullable();
-            $table->index(['workspace_id', 'recipient_hash'], 'campaign_engagement_recipient');
-        });
+        if (! Schema::hasColumn('campaign_engagement', 'last_opened_at')) {
+            Schema::table('campaign_engagement', function (Blueprint $table): void {
+                $table->timestampTz('last_opened_at')->nullable();
+                $table->timestampTz('last_clicked_at')->nullable();
+            });
+        }
+
+        DB::statement('create index concurrently if not exists campaign_engagement_recipient on campaign_engagement (workspace_id, recipient_hash)');
     }
 
     public function down(): void
     {
+        DB::statement('drop index concurrently if exists campaign_engagement_recipient');
+
         Schema::table('campaign_engagement', function (Blueprint $table): void {
-            $table->dropIndex('campaign_engagement_recipient');
             $table->dropColumn(['last_opened_at', 'last_clicked_at']);
         });
     }

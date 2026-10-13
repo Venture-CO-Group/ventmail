@@ -643,7 +643,11 @@
         "bulkApply": "Anwenden",
         "selectContact": "{email} auswählen",
         "selectPage": "Seite auswählen",
-        "unselectPage": "Auswahl aufheben"
+        "unselectPage": "Auswahl aufheben",
+        "customFields": "Eigene Felder",
+        "customFieldsHint": "Standardmäßig wird kein Feld im Preference Center angezeigt. Aktiviere nur, was der Empfänger sehen und ändern darf — der Link in der E-Mail kann weitergeleitet werden.",
+        "noCustomFields": "Noch keine eigenen Felder — lege sie im Import an.",
+        "preferenceVisible": "Im Preference Center sichtbar"
     },
     "templates": {
         "title": "Vorlagen",
@@ -931,7 +935,10 @@
         "openHosted": "Öffnen",
         "emailField": "E-Mail-Adresse (Pflicht)",
         "firstName": "Vorname",
-        "lastName": "Nachname"
+        "lastName": "Nachname",
+        "requireTiming": "Pflicht-Zeitmessung (nur gehostete Seite / iframe)",
+        "requireTimingHint": "Aktiviert zählen nur Einsendungen mit signiertem Zeitstempel: eine eigene HTML-Einbettung funktioniert dann nicht.",
+        "htmlNeedsTiming": "Dieses Formular verlangt Zeitmessung: der HTML-Code funktioniert erst nach dem Ausschalten. Nutze den gehosteten Link oder das iframe."
     },
     "storedTemplates": {
         "title": "Gespeicherte Vorlagen",

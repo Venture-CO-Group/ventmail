@@ -9,6 +9,7 @@ return [
         'inUse' => 'Una campaña aún no enviada usa este segmento: quítalo de allí primero.',
         'deleted' => 'Segmento eliminado.',
         'invalid' => 'Definición de segmento no válida.',
+        'tooExpensive' => 'El segmento es demasiado costoso (tardaría más de 5 segundos). Acota las condiciones.',
     ],
     'tags' => [
         'created' => 'Etiqueta creada.',
@@ -24,6 +25,7 @@ return [
     'checklist' => [
         'notReady' => 'La campaña aún no puede enviarse; falta: :blockers.',
         'canceled' => 'Campaña cancelada.',
+        'unscheduled' => 'Tras el cambio la campaña ya no cumple la lista de comprobación, así que se canceló la programación: corrígela y vuelve a programarla.',
     ],
     'hosted' => [
         'email' => 'Correo electrónico',
@@ -54,5 +56,11 @@ return [
     ],
     'forms' => [
         'unknownField' => 'Campo desconocido: :key. Solo se admiten los campos de nombre y los campos personalizados de la audiencia.',
+    ],
+    'insights' => [
+        'tooExpensive' => 'Las estadísticas de la audiencia tardarían demasiado; inténtalo más tarde.',
+    ],
+    'fields' => [
+        'updated' => 'Ajuste del campo guardado.',
     ],
 ];

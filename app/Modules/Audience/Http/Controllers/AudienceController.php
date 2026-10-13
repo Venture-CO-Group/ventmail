@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Audience\Http\Controllers;
 
 use App\Modules\Audience\Models\Contact;
+use App\Modules\Audience\Models\ContactField;
 use App\Modules\Audience\Models\ContactList;
 use App\Modules\Audience\Models\ContactTag;
 use App\Modules\Audience\Models\Segment;
@@ -12,6 +13,8 @@ use App\Modules\Audience\Services\AudienceInsights;
 use App\Modules\Audience\Services\SegmentEngine;
 use App\Modules\Consent\Models\Consent;
 use App\Modules\Tenancy\Services\WorkspaceContext;
+use App\Support\QueryBudget;
+use App\Support\QueryTooExpensive;
 use App\Support\WorkspaceTimezone;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -74,6 +77,16 @@ final class AudienceController
                 'contacts' => $list->contacts()->count(),
             ])->values()->all(),
 
+            // v1.1 · a MEZŐKEZELŐ: az egyéni mezők, preference-center láthatósággal (review B1).
+            'fields' => ContactField::query()->orderBy('label')->get(['uuid', 'key', 'label', 'type', 'preference_visible'])
+                ->map(fn (ContactField $field) => [
+                    'uuid' => (string) $field->uuid,
+                    'key' => (string) $field->key,
+                    'label' => (string) $field->label,
+                    'type' => (string) $field->type,
+                    'preferenceVisible' => (bool) $field->preference_visible,
+                ])->values()->all(),
+
             // v1.1 · a tömeges címkézés választója.
             'tags' => ContactTag::query()->orderBy('name')->get(['uuid', 'name'])
                 ->map(fn (ContactTag $tag) => ['uuid' => (string) $tag->uuid, 'name' => (string) $tag->name])
@@ -123,10 +136,36 @@ final class AudienceController
     {
         Gate::authorize('audience.manage');
 
-        return response()->json($insights->summary(
-            (int) $request->integer('days', 30),
-            WorkspaceTimezone::for($context->workspace(), $request->user()),
-        ));
+        try {
+            // A KERET (review S2) — 5 s; a gyorsítótár (RS5) miatt ez ritkán fut.
+            $summary = app(QueryBudget::class)->run(fn () => $insights->summary(
+                (int) $request->integer('days', 30),
+                WorkspaceTimezone::for($context->workspace(), $request->user()),
+            ));
+        } catch (QueryTooExpensive) {
+            return response()->json(['message' => __('studio.insights.tooExpensive')], 422);
+        }
+
+        return response()->json($summary);
+    }
+
+    /**
+     * MEZŐKEZELŐ (review B1): az egyéni mező látszik-e és írható-e a preference centerben.
+     *
+     * Alapból NEM: a /p/{token} link továbbítható (és 90 napig él), tehát egy mező csak akkor
+     * kerülhet a címzett elé, ha a tenant kifejezetten így döntött. Auditált (`updated`).
+     */
+    public function fieldPreference(Request $request, string $uuid): RedirectResponse
+    {
+        Gate::authorize('audience.manage');
+
+        $field = ContactField::query()->where('uuid', $uuid)->firstOrFail();
+
+        $validated = $request->validate(['visible' => ['required', 'boolean']]);
+
+        $field->forceFill(['preference_visible' => (bool) $validated['visible']])->save();
+
+        return back()->with('success', __('studio.fields.updated'));
     }
 
     public function storeList(Request $request): RedirectResponse

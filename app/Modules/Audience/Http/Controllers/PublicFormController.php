@@ -15,6 +15,7 @@ use App\Modules\Tenancy\Services\WorkspaceContext;
 use App\Support\ClientAddress;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Cache;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 /**
@@ -87,7 +88,9 @@ final class PublicFormController
         try {
             // v1.1 · KÖTELEZŐ mező hiánya: nincs beiratkozás, de a válasz UGYANAZ (a hosztolt
             // oldal `required` attribútuma a valódi kitöltőt előbb megállítja).
-            if (! $this->requiredPresent($request, $form)) {
+            // A HOZZÁJÁRULÁS jelölőnégyzete szerveroldalon is kötelező (review S3): a bejelölés
+            // nélküli beküldés nem teremthet függő consentet — a válasz ugyanaz.
+            if (! $this->requiredPresent($request, $form) || ! $request->boolean('consent')) {
                 return $this->done($form);
             }
 
@@ -242,7 +245,24 @@ final class PublicFormController
         if ($request->filled('_rt')) {
             $token = $request->input('_rt');
 
-            return is_string($token) ? (app(FormRenderTokens::class)->elapsed($token, (string) $form->uuid) ?? 0) : 0;
+            if (! is_string($token)) {
+                return 0;
+            }
+
+            $elapsed = app(FormRenderTokens::class)->elapsed($token, (string) $form->uuid);
+
+            // EGYSZER HASZNÁLHATÓ (review S1): egy megszerzett token egy napig nem lehet
+            // korlátlan beküldés-jegy. Az ismételt token nulla másodperc — bukik.
+            if ($elapsed === null || ! Cache::add('form-rt:'.hash('sha256', $token), 1, 86400)) {
+                return 0;
+            }
+
+            return $elapsed;
+        }
+
+        // A KÖTELEZŐ MÉRÉSŰ űrlapon (review S1) a kliens szava nem számít: token nélkül bot.
+        if ($form->require_timing) {
+            return 0;
         }
 
         return $request->filled('_elapsed') ? (int) $request->input('_elapsed') : null;
@@ -306,6 +326,12 @@ final class PublicFormController
         $url = (string) ($form->redirect_url ?? '');
 
         if ($url === '' || ! str_starts_with($url, 'https://')) {
+            return false;
+        }
+
+        // A VISSZAPERJEL és a USERINFO (review N4): a böngészők a `\`-t `/`-ként olvassák,
+        // a `user@host` pedig a host-ellenőrzést zavarja — egyik sem kell egy köszönő oldalhoz.
+        if (str_contains($url, '\\') || parse_url($url, PHP_URL_USER) !== null || parse_url($url, PHP_URL_PASS) !== null) {
             return false;
         }
 

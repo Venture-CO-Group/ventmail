@@ -7,6 +7,7 @@ namespace App\Modules\Audience\Actions;
 use App\Modules\Audience\Data\FormSubmission;
 use App\Modules\Audience\Models\Contact;
 use App\Modules\Audience\Models\Form;
+use App\Modules\Audit\Services\KeyedHash;
 use App\Modules\Consent\Services\ConfirmationTokens;
 use App\Modules\Consent\Services\ConsentRecorder;
 use App\Modules\Journey\Enums\TriggerType;
@@ -17,6 +18,7 @@ use App\Modules\Sending\Services\DomainNormalizer;
 use App\Modules\Suppression\Models\Suppression;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\RateLimiter;
 
 /**
  * ŰRLAP-BEIRATKOZÁS (50., 54. kritérium) — a double opt-in első lépése.
@@ -49,6 +51,9 @@ use Illuminate\Support\Facades\Log;
  */
 final class SubmitForm
 {
+    /** Egy címre naponta legfeljebb ennyi megerősítő levél megy (minden űrlapon és tenanton át). */
+    public const DOI_PER_ADDRESS_PER_DAY = 3;
+
     public function __construct(
         private readonly ConsentRecorder $consent,
         private readonly ConfirmationTokens $tokens,
@@ -107,6 +112,21 @@ final class SubmitForm
         if ($this->isSuppressed($email)) {
             return true;
         }
+
+        // 5. CÍMENKÉNTI GLOBÁLIS PLAFON a megerősítő levelekre (review S1).
+        //
+        // A kulcs a cím kulcsolt hash-e, workspace NÉLKÜL: egy idegen cím bombázása sok
+        // űrlapon és sok tenanton át is legfeljebb ennyi megerősítő levelet küld naponta. A
+        // túllépés csendes (ugyanaz a válasz), és nem ír bizonyítékot sem.
+        $doiKey = 'doi-mail:'.KeyedHash::of('email', $email);
+
+        if (RateLimiter::tooManyAttempts($doiKey, self::DOI_PER_ADDRESS_PER_DAY)) {
+            Log::info('Megerősítő levél címenkénti plafonon.', ['form' => $form->uuid]);
+
+            return true;
+        }
+
+        RateLimiter::hit($doiKey, 86400);
 
         DB::transaction(function () use ($form, $submission, $email): void {
             $contact = Contact::query()->firstOrNew(['email' => $email]);

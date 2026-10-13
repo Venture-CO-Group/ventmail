@@ -36,6 +36,7 @@ interface FormRow {
     page: PageTexts;
     hostedUrl: string;
     iframe: string;
+    requireTiming: boolean;
 }
 
 /** v1.1 · ŰRLAP-ÉPÍTŐ: egy mező (név-oszlop vagy `attr:<kulcs>` egyéni mező). */
@@ -69,6 +70,7 @@ const blank = () => ({
     policyVersion: '',
     consentText: t('forms.consentDefault'),
     redirectUrl: '',
+    requireTiming: true,
     fields: [{ key: 'first_name', label: '', required: false }] as BuilderField[],
     page: { title: '', intro: '', button: '', successTitle: '', successMessage: '' } as Required<PageTexts>,
 });
@@ -127,6 +129,7 @@ function payload() {
         policyVersion: form.value.policyVersion.trim() || null,
         consentText: form.value.consentText.trim(),
         redirectUrl: form.value.redirectUrl.trim() || null,
+        requireTiming: form.value.requireTiming,
         fields: form.value.fields.map((field) => ({ key: field.key, label: field.label.trim(), required: field.required })),
         page: { ...form.value.page },
     };
@@ -153,6 +156,7 @@ function edit(row: FormRow): void {
         policyVersion: row.policyVersion ?? '',
         consentText: row.consentText ?? '',
         redirectUrl: row.redirectUrl ?? '',
+        requireTiming: row.requireTiming,
         fields: row.fields.map((field) => ({ ...field })),
         page: { title: '', intro: '', button: '', successTitle: '', successMessage: '', ...row.page },
     };
@@ -209,6 +213,8 @@ function toggle(row: FormRow): void {
                     <h3>{{ t('forms.fields') }}</h3>
                     <p class="vm-form-hint">{{ t('forms.fieldsHint') }}</p>
                     <p class="vm-banner" role="note" data-testid="form-doi">{{ t('forms.doiAlways') }}</p>
+                    <VtCheckbox v-model="form.requireTiming" data-testid="form-require-timing">{{ t('forms.requireTiming') }}</VtCheckbox>
+                    <p class="vm-form-hint">{{ t('forms.requireTimingHint') }}</p>
 
                     <ol class="vm-form-fields">
                         <li class="vm-form-fields__fixed">{{ t('forms.emailField') }}</li>
@@ -340,9 +346,14 @@ function toggle(row: FormRow): void {
                         <a :href="row.hostedUrl" target="_blank" rel="noopener" :data-testid="`hosted-open-${row.slug}`">{{ t('forms.openHosted') }}</a>
                     </p>
                     <pre v-else-if="embedTab === 'iframe'" class="vm-code" :data-testid="`iframe-body-${row.slug}`">{{ row.iframe }}</pre>
-                    <!-- A KÓD a szerveren áll össze: a mezőnevek a publikus végpont
-                         szerződése, és tesztek őrzik. -->
-                    <pre v-else class="vm-code" :data-testid="`snippet-body-${row.slug}`">{{ row.snippet }}</pre>
+                    <template v-else>
+                        <p v-if="row.requireTiming" class="vm-banner vm-banner--warning" role="status" :data-testid="`html-needs-timing-${row.slug}`">
+                            {{ t('forms.htmlNeedsTiming') }}
+                        </p>
+                        <!-- A KÓD a szerveren áll össze: a mezőnevek a publikus végpont
+                             szerződése, és tesztek őrzik. -->
+                        <pre class="vm-code" :data-testid="`snippet-body-${row.slug}`">{{ row.snippet }}</pre>
+                    </template>
                 </div>
             </div>
         </VmCard>

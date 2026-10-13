@@ -9,6 +9,7 @@ return [
         'inUse' => 'A szegmenst egy még ki nem ment kampány használja — előbb onnan vedd ki.',
         'deleted' => 'A szegmens törölve.',
         'invalid' => 'Érvénytelen szegmens-definíció.',
+        'tooExpensive' => 'A szegmens túl költséges (5 másodpercnél tovább futna). Szűkítsd a feltételeket.',
     ],
     'tags' => [
         'created' => 'A címke létrejött.',
@@ -24,6 +25,7 @@ return [
     'checklist' => [
         'notReady' => 'A kampány még nem küldhető — hiányzik: :blockers.',
         'canceled' => 'A kampány megszakítva.',
+        'unscheduled' => 'A módosítás után a kampány nem teljesíti a checklistet, ezért az ütemezést visszavontuk — javítsd, és ütemezd újra.',
     ],
     'hosted' => [
         'email' => 'E-mail-cím',
@@ -54,5 +56,11 @@ return [
     ],
     'forms' => [
         'unknownField' => 'Ismeretlen mező: :key. Csak a név-mezők és a közönség egyéni mezői választhatók.',
+    ],
+    'insights' => [
+        'tooExpensive' => 'A közönség-statisztika most túl sokáig tartana — próbáld újra később.',
+    ],
+    'fields' => [
+        'updated' => 'A mező beállítása mentve.',
     ],
 ];

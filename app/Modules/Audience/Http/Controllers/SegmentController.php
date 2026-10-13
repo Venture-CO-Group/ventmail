@@ -11,10 +11,13 @@ use App\Modules\Audience\Models\Segment;
 use App\Modules\Audience\Services\SegmentEngine;
 use App\Modules\Campaign\Models\Campaign;
 use App\Modules\Tenancy\Services\WorkspaceContext;
+use App\Support\QueryBudget;
+use App\Support\QueryTooExpensive;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -89,12 +92,16 @@ final class SegmentController
         $definition = $this->definition($request);
 
         try {
-            $query = $engine->query($definition);
+            // A KERET (review S2): a felhasználó által összerakott lekérdezés legfeljebb 5 s.
+            [$count, $sample] = app(QueryBudget::class)->run(function () use ($engine, $definition): array {
+                $query = $engine->query($definition);
 
-            $count = (clone $query)->count();
-            $sample = $query->limit(self::SAMPLE)->get(['uuid', 'email', 'first_name', 'last_name', 'status']);
+                return [(clone $query)->count(), $query->limit(self::SAMPLE)->get(['uuid', 'email', 'first_name', 'last_name', 'status'])];
+            });
         } catch (InvalidArgumentException $e) {
             throw ValidationException::withMessages(['definition' => $e->getMessage()]);
+        } catch (QueryTooExpensive) {
+            throw ValidationException::withMessages(['definition' => __('studio.segments.tooExpensive')]);
         }
 
         return response()->json([
@@ -220,16 +227,60 @@ final class SegmentController
             throw ValidationException::withMessages(['definition' => __('studio.segments.invalid')]);
         }
 
-        return $definition;
+        return $this->normalise($definition);
+    }
+
+    /**
+     * A MENTETT alak egységesítése (review NIT): az illesztési mód és az operátor kisbetűs, a
+     * uuid-értékek (lista, címke) kisbetűsek. A motor eddig is kis/nagybetű-függetlenül
+     * értelmezte őket, de a hivatkozás-őrök (címke törlése / összevonása) a tárolt szövegben
+     * keresnek — egy nagybetűs uuid ott láthatatlan maradna.
+     *
+     * @param  array<mixed>  $group
+     * @return array<mixed>
+     */
+    private function normalise(array $group): array
+    {
+        if (isset($group['match']) && is_string($group['match'])) {
+            $group['match'] = strtolower($group['match']);
+        }
+
+        if (isset($group['rules']) && is_array($group['rules'])) {
+            $group['rules'] = array_map(function ($rule) {
+                if (! is_array($rule)) {
+                    return $rule;
+                }
+
+                if (isset($rule['group']) && is_array($rule['group'])) {
+                    $rule['group'] = $this->normalise($rule['group']);
+
+                    return $rule;
+                }
+
+                if (isset($rule['op']) && is_string($rule['op'])) {
+                    $rule['op'] = strtolower($rule['op']);
+                }
+
+                if (isset($rule['value']) && is_string($rule['value']) && Str::isUuid($rule['value'])) {
+                    $rule['value'] = strtolower($rule['value']);
+                }
+
+                return $rule;
+            }, $group['rules']);
+        }
+
+        return $group;
     }
 
     /** @param array<string, mixed> $definition */
     private function measure(SegmentEngine $engine, array $definition): int
     {
         try {
-            return $engine->count($definition);
+            return app(QueryBudget::class)->run(fn () => $engine->count($definition));
         } catch (InvalidArgumentException $e) {
             throw ValidationException::withMessages(['definition' => $e->getMessage()]);
+        } catch (QueryTooExpensive) {
+            throw ValidationException::withMessages(['definition' => __('studio.segments.tooExpensive')]);
         }
     }
 

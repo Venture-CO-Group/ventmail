@@ -43,6 +43,7 @@ const props = defineProps<{
     }>;
     segments: Array<{ uuid: string; name: string; description: string | null; estimatedSize: number | null; estimatedAt: string | null }>;
     tags: Array<{ uuid: string; name: string }>;
+    fields: Array<{ uuid: string; key: string; label: string; type: string; preferenceVisible: boolean }>;
     contacts: { items: ContactRow[]; nextCursor: string | null };
 }>();
 
@@ -185,6 +186,11 @@ function applyBulk(): void {
             },
         },
     );
+}
+
+/* MEZŐKEZELŐ (review B1): a preference-center láthatóság mezőnként, alapból kikapcsolva. */
+function setPreferenceVisible(uuid: string, visible: boolean): void {
+    router.post(`/audience/fields/${uuid}/preference`, { visible }, { preserveScroll: true });
 }
 
 function applySearch(): void {
@@ -349,6 +355,24 @@ function createList(): void {
                     </VtButton>
                 </VmFormActions>
             </VmForm>
+        </VmCard>
+
+        <VmCard data-testid="custom-fields">
+            <h2>{{ t('audience.customFields') }}</h2>
+            <p class="vm-audience-hint">{{ t('audience.customFieldsHint') }}</p>
+            <p v-if="!fields.length">{{ t('audience.noCustomFields') }}</p>
+            <ul v-else class="vm-audience-fields">
+                <li v-for="field in fields" :key="field.uuid" :data-testid="`field-${field.key}`">
+                    <span class="vm-truncate" :title="field.label"><strong>{{ field.label }}</strong> <code>{{ field.key }}</code> · {{ field.type }}</span>
+                    <VtCheckbox
+                        :model-value="field.preferenceVisible"
+                        :data-testid="`field-preference-${field.key}`"
+                        @update:model-value="setPreferenceVisible(field.uuid, $event)"
+                    >
+                        {{ t('audience.preferenceVisible') }}
+                    </VtCheckbox>
+                </li>
+            </ul>
         </VmCard>
 
         <VmCard>
@@ -526,6 +550,30 @@ function createList(): void {
     flex: 1 1 calc(var(--vt-space-32) * 2);
     flex-direction: column;
     gap: var(--vt-space-6);
+    min-width: 0;
+}
+
+.vm-audience-hint {
+    margin: 0;
+    color: var(--vt-text-muted);
+    font-size: var(--vt-fs-body-sm);
+}
+
+.vm-audience-fields {
+    display: flex;
+    flex-direction: column;
+    gap: var(--vt-space-3);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.vm-audience-fields li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--vt-space-3);
     min-width: 0;
 }
 

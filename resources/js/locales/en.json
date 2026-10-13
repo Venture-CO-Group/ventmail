@@ -643,7 +643,11 @@
         "bulkApply": "Apply",
         "selectContact": "Select {email}",
         "selectPage": "Select page",
-        "unselectPage": "Clear selection"
+        "unselectPage": "Clear selection",
+        "customFields": "Custom fields",
+        "customFieldsHint": "By default no field is shown in the preference center. Only enable what the recipient may see and change — the link in the email can be forwarded.",
+        "noCustomFields": "No custom fields yet — create them in the import.",
+        "preferenceVisible": "Visible in the preference center"
     },
     "templates": {
         "title": "Templates",
@@ -931,7 +935,10 @@
         "openHosted": "Open",
         "emailField": "Email address (required)",
         "firstName": "First name",
-        "lastName": "Last name"
+        "lastName": "Last name",
+        "requireTiming": "Required timing (hosted page / iframe only)",
+        "requireTimingHint": "When on, only submissions with the signed timestamp count: a self-hosted HTML embed will not work.",
+        "htmlNeedsTiming": "This form requires timing: the HTML code only works after turning the switch off. Use the hosted link or the iframe."
     },
     "storedTemplates": {
         "title": "Stored templates",

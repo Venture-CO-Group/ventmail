@@ -6,8 +6,10 @@ namespace App\Modules\Audience\Services;
 
 use App\Modules\Analytics\Models\CampaignEngagement;
 use App\Modules\Audience\Models\Contact;
+use App\Modules\Tenancy\Services\WorkspaceContext;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
 
 /**
  * KÖZÖNSÉG-DASHBOARD aggregátumai (v1.1 · 5. modul): növekedés, forrás, engagement.
@@ -34,6 +36,9 @@ final class AudienceInsights
     /** Az „aktív" engagement ablaka napokban (megnyitás vagy kattintás). */
     public const ACTIVE_WINDOW_DAYS = 90;
 
+    /** A dashboard gyorsítótárának élettartama (mp). */
+    public const CACHE_SECONDS = 300;
+
     /** @var list<int> a választható ablakok (napok) */
     public const WINDOWS = [7, 30, 90, 365];
 
@@ -52,6 +57,21 @@ final class AudienceInsights
     {
         $days = in_array($days, self::WINDOWS, true) ? $days : 30;
 
+        // GYORSÍTÓTÁR workspace-enként (review RS5): a három aggregátum 300k kontaktnál is
+        // másodperc alatti, de minden oldalbetöltésnél felesleges. 5 perc: a dashboard trend,
+        // nem valós idejű számláló. A kulcs a workspace, az ablak és az időzóna.
+        $workspaceId = (int) app(WorkspaceContext::class)->workspaceId();
+
+        return Cache::remember(
+            sprintf('audience-insights:%d:%d:%s', $workspaceId, $days, $timezone),
+            self::CACHE_SECONDS,
+            fn (): array => $this->compute($days, $timezone),
+        );
+    }
+
+    /** @return array<string, mixed> */
+    private function compute(int $days, string $timezone): array
+    {
         return [
             'days' => $days,
             'timezone' => $timezone,

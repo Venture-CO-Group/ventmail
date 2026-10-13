@@ -136,7 +136,8 @@ test.beforeAll(async ({ browser }) => {
         ['/campaigns', '/campaigns/'],
         ['/journeys', '/journeys/'],
     ] as const) {
-        await page.goto(list);
+        // A kampánylista LAPOZOTT (v1.1 · 5. modul): a seedelt sort kereséssel hozzuk az első lapra.
+        await page.goto(list === '/campaigns' ? `/campaigns?search=${encodeURIComponent(run)}` : list);
 
         const href = await page
             .locator(`a[href^="${prefix}"]`, { hasText: LONG_WORDS })

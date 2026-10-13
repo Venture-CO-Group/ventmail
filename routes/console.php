@@ -59,6 +59,8 @@ Schedule::command('validation:purge')->dailyAt('03:50');
 
 // A feltöltött import-fájlok és lejárt hibariportok takarítása (v1.1): a címlista személyes adat.
 Schedule::command('audience:purge-imports')->dailyAt('04:00');
+// v1.1 · 5. modul (review RS5): a v1.1 előtti kontaktok forrásának kötegelt kitöltése — idempotens.
+Schedule::command('audience:backfill-sources')->dailyAt('04:20')->withoutOverlapping();
 
 // BLOCKLIST-FIGYELÉS: ez az a hiba, amit MI veszünk észre utoljára — az ügyfél előbb, mert
 // nála hirtelen senki nem kapja meg a levelet. Az óránkénti futás a delisting-kérelemhez

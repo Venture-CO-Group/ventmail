@@ -136,7 +136,9 @@ final class TagOperations
     public function segmentReferences(ContactTag $tag): array
     {
         return Segment::query()
-            ->whereRaw('definition::text like ?', ['%'.$tag->uuid.'%'])
+            // KIS/NAGYBETŰ-FÜGGETLEN keresés: a régi (normalizálás előtti) definícióban nagybetűs
+            // uuid is lehet (review NIT).
+            ->whereRaw('lower(definition::text) like ?', ['%'.strtolower((string) $tag->uuid).'%'])
             ->get()
             ->all();
     }
@@ -148,16 +150,16 @@ final class TagOperations
      */
     public function journeyReferences(ContactTag $tag): array
     {
-        $needle = '%'.$tag->uuid.'%';
+        $needle = '%'.strtolower((string) $tag->uuid).'%';
 
         $direct = Journey::query()
             ->where(fn (Builder $query) => $query
-                ->whereRaw('trigger_config::text like ?', [$needle])
-                ->orWhereRaw('goal_config::text like ?', [$needle]))
+                ->whereRaw('lower(trigger_config::text) like ?', [$needle])
+                ->orWhereRaw('lower(goal_config::text) like ?', [$needle]))
             ->pluck('name');
 
         $viaSteps = Journey::query()
-            ->whereIn('id', JourneyStep::query()->whereRaw('config::text like ?', [$needle])->select('journey_id'))
+            ->whereIn('id', JourneyStep::query()->whereRaw('lower(config::text) like ?', [$needle])->select('journey_id'))
             ->pluck('name');
 
         return $direct->merge($viaSteps)->unique()->values()->map(fn ($name) => (string) $name)->all();
@@ -176,7 +178,8 @@ final class TagOperations
         foreach ((array) ($definition['rules'] ?? []) as $rule) {
             if (is_array($rule) && isset($rule['group']) && is_array($rule['group'])) {
                 $rule['group'] = $this->rewrite($rule['group'], $from, $into);
-            } elseif (is_array($rule) && in_array($rule['op'] ?? null, ['has_tag', 'not_has_tag'], true) && ($rule['value'] ?? null) === $from) {
+            } elseif (is_array($rule) && in_array(strtolower((string) ($rule['op'] ?? '')), ['has_tag', 'not_has_tag'], true)
+                && strtolower((string) ($rule['value'] ?? '')) === strtolower($from)) {
                 $rule['value'] = $into;
             }
 

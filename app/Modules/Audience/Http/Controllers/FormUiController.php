@@ -78,6 +78,7 @@ final class FormUiController
                     'required' => (bool) ($field['required'] ?? false),
                 ], array_filter((array) $form->fields, 'is_array'))),
                 'page' => (object) (array) $form->page,
+                'requireTiming' => (bool) $form->require_timing,
                 'hostedUrl' => route('forms.page', ['slug' => $form->slug]),
                 'iframe' => '<iframe src="'.e(route('forms.page', ['slug' => $form->slug])).'" title="'.e((string) $form->name).'" loading="lazy" style="width:100%;min-height:560px;border:0"></iframe>',
             ])->values()->all(),
@@ -96,7 +97,10 @@ final class FormUiController
 
         $validated = $this->validated($request);
 
-        Form::create($validated);
+        // v1.1 (review S1) · az ÉPÍTŐBEN létrehozott űrlapon a mérés alapból KÖTELEZŐ: a
+        // hosztolt oldal és az iframe aláírt tokennel mér; a kliens `_elapsed` értéke nem
+        // bizonyíték. Kikapcsolni csak tudatosan lehet (a régi HTML-beágyazáshoz).
+        Form::create($validated + ['require_timing' => $request->has('requireTiming') ? $request->boolean('requireTiming') : true]);
 
         return back()->with('success', __('ventmail.forms.created'));
     }
@@ -107,7 +111,7 @@ final class FormUiController
 
         $form = Form::query()->where('uuid', $uuid)->firstOrFail();
 
-        $form->fill($this->validated($request))->save();
+        $form->fill($this->validated($request) + ($request->has('requireTiming') ? ['require_timing' => $request->boolean('requireTiming')] : []))->save();
 
         return back()->with('success', __('ventmail.forms.updated'));
     }
@@ -217,6 +221,7 @@ final class FormUiController
             'redirectUrl' => ['nullable', 'string', 'url', 'max:2048', 'starts_with:https://'],
             // v1.1 · ŰRLAP-ÉPÍTŐ: a mezők (név-oszlopok és a workspace egyéni mezői) és az
             // oldal-szövegek. Az e-mail-cím és a hozzájárulás mindig rajta van — nem kapcsolható.
+            'requireTiming' => ['nullable', 'boolean'],
             'fields' => ['nullable', 'array', 'max:15'],
             'fields.*.key' => ['required', 'string', 'max:70', 'distinct'],
             'fields.*.label' => ['nullable', 'string', 'max:120'],

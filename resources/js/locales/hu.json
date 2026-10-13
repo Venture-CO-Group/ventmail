@@ -643,7 +643,11 @@
         "bulkApply": "Alkalmazás",
         "selectContact": "{email} kijelölése",
         "selectPage": "Oldal kijelölése",
-        "unselectPage": "Kijelölés törlése"
+        "unselectPage": "Kijelölés törlése",
+        "customFields": "Egyéni mezők",
+        "customFieldsHint": "Alapból egyik mező sem látszik a preference centerben. Csak azt kapcsold be, amit a címzett maga láthat és módosíthat — a levélben lévő link továbbítható.",
+        "noCustomFields": "Még nincs egyéni mező — az importban hozhatsz létre.",
+        "preferenceVisible": "Látható a preference centerben"
     },
     "templates": {
         "title": "Sablonok",
@@ -931,7 +935,10 @@
         "openHosted": "Megnyitás",
         "emailField": "E-mail-cím (kötelező)",
         "firstName": "Keresztnév",
-        "lastName": "Vezetéknév"
+        "lastName": "Vezetéknév",
+        "requireTiming": "Kötelező időmérés (csak hosztolt oldal / iframe)",
+        "requireTimingHint": "Bekapcsolva csak az aláírt időbélyeggel érkező beküldés számít: a saját HTML-beágyazás ilyenkor nem működik.",
+        "htmlNeedsTiming": "Ez az űrlap kötelező időmérésű: a HTML-kód csak a kapcsoló kikapcsolása után működik. Használd a hosztolt linket vagy az iframe-et."
     },
     "storedTemplates": {
         "title": "Tárolt sablonok",
