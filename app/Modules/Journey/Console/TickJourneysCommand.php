@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Journey\Console;
 
+use App\Modules\Journey\Models\Journey;
 use App\Modules\Journey\Models\JourneyRun;
 use App\Modules\Journey\Services\JourneyEngine;
 use App\Modules\Tenancy\Models\Workspace;
@@ -61,6 +62,9 @@ final class TickJourneysCommand extends Command
 
                     $due = JourneyRun::query()
                         ->due()
+                        // A SZÜNETELTETETT journey futásai nem lépnek (v1.1): ha a sorban
+                        // maradnának, a limitet kitöltve kiéheztetnék az aktív journey-ket.
+                        ->whereNotIn('journey_id', Journey::query()->where('status', 'paused')->select('id'))
                         // EAGER LOAD: a `shouldExit()` a `journey`-t, a `tick()` a
                         // `currentStep`-et olvassa. Enélkül mérve 9,1 lekérdezés/futás/tick
                         // — klasszikus N+1 egy percenként futó parancsban.

@@ -132,6 +132,9 @@ return [
     'journeys' => [
         'activated' => 'Journey attiva.',
         'paused' => 'Journey in pausa.',
+        'publishInvalid' => 'Il grafo del percorso contiene errori: correggi i nodi evidenziati e riprova.',
+        'published' => 'Pubblicato: versione :version.',
+        'notActive' => 'Il percorso non è attivo.',
     ],
     'gate' => [
         'domain_unverified' => 'Il dominio di invio non è verificato.',

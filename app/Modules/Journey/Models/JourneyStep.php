@@ -25,7 +25,10 @@ final class JourneyStep extends Model
 {
     use Auditable, BelongsToWorkspace, HasUuids;
 
-    protected $fillable = ['journey_id', 'type', 'config', 'next_step_id', 'else_step_id', 'position'];
+    protected $fillable = [
+        'journey_id', 'type', 'config', 'next_step_id', 'else_step_id', 'position',
+        'journey_version_id', 'node_key', 'branches',
+    ];
 
     protected $attributes = ['config' => '{}', 'position' => 0];
 
@@ -36,7 +39,7 @@ final class JourneyStep extends Model
 
     protected function casts(): array
     {
-        return ['config' => 'array', 'position' => 'integer'];
+        return ['config' => 'array', 'position' => 'integer', 'branches' => 'array', 'executed_count' => 'integer'];
     }
 
     protected static function booted(): void
@@ -57,12 +60,33 @@ final class JourneyStep extends Model
         // A LÁNC a mentés UTÁN vizsgálódik: a `next_step_id` a mentés pillanatában
         // hivatkozhat egy most létrejövő lépésre, tehát előbb létezni kell.
         self::saved(function (self $step): void {
+            /*
+             | A v1.1 VÁSZON lépése (D5) nem itt validálódik: a publikálás a TELJES gráfot
+             | ellenőrzi (`JourneyGraphValidator`: árva csomópont, várakozás nélküli kör, kötelező
+             | konfiguráció) a materializálás ELŐTT. A lépésenkénti újrabejárás egy 50 csomópontos
+             | verziónál 100 mentésből 100 teljes bejárás lenne.
+             */
+            if ($step->isGraphStep()) {
+                return;
+            }
+
             $journey = $step->journey;
 
             if ($journey !== null) {
                 app(JourneyValidator::class)->validateChain($journey);
             }
         });
+    }
+
+    /** A v1.1 vászon verziójához tartozik-e (D5) — a régi láncolt lépésnél `false`. */
+    public function isGraphStep(): bool
+    {
+        return $this->journey_version_id !== null;
+    }
+
+    public function version(): BelongsTo
+    {
+        return $this->belongsTo(JourneyVersion::class, 'journey_version_id');
     }
 
     public function stepType(): StepType

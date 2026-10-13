@@ -21,7 +21,7 @@ final class Journey extends Model
 
     protected $fillable = [
         'name', 'description', 'trigger_type', 'trigger_config',
-        'allow_reentry', 'reentry_cooldown_hours', 'goal_type', 'goal_config', 'first_step_id',
+        'allow_reentry', 'reentry_cooldown_hours', 'goal_type', 'goal_config', 'first_step_id', 'graph',
     ];
 
     protected $attributes = [
@@ -44,6 +44,7 @@ final class Journey extends Model
             'goal_config' => 'array',
             'allow_reentry' => 'boolean',
             'reentry_cooldown_hours' => 'integer',
+            'graph' => 'array',
         ];
     }
 
@@ -75,6 +76,23 @@ final class Journey extends Model
     public function firstStep(): BelongsTo
     {
         return $this->belongsTo(JourneyStep::class, 'first_step_id');
+    }
+
+    /** A v1.1 vászon publikált verziói (D5). */
+    public function versions(): HasMany
+    {
+        return $this->hasMany(JourneyVersion::class)->orderByDesc('number');
+    }
+
+    /** Az ÚJ belépések verziója — a már bent lévők a saját verziójukon haladnak. */
+    public function currentVersion(): BelongsTo
+    {
+        return $this->belongsTo(JourneyVersion::class, 'current_version_id');
+    }
+
+    public function isPaused(): bool
+    {
+        return $this->status === 'paused';
     }
 
     public function runs(): HasMany

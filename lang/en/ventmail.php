@@ -143,6 +143,9 @@ return [
     'journeys' => [
         'activated' => 'Journey is active.',
         'paused' => 'Journey paused.',
+        'publishInvalid' => 'The journey graph has errors — fix the highlighted nodes and try again.',
+        'published' => 'Published: version :version.',
+        'notActive' => 'The journey is not active.',
     ],
     'gate' => [
         'domain_unverified' => 'The sending domain is not verified.',

@@ -36,6 +36,13 @@ final class AbilityMap
      | nem a Studio `template.create` képessége alá tartozik: a block editor sablonja a
      | marketingesé, ez pedig az integrációé — aki egy aktív verziót átkapcsol, egy MÁR
      | MŰKÖDŐ integráció kimenetét változtatja meg. A három üzemeltető szerep kapja.
+     |
+     | ÚJ KÉPESSÉG (v1.1 · 6. modul): `journey.publish`.
+     |
+     | A journey publikálása (aktiválás, új verzió) és szüneteltetése küldést indít vagy
+     | állít le — ugyanaz a négy-szem minta, mint a `campaign.publish`-nál: a szerző
+     | (`author`) megrajzolhatja a vásznat, de élesíteni nem tudja. Ugyanaz a három szerep
+     | kapja (owner, admin, editor).
      */
 
     /** @var array<string, list<string>> */
@@ -45,14 +52,14 @@ final class AbilityMap
             'subAccount.manage', 'domain.manage', 'ipPool.manage',
             'apiKey.manage', 'smtpCredential.manage', 'webhook.manage', 'storedTemplate.manage',
             'suppression.manage', 'validation.run', 'logs.view', 'analytics.view',
-            'campaign.create', 'campaign.publish', 'template.create', 'template.publish', 'audience.manage',
+            'campaign.create', 'campaign.publish', 'journey.publish', 'template.create', 'template.publish', 'audience.manage',
         ],
         'admin' => [
             'workspace.manage', 'member.manage',
             'subAccount.manage', 'domain.manage', 'ipPool.manage',
             'apiKey.manage', 'smtpCredential.manage', 'webhook.manage', 'storedTemplate.manage',
             'suppression.manage', 'validation.run', 'logs.view', 'analytics.view',
-            'campaign.create', 'campaign.publish', 'template.create', 'template.publish', 'audience.manage',
+            'campaign.create', 'campaign.publish', 'journey.publish', 'template.create', 'template.publish', 'audience.manage',
         ],
         // Fejlesztő: a küldő infrastruktúra igen, a marketing tartalom nem.
         'developer' => [
@@ -61,7 +68,7 @@ final class AbilityMap
             'suppression.manage', 'validation.run', 'logs.view', 'analytics.view',
         ],
         'editor' => [
-            'campaign.create', 'campaign.publish', 'template.create', 'template.publish', 'audience.manage',
+            'campaign.create', 'campaign.publish', 'journey.publish', 'template.create', 'template.publish', 'audience.manage',
             'logs.view', 'analytics.view',
         ],
         // Szerző: draftot készít, publikálni nem tud — sablonon keresztül sem.

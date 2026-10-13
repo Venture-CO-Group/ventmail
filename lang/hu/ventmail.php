@@ -132,6 +132,9 @@ return [
     'journeys' => [
         'activated' => 'A journey aktív.',
         'paused' => 'A journey szünetel.',
+        'publishInvalid' => 'A journey gráfja hibás — javítsd a jelölt csomópontokat, és próbáld újra.',
+        'published' => 'Publikálva: :version. verzió.',
+        'notActive' => 'A journey nem aktív.',
     ],
     'gate' => [
         'domain_unverified' => 'A küldő domain nincs hitelesítve.',

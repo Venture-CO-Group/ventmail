@@ -129,6 +129,9 @@ return [
     'journeys' => [
         'activated' => 'Le parcours est actif.',
         'paused' => 'Parcours mis en pause.',
+        'publishInvalid' => 'Le graphe du parcours contient des erreurs — corrigez les nœuds signalés et réessayez.',
+        'published' => 'Publié : version :version.',
+        'notActive' => "Le parcours n'est pas actif.",
     ],
     'gate' => [
         'domain_unverified' => 'Le domaine d\'envoi n\'est pas vérifié.',

@@ -4,11 +4,16 @@ declare(strict_types=1);
 
 namespace App\Modules\Journey\Http\Controllers;
 
+use App\Models\User;
+use App\Modules\Audit\Services\AuditLogger;
 use App\Modules\Journey\Enums\StepType;
 use App\Modules\Journey\Enums\TriggerType;
+use App\Modules\Journey\Graph\NodeCatalog;
 use App\Modules\Journey\Models\Journey;
 use App\Modules\Journey\Models\JourneyRun;
 use App\Modules\Journey\Models\JourneyStep;
+use App\Modules\Journey\Services\JourneyGraphInvalid;
+use App\Modules\Journey\Services\JourneyPublisher;
 use App\Modules\Journey\Services\JourneyValidator;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -19,21 +24,17 @@ use Inertia\Response;
 use InvalidArgumentException;
 
 /**
- * JOURNEY-K (68–71. kritérium): lista, lépéslánc, aktiválás.
+ * JOURNEY-K (68–71. kritérium): lista, létrehozás, a régi lánc aktiválása.
  *
- * ## A LÁNC LISTA, nem vászon — és ez tudatos
- *
- * A `@venture/ui`-ban nincs gráf- vagy vászon-primitív, a golden rule pedig a lokális
- * komponens-gyártást tiltja (jelenteni kell, nem megkerülni). A lépéslánc viszont
- * SORREND: az első lépéstől a következőig, elágazásnál `else`-ággal. Ez listaként
- * pontosan leírható, billentyűzettel is bejárható — a vizuális vászon a `@venture/ui`
- * bővítése után jöhet.
+ * A v1.1 óta a journey a VÁSZONON szerkesztődik (`JourneyCanvasController`, D4/D5); az új
+ * journey a választott trigger-csomóponttal indul. A v1.1 előtti, láncolt journey a vásznon
+ * is megnyílik, és amíg nem publikálják újra, a régi lánca fut.
  *
  * ## AZ AKTIVÁLÁS validál
  *
- * A `JourneyValidator` a láncot (nincs kör, van kilépés), a lépéseket és a célt nézi. Ha
- * ez csak futásidőben derülne ki, a journey „aktív" lenne, és a címzettek beragadnának
- * egy hurokba.
+ * A vászon journey-jét a `JourneyGraphValidator` (árva csomópont, hiányzó trigger, várakozás
+ * nélküli kör, kötelező konfiguráció), a régi láncot a `JourneyValidator` nézi. Ha ez csak
+ * futásidőben derülne ki, a journey „aktív" lenne, és a címzettek beragadnának egy hurokba.
  */
 final class JourneyUiController
 {
@@ -51,7 +52,11 @@ final class JourneyUiController
                     'name' => (string) $journey->name,
                     'status' => (string) $journey->status,
                     'trigger' => (string) $journey->trigger_type,
-                    'steps' => (int) $journey->steps_count,
+                    // A VÁSZON journey-jénél a gráf akció-csomópontjai számítanak (a verziók
+                    // lépései összeadva megtévesztők lennének); a régi láncnál a lépések.
+                    'steps' => is_array($journey->graph)
+                        ? count(array_filter((array) ($journey->graph['nodes'] ?? []), static fn ($node): bool => is_array($node) && NodeCatalog::isAction((string) ($node['type'] ?? ''))))
+                        : (int) $journey->steps_count,
                     // A FUTÓ példányok száma az, ami megmondja, hogy a journey ÉL-e:
                     // egy aktív journey nulla futással konfigurációs hiba.
                     'activeRuns' => JourneyRun::query()
@@ -112,17 +117,42 @@ final class JourneyUiController
         $journey = Journey::create([
             'name' => $validated['name'],
             'trigger_type' => $validated['trigger'],
+            // v1.1 · a VÁSZON a választott trigger-csomóponttal indul.
+            'graph' => [
+                'nodes' => [[
+                    'id' => 'trigger',
+                    'type' => $validated['trigger'],
+                    'position' => ['x' => 0, 'y' => 0],
+                    'label' => '',
+                    'config' => [],
+                ]],
+                'edges' => [],
+            ],
         ]);
 
         return redirect()->route('journeys.show', ['uuid' => $journey->uuid]);
     }
 
-    public function activate(string $uuid, JourneyValidator $validator): RedirectResponse
+    public function activate(Request $request, string $uuid, JourneyValidator $validator, JourneyPublisher $publisher, AuditLogger $audit): RedirectResponse
     {
-        // AZ AKTIVÁLÁS küldést indít — ugyanaz a felelősség, mint a kampány kiküldése.
-        Gate::authorize('campaign.publish');
+        // AZ AKTIVÁLÁS küldést indít — ugyanaz a felelősség, mint a kampány kiküldése. A v1.1
+        // óta saját képesség (`journey.publish`), ugyanazokkal a szerepekkel.
+        Gate::authorize('journey.publish');
 
         $journey = Journey::query()->with('steps')->where('uuid', $uuid)->firstOrFail();
+
+        // A VÁSZON journey-je a publikálón megy (verzió + lépések), a régi lánc a régi úton.
+        if (is_array($journey->graph)) {
+            try {
+                /** @var User|null $actor */
+                $actor = $request->user();
+                $publisher->publish($journey, $actor);
+            } catch (JourneyGraphInvalid) {
+                return back()->with('error', __('ventmail.journeys.publishInvalid'));
+            }
+
+            return back()->with('success', __('ventmail.journeys.activated'));
+        }
 
         try {
             $validator->validateChain($journey);
@@ -139,19 +169,8 @@ final class JourneyUiController
 
         $journey->forceFill(['status' => 'active'])->save();
 
+        $audit->log('journey.activated', $journey, context: ['legacy_chain' => true]);
+
         return back()->with('success', __('ventmail.journeys.activated'));
-    }
-
-    public function pause(string $uuid): RedirectResponse
-    {
-        Gate::authorize('campaign.publish');
-
-        $journey = Journey::query()->where('uuid', $uuid)->firstOrFail();
-
-        // A SZÜNET nem törli a futásokat: a benne lévő címzettek ott maradnak, ahol
-        // vannak, és a folytatáskor onnan mennek tovább.
-        $journey->forceFill(['status' => 'paused'])->save();
-
-        return back()->with('success', __('ventmail.journeys.paused'));
     }
 }

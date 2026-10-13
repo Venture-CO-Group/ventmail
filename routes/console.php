@@ -108,6 +108,10 @@ Schedule::command('analytics:purge-click-map')->dailyAt('04:05');
 // `segment_entered` triggerű journey élesben soha nem tüzelt.
 Schedule::command('journeys:detect-segment-entries')->everyFiveMinutes()->withoutOverlapping();
 
+// v1.1 · 6. modul — a DÁTUM / ÉVFORDULÓ trigger: naponta egyszer, reggel (a beléptetett futás
+// első lépése a következő tickben megy, nem éjszaka).
+Schedule::command('journeys:detect-dates')->dailyAt('07:00')->withoutOverlapping();
+
 // A lejárt nyers MIME-levelek törlése (golden rule 10): a levéltest a legsűrűbb PII-tárolónk.
 Schedule::command('messages:purge-raw-mime')->dailyAt('03:20');
 

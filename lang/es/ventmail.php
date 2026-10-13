@@ -132,6 +132,9 @@ return [
     'journeys' => [
         'activated' => 'Journey activa.',
         'paused' => 'Journey pausada.',
+        'publishInvalid' => 'El grafo del recorrido tiene errores: corrige los nodos marcados e inténtalo de nuevo.',
+        'published' => 'Publicado: versión :version.',
+        'notActive' => 'El recorrido no está activo.',
     ],
     'gate' => [
         'domain_unverified' => 'El dominio de envío no está verificado.',

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Journey\Actions;
 
 use App\Modules\Audience\Models\Contact;
+use App\Modules\Audience\Models\ContactList;
 use App\Modules\Audience\Models\ContactTag;
 use App\Modules\Audience\Models\Segment;
 use App\Modules\Audience\Services\SegmentEngine;
@@ -64,6 +65,64 @@ final class FireJourneyEvent
     {
         return $this->trigger->fire(TriggerType::TagAdded, (string) $contact->email, [
             'tag' => (string) $tag->uuid,
+        ]);
+    }
+
+    /**
+     * FELIRATKOZÁS LISTÁRA (v1.1) — a double opt-in MEGERŐSÍTÉSEKOR hívódik
+     * (`ConfirmSubscriptionController`), nem a puszta kérésnél: a „feliratkozott" itt
+     * megerősített tagságot jelent.
+     *
+     * @return list<JourneyRun>
+     */
+    public function listSubscribed(Contact $contact, ContactList $list): array
+    {
+        return $this->trigger->fire(TriggerType::ListSubscribe, (string) $contact->email, [
+            'list' => (string) $list->uuid,
+        ]);
+    }
+
+    /**
+     * CÍMKE ELTÁVOLÍTÁSA (v1.1) — ugyanaz a szabály, mint a `tagAdded()`-nél: a hívó dönti el,
+     * hogy felhasználói cselekedet-e. A journey saját `update_contact` lépése NEM hívja (két
+     * journey egymást tüzelve végtelen ciklust adna).
+     *
+     * @return list<JourneyRun>
+     */
+    public function tagRemoved(Contact $contact, ContactTag $tag): array
+    {
+        return $this->trigger->fire(TriggerType::TagRemoved, (string) $contact->email, [
+            'tag' => (string) $tag->uuid,
+        ]);
+    }
+
+    /**
+     * KONTAKT-MEZŐ VÁLTOZÁSA (v1.1). A mező kulcsa a payloadban; az új érték a futás
+     * kontextusába kerül (a `context_equals` feltétel szűrhet rá).
+     *
+     * @return list<JourneyRun>
+     */
+    public function fieldChanged(Contact $contact, string $field, ?string $value = null): array
+    {
+        return $this->trigger->fire(TriggerType::FieldChanged, (string) $contact->email, [
+            'field' => $field,
+            'value' => $value === null ? null : mb_substr($value, 0, 200),
+        ]);
+    }
+
+    /**
+     * KAMPÁNY-INTERAKCIÓ (v1.1): megnyitás vagy kattintás egy kampány levelén.
+     *
+     * A nyitás egy része gépi (Apple MPP, képproxy) — a journey ezt nem tudja
+     * megkülönböztetni, ugyanúgy, mint a kampány-riport (73. kritérium).
+     *
+     * @return list<JourneyRun>
+     */
+    public function campaignInteraction(string $email, string $campaignUuid, string $interaction): array
+    {
+        return $this->trigger->fire(TriggerType::CampaignInteraction, $email, [
+            'campaign' => $campaignUuid,
+            'interaction' => $interaction,
         ]);
     }
 

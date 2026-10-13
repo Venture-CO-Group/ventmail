@@ -361,6 +361,10 @@ class AppServiceProvider extends ServiceProvider
          */
         RateLimiter::for('template-editor', fn (Request $request) => Limit::perMinute(120)->by('user:'.(string) $request->user()?->getAuthIdentifier()));
 
+        // v1.1 · 6. modul — a journey-vászon JSON-végpontjai (mentés, validálás, publikálás,
+        // szüneteltetés).
+        RateLimiter::for('journey-editor', fn (Request $request) => Limit::perMinute(120)->by('user:'.(string) $request->user()?->getAuthIdentifier()));
+
         RateLimiter::for('template-test-send', fn (Request $request) => [
             Limit::perMinute(10)->by('user:'.(string) $request->user()?->getAuthIdentifier()),
             Limit::perHour(100)->by('ws:'.self::workspaceKey($request)),

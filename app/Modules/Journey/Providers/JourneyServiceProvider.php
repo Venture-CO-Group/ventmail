@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Journey\Providers;
 
+use App\Modules\Journey\Console\DetectDateTriggersCommand;
 use App\Modules\Journey\Console\DetectSegmentEntriesCommand;
 use App\Modules\Journey\Console\PurgeJourneyRunsCommand;
 use App\Modules\Journey\Console\TickJourneysCommand;
@@ -37,11 +38,13 @@ final class JourneyServiceProvider extends ModuleServiceProvider
 
     protected function bootModule(): void
     {
+
         if ($this->app->runningInConsole()) {
             $this->commands([
                 TickJourneysCommand::class,
                 PurgeJourneyRunsCommand::class,
                 DetectSegmentEntriesCommand::class,
+                DetectDateTriggersCommand::class,
             ]);
         }
     }

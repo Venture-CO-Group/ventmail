@@ -9,6 +9,7 @@ use App\Modules\Audience\Models\ContactList;
 use App\Modules\Consent\Models\Consent;
 use App\Modules\Consent\Services\ConfirmationTokens;
 use App\Modules\Consent\Services\ConsentRecorder;
+use App\Modules\Journey\Actions\FireJourneyEvent;
 use App\Modules\Tenancy\Models\Workspace;
 use App\Modules\Tenancy\Services\WorkspaceContext;
 use Illuminate\Http\Request;
@@ -114,6 +115,18 @@ final class ConfirmSubscriptionController
                     $contact->lists()->syncWithoutDetaching([
                         $list->getKey() => ['status' => 'subscribed', 'subscribed_at' => now()],
                     ]);
+
+                    /*
+                     | v1.1 · 6. modul — a „feliratkozás listára" journey-trigger. A MEGERŐSÍTÉS
+                     | a pillanat (nem a kérés): a beléptetett futás marketing-levele így már
+                     | megerősített consenttel indul. A journey hibája a megerősítést nem
+                     | bukhatja el — a jogalap fontosabb, mint az automatizálás.
+                     */
+                    try {
+                        app(FireJourneyEvent::class)->listSubscribed($contact, $list);
+                    } catch (\Throwable $e) {
+                        report($e);
+                    }
                 }
             }
         } finally {

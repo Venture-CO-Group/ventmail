@@ -132,6 +132,9 @@ return [
     'journeys' => [
         'activated' => 'Journey ist aktiv.',
         'paused' => 'Journey pausiert.',
+        'publishInvalid' => 'Der Journey-Graph enthält Fehler – korrigiere die markierten Knoten und versuche es erneut.',
+        'published' => 'Veröffentlicht: Version :version.',
+        'notActive' => 'Die Journey ist nicht aktiv.',
     ],
     'gate' => [
         'domain_unverified' => 'Die Absenderdomain ist nicht verifiziert.',
