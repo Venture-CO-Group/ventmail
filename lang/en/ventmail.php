@@ -259,5 +259,6 @@ return [
         'webhookTestQueued' => 'Test event queued — see the delivery log for the result.',
         'webhookTestThrottled' => 'Too many test events; try again in a minute.',
         'exportThrottled' => 'Too many exports; try again in a minute.',
+        'webhookInactive' => 'The endpoint is disabled — test events can only be sent to an active endpoint.',
     ],
 ];

@@ -8,6 +8,8 @@ use App\Modules\Events\Models\MessageEvent;
 use App\Modules\Logs\Models\DomainDailyStat;
 use App\Modules\Sending\Models\Message;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 
 /**
  * A domainenkénti napi számlálók írása az esemény-folyamból (D175).
@@ -37,8 +39,17 @@ final class DomainStatsRecorder
 
     private const MEMO_LIMIT = 1000;
 
-    /** @var array<string, int> */
+    /** @var array<string, array{0: int, 1: bool}> üzenet → [domain_id, testmode] */
     private array $domains = [];
+
+    /**
+     * A még ki nem írt növekmények: `workspace|domain|day` → oszlop → N (RS4, D194).
+     *
+     * @var array<string, array<string, int>>
+     */
+    private array $pending = [];
+
+    private bool $flushScheduled = false;
 
     public function record(MessageEvent $event): void
     {
@@ -52,27 +63,71 @@ final class DomainStatsRecorder
             return;
         }
 
-        $domainId = $this->domainOf((string) $event->message_uuid);
-        $day = ($event->occurred_at ?? now())->toDateString();
+        // Kapu-elfogadás, de NEM kézbesítésre szánt (testmode) — a „küldött" nem nőhet tőle.
+        [$domainId, $testmode] = $this->messageOf((string) $event->message_uuid);
 
-        DomainDailyStat::query()->upsert(
-            [[
-                'workspace_id' => (int) $event->workspace_id,
-                'domain_id' => $domainId,
-                'day' => $day,
-                $column => 1,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]],
-            ['workspace_id', 'domain_id', 'day'],
-            [
-                $column => DB::raw('domain_daily_stats.'.$column.' + 1'),
-                'updated_at' => now(),
-            ],
-        );
+        if ($column === 'sent' && $testmode) {
+            return;
+        }
+
+        $key = (int) $event->workspace_id.'|'.$domainId.'|'.($event->occurred_at ?? now())->toDateString();
+
+        // Ha a korábbi ütemezett kiírás nem futott le (a tranzakció visszagördült), a
+        // függő növekmények is érvénytelenek: azok a levelek nem mentek ki.
+        if ($this->flushScheduled && DB::transactionLevel() === 0) {
+            $this->pending = [];
+            $this->flushScheduled = false;
+        }
+
+        $this->pending[$key][$column] = ($this->pending[$key][$column] ?? 0) + 1;
+
+        if (! $this->flushScheduled) {
+            $this->flushScheduled = true;
+
+            /*
+             | EGY kiírás a COMMIT után, nem címzettenként (RS4, D194): egy 1000 címzettes batch
+             | 1000 eseménye EGY `+1000`-es upsert a forró soron, és csak a sikeres commit után
+             | — visszagördült küldés nem számít. Tranzakción kívül azonnal fut.
+             */
+            DB::afterCommit(fn () => $this->flush());
+        }
     }
 
-    private function domainOf(string $messageUuid): int
+    public function flush(): void
+    {
+        $pending = $this->pending;
+        $this->pending = [];
+        $this->flushScheduled = false;
+
+        foreach ($pending as $key => $columns) {
+            [$workspaceId, $domainId, $day] = explode('|', $key);
+
+            $row = [
+                'workspace_id' => (int) $workspaceId,
+                'domain_id' => (int) $domainId,
+                'day' => $day,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ];
+            $update = ['updated_at' => now()];
+
+            foreach ($columns as $column => $n) {
+                $row[$column] = $n;
+                $update[$column] = DB::raw('domain_daily_stats.'.$column.' + '.(int) $n);
+            }
+
+            // SAVEPOINT (RS4): egy hibás statisztika-sor nem mérgezheti a hívó tranzakcióját, és
+            // a commit utáni kiírás hibája sem buktathatja el a már elfogadott küldést.
+            try {
+                DB::transaction(fn () => DomainDailyStat::query()->upsert([$row], ['workspace_id', 'domain_id', 'day'], $update));
+            } catch (Throwable $e) {
+                Log::warning('A domain-statisztika nem frissült', ['exception' => $e::class]);
+            }
+        }
+    }
+
+    /** @return array{0: int, 1: bool} */
+    private function messageOf(string $messageUuid): array
     {
         if (array_key_exists($messageUuid, $this->domains)) {
             return $this->domains[$messageUuid];
@@ -82,6 +137,8 @@ final class DomainStatsRecorder
             $this->domains = [];
         }
 
-        return $this->domains[$messageUuid] = (int) (Message::query()->where('uuid', $messageUuid)->value('domain_id') ?? 0);
+        $row = Message::query()->where('uuid', $messageUuid)->first(['domain_id', 'testmode']);
+
+        return $this->domains[$messageUuid] = [(int) ($row?->domain_id ?? 0), (bool) ($row?->testmode ?? false)];
     }
 }

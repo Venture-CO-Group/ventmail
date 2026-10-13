@@ -46,7 +46,8 @@ it('a dokumentáció képernyő a fejlesztőnek és az elemzőnek nyílik, a sze
             ->assertOk()
             ->assertInertia(fn ($page) => $page
                 ->component('Platform/Docs')
-                ->where('webhook.sample.test', true)
+                ->where('webhook.sample.event', 'delivered')
+                ->missing('webhook.sample.test')
                 ->where('webhook.events', ['delivered', 'opened', 'clicked', 'bounced', 'complained', 'unsubscribed'])
                 ->where('sandbox.testKeyPrefix', 'vm_test_')
                 ->has('reference.operations')

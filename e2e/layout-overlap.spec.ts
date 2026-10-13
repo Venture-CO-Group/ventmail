@@ -31,7 +31,8 @@ const LONG_WORDS = `Egy meglehetosen hosszu, tobb szobol allo megnevezes a kampa
 const LONG_EMAIL = `nagyon.hosszu.felhasznalo.nev.amely.nem.torheto+${run}@egy-rendkivul-hosszu-subdomain.pelda-szervezet-neve.example.co.uk`;
 const LONG_DOMAIN = `rendkivul-hosszu-aldomain-${run}.egy-masik-nagyon-hosszu-szegmens.pelda-szervezet.example.co.uk`;
 // A webhook-cél SSRF-védett (valódi DNS-t kérdezne) → literál, publikus IP; a hosszt az útvonal adja.
-const LONG_URL = `https://93.184.216.34/nagyon/hosszu/utvonal/amely/sokszegmensu/${run}/es/tovabb/folytatodik?token=abcdefghijklmnopqrstuvwxyz0123456789`;
+// A `/e2e/` prefix a helyi fogadóra fut (D191): ha esemény érné, sem menne ki harmadik félhez.
+const LONG_URL = `https://93.184.216.34/e2e/nagyon/hosszu/utvonal/amely/sokszegmensu/${run}/es/tovabb/folytatodik?token=abcdefghijklmnopqrstuvwxyz0123456789`;
 
 const STATIC_PAGES = [
     '/dashboard',

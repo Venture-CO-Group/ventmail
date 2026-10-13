@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { router } from '@inertiajs/vue3';
+import { router, usePage } from '@inertiajs/vue3';
 import { VtButton, VtCheckbox, VtField, VtInput, VtSelect, type VtColumn } from '@venture/ui';
 import { computed, reactive, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
@@ -114,16 +114,50 @@ function query(): Record<string, string> {
     return Object.fromEntries(Object.entries(filters).filter(([, value]) => value !== '')) as Record<string, string>;
 }
 
-const exportHref = computed(() => {
-    const params = new URLSearchParams(query());
-    if (pii.value) params.set('pii', '1');
+const page = usePage<{ abilities: string[] }>();
+const canExportPii = computed(() => (page.props.abilities ?? []).includes('logs.export_pii'));
+const exporting = ref(false);
+const exportError = ref<string | null>(null);
 
-    return `/logs/export?${params.toString()}`;
-});
+/*
+ | AZ EXPORT POST + CSRF (N2): auditált, fékezett mellékhatás, ezért nem GET-link. A
+ | `XSRF-TOKEN` sütit fejlécbe tesszük (ugyanúgy, mint az Inertia/axios), a választ blobként
+ | töltjük le — az oldal marad, ahol volt.
+ */
+async function downloadExport(): Promise<void> {
+    exporting.value = true;
+    exportError.value = null;
 
-// A letöltés NAVIGÁCIÓ (a válasz `Content-Disposition: attachment`): az oldal marad.
-function downloadExport(): void {
-    window.location.assign(exportHref.value);
+    try {
+        const raw = document.cookie.split('; ').find((cookie) => cookie.startsWith('XSRF-TOKEN='));
+        const token = raw ? decodeURIComponent(raw.slice('XSRF-TOKEN='.length)) : '';
+
+        const response = await fetch('/logs/export', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json', Accept: 'text/csv, application/json', 'X-XSRF-TOKEN': token },
+            body: JSON.stringify({ ...query(), pii: pii.value && canExportPii.value }),
+        });
+
+        if (!response.ok) {
+            exportError.value = response.status === 429 ? t('plat.logs.exportThrottled') : t('plat.logs.exportFailed');
+
+            return;
+        }
+
+        const disposition = response.headers.get('Content-Disposition') ?? '';
+        const name = /filename="?([^";]+)"?/.exec(disposition)?.[1] ?? 'ventmail-log.csv';
+        const url = URL.createObjectURL(await response.blob());
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = name;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+    } finally {
+        exporting.value = false;
+    }
 }
 
 function search(): void {
@@ -153,10 +187,12 @@ function openTrace(row: Row): void {
     <AppLayout>
         <VmPageHeader :eyebrow="t('plat.eyebrow.logs')" :title="t('logs.title')" :lead="t('plat.logs.lead')">
             <div class="vm-export">
-                <VtCheckbox v-model="pii" data-testid="export-pii">{{ t('plat.logs.includePii') }}</VtCheckbox>
-                <VtButton variant="glass" data-testid="log-export" @click="downloadExport">{{ t('plat.logs.export') }}</VtButton>
+                <VtCheckbox v-if="canExportPii" v-model="pii" data-testid="export-pii">{{ t('plat.logs.includePii') }}</VtCheckbox>
+                <VtButton variant="glass" data-testid="log-export" :disabled="exporting" @click="downloadExport">{{ t('plat.logs.export') }}</VtButton>
             </div>
         </VmPageHeader>
+
+        <p v-if="exportError" class="vm-banner vm-banner--danger" role="alert" data-testid="export-error">{{ exportError }}</p>
 
         <VmCard>
             <VmForm data-testid="log-filters" @submit.prevent="search">

@@ -2162,7 +2162,9 @@
             "messageIdHint": "Die Nachrichten-ID, auch aus dem Message-ID-Header eingefügt.",
             "last24h": "Letzte 24 Stunden",
             "lastDays": "Letzte {days} Tage",
-            "footer": "{count} Zeilen auf dieser Seite · Aufbewahrung: {days} Tage"
+            "footer": "{count} Zeilen auf dieser Seite · Aufbewahrung: {days} Tage",
+            "exportThrottled": "Zu viele Exporte; versuche es in einer Minute erneut.",
+            "exportFailed": "Der Export ist fehlgeschlagen."
         },
         "trace": {
             "timeline": "Zeitleiste",
@@ -2274,7 +2276,8 @@
             "parameter": "Parameter",
             "in": "Ort",
             "description": "Beschreibung",
-            "responses": "Antworten"
+            "responses": "Antworten",
+            "testField": "true — nur bei Testereignissen"
         }
     }
 }

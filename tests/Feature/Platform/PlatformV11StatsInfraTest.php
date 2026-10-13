@@ -76,7 +76,8 @@ it('a számlálók az esemény-folyamból nőnek, a driver második accepted-je 
 
     expect($before)->toBe(2)
         ->and($row->sent)->toBe(2)
-        ->and($row->delivered)->toBeGreaterThanOrEqual(1)
+        // PONTOS érték: a fake driver két címzettre kézbesít, plusz a kézzel írt esemény.
+        ->and($row->delivered)->toBe(3)
         ->and($row->opened)->toBe(2)
         ->and($row->clicked)->toBe(1)
         ->and($row->bounced)->toBe(1)
@@ -161,4 +162,32 @@ it('az infrastruktúra-nézet csak platform-adminnak, csak olvasás, allowlist-t
 
     $this->actingAs($owner)->withSession(['workspace_uuid' => $this->workspace->uuid])
         ->get('/platform/infrastructure')->assertForbidden();
+});
+
+it('RS4: batch-úton egy írás +N, testmode nem „küldött", és a hibás recorder nem mérgezi a tranzakciót', function () {
+    $message = statSend(['a@example.test', 'b@example.test', 'c@example.test']);
+
+    expect(DomainDailyStat::query()->where('domain_id', $this->domain->id)->value('sent'))->toBe(3);
+
+    app(SendMessage::class)([
+        'channel' => 'transactional', 'from_email' => 'no-reply@pelda.hu', 'to' => ['t@example.test'],
+        'html' => '<p>x</p>', 'idempotency_key' => 'testmode-1', 'testmode' => true,
+    ]);
+
+    expect(DomainDailyStat::query()->where('domain_id', $this->domain->id)->value('sent'))->toBe(3);
+
+    // Egy elhasaló recorder a hívó tranzakcióját nem teszi használhatatlanná (savepoint).
+    app()->instance(\App\Modules\Logs\Services\DomainStatsRecorder::class, new class {
+        public function record(): void
+        {
+            \Illuminate\Support\Facades\DB::select('select 1/0');
+        }
+    });
+
+    \Illuminate\Support\Facades\DB::transaction(function () use ($message): void {
+        statEvent($message, 'opened');
+
+        // Ha a tranzakció mérgezett lenne, ez „current transaction is aborted" hibát adna.
+        expect(\Illuminate\Support\Facades\DB::selectOne('select 1 as ok')->ok)->toBe(1);
+    });
 });

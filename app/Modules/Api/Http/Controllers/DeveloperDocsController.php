@@ -32,7 +32,9 @@ final class DeveloperDocsController
             'reference' => $reference->build(),
             'webhook' => [
                 'events' => WebhookUiController::TEST_TYPES,
-                'sample' => WebhookUiController::samplePayload('delivered'),
+                // A VALÓDI esemény alakja: a `test` mező csak a teszt-eseményben szerepel, ezt a
+                // séma külön jelöli.
+                'sample' => collect(WebhookUiController::samplePayload('delivered'))->except('test')->all(),
                 'toleranceSeconds' => 300,
             ],
             'sandbox' => [

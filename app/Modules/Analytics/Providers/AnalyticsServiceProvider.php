@@ -8,6 +8,7 @@ use App\Modules\Analytics\Console\PurgeClickMapCommand;
 use App\Modules\Analytics\Services\EngagementRecorder;
 use App\Modules\Events\Models\MessageEvent;
 use App\Modules\Support\ModuleServiceProvider;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
@@ -64,7 +65,10 @@ final class AnalyticsServiceProvider extends ModuleServiceProvider
          */
         MessageEvent::created(function (MessageEvent $event): void {
             try {
-                app(EngagementRecorder::class)->record($event);
+                // SAVEPOINT (v1.1 · 7. modul review RS4): egy hibás upsert különben a hívó
+                // tranzakcióját mérgezné (Postgres: „current transaction is aborted"), és a
+                // `catch` csak elrejtené, hogy minden további utasítás elbukik.
+                DB::transaction(fn () => app(EngagementRecorder::class)->record($event));
             } catch (Throwable $e) {
                 Log::warning('A marketing-tény nem került a riportba', [
                     'event_type' => (string) $event->type,

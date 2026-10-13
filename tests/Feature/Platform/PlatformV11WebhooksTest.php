@@ -212,3 +212,30 @@ it('a kézbesítési napló szűrhető, és az újraküldés auditált', functio
     expect(WebhookDelivery::query()->withoutGlobalScopes()->find($delivery->getKey())->status)->toBe('failed')
         ->and(AuditLog::query()->withoutGlobalScopes()->where('action', 'webhook.replayed')->exists())->toBeTrue();
 });
+
+it('S4: az e2e-fogadó csak local/testing környezetben kapcsol be, élesben soha', function () {
+    config()->set('webhooks.e2e_sink', 'https://93.184.216.34/e2e/');
+
+    expect(\App\Modules\Webhooks\Testing\E2eWebhookSink::enabled())->toBeTrue();
+
+    $original = app()->environment();
+    app()['env'] = 'production';
+
+    try {
+        expect(\App\Modules\Webhooks\Testing\E2eWebhookSink::enabled())->toBeFalse();
+    } finally {
+        app()['env'] = $original;
+    }
+
+    config()->set('webhooks.e2e_sink', 'http://belso.test/');
+    expect(\App\Modules\Webhooks\Testing\E2eWebhookSink::enabled())->toBeFalse();
+});
+
+it('RS5: inaktív végpontra nem küldhető teszt-esemény (validációs hiba, nincs örök pending sor)', function () {
+    $this->endpoint->forceFill(['active' => false])->save();
+
+    whAs()->from('/webhooks')->post("/webhooks/{$this->endpoint->uuid}/test", ['event' => 'delivered'])
+        ->assertSessionHasErrors('event');
+
+    expect(WebhookDelivery::query()->withoutGlobalScopes()->count())->toBe(0);
+});

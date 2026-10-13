@@ -43,6 +43,13 @@ final class AbilityMap
      | állít le — ugyanaz a négy-szem minta, mint a `campaign.publish`-nál: a szerző
      | (`author`) megrajzolhatja a vásznat, de élesíteni nem tudja. Ugyanaz a három szerep
      | kapja (owner, admin, editor).
+     |
+     | ÚJ KÉPESSÉG (v1.1 · 7. modul review S1, D189): `logs.export_pii`.
+     |
+     | A napló TELJES (nem maszkolt) exportja címzett-címeket és tárgyakat ad ki tömegesen,
+     | fájlban, ami a rendszeren kívül él tovább. A maszkolt export a `logs.view`-hoz elég; a
+     | teljes alak az üzemeltető szerepeké (owner, admin, developer) — az elemző és a
+     | szerkesztő nem kapja.
      */
 
     /** @var array<string, list<string>> */
@@ -51,21 +58,21 @@ final class AbilityMap
             'workspace.manage', 'workspace.delete', 'member.manage', 'billing.manage',
             'subAccount.manage', 'domain.manage', 'ipPool.manage',
             'apiKey.manage', 'smtpCredential.manage', 'webhook.manage', 'storedTemplate.manage',
-            'suppression.manage', 'validation.run', 'logs.view', 'analytics.view',
+            'suppression.manage', 'validation.run', 'logs.view', 'logs.export_pii', 'analytics.view',
             'campaign.create', 'campaign.publish', 'journey.publish', 'template.create', 'template.publish', 'audience.manage',
         ],
         'admin' => [
             'workspace.manage', 'member.manage',
             'subAccount.manage', 'domain.manage', 'ipPool.manage',
             'apiKey.manage', 'smtpCredential.manage', 'webhook.manage', 'storedTemplate.manage',
-            'suppression.manage', 'validation.run', 'logs.view', 'analytics.view',
+            'suppression.manage', 'validation.run', 'logs.view', 'logs.export_pii', 'analytics.view',
             'campaign.create', 'campaign.publish', 'journey.publish', 'template.create', 'template.publish', 'audience.manage',
         ],
         // Fejlesztő: a küldő infrastruktúra igen, a marketing tartalom nem.
         'developer' => [
             'domain.manage', 'ipPool.manage',
             'apiKey.manage', 'smtpCredential.manage', 'webhook.manage', 'storedTemplate.manage',
-            'suppression.manage', 'validation.run', 'logs.view', 'analytics.view',
+            'suppression.manage', 'validation.run', 'logs.view', 'logs.export_pii', 'analytics.view',
         ],
         'editor' => [
             'campaign.create', 'campaign.publish', 'journey.publish', 'template.create', 'template.publish', 'audience.manage',

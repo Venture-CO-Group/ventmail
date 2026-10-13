@@ -67,7 +67,7 @@ final class SuppressionUiController
                 ])->values()->all(),
                 'nextCursor' => $page->nextCursor()?->encode(),
             ],
-            'reasons' => array_map(fn (SuppressionReason $reason) => $reason->value, SuppressionReason::cases()),
+            'reasons' => SuppressionReason::tenantWritable(),
             'scopes' => array_map(fn (SuppressionScope $scope) => $scope->value, SuppressionScope::cases()),
         ]);
     }
@@ -78,7 +78,8 @@ final class SuppressionUiController
 
         $validated = $request->validate([
             'email' => ['required', 'string', 'email', 'max:320'],
-            'reason' => ['required', 'string', Rule::in(array_map(fn ($case) => $case->value, SuppressionReason::cases()))],
+            // CSAK a tenant által írható okok (D186): a `policy` platform-operátori.
+            'reason' => ['required', 'string', Rule::in(SuppressionReason::tenantWritable())],
             'appliesTo' => ['required', 'string', Rule::in(array_map(fn ($case) => $case->value, SuppressionScope::cases()))],
         ]);
 

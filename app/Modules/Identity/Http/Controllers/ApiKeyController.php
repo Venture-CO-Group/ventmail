@@ -49,16 +49,22 @@ final class ApiKeyController
     /** Egy kulcs legfeljebb ennyi allowlist-bejegyzést kaphat. */
     private const MAX_ALLOWLIST = 50;
 
-    /** A lista felső korlátja (a visszavontakkal együtt). */
-    private const MAX_KEYS = 200;
+    /**
+     * A VISSZAVONT kulcsokból ennyi látszik (a legutóbbiak). Az ÉLŐ kulcsok MIND látszanak
+     * (RS2, D192): egy élő kulcs nem tűnhet el a listáról egy korlát miatt — azt nem lehetne
+     * visszavonni.
+     */
+    private const MAX_REVOKED = 50;
 
     public function index(): Response
     {
         Gate::authorize('apiKey.manage');
 
         return Inertia::render('Identity/ApiKeys', [
-            // A VISSZAVONT kulcs is látszik (a prefix a naplóban nyom): „melyik kulcs volt ez?"
-            'keys' => ApiKey::query()->withTrashed()->orderByDesc('id')->limit(self::MAX_KEYS)->get()->map(fn (ApiKey $key) => [
+            // Az ÉLŐ kulcsok mind, utánuk a legutóbb visszavontak (a prefix a naplóban nyom).
+            'keys' => ApiKey::query()->orderByDesc('id')->get()
+                ->concat(ApiKey::query()->onlyTrashed()->orderByDesc('deleted_at')->limit(self::MAX_REVOKED)->get())
+                ->map(fn (ApiKey $key) => [
                 'uuid' => (string) $key->uuid,
                 'name' => (string) $key->name,
                 // A PREFIX az, amiről a kulcs FELISMERHETŐ a naplóban — a titok nélkül.

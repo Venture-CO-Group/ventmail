@@ -42,8 +42,9 @@ final class SuppressionStore
 
         $email = DomainNormalizer::listKey(trim($email));
 
-        $this->assertNotPlatformWide($email);
-
+        // A platform-szintű tiltás létezését NEM áruljuk el (D187): a felvétel ugyanúgy a
+        // tenant SAJÁT sorát írja, mint bármely más címnél. A címet a platform-sor a
+        // PreSendGate 2. kapujában ettől függetlenül blokkolja.
         return $this->upsert($email, $reasonEnum, $scopeEnum, $expiresAt, 'api:'.$key->prefix);
     }
 
@@ -65,8 +66,6 @@ final class SuppressionStore
             ?? throw new InvalidArgumentException("Ismeretlen suppression-hatókör: {$appliesTo}");
 
         $email = DomainNormalizer::listKey(trim($email));
-
-        $this->assertNotPlatformWide($email);
 
         return $this->upsert($email, $reasonEnum, $scopeEnum, $expiresAt, 'ui');
     }
@@ -105,18 +104,17 @@ final class SuppressionStore
 
         $existingReason = SuppressionReason::tryFrom((string) $existing->reason);
         $existingScope = SuppressionScope::tryFrom((string) $existing->applies_to) ?? SuppressionScope::All;
+        $merged = SuppressionReason::merged($existingReason, $reasonEnum);
 
         $existing->update([
-            // A súlyosabb OK marad meg: a panaszt nem írhatja felül egy későbbi soft bounce.
-            'reason' => $reasonEnum->severity() > ($existingReason?->severity() ?? 0)
-                ? $reasonEnum->value
-                : $existing->reason,
+            // A visszavonhatatlan ok RAGADÓS, egyébként a súlyosabb marad (D186).
+            'reason' => $merged->value,
             // A hatókör csak BŐVÜLHET (marketing → all), soha nem szűkül.
             'applies_to' => $scopeEnum->isStricterThan($existingScope)
                 ? $scopeEnum->value
                 : $existingScope->value,
             // A lejárat csak SZIGORODHAT: permanens ok törli, egyébként a korábbi marad.
-            'expires_at' => $reasonEnum->isPermanent() ? null : $existing->expires_at,
+            'expires_at' => $reasonEnum->isPermanent() || $merged->isPermanent() ? null : $existing->expires_at,
         ]);
 
         return $existing->fresh();
@@ -168,6 +166,9 @@ final class SuppressionStore
         // Lapozás KÖTELEZŐ: a tábla természeténél fogva milliós, a teljes betöltés
         // memóriára futna — és nyílt e-mail-címeket öntene egy válaszba.
         return Suppression::query()
+            // KIZÁRÓLAG a saját sorok (D187): a platform-szintű tiltás (spamcsapda, jogi
+            // tiltás) nem tenant-adat, és a listázás/keresés orákulum lenne a létezésére.
+            ->whereNotNull('workspace_id')
             // A KÜLÖN LISTÁK (v1.1): okra szűrve, a `(workspace_id, reason, id)` index mentén.
             ->when($reasons !== null, fn ($query) => $query->whereIn('reason', $reasons))
             ->when($search !== null && $search !== '', function ($query) use ($search): void {
@@ -247,8 +248,8 @@ final class SuppressionStore
     {
         $email = DomainNormalizer::listKey(trim($email));
 
-        $this->assertNotPlatformWide($email);
-
+        // Platform-szintű tiltásra ugyanaz a válasz, mint egy nem létező címre (D187): a
+        // keresés csak a SAJÁT sorok között fut.
         $suppression = Suppression::query()
             ->whereNotNull('workspace_id')
             ->where('email', $email)
@@ -270,19 +271,6 @@ final class SuppressionStore
         }
 
         return (bool) $suppression->delete();
-    }
-
-    /**
-     * A platform-szintű tiltás létezését NEM áruljuk el részletekkel: az orákulum lenne
-     * arra, hogy egy cím globálisan tiltott-e.
-     */
-    private function assertNotPlatformWide(string $email): void
-    {
-        $platformWide = Suppression::query()->whereNull('workspace_id')->where('email', $email)->exists();
-
-        if ($platformWide) {
-            throw new AuthorizationException('Ez a cím platform-szinten tiltott; a művelet nem elérhető.');
-        }
     }
 
     private function authorize(ApiKey $key, string $scope): void

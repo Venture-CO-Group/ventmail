@@ -50,7 +50,10 @@ function v11Log(array $overrides = []): Message
 
 function exportCsv(string $query = ''): string
 {
-    $response = test()->get('/logs/export'.($query !== '' ? '?'.$query : ''));
+    parse_str($query, $data);
+
+    // POST + CSRF (N2): a tesztkörnyezet a CSRF-et nem ellenőrzi, a metódust igen.
+    $response = test()->post('/logs/export', $data);
     $response->assertOk()->assertHeader('content-type', 'text/csv; charset=UTF-8');
 
     return $response->streamedContent();
@@ -148,11 +151,38 @@ it('az export percenként fékezett, és logs.view nélkül tiltott', function (
     exportCsv();
     exportCsv();
 
-    $this->from('/logs')->get('/logs/export')->assertRedirect('/logs')->assertSessionHas('error');
+    $this->post('/logs/export')->assertStatus(429)->assertHeader('Retry-After');
 
     $author = User::factory()->create();
     $this->workspace->members()->create(['user_id' => $author->id, 'roles' => [Role::Author->value]]);
 
     $this->actingAs($author)->withSession(['workspace_uuid' => $this->workspace->uuid])
-        ->get('/logs/export')->assertForbidden();
+        ->post('/logs/export')->assertForbidden();
+
+    // GET-en nincs export (N2): a cím a trace-útvonalra esik, ott nincs ilyen üzenet.
+    $this->actingAs($this->user)->withSession(['workspace_uuid' => $this->workspace->uuid])
+        ->get('/logs/export')->assertNotFound();
+});
+
+it('S1: a teljes (pii) export külön képesség — az elemző csak maszkoltat kaphat', function () {
+    v11Log();
+
+    $analyst = User::factory()->create();
+    $this->workspace->members()->create(['user_id' => $analyst->id, 'roles' => [Role::Analyst->value]]);
+
+    $as = fn () => $this->actingAs($analyst)->withSession(['workspace_uuid' => $this->workspace->uuid]);
+
+    $as()->post('/logs/export', ['pii' => 1])->assertForbidden();
+    expect($as()->post('/logs/export')->assertOk()->streamedContent())->toContain('a***@example.test');
+
+    expect(AuditLog::query()->withoutGlobalScopes()->where('action', 'logs.exported')->count())->toBe(1);
+});
+
+it('pontosan max sornál nincs csonkolás-jelzés', function () {
+    config()->set('logs.export_max_rows', 2);
+
+    v11Log(['to' => ['egy@example.test']]);
+    v11Log(['to' => ['ketto@example.test']]);
+
+    expect(exportCsv('pii=1'))->not->toContain('# truncated');
 });

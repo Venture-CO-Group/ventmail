@@ -99,7 +99,8 @@ final class SmtpCredentialController
 
     /**
      * ROTÁCIÓ (v1.1 · 7. modul): új jelszó UGYANAZZAL a névvel, domainnel, csatornával és
-     * kerettel; a régi hitelesítő AZONNAL visszavonva.
+     * kerettel; a régi hitelesítő AZONNAL visszavonva — a vele már hitelesített, nyitott
+     * SMTP-munkamenet is a következő beküldésnél 421-et kap, és zárul (D190).
      *
      * Nincs átfedési ablak — szándékosan: a rotációt jellemzően szivárgás váltja ki, és egy
      * relay-hitelesítőnél a „még 24 óráig él" a támadónak ad 24 óra nyílt küldést. Az

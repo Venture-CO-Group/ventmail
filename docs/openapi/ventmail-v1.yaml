@@ -499,8 +499,9 @@ paths:
       tags: [suppressions]
       summary: Cím felvétele a tiltólistára
       description: |
-        Monoton: a súlyosabb ok és a szélesebb hatókör marad meg (egy panaszt nem ír felül
-        egy későbbi kézi tiltás).
+        Monoton: a szélesebb hatókör marad meg, és a panasz/leiratkozás RAGADÓS — más ok nem
+        írja felül (különben törölhetővé válna). Egyébként a súlyosabb ok marad. A válasz
+        minden címre ugyanaz (201): a platform-szintű tiltás létezése nem derül ki.
       operationId: addSuppression
       security: [{ bearerAuth: [] }, { basicAuth: [] }]
       requestBody:
@@ -529,14 +530,17 @@ paths:
       tags: [suppressions]
       summary: Tiltás törlése indoklással
       description: |
-        Az INDOKLÁS (`reason`) kötelező, és a törlés auditált. A PANASZ és a LEIRATKOZÁS nem
-        törölhető (`403 SUPPRESSION_IRREVOCABLE`): az az érintett akarata.
+        Az INDOKLÁS (`reason`) kötelező — JSON-törzsben vagy query-paraméterként —, és a
+        törlés auditált. A PANASZ és a LEIRATKOZÁS nem törölhető (`403
+        SUPPRESSION_IRREVOCABLE`): az az érintett akarata. Csak a workspace saját sora
+        törölhető; a nem létező (vagy platform-szintű) címre `404 UNKNOWN_SUPPRESSION`.
       operationId: deleteSuppression
       security: [{ bearerAuth: [] }, { basicAuth: [] }]
       parameters:
         - { name: email, in: path, required: true, schema: { type: string } }
+        - { name: reason, in: query, required: false, schema: { type: string, minLength: 3, maxLength: 500 }, description: 'a törzs `reason` mezőjének alternatívája' }
       requestBody:
-        required: true
+        required: false
         content:
           application/json:
             schema:
@@ -1511,5 +1515,4 @@ components:
         - IN_PROGRESS
         # v1.1 · 7. modul: tiltólista.
         - SUPPRESSION_IRREVOCABLE
-        - SUPPRESSION_NOT_WRITABLE
         - UNKNOWN_SUPPRESSION

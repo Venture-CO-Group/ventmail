@@ -62,4 +62,40 @@ enum SuppressionReason: string
             'manual' => [self::Manual->value, self::Policy->value],
         ];
     }
+
+    /**
+     * A TENANT által (felületen vagy `/v1`-en) felvehető okok (v1.1 review B1, D186).
+     *
+     * A `policy` platform-operátori ok: tenantból felvéve egy panaszt is „felülírhatna".
+     *
+     * @return list<string>
+     */
+    public static function tenantWritable(): array
+    {
+        return [self::Manual->value, self::Bounce->value, self::Blocked->value, self::Unsubscribe->value, self::Complaint->value];
+    }
+
+    /**
+     * Az új ok egy MEGLÉVŐ sor helyén (D186).
+     *
+     * A visszavonhatatlan ok (panasz, leiratkozás) RAGADÓS: más ok nem írhatja felül —
+     * különben a „súlyosabb" bounce/policy felülírás után a sor törölhetővé válna, és a
+     * leiratkozott cím újra levelet kapna. Visszavonhatatlan bejövő ok pedig mindig nyer egy
+     * visszavonhatóval szemben. Két visszavonhatatlan közül a súlyosabb marad (panasz).
+     */
+    public static function merged(?self $existing, self $incoming): self
+    {
+        if ($existing === null) {
+            return $incoming;
+        }
+
+        $existingSticky = $existing->isIrrevocableByTenant();
+        $incomingSticky = $incoming->isIrrevocableByTenant();
+
+        if ($existingSticky !== $incomingSticky) {
+            return $existingSticky ? $existing : $incoming;
+        }
+
+        return $incoming->severity() > $existing->severity() ? $incoming : $existing;
+    }
 }

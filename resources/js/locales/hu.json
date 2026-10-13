@@ -2162,7 +2162,9 @@
             "messageIdHint": "Az üzenet azonosítója, akár a Message-ID fejlécből bemásolva.",
             "last24h": "Elmúlt 24 óra",
             "lastDays": "Elmúlt {days} nap",
-            "footer": "{count} sor ezen az oldalon · retenció: {days} nap"
+            "footer": "{count} sor ezen az oldalon · retenció: {days} nap",
+            "exportThrottled": "Túl sok export; próbáld újra egy perc múlva.",
+            "exportFailed": "Az export nem sikerült."
         },
         "trace": {
             "timeline": "Idővonal",
@@ -2274,7 +2276,8 @@
             "parameter": "Paraméter",
             "in": "Hely",
             "description": "Leírás",
-            "responses": "Válaszok"
+            "responses": "Válaszok",
+            "testField": "true — csak teszt-eseményben"
         }
     }
 }

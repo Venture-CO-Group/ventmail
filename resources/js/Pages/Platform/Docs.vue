@@ -127,7 +127,7 @@ const paramRows = computed<ParamRow[]>(() => [
 const schemaRows = computed(() => [
     { field: 'event', type: props.webhook.events.join(' | ') },
     { field: 'timestamp', type: 'integer (unix)' },
-    { field: 'test', type: 'boolean?' },
+    { field: 'test', type: t('plat.docs.testField') },
     { field: 'message.id', type: 'string (uuid)' },
     { field: 'message.recipient', type: 'string' },
     { field: 'message.channel', type: 'transactional | marketing' },

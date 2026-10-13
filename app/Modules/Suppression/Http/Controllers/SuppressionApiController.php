@@ -29,9 +29,6 @@ final class SuppressionApiController
 {
     private const MAX_LIMIT = 1000;
 
-    /** Az API-ból felvehető okok — a `policy` platform-operátori. */
-    private const WRITABLE_REASONS = ['manual', 'bounce', 'blocked', 'unsubscribe', 'complaint'];
-
     public function index(Request $request, SuppressionStore $store): JsonResponse
     {
         $validator = Validator::make($request->query(), [
@@ -65,7 +62,7 @@ final class SuppressionApiController
     {
         $validator = Validator::make($request->all(), [
             'email' => ['required', 'string', 'email', 'max:320'],
-            'reason' => ['sometimes', 'string', 'in:'.implode(',', self::WRITABLE_REASONS)],
+            'reason' => ['sometimes', 'string', 'in:'.implode(',', SuppressionReason::tenantWritable())],
             'applies_to' => ['sometimes', 'string', 'in:'.implode(',', array_map(fn ($case) => $case->value, SuppressionScope::cases()))],
         ]);
 
@@ -84,7 +81,9 @@ final class SuppressionApiController
                 (string) $request->input('applies_to', 'all'),
             );
         } catch (AuthorizationException) {
-            return ApiError::response('SUPPRESSION_NOT_WRITABLE', 'Ez a cím ezen az úton nem módosítható.', 403);
+            // Csak hiányzó scope-nál (a middleware előtte megfogja) — a platform-szintű
+            // tiltás NEM ad külön választ (D187).
+            return ApiError::response('INSUFFICIENT_SCOPE', 'Az API-kulcshoz hiányzik a(z) suppressions:write scope.', 403);
         }
 
         return response()->json($this->present($suppression), 201);
@@ -105,11 +104,13 @@ final class SuppressionApiController
         $key = $request->attributes->get('api_key');
 
         try {
-            $removed = $store->removeWithJustification(rawurldecode($email), (string) $request->input('reason'), 'api:'.$key->prefix);
+            // A route-paramétert a router már dekódolta — még egy `rawurldecode` a `+`/`%`
+            // karaktert tartalmazó címeket rontaná el.
+            $removed = $store->removeWithJustification($email, (string) $request->input('reason'), 'api:'.$key->prefix);
         } catch (AuthorizationException) {
             return ApiError::response(
                 'SUPPRESSION_IRREVOCABLE',
-                'A panasz- és leiratkozás-alapú (vagy platform-szintű) tiltás nem törölhető.',
+                'A panasz- és leiratkozás-alapú tiltás nem törölhető.',
                 403,
             );
         } catch (InvalidArgumentException) {

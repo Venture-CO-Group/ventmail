@@ -2162,7 +2162,9 @@
             "messageIdHint": "L'identifiant du message, y compris collé depuis l'en-tête Message-ID.",
             "last24h": "Dernières 24 heures",
             "lastDays": "{days} derniers jours",
-            "footer": "{count} lignes sur cette page · rétention : {days} jours"
+            "footer": "{count} lignes sur cette page · rétention : {days} jours",
+            "exportThrottled": "Trop d'exports ; réessayez dans une minute.",
+            "exportFailed": "L'export a échoué."
         },
         "trace": {
             "timeline": "Chronologie",
@@ -2274,7 +2276,8 @@
             "parameter": "Paramètre",
             "in": "Emplacement",
             "description": "Description",
-            "responses": "Réponses"
+            "responses": "Réponses",
+            "testField": "true — uniquement pour les événements de test"
         }
     }
 }

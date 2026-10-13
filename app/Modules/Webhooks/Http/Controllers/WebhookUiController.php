@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 use InvalidArgumentException;
@@ -77,8 +78,8 @@ final class WebhookUiController
             ->limit(self::LOG_LIMIT)
             ->get();
 
-        // Végpontonkénti arány az elmúlt 7 napból — EGY csoportosító lekérdezés, indexelt
-        // (`workspace_id`, `status`) szűrővel, nem végpontonként külön.
+        // Végpontonkénti arány az elmúlt 7 napból — EGY csoportosító lekérdezés a
+        // `(workspace_id, created_at)` index mentén (D193), nem végpontonként külön.
         $stats = WebhookDelivery::query()
             ->where('created_at', '>=', now()->subDays(7))
             ->selectRaw('webhook_endpoint_id, count(*) as total, count(*) filter (where status = ?) as ok, count(*) filter (where status in (?, ?)) as bad', ['delivered', 'failed', 'dead_letter'])
@@ -210,6 +211,11 @@ final class WebhookUiController
         $endpoint = WebhookEndpoint::query()->where('uuid', $uuid)->firstOrFail();
 
         $validated = $request->validate(['event' => ['required', 'string', Rule::in(self::TEST_TYPES)]]);
+
+        // KIKAPCSOLT végpontra a kézbesítő nem küld — a sor örökre `pending` maradna (RS5).
+        if (! $endpoint->active) {
+            throw ValidationException::withMessages(['event' => __('ventmail.plat.webhookInactive')]);
+        }
 
         $key = 'webhook-test:'.$endpoint->workspace_id;
 

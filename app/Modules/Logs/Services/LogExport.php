@@ -104,7 +104,9 @@ final class LogExport
             }
         }
 
-        if ($written >= $max) {
+        // CSONKOLÁS csak akkor, ha TÉNYLEG maradt sor: pontosan `max` találatnál nincs jelzés.
+        if ($written >= $max && $lastId !== null
+            && $this->query->query(self::bounded($filters))->where('id', '<', $lastId)->exists()) {
             fputcsv($out, ['# truncated', (string) $max], ',', '"', '');
         }
 

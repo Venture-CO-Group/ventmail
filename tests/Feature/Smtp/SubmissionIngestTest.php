@@ -304,3 +304,37 @@ it('a leiratkozó fejléc BETŰZÉSTŐL függetlenül elakad a relayen', functio
 
     expect(Message::count())->toBe(0);
 });
+
+/*
+ | v1.1 · 7. modul review S3 (D190): a munkamenet közben visszavont (rotált) hitelesítő a
+ | már hitelesített kapcsolaton SEM küldhet tovább — 421, és a kapcsolat zárul.
+ */
+it('a munkamenet közben visszavont hitelesítő nem küldhet, és a kapcsolat zárul', function () {
+    $session = new \App\Modules\Smtp\Protocol\SmtpSession(
+        app(\App\Modules\Smtp\Services\CredentialAuthenticator::class),
+        app(\App\Modules\Smtp\Contracts\SubmissionSink::class),
+        \App\Modules\Smtp\Data\ChannelSecurity::encrypted('TLSv1.3'),
+        'smtp.ventmail.test',
+    );
+
+    $session->feed('EHLO kliens.test');
+    expect($session->feed('AUTH PLAIN '.base64_encode("\0".$this->username."\0".$this->password))[0]->code)->toBe(235);
+
+    // Rotáció / visszavonás a hitelesítés UTÁN.
+    $credential = SmtpCredential::query()->where('username', $this->username)->firstOrFail();
+    $credential->forceFill(['revoked_at' => now()])->save();
+    $credential->delete();
+
+    $codes = [];
+    foreach (mail_lines() as $line) {
+        foreach ($session->feed($line) as $reply) {
+            $codes[] = $reply->code;
+        }
+    }
+
+    app(WorkspaceContext::class)->set($this->workspace);
+
+    expect(end($codes))->toBe(421)
+        ->and($session->shouldClose())->toBeTrue()
+        ->and(Message::count())->toBe(0);
+});

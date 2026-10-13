@@ -146,6 +146,14 @@ final class ApiKey extends Model
             return true;
         }
 
+        // IPv4-mapped IPv6 (`::ffff:1.2.3.4`) → a beágyazott IPv4 (N3): dual-stack figyelőn a
+        // kliens így is látszhat, és egy IPv4-es allowlist különben sosem illeszkedne.
+        $binary = @inet_pton($ip);
+
+        if ($binary !== false && strlen($binary) === 16 && str_starts_with($binary, str_repeat("\0", 10)."\xff\xff")) {
+            $ip = (string) inet_ntop(substr($binary, 12));
+        }
+
         return IpUtils::checkIp($ip, $allowlist);
     }
 

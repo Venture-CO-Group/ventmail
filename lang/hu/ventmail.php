@@ -243,5 +243,6 @@ return [
         'webhookTestQueued' => 'A teszt-esemény sorba állítva — az eredmény a kézbesítési naplóban látszik.',
         'webhookTestThrottled' => 'Túl sok teszt-esemény; próbáld újra egy perc múlva.',
         'exportThrottled' => 'Túl sok export; próbáld újra egy perc múlva.',
+        'webhookInactive' => 'A végpont ki van kapcsolva — teszt-esemény csak aktív végpontra küldhető.',
     ],
 ];

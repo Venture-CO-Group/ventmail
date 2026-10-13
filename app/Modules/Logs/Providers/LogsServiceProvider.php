@@ -9,6 +9,7 @@ use App\Modules\Logs\Console\PurgeLogsCommand;
 use App\Modules\Logs\Console\RedactSubjectCommand;
 use App\Modules\Logs\Services\DomainStatsRecorder;
 use App\Modules\Support\ModuleServiceProvider;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
@@ -38,7 +39,9 @@ final class LogsServiceProvider extends ModuleServiceProvider
          */
         MessageEvent::created(function (MessageEvent $event): void {
             try {
-                app(DomainStatsRecorder::class)->record($event);
+                // SAVEPOINT (RS4): a recorder lekérdezésének hibája nem mérgezi a hívó
+                // tranzakcióját (pl. a Postal-webhook feldolgozása tranzakcióban fut).
+                DB::transaction(fn () => app(DomainStatsRecorder::class)->record($event));
             } catch (Throwable $e) {
                 Log::warning('A domain-statisztika nem frissült', [
                     'event_type' => (string) $event->type,

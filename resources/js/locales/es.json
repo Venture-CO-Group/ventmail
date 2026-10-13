@@ -2162,7 +2162,9 @@
             "messageIdHint": "El ID del mensaje, también pegado desde la cabecera Message-ID.",
             "last24h": "Últimas 24 horas",
             "lastDays": "Últimos {days} días",
-            "footer": "{count} filas en esta página · retención: {days} días"
+            "footer": "{count} filas en esta página · retención: {days} días",
+            "exportThrottled": "Demasiadas exportaciones; inténtalo de nuevo en un minuto.",
+            "exportFailed": "La exportación ha fallado."
         },
         "trace": {
             "timeline": "Cronología",
@@ -2274,7 +2276,8 @@
             "parameter": "Parámetro",
             "in": "Ubicación",
             "description": "Descripción",
-            "responses": "Respuestas"
+            "responses": "Respuestas",
+            "testField": "true — solo en eventos de prueba"
         }
     }
 }

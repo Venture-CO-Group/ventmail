@@ -2162,7 +2162,9 @@
             "messageIdHint": "The message ID, also pasted from the Message-ID header.",
             "last24h": "Last 24 hours",
             "lastDays": "Last {days} days",
-            "footer": "{count} rows on this page · retention: {days} days"
+            "footer": "{count} rows on this page · retention: {days} days",
+            "exportThrottled": "Too many exports; try again in a minute.",
+            "exportFailed": "The export failed."
         },
         "trace": {
             "timeline": "Timeline",
@@ -2274,7 +2276,8 @@
             "parameter": "Parameter",
             "in": "In",
             "description": "Description",
-            "responses": "Responses"
+            "responses": "Responses",
+            "testField": "true — test events only"
         }
     }
 }

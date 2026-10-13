@@ -282,3 +282,69 @@ it('az SMTP-képernyő a beküldés paramétereit is mutatja (plaintext port né
             ->has('submission.ports', 2)
         );
 });
+
+/*
+ | Review 1. kör — B2: az IP-allowlist elutasítása nem kulcsérvényességi orákulum (D188).
+ */
+it('B2: allowlisten kívülről az érvényes kulcs pontosan úgy viselkedik, mint a rossz kulcs (21 kérés)', function () {
+    $workspace = Workspace::factory()->create();
+
+    ['plain' => $plain] = app(WorkspaceContext::class)->runFor(
+        $workspace,
+        fn () => ApiKey::issue('CI', ['events:read'], false, null, ['203.0.113.0/24']),
+    );
+
+    $sequence = function (string $key, string $ip): array {
+        $codes = [];
+
+        for ($i = 0; $i < 21; $i++) {
+            $codes[] = test()->withServerVariables(['REMOTE_ADDR' => $ip])
+                ->withHeaders(['Authorization' => 'Bearer '.$key])
+                ->getJson('/v1/events')
+                ->status();
+        }
+
+        return $codes;
+    };
+
+    $valid = $sequence($plain, '198.51.100.9');
+    $invalid = $sequence('vm_live_'.str_repeat('x', 48), '198.51.100.10');
+
+    expect($valid)->toBe($invalid)
+        ->and(end($valid))->toBe(429);
+
+    // A jogos ügyfél az engedélyezett címről TOVÁBBRA is beenged: a kulcs-vödör IP-hez kötött.
+    $this->withServerVariables(['REMOTE_ADDR' => '203.0.113.5'])
+        ->withHeaders(['Authorization' => 'Bearer '.$plain])
+        ->getJson('/v1/events')
+        ->assertOk();
+});
+
+it('N3: az IPv4-mapped IPv6 forrás az IPv4 allowlistre illeszkedik', function () {
+    $key = new ApiKey(['ip_allowlist' => ['203.0.113.0/24']]);
+
+    expect($key->allowsAddress('::ffff:203.0.113.7'))->toBeTrue()
+        ->and($key->allowsAddress('::ffff:198.51.100.1'))->toBeFalse()
+        ->and($key->allowsAddress('203.0.113.7'))->toBeTrue();
+});
+
+it('RS2: minden élő kulcs látszik (korlát nélkül), a visszavontakból a legutóbbi 50', function () {
+    $workspace = Workspace::factory()->create();
+    $user = v11User($workspace);
+
+    app(WorkspaceContext::class)->runFor($workspace, function (): void {
+        foreach (range(1, 60) as $i) {
+            ApiKey::issue("Régi {$i}", ['messages:send'])['model']->delete();
+        }
+
+        foreach (range(1, 210) as $i) {
+            ApiKey::issue("Élő {$i}", ['messages:send']);
+        }
+    });
+
+    v11As($user, $workspace)->get('/api-keys')
+        ->assertInertia(fn ($page) => $page
+            ->has('keys', 260)
+            ->where('keys', fn ($keys) => collect($keys)->whereNull('revoked_at')->count() === 210)
+        );
+});

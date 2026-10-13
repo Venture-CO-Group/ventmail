@@ -152,6 +152,7 @@ final class IpSupervision
             ->map(fn (IpAddress $ip): array => [
                 'address' => (string) $ip->address,
                 'hostname' => (string) $ip->hostname,
+                'pool_id' => (int) $ip->ip_pool_id,
                 'pool' => (string) $pools[$ip->ip_pool_id]?->name,
                 'pool_type' => (string) $pools[$ip->ip_pool_id]?->type,
                 // A POOL TENANTJA: `null` a megosztott platform-poolnál.

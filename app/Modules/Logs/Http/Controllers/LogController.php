@@ -12,7 +12,7 @@ use App\Modules\Logs\Services\MessageTrace;
 use App\Modules\Logs\Services\TagStatistics;
 use App\Modules\Sending\Models\Message;
 use App\Support\QueryTooExpensive;
-use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\RateLimiter;
@@ -72,20 +72,28 @@ final class LogController
      * CSV-EXPORT (v1.1 · 7. modul, D173) — streamelt, korlátos, retenció-tudatos,
      * PII-tudatos (alapból maszkolt címzett, tárgy nélkül), auditált és fékezett.
      */
-    public function export(Request $request, LogExport $export): StreamedResponse|RedirectResponse
+    public function export(Request $request, LogExport $export): StreamedResponse|JsonResponse
     {
         Gate::authorize('logs.view');
+
+        $pii = $request->boolean('pii');
+
+        // A TELJES (nem maszkolt) alak külön képesség (D189): a maszkolt export a naplót
+        // olvasóké, a címzett-címek tömeges kiadása az üzemeltető szerepeké.
+        if ($pii) {
+            Gate::authorize('logs.export_pii');
+        }
 
         $key = 'logs-export:'.$request->user()?->getAuthIdentifier();
 
         if (RateLimiter::tooManyAttempts($key, (int) config('logs.export_per_minute', 5))) {
-            return back()->with('error', __('ventmail.plat.exportThrottled'));
+            return response()->json(['message' => __('ventmail.plat.exportThrottled')], 429)
+                ->header('Retry-After', (string) RateLimiter::availableIn($key));
         }
 
         RateLimiter::hit($key, 60);
 
         $filters = self::filters($request);
-        $pii = $request->boolean('pii');
 
         $export->audit($filters, $pii);
 

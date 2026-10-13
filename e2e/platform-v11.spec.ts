@@ -98,7 +98,8 @@ test('webhook: eseménytípusok, titok-rotáció türelmi ablakkal, teszt-esemé
 
     await page.getByTestId('endpoint-new').click();
     await page.getByTestId('endpoint-name').fill(`hook-${run}`);
-    // Literál publikus IP: az SSRF-őr valódi DNS-t nem kérdez; a kézbesítés eredménye itt mellékes.
+    // Literál publikus IP (az SSRF-őr valódi DNS-t nem kérdez). A `/e2e/` prefixet a szerver
+    // helyi fogadója válaszolja meg (WEBHOOKS_E2E_SINK, D191) — kimenő kérés NINCS.
     await page.getByTestId('endpoint-url').fill(`https://93.184.216.34/e2e/${run}`);
     await page.getByTestId('event-delivered').click();
     await page.getByTestId('endpoint-submit').click();
@@ -122,9 +123,15 @@ test('webhook: eseménytípusok, titok-rotáció türelmi ablakkal, teszt-esemé
     await page.getByTestId('endpoint-list').getByText(`hook-${run}`).click();
     await expect(page.getByTestId('secret-hint')).toContainText(rotated.slice(-4));
 
-    // Teszt-esemény: levél nélkül, a kézbesítési naplóban jelölve.
-    await page.getByTestId('test-send').click();
-    await expect(page.getByTestId('deliveries-table').locator('[data-state="test"]').first()).toBeVisible({ timeout: 20_000 });
+    // Teszt-esemény: levél nélkül, a kézbesítési naplóban jelölve — és KÉZBESÍTVE (a helyi
+    // fogadó 200-at ad). Külső szerver ellen (APP_URL) a kézbesítés eredményét nem mérjük,
+    // mert ott nincs helyi fogadó, és harmadik félhez nem küldünk.
+    if (!process.env.APP_URL) {
+        await page.getByTestId('test-send').click();
+        const row = page.getByTestId('deliveries-table').locator('tbody tr', { has: page.locator('[data-state="test"]') }).first();
+        await expect(row).toBeVisible({ timeout: 20_000 });
+        await expect(row.locator('[data-testid^="delivery-state-"]')).toHaveAttribute('data-state', 'delivered');
+    }
 
     // Takarítás (a platform-screens üres végpontlistát vár).
     await page.getByTestId('endpoint-list').getByText(`hook-${run}`).click();
@@ -217,7 +224,8 @@ test('fejlesztői dokumentáció: OpenAPI-ból generált referencia, négy nyelv
     }
 
     await page.getByTestId('docs-guide-webhooks').click();
-    await expect(page.getByTestId('docs-webhook-payload')).toContainText('"test": true');
+    await expect(page.getByTestId('docs-webhook-payload')).toContainText('"event": "delivered"');
+    await expect(page.getByTestId('docs-webhook-payload')).not.toContainText('"test": true');
     await expect(page.getByTestId('docs-webhook-schema')).toContainText('delivery.code');
     // A nyelvválasztás közös: az utoljára választott (Python) mintája látszik.
     await expect(page.getByTestId('docs-verify-code')).toContainText('hmac.compare_digest');

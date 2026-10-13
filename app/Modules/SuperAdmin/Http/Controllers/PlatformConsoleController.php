@@ -132,7 +132,8 @@ final class PlatformConsoleController
                 'type' => (string) $pool->type,
                 'channel' => $pool->channel,
                 'workspace' => $pool->workspace_id === null ? null : ($tenants[$pool->workspace_id] ?? '—'),
-                'addresses' => $addresses->where('pool', $pool->name)->count(),
+                // Pool-AZONOSÍTÓ szerint: két tenant azonos nevű poolja külön számolódik.
+                'addresses' => $addresses->where('pool_id', $pool->getKey())->count(),
             ])->values()->all(),
             'addresses' => $addresses->map(fn (array $ip) => [
                 ...collect($ip)->only(['address', 'hostname', 'pool', 'pool_type', 'status', 'warmup_state', 'daily_limit', 'sent_today', 'utilisation', 'reputation_score', 'quarantined_at', 'quarantine_reason'])->all(),

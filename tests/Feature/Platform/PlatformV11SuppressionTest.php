@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 use App\Models\User;
 use App\Modules\Audit\Models\AuditLog;
+use App\Modules\Domains\Models\Domain;
 use App\Modules\Identity\Models\ApiKey;
+use App\Modules\Sending\Actions\SendMessage;
+use App\Modules\Sending\Models\Message;
 use App\Modules\Suppression\Models\Suppression;
 use App\Modules\Tenancy\Models\Workspace;
 use App\Modules\Tenancy\Services\WorkspaceContext;
@@ -151,4 +154,85 @@ it('a /v1 tiltólista tenant-izolált', function () {
 
     supApi()->getJson('/v1/suppressions?search=idegen')->assertOk()->assertJsonCount(0, 'items');
     supApi()->deleteJson('/v1/suppressions/idegen@example.test', ['reason' => 'próba'])->assertNotFound();
+});
+
+/*
+ | Review 1. kör — B1: a visszavonhatatlan ok RAGADÓS; S2/RB1: a platform-szintű tiltás nem orákulum.
+ */
+
+it('B1: a leiratkozás bounce-szal nem írható át, és utána sem törölhető (API)', function () {
+    supApi()->postJson('/v1/suppressions', ['email' => 'leiratkozott@example.test', 'reason' => 'bounce'])
+        ->assertCreated()
+        ->assertJsonPath('reason', 'unsubscribe')
+        ->assertJsonPath('deletable', false);
+
+    supApi()->deleteJson('/v1/suppressions/leiratkozott@example.test', ['reason' => 'feltámasztás'])
+        ->assertStatus(403)->assertJsonPath('error.code', 'SUPPRESSION_IRREVOCABLE');
+
+    expect(app(WorkspaceContext::class)->runFor($this->workspace, fn () => Suppression::query()->where('email', 'leiratkozott@example.test')->value('reason')))
+        ->toBe('unsubscribe');
+});
+
+it('B1: a panasz policy-val nem írható át a felületen, a policy ok nem is írható tenantból', function () {
+    supAs()->from('/suppressions')->post('/suppressions', ['email' => 'panasz@example.test', 'reason' => 'policy', 'appliesTo' => 'all'])
+        ->assertSessionHasErrors('reason');
+
+    supAs()->from('/suppressions')->post('/suppressions', ['email' => 'panasz@example.test', 'reason' => 'blocked', 'appliesTo' => 'all'])
+        ->assertSessionHasNoErrors();
+
+    supAs()->from('/suppressions')->delete('/suppressions', ['email' => 'panasz@example.test', 'justification' => 'feltámasztás'])
+        ->assertSessionHas('error');
+
+    expect(app(WorkspaceContext::class)->runFor($this->workspace, fn () => Suppression::query()->where('email', 'panasz@example.test')->value('reason')))
+        ->toBe('complaint');
+});
+
+it('B1: egy bounce-ra érkező leiratkozás visszavonhatatlanná teszi a sort (a ragadós ok nyer)', function () {
+    supApi()->postJson('/v1/suppressions', ['email' => 'bounce@example.test', 'reason' => 'unsubscribe'])
+        ->assertCreated()->assertJsonPath('reason', 'unsubscribe');
+
+    supApi()->deleteJson('/v1/suppressions/bounce@example.test', ['reason' => 'próba'])
+        ->assertStatus(403)->assertJsonPath('error.code', 'SUPPRESSION_IRREVOCABLE');
+});
+
+it('S2/RB1: a platform-szintű tiltás nem látszik és nem orákulum, de a kapu továbbra is blokkol', function () {
+    Suppression::onPlatform(fn () => Suppression::create(['email' => 'csapda@example.test', 'reason' => 'policy']));
+
+    // Lista és keresés: nem jelenik meg (API és felület).
+    supApi()->getJson('/v1/suppressions?search=csapda')->assertOk()->assertJsonCount(0, 'items');
+    supApi()->getJson('/v1/suppressions?list=manual')->assertOk()->assertJsonMissing(['email' => 'csapda@example.test']);
+    supAs()->get('/suppressions?list=manual&search=csapda')->assertInertia(fn ($page) => $page->has('suppressions.items', 0));
+
+    // Törlés: ugyanaz a 404, mint egy nem létező címre.
+    $missing = supApi()->deleteJson('/v1/suppressions/nincs-ilyen@example.test', ['reason' => 'próba']);
+    $platform = supApi()->deleteJson('/v1/suppressions/csapda@example.test', ['reason' => 'próba']);
+
+    expect($platform->status())->toBe(404)
+        ->and($platform->json())->toBe($missing->json());
+
+    // Felvétel: ugyanaz a 201, mint bármely címre — a tenant saját sora jön létre.
+    supApi()->postJson('/v1/suppressions', ['email' => 'csapda@example.test', 'reason' => 'manual'])
+        ->assertCreated()->assertJsonPath('reason', 'manual');
+
+    // A saját sor törlése sem nyitja ki a címet: a platform-sor a PreSendGate 2. kapujában blokkol.
+    supApi()->deleteJson('/v1/suppressions/csapda@example.test', ['reason' => 'próba'])->assertNoContent();
+
+    app(WorkspaceContext::class)->runFor($this->workspace, function (): void {
+        Domain::create(['name' => 'pelda.hu', 'status' => 'verified', 'verified_at' => now()]);
+        app(SendMessage::class)([
+            'channel' => 'transactional', 'from_email' => 'no-reply@pelda.hu', 'to' => ['csapda@example.test'],
+            'html' => '<p>x</p>', 'idempotency_key' => 'csapda-1',
+        ]);
+
+        $message = Message::query()->latest('id')->firstOrFail();
+
+        expect($message->status)->toBe('rejected')->and($message->reason)->toBe('SUPPRESSED');
+    });
+});
+
+it('NIT: a DELETE indoklása query-paraméterként is jöhet, és a + jeles cím nem romlik el', function () {
+    supApi()->postJson('/v1/suppressions', ['email' => 'anna+hirlevel@example.test'])->assertCreated();
+
+    supApi()->deleteJson('/v1/suppressions/'.rawurlencode('anna+hirlevel@example.test').'?reason=query-indok')
+        ->assertNoContent();
 });
