@@ -166,7 +166,7 @@ const maxMb = computed(() => Math.round(props.limits.maxBytes / 1024 / 1024));
                     :logo-url="preview.logoUrl"
                     :title="t('analytics.report.coverCampaign')"
                     :subtitle="t('branding.previewSample')"
-                    date-range="2026-09-12 – 2026-10-12"
+                    :date-range="`${format.day('2026-09-12')} – ${format.day('2026-10-12')}`"
                     :kpis="[
                         { label: t('analytics.kpi.recipients'), value: '3 812' },
                         { label: t('analytics.kpi.openRate'), value: '46,2%' },

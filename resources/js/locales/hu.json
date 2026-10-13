@@ -2685,5 +2685,24 @@
             "date": "dátum",
             "boolean": "igen/nem"
         }
+    },
+    "inboundRoutes": {
+        "title": "Bejövő szabályok",
+        "order": "A szabályok ebben a sorrendben értékelődnek ki. Az első {stop} lezárja a láncot.",
+        "empty": "Még nincs szabály. Szabály nélkül a beérkező levél eltárolódik, és a retenció lejártakor törlődik.",
+        "recent": "Utolsó beérkezett levelek",
+        "retention": "A beérkezett levél idegen tartalom: rövid retencióval tároljuk, majd a nyers levél és a csatolmányok is törlődnek.",
+        "match": "Illesztés",
+        "actions": "Akciók",
+        "active": "Aktív",
+        "lastMatched": "Utolsó találat",
+        "received": "Érkezett",
+        "sender": "Feladó",
+        "recipient": "Címzett",
+        "subject": "Tárgy",
+        "status": "Állapot",
+        "yes": "igen",
+        "no": "nem",
+        "nullSender": "(visszapattanás – üres feladó)"
     }
 }

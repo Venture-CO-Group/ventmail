@@ -150,3 +150,18 @@ export function formatDay(value: string, prefs: FormatPrefs): string {
 
     return match === null ? value : datePart({ year: match[1], month: match[2], day: match[3], hour: '00', minute: '00' }, prefs.dateFormat);
 }
+
+/**
+ * GRAFIKON-KATEGÓRIA (D297): naptári nap (`YYYY-MM-DD`) vagy óra-vödör (`YYYY-MM-DDTHH:MM[:SS]`,
+ * ill. szóközzel) a profil dátumformátumában — időzóna-átváltás NÉLKÜL (a vödör már a workspace
+ * zónájában van). Más alakú bemenetet változatlanul ad vissza.
+ */
+export function formatStamp(value: string, prefs: FormatPrefs): string {
+    const match = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::\d{2})?)?$/.exec(value);
+
+    if (match === null) return value;
+
+    const day = datePart({ year: match[1], month: match[2], day: match[3], hour: '00', minute: '00' }, prefs.dateFormat);
+
+    return match[4] === undefined ? day : `${day} ${match[4]}:${match[5]}`;
+}

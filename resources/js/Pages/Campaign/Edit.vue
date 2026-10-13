@@ -240,7 +240,7 @@ const summary = computed<Record<Section['key'], string>>(() => {
             schedule.mode === 'now'
                 ? t('checklist.sendNowSummary')
                 : schedule.mode === 'later' && schedule.scheduledLocal
-                  ? `${schedule.scheduledLocal} (${schedule.timezone})${schedule.past ? ` · ${t('checklist.inPast')}` : ''}`
+                  ? `${format.stamp(String(schedule.scheduledLocal))} (${schedule.timezone})${schedule.past ? ` · ${t('checklist.inPast')}` : ''}`
                   : t('checklist.scheduleMissing'),
         ab: Number(ab.variants) === 0 ? t('checklist.abNone') : t('checklist.abSummary', { count: Number(ab.variants), total: Number(ab.weightTotal) }),
     };

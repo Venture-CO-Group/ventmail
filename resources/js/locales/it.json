@@ -2685,5 +2685,24 @@
             "date": "data",
             "boolean": "sì/no"
         }
+    },
+    "inboundRoutes": {
+        "title": "Regole in entrata",
+        "order": "Le regole vengono valutate in questo ordine. Il primo {stop} chiude la catena.",
+        "empty": "Ancora nessuna regola. Senza regola il messaggio in arrivo viene archiviato ed eliminato alla scadenza della conservazione.",
+        "recent": "Ultimi messaggi ricevuti",
+        "retention": "Un messaggio in arrivo è contenuto di terzi: viene conservato per poco, poi il messaggio grezzo e gli allegati vengono eliminati.",
+        "match": "Corrispondenza",
+        "actions": "Azioni",
+        "active": "Attiva",
+        "lastMatched": "Ultima corrispondenza",
+        "received": "Ricevuto",
+        "sender": "Mittente",
+        "recipient": "Destinatario",
+        "subject": "Oggetto",
+        "status": "Stato",
+        "yes": "sì",
+        "no": "no",
+        "nullSender": "(rimbalzo – mittente vuoto)"
     }
 }

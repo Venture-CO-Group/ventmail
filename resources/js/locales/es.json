@@ -2685,5 +2685,24 @@
             "date": "fecha",
             "boolean": "sí/no"
         }
+    },
+    "inboundRoutes": {
+        "title": "Reglas entrantes",
+        "order": "Las reglas se evalúan en este orden. El primer {stop} cierra la cadena.",
+        "empty": "Aún no hay reglas. Sin regla, el mensaje entrante se almacena y se elimina al vencer la retención.",
+        "recent": "Últimos mensajes recibidos",
+        "retention": "Un mensaje entrante es contenido de terceros: se conserva poco tiempo y después se eliminan el mensaje original y los adjuntos.",
+        "match": "Coincidencia",
+        "actions": "Acciones",
+        "active": "Activa",
+        "lastMatched": "Última coincidencia",
+        "received": "Recibido",
+        "sender": "Remitente",
+        "recipient": "Destinatario",
+        "subject": "Asunto",
+        "status": "Estado",
+        "yes": "sí",
+        "no": "no",
+        "nullSender": "(rebote – remitente vacío)"
     }
 }

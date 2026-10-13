@@ -1,6 +1,6 @@
 import { usePage } from '@inertiajs/vue3';
 import { computed } from 'vue';
-import { type DateInput, formatDate, formatDateTime, formatDay, formatNumber, formatPercent, formatTime, type FormatPrefs, type NumberOptions, resolvePrefs } from '../lib/format';
+import { type DateInput, formatDate, formatDateTime, formatDay, formatNumber, formatStamp, formatPercent, formatTime, type FormatPrefs, type NumberOptions, resolvePrefs } from '../lib/format';
 
 /**
  * A felhasználó formázási beállításai (D11) a megosztott Inertia-propsból (`format`), és a
@@ -27,5 +27,6 @@ export function useFormat() {
         time: (value: DateInput) => formatTime(value, prefs.value),
         dateTime: (value: DateInput) => formatDateTime(value, prefs.value),
         day: (value: string) => formatDay(value, prefs.value),
+        stamp: (value: string) => formatStamp(value, prefs.value),
     };
 }

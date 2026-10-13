@@ -81,7 +81,7 @@ function onRange(value: string): void {
     go({ range: value });
 }
 
-const periodLabel = computed(() => `${props.selection.from} – ${props.selection.to}`);
+const periodLabel = computed(() => `${format.day(props.selection.from)} – ${format.day(props.selection.to)}`);
 const campaignName = computed(() => props.campaignSection?.campaign?.name ?? '');
 
 const fmt = (value: number | undefined | null) => format.number((value ?? 0));
@@ -93,7 +93,8 @@ const timelineSeries = computed(() => [
     { name: t('analytics.series.opens'), data: timeline.value.points.map((p) => p.opens), token: '--vt-color-accent-500', area: true },
     { name: t('analytics.series.clicks'), data: timeline.value.points.map((p) => p.clicks), token: '--vt-color-cyan-400', area: true },
 ]);
-const timelineLabels = computed(() => timeline.value.points.map((p) => (timeline.value.bucket === 'hour' ? p.at.replace('T', ' ') : p.at.slice(5))));
+// D297: a kategória a NYERS nap/óra; a tengely a profil formátumában írja ki (`format.stamp`).
+const timelineLabels = computed(() => timeline.value.points.map((p) => (timeline.value.bucket === 'hour' ? p.at.slice(0, 16) : p.at.slice(0, 10))));
 
 // --- Kampány: eszköz / kliens -------------------------------------------------------------
 const devices = computed(() => props.campaignSection?.devices);
@@ -271,7 +272,7 @@ function scrollToReport(): void {
                 <VmChartCard id="growth" :title="t('analytics.chart.growth')" :context="periodLabel" :chart="audienceSection?.available ? growthChart : null">
                     <p v-if="!audienceSection?.available" class="vm-banner vm-banner--warning">{{ t('analytics.unavailable') }}</p>
                     <template v-else>
-                        <VmBarChart ref="growthChart" :categories="growth.map((g) => g.date.slice(5))" :series="growthSeries" :label="t('analytics.chart.growth')" testid="chart-growth" />
+                        <VmBarChart ref="growthChart" :categories="growth.map((g) => g.date)" :series="growthSeries" :label="t('analytics.chart.growth')" testid="chart-growth" />
                     </template>
                     <template v-if="audienceSection?.churn" #note>
                         {{ t('analytics.churn', { rate: pct(audienceSection.churn.rate), lost: fmt(audienceSection.churn.unsubscribed), base: fmt(audienceSection.churn.subscribedAtStart) }) }}
@@ -338,7 +339,7 @@ function scrollToReport(): void {
                 <VmLineChart
                     v-else-if="deliverability.length"
                     ref="deliverabilityChart"
-                    :categories="deliverability.map((d) => d.day.slice(5))"
+                    :categories="deliverability.map((d) => d.day)"
                     :series="deliverabilitySeries"
                     :label="t('analytics.chart.deliverability')"
                     percent

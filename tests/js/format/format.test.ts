@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatDate, formatDateTime, formatDay, formatNumber, formatPercent, formatTime, resolvePrefs } from '../../../resources/js/lib/format';
+import { formatDate, formatDateTime, formatDay, formatStamp, formatNumber, formatPercent, formatTime, resolvePrefs } from '../../../resources/js/lib/format';
 
 const hu = resolvePrefs({ dateFormat: 'ymd', numberFormat: 'space_comma', timezone: 'Europe/Budapest' });
 
@@ -73,5 +73,14 @@ describe('formatDay — naptári nap időzóna-csúszás nélkül', () => {
         expect(formatDay('2026-09-14', ny)).toBe('09/14/2026');
         expect(formatDay('2026-09-14', hu)).toBe('2026. 09. 14.');
         expect(formatDay('nem nap', hu)).toBe('nem nap');
+    });
+});
+
+describe('formatStamp — grafikon-kategória (nap vagy óra) időzóna-csúszás nélkül (D297)', () => {
+    it('napot és órát is a profil dátumformátumában ad, egyébként változatlan', () => {
+        expect(formatStamp('2026-10-07', hu)).toBe('2026. 10. 07.');
+        expect(formatStamp('2026-10-07T13:00', hu)).toBe('2026. 10. 07. 13:00');
+        expect(formatStamp('2026-10-07 13:00:00', resolvePrefs({ dateFormat: 'dmy', numberFormat: 'comma_dot', timezone: 'UTC' }))).toBe('07/10/2026 13:00');
+        expect(formatStamp('Q3', hu)).toBe('Q3');
     });
 });

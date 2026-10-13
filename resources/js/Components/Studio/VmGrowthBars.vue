@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useFormat } from '../../composables/useFormat';
 
 /**
  * NAPI NÖVEKEDÉS oszlopokkal (v1.1 · 5. modul): felfelé az új, lefelé a leiratkozott.
@@ -21,6 +22,7 @@ export interface GrowthRow {
 const props = defineProps<{ rows: GrowthRow[] }>();
 
 const { t } = useI18n();
+const format = useFormat();
 
 const max = computed(() => Math.max(1, ...props.rows.map((row) => Math.max(row.new, row.unsubscribed))));
 
@@ -48,8 +50,8 @@ const columns = computed(() =>
         </div>
 
         <div class="vm-growth__axis" aria-hidden="true">
-            <span>{{ rows[0]?.date }}</span>
-            <span>{{ rows[rows.length - 1]?.date }}</span>
+            <span>{{ rows[0] ? format.day(rows[0].date) : '' }}</span>
+            <span>{{ rows.length ? format.day(rows[rows.length - 1].date) : '' }}</span>
         </div>
 
         <!-- A TÁBLA nem zsugorodik a rejtő osztály méretére (auto layout) — ezért egy burkoló rejti. -->
@@ -66,7 +68,7 @@ const columns = computed(() =>
             </thead>
             <tbody>
                 <tr v-for="row in rows" :key="row.date">
-                    <td>{{ row.date }}</td>
+                    <td>{{ format.day(row.date) }}</td>
                     <td>{{ row.new }}</td>
                     <td>{{ row.unsubscribed }}</td>
                     <td>{{ row.net }}</td>

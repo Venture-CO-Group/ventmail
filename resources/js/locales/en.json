@@ -2685,5 +2685,24 @@
             "date": "date",
             "boolean": "yes/no"
         }
+    },
+    "inboundRoutes": {
+        "title": "Inbound routes",
+        "order": "Routes are evaluated in this order. The first {stop} ends the chain.",
+        "empty": "No routes yet. Without a route an incoming message is stored and deleted when retention expires.",
+        "recent": "Recent incoming messages",
+        "retention": "An incoming message is third-party content: it is kept for a short retention period, then the raw message and its attachments are deleted.",
+        "match": "Match",
+        "actions": "Actions",
+        "active": "Active",
+        "lastMatched": "Last match",
+        "received": "Received",
+        "sender": "Sender",
+        "recipient": "Recipient",
+        "subject": "Subject",
+        "status": "Status",
+        "yes": "yes",
+        "no": "no",
+        "nullSender": "(bounce – null sender)"
     }
 }

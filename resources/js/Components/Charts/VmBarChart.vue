@@ -31,7 +31,7 @@ function build(token: TokenResolver): Record<string, unknown> {
         tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, valueFormatter: (value: number) => format.number(value, { maximumFractionDigits: 2 }) },
         legend: { top: 0, textStyle: { color: text } },
         grid: { left: 8, right: 24, top: 36, bottom: 8, containLabel: true },
-        xAxis: { type: 'category', data: props.categories, axisLine: { lineStyle: { color: grid } }, axisLabel: { color: text, formatter: (value: string) => format.day(value) } },
+        xAxis: { type: 'category', data: props.categories, axisLine: { lineStyle: { color: grid } }, axisLabel: { color: text, formatter: (value: string) => format.stamp(value) } },
         yAxis: { type: 'value', minInterval: 1, splitLine: { lineStyle: { color: grid } }, axisLabel: { color: text, formatter: (value: number) => format.number(value) } },
         series: props.series.map((serie) => ({
             name: serie.name,

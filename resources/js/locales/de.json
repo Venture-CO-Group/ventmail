@@ -2685,5 +2685,24 @@
             "date": "Datum",
             "boolean": "ja/nein"
         }
+    },
+    "inboundRoutes": {
+        "title": "Eingehende Regeln",
+        "order": "Die Regeln werden in dieser Reihenfolge ausgewertet. Das erste {stop} beendet die Kette.",
+        "empty": "Noch keine Regel. Ohne Regel wird eine eingehende Nachricht gespeichert und nach Ablauf der Aufbewahrung gelöscht.",
+        "recent": "Zuletzt eingegangene Nachrichten",
+        "retention": "Eine eingehende Nachricht ist fremder Inhalt: Sie wird kurz aufbewahrt, danach werden die Rohnachricht und die Anhänge gelöscht.",
+        "match": "Treffer",
+        "actions": "Aktionen",
+        "active": "Aktiv",
+        "lastMatched": "Letzter Treffer",
+        "received": "Empfangen",
+        "sender": "Absender",
+        "recipient": "Empfänger",
+        "subject": "Betreff",
+        "status": "Status",
+        "yes": "ja",
+        "no": "nein",
+        "nullSender": "(Bounce – leerer Absender)"
     }
 }

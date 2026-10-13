@@ -117,7 +117,7 @@ const timelineChart = ref<InstanceType<typeof VmLineChart> | null>(null);
         <Deferred data="charts">
             <template #fallback><p>…</p></template>
             <VmChartCard id="open-click" :title="t('analytics.chart.openClick')" :subtitle="t(`analytics.bucket.${timeline.bucket}`)" :context="campaign.name" :chart="timeline.points.length ? timelineChart : null">
-                <VmLineChart v-if="timeline.points.length" ref="timelineChart" :categories="timeline.points.map((p) => p.at.replace('T', ' '))" :series="timelineSeries" :label="t('analytics.chart.openClick')" testid="chart-open-click" />
+                <VmLineChart v-if="timeline.points.length" ref="timelineChart" :categories="timeline.points.map((p) => p.at.slice(0, 16))" :series="timelineSeries" :label="t('analytics.chart.openClick')" testid="chart-open-click" />
                 <p v-else>{{ t('analytics.noData') }}</p>
             </VmChartCard>
 

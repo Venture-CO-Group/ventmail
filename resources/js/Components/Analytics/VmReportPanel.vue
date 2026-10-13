@@ -176,7 +176,7 @@ onBeforeUnmount(() => window.clearTimeout(timer));
                         <ul v-else class="vm-report__rows">
                             <li v-for="row in reports.slice(0, 5)" :key="row.uuid" class="vm-report__item" :data-testid="`report-row-${row.status}`">
                                 <VtBadge :tone="tones[row.status]" size="sm">{{ t(`analytics.report.status.${row.status}`) }}</VtBadge>
-                                <span class="vm-truncate">{{ row.kind === 'campaign' ? t('analytics.report.kindCampaignShort') : `${row.from} – ${row.to}` }}</span>
+                                <span class="vm-truncate">{{ row.kind === 'campaign' ? t('analytics.report.kindCampaignShort') : `${format.day(row.from ?? "")} – ${format.day(row.to ?? "")}` }}</span>
                                 <span class="vm-report__muted">{{ formatDate(row.createdAt) }}</span>
                                 <span v-if="row.status === 'failed'" class="vm-report__muted">{{ t('analytics.report.failed', { code: row.failureCode ?? '' }) }}</span>
                                 <a v-if="row.downloadUrl" :href="row.downloadUrl" download class="vm-report__link" @click.prevent="download(row.uuid)">{{ t('analytics.report.download') }}</a>
@@ -193,7 +193,7 @@ onBeforeUnmount(() => window.clearTimeout(timer));
                     :logo-url="branding.logoUrl"
                     :title="isPeriod ? t('analytics.report.coverPeriod') : t('analytics.report.coverCampaign')"
                     :subtitle="isPeriod ? branding.companyName : (campaigns.find((c) => `campaign:${c.uuid}` === form.subject)?.name ?? '')"
-                    :date-range="isPeriod ? `${form.from} – ${form.to}` : dateRange"
+                    :date-range="isPeriod ? `${format.day(form.from)} – ${format.day(form.to)}` : dateRange"
                     testid="report-cover-preview"
                 />
             </div>
