@@ -183,7 +183,7 @@
     - Hibánál a staging azonnal törlődik, a régi szín **leállítva, de nem eltávolítva** marad
       (a fájljai egyetlen példánya), a `.d227-pending` minden deployt tilt; javítás után
       `./deploy.sh --migrate-storage` fejezi be. Ha közben a régi színt ideiglenesen vissza kell
-      indítani (pl. kiszolgálásra): `docker compose -p ventmail-<szín> -f compose.prod.yml start` a
+      indítani (pl. kiszolgálásra): `VENTMAIL_TAG=<a szín tagje> VENTMAIL_COLOR=<szín> docker compose -p ventmail-<szín> -f compose.prod.yml start` a
       `/srv/apps/ventmail`-ből — a `--migrate-storage` ilyenkor is működik (előtte újra leállítja).
     - **Megszakítás (SIGHUP, ssh-szakadás, reboot; D285–D286):** a `.d227-pending` a 7. lépés ELEJÉN,
       a drain ELŐTT íródik (atomian), és csak a sikeres `down` után törlődik — egy megszakított váltás
@@ -191,6 +191,11 @@
       (`up`) előtt, ha nincs `.d227-migrated` jelölő és a cél-szín projektjének van (akár leállított)
       konténere, a deploy megáll — `up -d --remove-orphans` nem semmisítheti meg a régi réteget. A
       `--migrate-storage` a kiszolgáló színt soha nem állítja le (D290).
+    - **Már volume-os szín (round 4, D293–D295):** egy szín, amelynek `app` konténere a volume-ot
+      csatolja, a migrációnál nem másolódik, de a GLOBÁLIS jelölőt sem írja (a másik szín még lehet
+      D227 előtti); a guard az ilyen cél-színt újra létrehozhatja (nincs mentendő réteg), és csak
+      D227 előtti színnél áll meg — csak azt szabad a `.d227-pending`-be írni. A friss-box jelölő csak
+      akkor íródik, ha egyik szín-projektnek sincs (leállított) konténere sem.
     - **Friss box / már volume-os szín (D288):** az első deploy (nincs korábbi szín) a jelölőt másolás
       nélkül írja; egy szín, amelynek `app` konténere már a volume-ot csatolja (`docker inspect`), nem
       másolódik önmagára — jelölő, és kész.

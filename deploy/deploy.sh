@@ -151,12 +151,11 @@ migrate_d227() {
         return 0
     fi
 
-    # A colour that already runs on the shared volume (a D227 release) has nothing in its own
-    # layer: record that and stop (review round 3 N3, D288) - never copy the volume onto itself.
-    mounted="$(docker inspect -f '{{range .Mounts}}{{.Destination}} {{end}}' "$cid")" || { log "storage: cannot inspect $cid"; return 1; }
-    if [[ " $mounted " == *" /app/storage/app "* ]]; then
-        mark_d227 "$helper" "source=$old already-on-volume" || return 1
-        log "storage: colour $old already uses the shared volume; marker written, nothing to copy"
+    # A colour that already runs on the shared volume (a D227 release) has nothing in its own layer:
+    # never copy the volume onto itself. NO marker is written here (review round 4 B2, D293): the
+    # marker is global, and the OTHER colour may still be a pre-D227 one holding the only copy.
+    if app_on_volume "$cid"; then
+        log "storage: colour $old already uses the shared volume; nothing to copy (marker NOT written)"
         return 0
     fi
 
@@ -201,6 +200,17 @@ migrate_d227() {
             # Only OUR leftover from an interrupted attempt is removed - never a live file that
             # merely ends in .d227-part (it would be on the pre-existing list).
             if [ -e "$part" ] && ! grep -qxF "$part" /dst/.d227-preexisting; then rm "$part"; fi
+            # A LIVE file already carries our temp name (review round 4 N1, D296): never overwrite or
+            # delete it - the old version goes to the conflict branch instead.
+            if [ -e "$part" ]; then
+                mkdir -p "/dst/.d227-conflicts/$(dirname "$f")"
+                cp -p "$f" "/dst/.d227-conflicts/$f.d227-tmp"
+                mv "/dst/.d227-conflicts/$f.d227-tmp" "/dst/.d227-conflicts/$f"
+                cmp -s "$f" "/dst/.d227-conflicts/$f"
+                echo "conflict kept (temp name taken): $f" >&2
+                conflicts=$((conflicts + 1))
+                continue
+            fi
             if [ ! -e "/dst/$f" ]; then
                 cp -p "$f" "$part"
                 if ln "$part" "/dst/$f" 2>/dev/null; then rm "$part"; continue; fi
@@ -274,18 +284,38 @@ mark_d227() {
     '
 }
 
+# app_on_volume <container>: does this app container mount /app/storage/app (a D227 release)?
+app_on_volume() {
+    local mounted
+
+    mounted="$(docker inspect -f '{{range .Mounts}}{{.Destination}} {{end}}' "$1")" || return 1
+    [[ " $mounted " == *" /app/storage/app "* ]]
+}
+
 # d227_guard <colour> <helper image>: before a colour is (re)created, make sure it does not hold
-# the only copy of pre-D227 files: without the marker, a colour project that still has containers
-# (running OR stopped) must not be recreated - `up` would destroy its layer (review round 3 B1).
+# the only copy of pre-D227 files (review round 3 B1, D286; mount-aware since round 4 B2, D294):
+#   - no containers in the project, or the marker present  -> fine;
+#   - its app container already mounts the shared volume   -> fine (nothing in its layer to rescue);
+#   - otherwise (a pre-D227 colour, or containers without an app container) -> stop: `up` would
+#     destroy the layer. Only such a colour may be recorded in .d227-pending.
 d227_guard() {
-    local target="$1" helper="$2" existing
+    local target="$1" helper="$2" existing cid
 
     existing="$(docker ps -aq --filter "label=com.docker.compose.project=ventmail-$target")" || die "cannot list the containers of $target; nothing changed"
     [ -z "$existing" ] && return 0
     if docker run --rm --label vm.step=d227-marker-check --user 0 --entrypoint sh -v ventmail-storage:/dst "$helper" -c 'test -f /dst/.d227-migrated'; then
         return 0
     fi
-    die "colour $target still has containers and the D227 storage migration is not done: recreating it would destroy its files. Run ./deploy.sh --migrate-storage (record the colour in .d227-pending first if it is missing: echo $target > .d227-pending)"
+    cid="$(docker ps -aq --filter "label=com.docker.compose.project=ventmail-$target" --filter "label=com.docker.compose.service=app")" || die "cannot look up the app container of $target; nothing changed"
+    cid="$(head -1 <<<"$cid")"
+    if [ -n "$cid" ] && app_on_volume "$cid"; then
+        log "storage: colour $target already runs on the shared volume; recreating it loses nothing"
+        return 0
+    fi
+    if [ -z "$cid" ]; then
+        die "colour $target has containers but no app container, and the D227 storage migration is not done; inspect it by hand (docker ps -a --filter label=com.docker.compose.project=ventmail-$target) before deploying"
+    fi
+    die "colour $target is a pre-D227 colour (its files live in its container layer) and the D227 storage migration is not done: recreating it would destroy them. Record it and migrate first: echo $target > .d227-pending && ./deploy.sh --migrate-storage"
 }
 
 # retire <old colour> <old tag> <helper image>: stop the (drained) colour first - its workers and
@@ -316,7 +346,7 @@ if [ "$mode" = migrate-storage ]; then
     pending="$(cat .d227-pending)"
     [[ "$pending" =~ ^(blue|green)$ ]] || die ".d227-pending is invalid"
     # Never the SERVING colour (review round 3 N6): stopping and removing it would take the site down.
-    [ "$pending" != "$(cat .active-color 2>/dev/null || true)" ] || die ".d227-pending names the serving colour ($pending); refusing"
+    [ "$pending" != "$(cat .active-color 2>/dev/null || true)" ] || die ".d227-pending names the serving colour ($pending); refusing. A serving colour runs this release (on the shared volume) and holds nothing to migrate: if the file is stale, remove it by hand (rm .d227-pending)"
     retire "$pending" "$tag" "$IMAGE:$tag"
     log "storage migration finished; deploys are unblocked"
     exit 0
@@ -369,6 +399,13 @@ log "migrations applied"
 # 6. start the idle colour next to the serving one. Never over a colour that may still hold the
 #    only copy of pre-D227 files (an interrupted retire; review round 3 B1, D286).
 d227_guard "$next" "$IMAGE:$tag"
+# A FRESH box: no colour recorded AND no container (running or stopped) in either colour project.
+fresh_box=0
+if [ -z "$active" ]; then
+    leftovers="$(docker ps -aq --filter "label=com.docker.compose.project=ventmail-blue"; docker ps -aq --filter "label=com.docker.compose.project=ventmail-green")" ||
+        die "cannot list the colour containers; nothing changed"
+    [ -z "$leftovers" ] && fresh_box=1
+fi
 if ! colour "$next" "$tag" up -d --remove-orphans --wait --wait-timeout "$WAIT_TIMEOUT"; then
     log "$tag did not become healthy on $next; discarding it"
     colour "$next" "$tag" down --remove-orphans ||
@@ -388,8 +425,9 @@ if [ -n "$active" ] && [ "$active" != "$next" ]; then
         log "warning: could not mark $active as draining; stopping it anyway"
     sleep "$DRAIN_SECONDS"
     retire "$active" "${previous:-$tag}" "$IMAGE:$tag"
-elif [ -z "$active" ]; then
-    # A fresh box (no colour served before): no pre-D227 layer exists anywhere (N3, D288).
+elif [ "$fresh_box" = 1 ]; then
+    # A fresh box (no colour, no container before this deploy): no pre-D227 layer exists anywhere
+    # (N3, D288; both projects checked since round 4, D295).
     mark_d227 "$IMAGE:$tag" "fresh-box" || log "warning: could not write the D227 marker on a fresh box"
 fi
 

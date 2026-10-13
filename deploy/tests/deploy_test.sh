@@ -25,6 +25,11 @@ if [ -n "${FAKE_RUNNING:-}" ] && [[ "$*" == ps* ]] && [[ "$*" == *"project=$FAKE
 if [ -n "${FAKE_APP_CID:-}" ] && [[ "$*" == "ps -aq "* ]] && [[ "$*" == *"project=ventmail-${FAKE_OLD:-blue}"* ]]; then echo "$FAKE_APP_CID"; fi
 if [ -n "${FAKE_OTHER_CID:-}" ] && [[ "$*" == "ps -aq "* ]] && [[ "$*" == *"project=ventmail-${FAKE_OLD:-blue}"* ]] && [[ "$*" != *"service=app"* ]]; then echo "$FAKE_OTHER_CID"; fi
 if [ -n "${FAKE_MOUNTED:-}" ] && [[ "$*" == inspect* ]]; then echo "/run/php /app/storage/app /app/storage/app/public "; fi
+# Per-colour containers: FAKE_CIDS="blue:newblue green:0ldgreen"; FAKE_MOUNTED_CID: the one on the volume.
+for pair in ${FAKE_CIDS:-}; do
+    if [[ "$*" == "ps -aq "* ]] && [[ "$*" == *"project=ventmail-${pair%%:*}"* ]]; then echo "${pair#*:}"; fi
+done
+if [ -n "${FAKE_MOUNTED_CID:-}" ] && [[ "$*" == inspect* ]] && [[ "$*" == *" $FAKE_MOUNTED_CID" ]]; then echo "/run/php /app/storage/app /app/storage/app/public "; fi
 if [[ "$*" == *"vm.step=d227-space"* ]]; then echo "${FAKE_FREE_KB:-99999999}"; fi
 # An ssh drop mid-copy: hang up deploy.sh itself (once).
 if [[ "$*" == *"vm.step=d227-copy"* ]] && [ -n "${KILLFILE:-}" ] && [ -f "$KILLFILE" ]; then rm "$KILLFILE"; kill -HUP "$(cat "$PIDFILE")"; sleep 1; fi
@@ -35,7 +40,7 @@ STUB
     printf 'DB_DATABASE=ventmail\nTRUSTED_HOSTS=app.ventmail.app,api.ventmail.app,ventmail.app,ventmail-web\n' >"$WORK/app/.env"
     export PATH="$WORK/bin:$PATH" CALLS="$WORK/calls" APP_DIR="$WORK/app" BACKUP_DIR="$WORK/backups"
     export WAIT_TIMEOUT=5 DRAIN_SECONDS=0
-    unset FAKE_FAIL FAKE_RUNNING FAKE_APP_CID FAKE_OTHER_CID FAKE_FREE_KB FAKE_OLD FAKE_MOUNTED KILLFILE PIDFILE
+    unset FAKE_FAIL FAKE_RUNNING FAKE_APP_CID FAKE_OTHER_CID FAKE_FREE_KB FAKE_OLD FAKE_MOUNTED KILLFILE PIDFILE FAKE_CIDS FAKE_MOUNTED_CID
     : >"$CALLS"
 }
 teardown() { rm -rf "$WORK"; }
@@ -302,15 +307,16 @@ teardown
 
 setup
 "$DEPLOY" v1.0.0 >/dev/null 2>&1
-expect "a fresh box (no colour served before) writes the D227 marker without a copy (D288)" 'called "vm.step=d227-mark" && ! called "vm.step=d227-copy"'
+expect "a fresh box (no colour served before) writes the D227 marker without a copy (D288)" 'called "vm.step=d227-mark " && ! called "vm.step=d227-copy"'
 teardown
 
 setup
 "$DEPLOY" v1.0.0 >/dev/null 2>&1
 export FAKE_FAIL='d227-marker-check' FAKE_APP_CID=0ldapp FAKE_MOUNTED=1
+: >"$CALLS"
 rc=0; "$DEPLOY" v1.1.0 >/dev/null 2>&1 || rc=$?
-expect "an old colour that already mounts the volume is marked, not copied onto itself (D288)" \
-    '[ "$rc" -eq 0 ] && called "inspect -f" && called "vm.step=d227-mark" && ! called "vm.step=d227-copy" && called "-p ventmail-blue .*down"'
+expect "an old colour that already mounts the volume is not copied onto itself, and writes NO global marker (D288, D293)" \
+    '[ "$rc" -eq 0 ] && called "inspect -f" && ! called "vm.step=d227-mark " && ! called "vm.step=d227-copy" && called "-p ventmail-blue .*down"'
 teardown
 
 setup
@@ -320,6 +326,52 @@ echo blue >"$APP_DIR/.d227-pending"
 rc=0; out="$("$DEPLOY" --migrate-storage 2>&1)" || rc=$?
 expect "--migrate-storage refuses when the pending colour is the serving one (N6, D290)" \
     '[ "$rc" -ne 0 ] && grep -q "serving colour" <<<"$out" && ! called "stop" && ! called "down"'
+teardown
+
+# --- review round 4 (B2): green serves a PRE-D227 release; an interrupted first deploy left blue
+# containers that already run on the volume. The re-run may recreate blue (nothing to rescue) and
+# must then copy GREEN's layer - never mark "done" because blue is volume-backed.
+setup
+"$DEPLOY" v1.0.0 >/dev/null 2>&1
+printf 'green\n' >"$APP_DIR/.active-color"; printf 'v1.1.0\n' >"$APP_DIR/.deployed-tag"
+export FAKE_FAIL='d227-marker-check' FAKE_CIDS='blue:newblue green:0ldgreen' FAKE_MOUNTED_CID=newblue
+: >"$CALLS"
+rc=0; "$DEPLOY" v1.2.0 >/dev/null 2>&1 || rc=$?
+expect "a volume-backed target colour may be recreated by the guard (D294)" '[ "$rc" -eq 0 ] && called "-p ventmail-blue .*up -d --remove-orphans --wait"'
+expect "... and the pre-D227 old colour's layer is copied before it is removed (B2)" \
+    'order "cp 0ldgreen:/app/storage/app -" "vm.step=d227-copy" "vm.step=d227-verify" "-p ventmail-green .*down" && ! called "vm.step=d227-mark "'
+teardown
+
+setup
+"$DEPLOY" v1.0.0 >/dev/null 2>&1
+printf 'green\n' >"$APP_DIR/.active-color"; printf 'v1.1.0\n' >"$APP_DIR/.deployed-tag"
+export FAKE_FAIL='d227-marker-check' FAKE_CIDS='blue:0ldblue'
+: >"$CALLS"
+rc=0; out="$("$DEPLOY" v1.2.0 2>&1)" || rc=$?
+expect "a PRE-D227 target colour stops the deploy, and only then is .d227-pending suggested (D294)" \
+    '[ "$rc" -ne 0 ] && ! called "-p ventmail-blue .*up -d" && grep -q "pre-D227 colour" <<<"$out" && grep -q "echo blue > .d227-pending" <<<"$out"'
+teardown
+
+setup
+"$DEPLOY" v1.0.0 >/dev/null 2>&1
+printf 'green\n' >"$APP_DIR/.active-color"; printf 'v1.1.0\n' >"$APP_DIR/.deployed-tag"
+export FAKE_FAIL='d227-marker-check' FAKE_OTHER_CID=strayworker FAKE_OLD=blue
+rc=0; out="$("$DEPLOY" v1.2.0 2>&1)" || rc=$?
+expect "containers without an app container: stop, and never suggest .d227-pending (D294)" \
+    '[ "$rc" -ne 0 ] && grep -q "no app container" <<<"$out" && ! grep -q "d227-pending" <<<"$out"'
+teardown
+
+setup
+export FAKE_FAIL='d227-marker-check' FAKE_CIDS='green:stoppedgreen'
+rc=0; "$DEPLOY" v1.0.0 >/dev/null 2>&1 || rc=$?
+expect "no .active-color but a (stopped) container in a colour project: not a fresh box, no marker (D295)" '! called "vm.step=d227-mark "'
+teardown
+
+setup
+"$DEPLOY" v1.0.0 >/dev/null 2>&1
+export FAKE_FAIL='d227-marker-check' FAKE_APP_CID=0ldapp
+"$DEPLOY" v1.1.0 >/dev/null 2>&1
+expect "a live pre-existing <name>.d227-part is never reused: the old version goes to the conflicts (D296)" 'grep -q "conflict kept (temp name taken)" "$CALLS"'
 teardown
 
 setup
