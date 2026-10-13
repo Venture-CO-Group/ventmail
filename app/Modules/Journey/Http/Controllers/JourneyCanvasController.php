@@ -5,18 +5,32 @@ declare(strict_types=1);
 namespace App\Modules\Journey\Http\Controllers;
 
 use App\Models\User;
+use App\Modules\Audience\Models\ContactField;
+use App\Modules\Audience\Models\ContactList;
+use App\Modules\Audience\Models\ContactTag;
+use App\Modules\Audience\Models\Form;
+use App\Modules\Audience\Models\Segment;
 use App\Modules\Audit\Services\AuditLogger;
+use App\Modules\Campaign\Models\Campaign;
+use App\Modules\Inbound\Models\InboundRoute;
 use App\Modules\Journey\Graph\JourneyGraph;
 use App\Modules\Journey\Graph\JourneyGraphValidator;
 use App\Modules\Journey\Graph\LegacyChainGraph;
+use App\Modules\Journey\Graph\NodeCatalog;
 use App\Modules\Journey\Models\Journey;
+use App\Modules\Journey\Models\JourneyVersion;
 use App\Modules\Journey\Services\JourneyGraphInvalid;
+use App\Modules\Journey\Services\JourneyNodeStats;
 use App\Modules\Journey\Services\JourneyPublisher;
 use App\Modules\Journey\Services\JourneySimulator;
+use App\Modules\Template\Models\Template;
+use App\Modules\Webhooks\Models\WebhookEndpoint;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Inertia\Inertia;
+use Inertia\Response;
 use InvalidArgumentException;
 
 /**
@@ -30,6 +44,42 @@ use InvalidArgumentException;
  */
 final class JourneyCanvasController
 {
+    private const OPTION_LIMIT = 200;
+
+    public function show(string $uuid, JourneyGraphValidator $validator, JourneyNodeStats $stats): Response
+    {
+        Gate::authorize('campaign.create');
+
+        $journey = Journey::query()->with('currentVersion')->where('uuid', $uuid)->firstOrFail();
+        $graph = $this->graphOf($journey);
+
+        return Inertia::render('Journey/Canvas', [
+            'journey' => [
+                'uuid' => (string) $journey->uuid,
+                'name' => (string) $journey->name,
+                'status' => (string) $journey->status,
+                'version' => $journey->currentVersion?->number,
+                // VAN-E PUBLIKÁLATLAN változás az aktuális verzióhoz képest?
+                'dirty' => $journey->currentVersion === null || $journey->currentVersion->graph_hash !== $graph->hash(),
+            ],
+            'graph' => $graph->toArray(),
+            'catalog' => NodeCatalog::forUi(),
+            'options' => $this->options(),
+            'issues' => $validator->validate($graph),
+            'stats' => $stats->forJourney($journey, $graph),
+            'versions' => JourneyVersion::query()
+                ->where('journey_id', $journey->getKey())
+                ->orderByDesc('number')
+                ->limit(10)
+                ->get(['number', 'published_at'])
+                ->map(fn (JourneyVersion $version) => [
+                    'number' => (int) $version->number,
+                    'publishedAt' => $version->published_at?->toIso8601String(),
+                ])->values()->all(),
+            'can' => ['publish' => Gate::allows('journey.publish')],
+        ]);
+    }
+
     /** VÁZLAT mentése — mindig menthető, a hibák figyelmeztetésként jönnek vissza. */
     public function save(Request $request, string $uuid, JourneyGraphValidator $validator): JsonResponse
     {
@@ -171,5 +221,34 @@ final class JourneyCanvasController
         // A v1.1 ELŐTTI, láncolt journey a vásznon is megnyílik: a lánc gráffá alakul. A
         // publikálásig a régi lépések futnak tovább.
         return LegacyChainGraph::from($journey);
+    }
+
+    /** @return array<string, list<array{value: string, label: string}>> */
+    private function options(): array
+    {
+        $pick = static fn ($query, string $label = 'name'): array => $query
+            ->orderBy($label)
+            ->limit(self::OPTION_LIMIT)
+            ->get(['uuid', $label])
+            ->map(static fn ($row): array => ['value' => (string) $row->uuid, 'label' => (string) $row->{$label}])
+            ->values()
+            ->all();
+
+        return [
+            'templates' => $pick(Template::query()),
+            'lists' => $pick(ContactList::query()),
+            'tags' => $pick(ContactTag::query()),
+            'segments' => $pick(Segment::query()),
+            'forms' => $pick(Form::query()),
+            'endpoints' => $pick(WebhookEndpoint::query()->where('active', true)),
+            'campaigns' => Campaign::query()->latest('id')->limit(self::OPTION_LIMIT)->get(['uuid', 'name'])
+                ->map(static fn ($row): array => ['value' => (string) $row->uuid, 'label' => (string) $row->name])->values()->all(),
+            'routes' => $pick(InboundRoute::query(), 'description'),
+            'fields' => [
+                ...array_map(static fn (string $key): array => ['value' => $key, 'label' => $key], ['first_name', 'last_name', 'company', 'phone']),
+                ...ContactField::query()->orderBy('label')->limit(self::OPTION_LIMIT)->get(['key', 'label'])
+                    ->map(static fn ($row): array => ['value' => (string) $row->key, 'label' => (string) $row->label])->values()->all(),
+            ],
+        ];
     }
 }

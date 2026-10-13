@@ -626,3 +626,54 @@ it('a TESZT-FUTTATÁS nem küld, nem hoz létre futást, és a kapu-döntést cs
         ->and(JourneyRun::query()->count())->toBe(0)
         ->and(FakeDriver::$sent)->toBe([]);
 });
+
+/*
+ | A VÁSZON OLDAL
+ */
+
+it('a vászon oldal a gráfot, a statisztikát és a hibákat adja — idegen tenant journey-je 404', function () {
+    [$nodes, $edges] = welcomeGraph((string) $this->template->uuid);
+    $journey = canvasJourney($nodes, $edges);
+    $user = canvasUser($this->workspace);
+
+    $idegen = Workspace::factory()->create();
+    $idegenJourney = app(WorkspaceContext::class)->runFor($idegen, fn () => canvasJourney($nodes, $edges, 'Idegen'));
+
+    $this->actingAs($user)->withSession(['workspace_uuid' => $this->workspace->uuid])
+        ->get('/journeys/'.$journey->uuid)
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('Journey/Canvas')
+            ->has('graph.nodes', 4)
+            ->has('stats.nodes')
+            ->where('journey.dirty', true)
+            ->where('can.publish', true)
+            ->has('options.templates', 2)
+        );
+
+    $this->actingAs($user)->withSession(['workspace_uuid' => $this->workspace->uuid])
+        ->get('/journeys/'.$idegenJourney->uuid)
+        ->assertNotFound();
+
+    $this->actingAs($user)->withSession(['workspace_uuid' => $this->workspace->uuid])
+        ->putJson('/journeys/'.$idegenJourney->uuid.'/graph', ['graph' => ['nodes' => [], 'edges' => []]])
+        ->assertNotFound();
+});
+
+it('a RÉGI, láncolt journey a vásznon is megnyílik', function () {
+    $journey = Journey::create(['name' => 'Régi', 'trigger_type' => 'form_signup']);
+    $exit = JourneyStep::create(['journey_id' => $journey->getKey(), 'type' => 'exit', 'config' => [], 'position' => 1]);
+    $wait = JourneyStep::create(['journey_id' => $journey->getKey(), 'type' => 'wait', 'config' => ['minutes' => 60], 'next_step_id' => $exit->getKey(), 'position' => 0]);
+    $journey->forceFill(['first_step_id' => $wait->getKey()])->save();
+
+    $user = canvasUser($this->workspace);
+
+    $this->actingAs($user)->withSession(['workspace_uuid' => $this->workspace->uuid])
+        ->get('/journeys/'.$journey->uuid)
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->has('graph.nodes', 3)
+            ->has('graph.edges', 2)
+            ->where('graph.nodes.0.type', 'form_signup')
+        );
+});

@@ -1776,5 +1776,235 @@
             "failed": "Hiba",
             "skipped": "Kihagyva (kapu)"
         }
+    },
+    "journeyCanvas": {
+        "top": {
+            "name": "Journey neve",
+            "unpublished": "Publikálatlan változások"
+        },
+        "status": {
+            "draft": "Vázlat",
+            "active": "Aktív · v{version}",
+            "paused": "Szünetel · v{version}",
+            "archived": "Archivált"
+        },
+        "save": {
+            "saved": "Mentve",
+            "dirty": "Nem mentett változás",
+            "saving": "Mentés…",
+            "error": "A mentés nem sikerült"
+        },
+        "actions": {
+            "testRun": "Teszt-futtatás",
+            "validate": "Validálás",
+            "saveDraft": "Vázlat mentése",
+            "pause": "Szüneteltetés",
+            "publishVersion": "Új verzió publikálása",
+            "resume": "Folytatás",
+            "activate": "Aktiválás"
+        },
+        "test": {
+            "placeholder": "Teszt-kontakt e-mail címe",
+            "contact": "Teszt-kontakt",
+            "title": "Teszt-futtatás",
+            "close": "Bezárás",
+            "note": "{contact} — gyorsított idő, valódi küldés nélkül.",
+            "elapsed": "T+{time} (szimulált)",
+            "end": "Vége",
+            "summary": "{steps} lépés · {sends} levél menne ki · {real} valódi küldés",
+            "stopped": {
+                "contact_missing": "Nincs ilyen kontakt ebben a workspace-ben.",
+                "missing_trigger": "A journey-nek nincs triggere.",
+                "step_limit": "A teszt elérte a lépés-korlátot (lehetséges hurok).",
+                "invalid_node": "Az út egy érvénytelen csomóponton megszakadt."
+            },
+            "outcomes": {
+                "entered": "belépett",
+                "would_send": "levél — szimulálva, valódi küldés nélkül",
+                "blocked": "a küldési kapu megállítaná ({detail})",
+                "waited": "várakozás — átugorva (gyorsított idő)",
+                "event_happened": "az esemény ({detail}) már megtörtént",
+                "event_timeout": "az esemény ({detail}) nem történt meg — lejárat ág",
+                "condition_true": "feltétel: igaz → „Igen\" ág",
+                "condition_false": "feltétel: hamis → „Nem\" ág",
+                "split_branch": "elágazás → {handle} ág",
+                "ab_variant": "A/B sorsolás → {handle} ág",
+                "would_update": "kontakt-frissítés — kihagyva (teszt-mód)",
+                "skipped_test_mode": "webhook — kihagyva (teszt-mód)",
+                "goal": "cél elérve — a futás sikerrel zárul",
+                "exit": "kilépés",
+                "end": "a lánc vége"
+            }
+        },
+        "validation": {
+            "summary": "{errors} hiba · {warnings} figyelmeztetés",
+            "ok": "Nincs hiba",
+            "hasErrors": "{n} hiba blokkolja a publikálást."
+        },
+        "errors": {
+            "generic": "A művelet nem sikerült. Próbáld újra."
+        },
+        "minimap": "Áttekintő térkép",
+        "zoom": {
+            "label": "Nagyítás",
+            "in": "Nagyítás",
+            "out": "Kicsinyítés",
+            "fit": "Teljes nézet"
+        },
+        "panel": {
+            "label": "Csomópont beállításai",
+            "empty": "Válassz ki egy csomópontot a beállításaihoz, vagy húzz egy újat a palettáról.",
+            "versions": "Verziók"
+        },
+        "stats": {
+            "label": "Futási statisztika",
+            "entered": "Belépett",
+            "waiting": "Vár",
+            "movedOn": "Továbblépett",
+            "unavailable": "A futási statisztika most nem érhető el."
+        },
+        "severity": {
+            "error": "Hiba",
+            "warning": "Figyelmeztetés"
+        },
+        "palette": {
+            "label": "Csomópont-paletta",
+            "triggers": "Triggerek",
+            "actions": "Akciók",
+            "hint": "Húzd a vászonra, vagy kattints a hozzáadáshoz",
+            "oneTrigger": "Egy journey-nek egy triggere lehet."
+        },
+        "nodes": {
+            "list_subscribe": "Feliratkozás listára",
+            "tag_added": "Címke hozzáadva",
+            "tag_removed": "Címke eltávolítva",
+            "field_changed": "Mezőváltozás",
+            "date_anniversary": "Dátum / évforduló",
+            "form_signup": "Űrlap-beküldés",
+            "api_event": "API-esemény",
+            "campaign_interaction": "Kampány-interakció",
+            "segment_entered": "Szegmensbe lépés",
+            "inbound_email": "Bejövő levél",
+            "send_email": "E-mail küldése",
+            "wait": "Várakozás",
+            "condition": "Feltétel (if/else)",
+            "split": "Többágú elágazás",
+            "ab_split": "A/B ágak",
+            "update_contact": "Kontakt frissítése",
+            "list_membership": "Lista-tagság",
+            "webhook": "Webhook hívása",
+            "goal": "Cél (goal)",
+            "exit": "Kilépés"
+        },
+        "conditions": {
+            "in_segment": "Szegmens tagja",
+            "has_tag": "Van címkéje",
+            "opened_email": "Megnyitotta a levelet",
+            "clicked_email": "Kattintott a levélben",
+            "context_equals": "Trigger-adat egyezik",
+            "field_equals": "Kontakt-mező egyezik"
+        },
+        "events": {
+            "opened": "megnyitás",
+            "clicked": "kattintás"
+        },
+        "operations": {
+            "add_tag": "Címke hozzáadása",
+            "remove_tag": "Címke eltávolítása",
+            "set_field": "Mező beállítása",
+            "list_add": "Hozzáadás a listához",
+            "list_remove": "Eltávolítás a listáról"
+        },
+        "handles": {
+            "next": "Következő lépés",
+            "yes": "Igen",
+            "no": "Nem",
+            "timeout": "Lejárt",
+            "else": "Egyéb",
+            "variant": "{key} ág"
+        },
+        "units": {
+            "minutes": "perc",
+            "hours": "óra",
+            "days": "nap"
+        },
+        "duration": {
+            "minutes": "{n} perc",
+            "hours": "{n} óra",
+            "days": "{n} nap"
+        },
+        "summary": {
+            "waitEvent": "{event}-ig, max. {time}",
+            "branches": "{n} ág"
+        },
+        "issues": {
+            "missing_trigger": "Hiányzó trigger: a journey nem tud elindulni.",
+            "multiple_triggers": "Több trigger: egy journey-nek egy triggere lehet.",
+            "unknown_node_type": "Ismeretlen csomópont-típus.",
+            "orphan_node": "Árva csomópont: a triggerből nem érhető el.",
+            "trigger_unconnected": "A trigger nincs bekötve az első lépéshez.",
+            "loop_without_wait": "Végtelen hurok: a körben nincs várakozás.",
+            "config_required": "Kötelező beállítás hiányzik ({field}).",
+            "config_invalid": "Érvénytelen beállítás ({field}).",
+            "reference_missing": "A hivatkozott elem nem létezik ({field}).",
+            "invalid_edge": "Érvénytelen kapcsolat.",
+            "duplicate_output": "Egy kimenet csak egy lépésre mutathat.",
+            "ab_weights_invalid": "Az A/B ágak aránya összesen 100% kell legyen (2–5 ág).",
+            "multiple_goals": "Csak egy cél-feltétel lehet.",
+            "unconnected_output": "Bekötetlen kimenet ({field}) — a futás itt véget ér."
+        },
+        "config": {
+            "label": "Név a vásznon",
+            "none": "Nincs",
+            "choose": "Válassz…",
+            "conditionType": "Feltétel",
+            "segment": "Szegmens",
+            "tag": "Címke",
+            "withinHours": "Az elmúlt órákban",
+            "field": "Mező",
+            "contextKey": "Trigger-adat kulcsa",
+            "value": "Érték",
+            "list": "Lista",
+            "offsetDays": "Eltolás (nap)",
+            "offsetHint": "Negatív: a dátum előtt, pozitív: utána.",
+            "form": "Űrlap",
+            "any": "Bármelyik",
+            "anyHint": "Üresen hagyva mindegyikre indul.",
+            "event": "Esemény neve",
+            "eventHint": "A POST /v1/journeys/events hívás „event\" mezője.",
+            "interaction": "Interakció",
+            "interactionOpen": "Megnyitás",
+            "interactionClick": "Kattintás",
+            "campaign": "Kampány",
+            "route": "Bejövő útvonal",
+            "template": "Sablon",
+            "fromEmail": "Feladó címe",
+            "fromHint": "Hitelesített domainről; üresen az alapértelmezett.",
+            "subject": "Tárgy",
+            "subjectHint": "Üresen a sablon tárgya.",
+            "waitMode": "Várakozás módja",
+            "waitTime": "Időtartam",
+            "waitEvent": "Eseményig",
+            "waitFor": "Esemény",
+            "timeout": "Legfeljebb",
+            "duration": "Időtartam",
+            "unit": "Egység",
+            "branchName": "Ág neve",
+            "removeBranch": "Ág törlése",
+            "addBranch": "Ág hozzáadása",
+            "removeVariant": "Ág törlése",
+            "addVariant": "Ág hozzáadása",
+            "weightTotal": "Összesen: {total}% (100% kell)",
+            "operation": "Művelet",
+            "endpoint": "Webhook-végpont",
+            "endpointHint": "Aláírt (HMAC) esemény a Webhookok menüben regisztrált végpontra, újrapróbálással.",
+            "goalHint": "A cél elérésekor a futás sikerrel zárul. Opcionális feltétel: aki közben teljesíti, bárhol is áll, kilép.",
+            "exitHint": "A kontakt itt kilép a journey-ből.",
+            "firstStep": "Első lépés",
+            "outputs": "Kimenetek",
+            "notConnected": "— nincs bekötve —",
+            "duplicate": "Duplikálás",
+            "delete": "Törlés"
+        }
     }
 }

@@ -92,22 +92,21 @@ test('a kampány célzása a becsült közönséggel jelenik meg', async ({ page
     await expect(page.getByTestId('campaign-status')).toHaveAttribute('data-status', 'draft');
 });
 
-test('a journey a felületről aktiválható, ha a lánca érvényes', async ({ page }) => {
+test('a journey vázlatként nyílik a vásznon, és hibás gráffal nem publikálható', async ({ page }) => {
     await page.goto('/journeys');
 
     await page.getByTestId('journey-name').fill(`E2E journey ${run}`);
     await page.getByTestId('journey-submit').click();
 
-    // LÉPÉS NÉLKÜL is aktiválható (a lánc üres, tehát nincs benne kör) — a lényeg, hogy a
-    // gomb a szerverrel beszél, és az állapot tényleg átvált.
-    await expect(page.getByTestId('journey-status')).toContainText('draft');
+    // v1.1 · 6. modul — a journey a VÁSZONON nyílik, a választott trigger-csomóponttal.
+    await expect(page.getByTestId('journey-canvas')).toHaveAttribute('data-status', 'draft');
+    await expect(page.getByTestId('jnode-trigger')).toBeVisible();
 
-    await page.getByTestId('journey-activate').click();
+    // A trigger bekötetlen és konfigurálatlan: a publikálás a szerver validátorán elakad.
+    await page.getByTestId('journey-publish').click();
 
-    await expect(page.getByTestId('flash-success')).toBeVisible();
-    await expect(page.getByTestId('journey-status')).toContainText('active');
-
-    await page.getByTestId('journey-pause').click();
-    await expect(page.getByTestId('journey-status')).toContainText('paused');
+    await expect(page.getByTestId('journey-notice')).toBeVisible();
+    await expect(page.getByTestId('journey-issues')).not.toHaveAttribute('data-errors', '0');
+    await expect(page.getByTestId('journey-canvas')).toHaveAttribute('data-status', 'draft');
 });
 

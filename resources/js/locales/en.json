@@ -1776,5 +1776,235 @@
             "failed": "Failed",
             "skipped": "Skipped (gate)"
         }
+    },
+    "journeyCanvas": {
+        "top": {
+            "name": "Journey name",
+            "unpublished": "Unpublished changes"
+        },
+        "status": {
+            "draft": "Draft",
+            "active": "Active · v{version}",
+            "paused": "Paused · v{version}",
+            "archived": "Archived"
+        },
+        "save": {
+            "saved": "Saved",
+            "dirty": "Unsaved changes",
+            "saving": "Saving…",
+            "error": "Saving failed"
+        },
+        "actions": {
+            "testRun": "Test run",
+            "validate": "Validate",
+            "saveDraft": "Save draft",
+            "pause": "Pause",
+            "publishVersion": "Publish new version",
+            "resume": "Resume",
+            "activate": "Activate"
+        },
+        "test": {
+            "placeholder": "Test contact email",
+            "contact": "Test contact",
+            "title": "Test run",
+            "close": "Close",
+            "note": "{contact} — accelerated time, no real sending.",
+            "elapsed": "T+{time} (simulated)",
+            "end": "End",
+            "summary": "{steps} steps · {sends} emails would be sent · {real} real sends",
+            "stopped": {
+                "contact_missing": "No such contact in this workspace.",
+                "missing_trigger": "The journey has no trigger.",
+                "step_limit": "The test hit the step limit (possible loop).",
+                "invalid_node": "The path stopped at an invalid node."
+            },
+            "outcomes": {
+                "entered": "entered",
+                "would_send": "email — simulated, not sent",
+                "blocked": "the send gate would stop it ({detail})",
+                "waited": "wait — skipped (accelerated time)",
+                "event_happened": "the event ({detail}) already happened",
+                "event_timeout": "the event ({detail}) did not happen — timeout branch",
+                "condition_true": "condition: true → “Yes” branch",
+                "condition_false": "condition: false → “No” branch",
+                "split_branch": "split → {handle} branch",
+                "ab_variant": "A/B draw → branch {handle}",
+                "would_update": "contact update — skipped (test mode)",
+                "skipped_test_mode": "webhook — skipped (test mode)",
+                "goal": "goal reached — the run completes",
+                "exit": "exit",
+                "end": "end of path"
+            }
+        },
+        "validation": {
+            "summary": "{errors} errors · {warnings} warnings",
+            "ok": "No issues",
+            "hasErrors": "{n} errors block publishing."
+        },
+        "errors": {
+            "generic": "The action failed. Please try again."
+        },
+        "minimap": "Overview map",
+        "zoom": {
+            "label": "Zoom",
+            "in": "Zoom in",
+            "out": "Zoom out",
+            "fit": "Fit view"
+        },
+        "panel": {
+            "label": "Node settings",
+            "empty": "Select a node to configure it, or drag a new one from the palette.",
+            "versions": "Versions"
+        },
+        "stats": {
+            "label": "Run statistics",
+            "entered": "Entered",
+            "waiting": "Waiting",
+            "movedOn": "Moved on",
+            "unavailable": "Run statistics are not available right now."
+        },
+        "severity": {
+            "error": "Error",
+            "warning": "Warning"
+        },
+        "palette": {
+            "label": "Node palette",
+            "triggers": "Triggers",
+            "actions": "Actions",
+            "hint": "Drag onto the canvas or click to add",
+            "oneTrigger": "A journey can have one trigger."
+        },
+        "nodes": {
+            "list_subscribe": "List subscription",
+            "tag_added": "Tag added",
+            "tag_removed": "Tag removed",
+            "field_changed": "Field changed",
+            "date_anniversary": "Date / anniversary",
+            "form_signup": "Form submission",
+            "api_event": "API event",
+            "campaign_interaction": "Campaign interaction",
+            "segment_entered": "Segment entered",
+            "inbound_email": "Inbound email",
+            "send_email": "Send email",
+            "wait": "Wait",
+            "condition": "Condition (if/else)",
+            "split": "Multi-branch split",
+            "ab_split": "A/B split",
+            "update_contact": "Update contact",
+            "list_membership": "List membership",
+            "webhook": "Call webhook",
+            "goal": "Goal",
+            "exit": "Exit"
+        },
+        "conditions": {
+            "in_segment": "Is in segment",
+            "has_tag": "Has tag",
+            "opened_email": "Opened an email",
+            "clicked_email": "Clicked in an email",
+            "context_equals": "Trigger data equals",
+            "field_equals": "Contact field equals"
+        },
+        "events": {
+            "opened": "open",
+            "clicked": "click"
+        },
+        "operations": {
+            "add_tag": "Add tag",
+            "remove_tag": "Remove tag",
+            "set_field": "Set field",
+            "list_add": "Add to list",
+            "list_remove": "Remove from list"
+        },
+        "handles": {
+            "next": "Next step",
+            "yes": "Yes",
+            "no": "No",
+            "timeout": "Timed out",
+            "else": "Otherwise",
+            "variant": "Branch {key}"
+        },
+        "units": {
+            "minutes": "minutes",
+            "hours": "hours",
+            "days": "days"
+        },
+        "duration": {
+            "minutes": "{n} min",
+            "hours": "{n} h",
+            "days": "{n} days"
+        },
+        "summary": {
+            "waitEvent": "until {event}, max {time}",
+            "branches": "{n} branches"
+        },
+        "issues": {
+            "missing_trigger": "Missing trigger: the journey cannot start.",
+            "multiple_triggers": "Multiple triggers: a journey can have one trigger.",
+            "unknown_node_type": "Unknown node type.",
+            "orphan_node": "Orphan node: not reachable from the trigger.",
+            "trigger_unconnected": "The trigger is not connected to a first step.",
+            "loop_without_wait": "Infinite loop: the cycle contains no wait.",
+            "config_required": "Required setting missing ({field}).",
+            "config_invalid": "Invalid setting ({field}).",
+            "reference_missing": "The referenced item does not exist ({field}).",
+            "invalid_edge": "Invalid connection.",
+            "duplicate_output": "An output can point to one step only.",
+            "ab_weights_invalid": "A/B weights must total 100% (2–5 branches).",
+            "multiple_goals": "Only one goal condition is allowed.",
+            "unconnected_output": "Unconnected output ({field}) — the run ends here."
+        },
+        "config": {
+            "label": "Name on canvas",
+            "none": "None",
+            "choose": "Choose…",
+            "conditionType": "Condition",
+            "segment": "Segment",
+            "tag": "Tag",
+            "withinHours": "Within the last hours",
+            "field": "Field",
+            "contextKey": "Trigger data key",
+            "value": "Value",
+            "list": "List",
+            "offsetDays": "Offset (days)",
+            "offsetHint": "Negative: before the date, positive: after.",
+            "form": "Form",
+            "any": "Any",
+            "anyHint": "Leave empty to start on any.",
+            "event": "Event name",
+            "eventHint": "The “event” field of POST /v1/journeys/events.",
+            "interaction": "Interaction",
+            "interactionOpen": "Open",
+            "interactionClick": "Click",
+            "campaign": "Campaign",
+            "route": "Inbound route",
+            "template": "Template",
+            "fromEmail": "Sender address",
+            "fromHint": "From a verified domain; empty uses the default.",
+            "subject": "Subject",
+            "subjectHint": "Empty uses the template's subject.",
+            "waitMode": "Wait mode",
+            "waitTime": "Duration",
+            "waitEvent": "Until an event",
+            "waitFor": "Event",
+            "timeout": "At most",
+            "duration": "Duration",
+            "unit": "Unit",
+            "branchName": "Branch name",
+            "removeBranch": "Remove branch",
+            "addBranch": "Add branch",
+            "removeVariant": "Remove branch",
+            "addVariant": "Add branch",
+            "weightTotal": "Total: {total}% (must be 100%)",
+            "operation": "Operation",
+            "endpoint": "Webhook endpoint",
+            "endpointHint": "Signed (HMAC) event to an endpoint registered under Webhooks, with retries.",
+            "goalHint": "Reaching the goal completes the run. Optional condition: anyone who meets it exits wherever they are.",
+            "exitHint": "The contact leaves the journey here.",
+            "firstStep": "First step",
+            "outputs": "Outputs",
+            "notConnected": "— not connected —",
+            "duplicate": "Duplicate",
+            "delete": "Delete"
+        }
     }
 }

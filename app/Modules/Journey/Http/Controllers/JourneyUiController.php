@@ -6,12 +6,10 @@ namespace App\Modules\Journey\Http\Controllers;
 
 use App\Models\User;
 use App\Modules\Audit\Services\AuditLogger;
-use App\Modules\Journey\Enums\StepType;
 use App\Modules\Journey\Enums\TriggerType;
 use App\Modules\Journey\Graph\NodeCatalog;
 use App\Modules\Journey\Models\Journey;
 use App\Modules\Journey\Models\JourneyRun;
-use App\Modules\Journey\Models\JourneyStep;
 use App\Modules\Journey\Services\JourneyGraphInvalid;
 use App\Modules\Journey\Services\JourneyPublisher;
 use App\Modules\Journey\Services\JourneyValidator;
@@ -65,43 +63,6 @@ final class JourneyUiController
                         ->count(),
                 ])->values()->all(),
             'triggers' => array_map(fn (TriggerType $type) => $type->value, TriggerType::cases()),
-        ]);
-    }
-
-    public function show(string $uuid): Response
-    {
-        Gate::authorize('campaign.create');
-
-        $journey = Journey::query()->with('steps')->where('uuid', $uuid)->firstOrFail();
-
-        $steps = $journey->steps->keyBy('id');
-
-        return Inertia::render('Journey/Edit', [
-            'journey' => [
-                'uuid' => (string) $journey->uuid,
-                'name' => (string) $journey->name,
-                'description' => $journey->description,
-                'status' => (string) $journey->status,
-                'trigger' => (string) $journey->trigger_type,
-                'allowReentry' => (bool) $journey->allow_reentry,
-                'firstStep' => $journey->first_step_id === null
-                    ? null
-                    : (string) ($steps[$journey->first_step_id]?->uuid ?? ''),
-            ],
-            // A LÁNC SORRENDBEN: a felület nem gráfot rajzol, hanem az utat mutatja meg.
-            'steps' => $journey->steps->sortBy('position')->map(fn (JourneyStep $step) => [
-                'uuid' => (string) $step->uuid,
-                'type' => (string) $step->type,
-                'position' => (int) $step->position,
-                'config' => (array) $step->config,
-                'next' => $step->next_step_id === null ? null : (string) ($steps[$step->next_step_id]?->uuid ?? ''),
-                'else' => $step->else_step_id === null ? null : (string) ($steps[$step->else_step_id]?->uuid ?? ''),
-            ])->values()->all(),
-            'stepTypes' => array_map(fn (StepType $type) => $type->value, StepType::cases()),
-            'runs' => [
-                'active' => JourneyRun::query()->where('journey_id', $journey->getKey())->where('status', 'active')->count(),
-                'completed' => JourneyRun::query()->where('journey_id', $journey->getKey())->where('status', 'completed')->count(),
-            ],
         ]);
     }
 

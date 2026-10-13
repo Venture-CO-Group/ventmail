@@ -1776,5 +1776,235 @@
             "failed": "Échec",
             "skipped": "Ignoré (porte)"
         }
+    },
+    "journeyCanvas": {
+        "top": {
+            "name": "Nom du parcours",
+            "unpublished": "Modifications non publiées"
+        },
+        "status": {
+            "draft": "Brouillon",
+            "active": "Actif · v{version}",
+            "paused": "En pause · v{version}",
+            "archived": "Archivé"
+        },
+        "save": {
+            "saved": "Enregistré",
+            "dirty": "Modifications non enregistrées",
+            "saving": "Enregistrement…",
+            "error": "Échec de l'enregistrement"
+        },
+        "actions": {
+            "testRun": "Exécution de test",
+            "validate": "Valider",
+            "saveDraft": "Enregistrer le brouillon",
+            "pause": "Mettre en pause",
+            "publishVersion": "Publier une nouvelle version",
+            "resume": "Reprendre",
+            "activate": "Activer"
+        },
+        "test": {
+            "placeholder": "E-mail du contact de test",
+            "contact": "Contact de test",
+            "title": "Exécution de test",
+            "close": "Fermer",
+            "note": "{contact} — temps accéléré, aucun envoi réel.",
+            "elapsed": "T+{time} (simulé)",
+            "end": "Fin",
+            "summary": "{steps} étapes · {sends} e-mails seraient envoyés · {real} envoi réel",
+            "stopped": {
+                "contact_missing": "Aucun contact de ce type dans cet espace de travail.",
+                "missing_trigger": "Le parcours n'a pas de déclencheur.",
+                "step_limit": "Le test a atteint la limite d'étapes (boucle possible).",
+                "invalid_node": "Le chemin s’est arrêté sur un nœud invalide."
+            },
+            "outcomes": {
+                "entered": "entré",
+                "would_send": "e-mail — simulé, non envoyé",
+                "blocked": "la passerelle d'envoi l'arrêterait ({detail})",
+                "waited": "attente — sautée (temps accéléré)",
+                "event_happened": "l'événement ({detail}) a déjà eu lieu",
+                "event_timeout": "l'événement ({detail}) n'a pas eu lieu — branche délai",
+                "condition_true": "condition : vraie → branche « Oui »",
+                "condition_false": "condition : fausse → branche « Non »",
+                "split_branch": "répartition → branche {handle}",
+                "ab_variant": "tirage A/B → branche {handle}",
+                "would_update": "mise à jour du contact — ignorée (mode test)",
+                "skipped_test_mode": "webhook — ignoré (mode test)",
+                "goal": "objectif atteint — le parcours se termine",
+                "exit": "sortie",
+                "end": "fin du chemin"
+            }
+        },
+        "validation": {
+            "summary": "{errors} erreurs · {warnings} avertissements",
+            "ok": "Aucun problème",
+            "hasErrors": "{n} erreurs bloquent la publication."
+        },
+        "errors": {
+            "generic": "L'action a échoué. Veuillez réessayer."
+        },
+        "minimap": "Carte d'ensemble",
+        "zoom": {
+            "label": "Zoom",
+            "in": "Zoom avant",
+            "out": "Zoom arrière",
+            "fit": "Ajuster la vue"
+        },
+        "panel": {
+            "label": "Paramètres du nœud",
+            "empty": "Sélectionnez un nœud pour le configurer ou faites-en glisser un nouveau depuis la palette.",
+            "versions": "Versions"
+        },
+        "stats": {
+            "label": "Statistiques d'exécution",
+            "entered": "Entrés",
+            "waiting": "En attente",
+            "movedOn": "Passés",
+            "unavailable": "Les statistiques ne sont pas disponibles pour le moment."
+        },
+        "severity": {
+            "error": "Erreur",
+            "warning": "Avertissement"
+        },
+        "palette": {
+            "label": "Palette de nœuds",
+            "triggers": "Déclencheurs",
+            "actions": "Actions",
+            "hint": "Faites glisser sur le canevas ou cliquez pour ajouter",
+            "oneTrigger": "Un parcours ne peut avoir qu’un déclencheur."
+        },
+        "nodes": {
+            "list_subscribe": "Inscription à une liste",
+            "tag_added": "Tag ajouté",
+            "tag_removed": "Tag retiré",
+            "field_changed": "Champ modifié",
+            "date_anniversary": "Date / anniversaire",
+            "form_signup": "Envoi de formulaire",
+            "api_event": "Événement API",
+            "campaign_interaction": "Interaction de campagne",
+            "segment_entered": "Entrée dans un segment",
+            "inbound_email": "E-mail entrant",
+            "send_email": "Envoyer un e-mail",
+            "wait": "Attente",
+            "condition": "Condition (si/sinon)",
+            "split": "Répartition multiple",
+            "ab_split": "Répartition A/B",
+            "update_contact": "Mettre à jour le contact",
+            "list_membership": "Appartenance à une liste",
+            "webhook": "Appeler un webhook",
+            "goal": "Objectif",
+            "exit": "Sortie"
+        },
+        "conditions": {
+            "in_segment": "Est dans le segment",
+            "has_tag": "A le tag",
+            "opened_email": "A ouvert un e-mail",
+            "clicked_email": "A cliqué dans un e-mail",
+            "context_equals": "Données du déclencheur égales",
+            "field_equals": "Champ du contact égal"
+        },
+        "events": {
+            "opened": "ouverture",
+            "clicked": "clic"
+        },
+        "operations": {
+            "add_tag": "Ajouter un tag",
+            "remove_tag": "Retirer un tag",
+            "set_field": "Définir un champ",
+            "list_add": "Ajouter à la liste",
+            "list_remove": "Retirer de la liste"
+        },
+        "handles": {
+            "next": "Étape suivante",
+            "yes": "Oui",
+            "no": "Non",
+            "timeout": "Délai expiré",
+            "else": "Sinon",
+            "variant": "Branche {key}"
+        },
+        "units": {
+            "minutes": "minutes",
+            "hours": "heures",
+            "days": "jours"
+        },
+        "duration": {
+            "minutes": "{n} min",
+            "hours": "{n} h",
+            "days": "{n} jours"
+        },
+        "summary": {
+            "waitEvent": "jusqu'à {event}, max {time}",
+            "branches": "{n} branches"
+        },
+        "issues": {
+            "missing_trigger": "Déclencheur manquant : le parcours ne peut pas démarrer.",
+            "multiple_triggers": "Plusieurs déclencheurs : un parcours ne peut en avoir qu’un.",
+            "unknown_node_type": "Type de nœud inconnu.",
+            "orphan_node": "Nœud orphelin : inaccessible depuis le déclencheur.",
+            "trigger_unconnected": "Le déclencheur n'est relié à aucune première étape.",
+            "loop_without_wait": "Boucle infinie : le cycle ne contient pas d'attente.",
+            "config_required": "Paramètre obligatoire manquant ({field}).",
+            "config_invalid": "Paramètre invalide ({field}).",
+            "reference_missing": "L'élément référencé n'existe pas ({field}).",
+            "invalid_edge": "Connexion invalide.",
+            "duplicate_output": "Une sortie ne peut pointer que vers une étape.",
+            "ab_weights_invalid": "Les poids A/B doivent totaliser 100 % (2 à 5 branches).",
+            "multiple_goals": "Une seule condition d'objectif est autorisée.",
+            "unconnected_output": "Sortie non reliée ({field}) — le parcours se termine ici."
+        },
+        "config": {
+            "label": "Nom sur le canevas",
+            "none": "Aucun",
+            "choose": "Choisir…",
+            "conditionType": "Condition",
+            "segment": "Segment",
+            "tag": "Tag",
+            "withinHours": "Au cours des dernières heures",
+            "field": "Champ",
+            "contextKey": "Clé des données du déclencheur",
+            "value": "Valeur",
+            "list": "Liste",
+            "offsetDays": "Décalage (jours)",
+            "offsetHint": "Négatif : avant la date, positif : après.",
+            "form": "Formulaire",
+            "any": "N'importe lequel",
+            "anyHint": "Laisser vide pour démarrer sur tous.",
+            "event": "Nom de l'événement",
+            "eventHint": "Le champ « event » de POST /v1/journeys/events.",
+            "interaction": "Interaction",
+            "interactionOpen": "Ouverture",
+            "interactionClick": "Clic",
+            "campaign": "Campagne",
+            "route": "Route entrante",
+            "template": "Modèle",
+            "fromEmail": "Adresse de l'expéditeur",
+            "fromHint": "D'un domaine vérifié ; vide = valeur par défaut.",
+            "subject": "Objet",
+            "subjectHint": "Vide = objet du modèle.",
+            "waitMode": "Mode d'attente",
+            "waitTime": "Durée",
+            "waitEvent": "Jusqu'à un événement",
+            "waitFor": "Événement",
+            "timeout": "Au plus",
+            "duration": "Durée",
+            "unit": "Unité",
+            "branchName": "Nom de la branche",
+            "removeBranch": "Supprimer la branche",
+            "addBranch": "Ajouter une branche",
+            "removeVariant": "Supprimer la branche",
+            "addVariant": "Ajouter une branche",
+            "weightTotal": "Total : {total} % (doit être 100 %)",
+            "operation": "Opération",
+            "endpoint": "Point de terminaison webhook",
+            "endpointHint": "Événement signé (HMAC) vers un point de terminaison enregistré dans Webhooks, avec relances.",
+            "goalHint": "Atteindre l'objectif termine le parcours. Condition facultative : qui la remplit sort, où qu'il soit.",
+            "exitHint": "Le contact quitte le parcours ici.",
+            "firstStep": "Première étape",
+            "outputs": "Sorties",
+            "notConnected": "— non relié —",
+            "duplicate": "Dupliquer",
+            "delete": "Supprimer"
+        }
     }
 }

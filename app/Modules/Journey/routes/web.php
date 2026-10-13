@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\Route;
 Route::middleware(['auth', 'workspace'])->group(function (): void {
     Route::get('/journeys', [JourneyUiController::class, 'index'])->name('journeys.index');
     Route::post('/journeys', [JourneyUiController::class, 'store'])->name('journeys.store');
-    Route::get('/journeys/{uuid}', [JourneyUiController::class, 'show'])->whereUuid('uuid')->name('journeys.show');
+    Route::get('/journeys/{uuid}', [JourneyCanvasController::class, 'show'])->whereUuid('uuid')->name('journeys.show');
     Route::post('/journeys/{uuid}/activate', [JourneyUiController::class, 'activate'])->whereUuid('uuid')->name('journeys.activate');
 
     // v1.1 · 6. modul — a vászon JSON-végpontjai.

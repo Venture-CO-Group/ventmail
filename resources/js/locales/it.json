@@ -1776,5 +1776,235 @@
             "failed": "Errore",
             "skipped": "Saltato (controllo)"
         }
+    },
+    "journeyCanvas": {
+        "top": {
+            "name": "Nome del percorso",
+            "unpublished": "Modifiche non pubblicate"
+        },
+        "status": {
+            "draft": "Bozza",
+            "active": "Attivo · v{version}",
+            "paused": "In pausa · v{version}",
+            "archived": "Archiviato"
+        },
+        "save": {
+            "saved": "Salvato",
+            "dirty": "Modifiche non salvate",
+            "saving": "Salvataggio…",
+            "error": "Salvataggio non riuscito"
+        },
+        "actions": {
+            "testRun": "Esecuzione di prova",
+            "validate": "Convalida",
+            "saveDraft": "Salva bozza",
+            "pause": "Metti in pausa",
+            "publishVersion": "Pubblica nuova versione",
+            "resume": "Riprendi",
+            "activate": "Attiva"
+        },
+        "test": {
+            "placeholder": "E-mail del contatto di prova",
+            "contact": "Contatto di prova",
+            "title": "Esecuzione di prova",
+            "close": "Chiudi",
+            "note": "{contact} — tempo accelerato, nessun invio reale.",
+            "elapsed": "T+{time} (simulato)",
+            "end": "Fine",
+            "summary": "{steps} passi · {sends} e-mail verrebbero inviate · {real} invii reali",
+            "stopped": {
+                "contact_missing": "Nessun contatto del genere in questo workspace.",
+                "missing_trigger": "Il percorso non ha un trigger.",
+                "step_limit": "Il test ha raggiunto il limite di passi (possibile ciclo).",
+                "invalid_node": "Il percorso si è fermato su un nodo non valido."
+            },
+            "outcomes": {
+                "entered": "entrato",
+                "would_send": "e-mail — simulata, non inviata",
+                "blocked": "il gate di invio la fermerebbe ({detail})",
+                "waited": "attesa — saltata (tempo accelerato)",
+                "event_happened": "l'evento ({detail}) è già avvenuto",
+                "event_timeout": "l'evento ({detail}) non è avvenuto — ramo scadenza",
+                "condition_true": "condizione: vera → ramo «Sì»",
+                "condition_false": "condizione: falsa → ramo «No»",
+                "split_branch": "diramazione → ramo {handle}",
+                "ab_variant": "sorteggio A/B → ramo {handle}",
+                "would_update": "aggiornamento contatto — saltato (modalità test)",
+                "skipped_test_mode": "webhook — saltato (modalità test)",
+                "goal": "obiettivo raggiunto — il percorso si conclude",
+                "exit": "uscita",
+                "end": "fine del percorso"
+            }
+        },
+        "validation": {
+            "summary": "{errors} errori · {warnings} avvisi",
+            "ok": "Nessun problema",
+            "hasErrors": "{n} errori bloccano la pubblicazione."
+        },
+        "errors": {
+            "generic": "L'azione non è riuscita. Riprova."
+        },
+        "minimap": "Mappa panoramica",
+        "zoom": {
+            "label": "Zoom",
+            "in": "Ingrandisci",
+            "out": "Riduci",
+            "fit": "Adatta vista"
+        },
+        "panel": {
+            "label": "Impostazioni del nodo",
+            "empty": "Seleziona un nodo per configurarlo o trascinane uno nuovo dalla tavolozza.",
+            "versions": "Versioni"
+        },
+        "stats": {
+            "label": "Statistiche di esecuzione",
+            "entered": "Entrati",
+            "waiting": "In attesa",
+            "movedOn": "Proseguiti",
+            "unavailable": "Le statistiche non sono disponibili al momento."
+        },
+        "severity": {
+            "error": "Errore",
+            "warning": "Avviso"
+        },
+        "palette": {
+            "label": "Tavolozza dei nodi",
+            "triggers": "Trigger",
+            "actions": "Azioni",
+            "hint": "Trascina sulla tela o fai clic per aggiungere",
+            "oneTrigger": "Un percorso può avere un solo trigger."
+        },
+        "nodes": {
+            "list_subscribe": "Iscrizione alla lista",
+            "tag_added": "Tag aggiunto",
+            "tag_removed": "Tag rimosso",
+            "field_changed": "Campo modificato",
+            "date_anniversary": "Data / anniversario",
+            "form_signup": "Invio modulo",
+            "api_event": "Evento API",
+            "campaign_interaction": "Interazione campagna",
+            "segment_entered": "Ingresso nel segmento",
+            "inbound_email": "E-mail in arrivo",
+            "send_email": "Invia e-mail",
+            "wait": "Attesa",
+            "condition": "Condizione (if/else)",
+            "split": "Diramazione multipla",
+            "ab_split": "Suddivisione A/B",
+            "update_contact": "Aggiorna contatto",
+            "list_membership": "Appartenenza alla lista",
+            "webhook": "Chiama webhook",
+            "goal": "Obiettivo",
+            "exit": "Uscita"
+        },
+        "conditions": {
+            "in_segment": "È nel segmento",
+            "has_tag": "Ha il tag",
+            "opened_email": "Ha aperto un'e-mail",
+            "clicked_email": "Ha cliccato in un'e-mail",
+            "context_equals": "Dati del trigger uguali",
+            "field_equals": "Campo contatto uguale"
+        },
+        "events": {
+            "opened": "apertura",
+            "clicked": "clic"
+        },
+        "operations": {
+            "add_tag": "Aggiungi tag",
+            "remove_tag": "Rimuovi tag",
+            "set_field": "Imposta campo",
+            "list_add": "Aggiungi alla lista",
+            "list_remove": "Rimuovi dalla lista"
+        },
+        "handles": {
+            "next": "Passo successivo",
+            "yes": "Sì",
+            "no": "No",
+            "timeout": "Scaduto",
+            "else": "Altrimenti",
+            "variant": "Ramo {key}"
+        },
+        "units": {
+            "minutes": "minuti",
+            "hours": "ore",
+            "days": "giorni"
+        },
+        "duration": {
+            "minutes": "{n} min",
+            "hours": "{n} h",
+            "days": "{n} giorni"
+        },
+        "summary": {
+            "waitEvent": "fino a {event}, max {time}",
+            "branches": "{n} rami"
+        },
+        "issues": {
+            "missing_trigger": "Trigger mancante: il percorso non può partire.",
+            "multiple_triggers": "Più trigger: un percorso può averne uno solo.",
+            "unknown_node_type": "Tipo di nodo sconosciuto.",
+            "orphan_node": "Nodo orfano: non raggiungibile dal trigger.",
+            "trigger_unconnected": "Il trigger non è collegato a un primo passo.",
+            "loop_without_wait": "Ciclo infinito: il ciclo non contiene attese.",
+            "config_required": "Impostazione obbligatoria mancante ({field}).",
+            "config_invalid": "Impostazione non valida ({field}).",
+            "reference_missing": "L'elemento referenziato non esiste ({field}).",
+            "invalid_edge": "Collegamento non valido.",
+            "duplicate_output": "Un'uscita può puntare a un solo passo.",
+            "ab_weights_invalid": "I pesi A/B devono sommare 100% (2–5 rami).",
+            "multiple_goals": "È consentita una sola condizione obiettivo.",
+            "unconnected_output": "Uscita non collegata ({field}) — il percorso termina qui."
+        },
+        "config": {
+            "label": "Nome sulla tela",
+            "none": "Nessuno",
+            "choose": "Scegli…",
+            "conditionType": "Condizione",
+            "segment": "Segmento",
+            "tag": "Tag",
+            "withinHours": "Nelle ultime ore",
+            "field": "Campo",
+            "contextKey": "Chiave dei dati del trigger",
+            "value": "Valore",
+            "list": "Lista",
+            "offsetDays": "Scostamento (giorni)",
+            "offsetHint": "Negativo: prima della data, positivo: dopo.",
+            "form": "Modulo",
+            "any": "Qualsiasi",
+            "anyHint": "Lascia vuoto per partire con qualsiasi.",
+            "event": "Nome dell'evento",
+            "eventHint": "Il campo «event» di POST /v1/journeys/events.",
+            "interaction": "Interazione",
+            "interactionOpen": "Apertura",
+            "interactionClick": "Clic",
+            "campaign": "Campagna",
+            "route": "Percorso in entrata",
+            "template": "Modello",
+            "fromEmail": "Indirizzo mittente",
+            "fromHint": "Da un dominio verificato; vuoto = predefinito.",
+            "subject": "Oggetto",
+            "subjectHint": "Vuoto = oggetto del modello.",
+            "waitMode": "Modalità di attesa",
+            "waitTime": "Durata",
+            "waitEvent": "Fino a un evento",
+            "waitFor": "Evento",
+            "timeout": "Al massimo",
+            "duration": "Durata",
+            "unit": "Unità",
+            "branchName": "Nome del ramo",
+            "removeBranch": "Rimuovi ramo",
+            "addBranch": "Aggiungi ramo",
+            "removeVariant": "Rimuovi ramo",
+            "addVariant": "Aggiungi ramo",
+            "weightTotal": "Totale: {total}% (deve essere 100%)",
+            "operation": "Operazione",
+            "endpoint": "Endpoint webhook",
+            "endpointHint": "Evento firmato (HMAC) verso un endpoint registrato in Webhook, con nuovi tentativi.",
+            "goalHint": "Raggiungere l'obiettivo conclude il percorso. Condizione facoltativa: chi la soddisfa esce ovunque si trovi.",
+            "exitHint": "Il contatto esce dal percorso qui.",
+            "firstStep": "Primo passo",
+            "outputs": "Uscite",
+            "notConnected": "— non collegato —",
+            "duplicate": "Duplica",
+            "delete": "Elimina"
+        }
     }
 }

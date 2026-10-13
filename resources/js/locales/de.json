@@ -1776,5 +1776,235 @@
             "failed": "Fehler",
             "skipped": "Übersprungen (Gate)"
         }
+    },
+    "journeyCanvas": {
+        "top": {
+            "name": "Name der Journey",
+            "unpublished": "Unveröffentlichte Änderungen"
+        },
+        "status": {
+            "draft": "Entwurf",
+            "active": "Aktiv · v{version}",
+            "paused": "Pausiert · v{version}",
+            "archived": "Archiviert"
+        },
+        "save": {
+            "saved": "Gespeichert",
+            "dirty": "Ungespeicherte Änderungen",
+            "saving": "Speichern…",
+            "error": "Speichern fehlgeschlagen"
+        },
+        "actions": {
+            "testRun": "Testlauf",
+            "validate": "Prüfen",
+            "saveDraft": "Entwurf speichern",
+            "pause": "Pausieren",
+            "publishVersion": "Neue Version veröffentlichen",
+            "resume": "Fortsetzen",
+            "activate": "Aktivieren"
+        },
+        "test": {
+            "placeholder": "E-Mail des Testkontakts",
+            "contact": "Testkontakt",
+            "title": "Testlauf",
+            "close": "Schließen",
+            "note": "{contact} — beschleunigte Zeit, kein echter Versand.",
+            "elapsed": "T+{time} (simuliert)",
+            "end": "Ende",
+            "summary": "{steps} Schritte · {sends} E-Mails würden gesendet · {real} echte Sendungen",
+            "stopped": {
+                "contact_missing": "Kein solcher Kontakt in diesem Workspace.",
+                "missing_trigger": "Die Journey hat keinen Auslöser.",
+                "step_limit": "Der Test hat das Schrittlimit erreicht (mögliche Schleife).",
+                "invalid_node": "Der Pfad endete an einem ungültigen Knoten."
+            },
+            "outcomes": {
+                "entered": "eingetreten",
+                "would_send": "E-Mail — simuliert, nicht gesendet",
+                "blocked": "das Versandtor würde stoppen ({detail})",
+                "waited": "Warten — übersprungen (beschleunigte Zeit)",
+                "event_happened": "das Ereignis ({detail}) ist bereits eingetreten",
+                "event_timeout": "das Ereignis ({detail}) trat nicht ein — Timeout-Zweig",
+                "condition_true": "Bedingung: wahr → Zweig „Ja“",
+                "condition_false": "Bedingung: falsch → Zweig „Nein“",
+                "split_branch": "Verzweigung → Zweig {handle}",
+                "ab_variant": "A/B-Auslosung → Zweig {handle}",
+                "would_update": "Kontaktaktualisierung — übersprungen (Testmodus)",
+                "skipped_test_mode": "Webhook — übersprungen (Testmodus)",
+                "goal": "Ziel erreicht — der Lauf endet erfolgreich",
+                "exit": "Ausstieg",
+                "end": "Ende des Pfads"
+            }
+        },
+        "validation": {
+            "summary": "{errors} Fehler · {warnings} Warnungen",
+            "ok": "Keine Probleme",
+            "hasErrors": "{n} Fehler blockieren die Veröffentlichung."
+        },
+        "errors": {
+            "generic": "Die Aktion ist fehlgeschlagen. Bitte erneut versuchen."
+        },
+        "minimap": "Übersichtskarte",
+        "zoom": {
+            "label": "Zoom",
+            "in": "Vergrößern",
+            "out": "Verkleinern",
+            "fit": "Ansicht anpassen"
+        },
+        "panel": {
+            "label": "Knoteneinstellungen",
+            "empty": "Wähle einen Knoten zum Konfigurieren oder ziehe einen neuen aus der Palette.",
+            "versions": "Versionen"
+        },
+        "stats": {
+            "label": "Laufstatistik",
+            "entered": "Eingetreten",
+            "waiting": "Wartend",
+            "movedOn": "Weiter",
+            "unavailable": "Die Laufstatistik ist gerade nicht verfügbar."
+        },
+        "severity": {
+            "error": "Fehler",
+            "warning": "Warnung"
+        },
+        "palette": {
+            "label": "Knotenpalette",
+            "triggers": "Auslöser",
+            "actions": "Aktionen",
+            "hint": "Auf die Arbeitsfläche ziehen oder zum Hinzufügen klicken",
+            "oneTrigger": "Eine Journey kann einen Auslöser haben."
+        },
+        "nodes": {
+            "list_subscribe": "Listenanmeldung",
+            "tag_added": "Tag hinzugefügt",
+            "tag_removed": "Tag entfernt",
+            "field_changed": "Feld geändert",
+            "date_anniversary": "Datum / Jahrestag",
+            "form_signup": "Formularübermittlung",
+            "api_event": "API-Ereignis",
+            "campaign_interaction": "Kampagneninteraktion",
+            "segment_entered": "Segment betreten",
+            "inbound_email": "Eingehende E-Mail",
+            "send_email": "E-Mail senden",
+            "wait": "Warten",
+            "condition": "Bedingung (if/else)",
+            "split": "Mehrfachverzweigung",
+            "ab_split": "A/B-Aufteilung",
+            "update_contact": "Kontakt aktualisieren",
+            "list_membership": "Listenmitgliedschaft",
+            "webhook": "Webhook aufrufen",
+            "goal": "Ziel",
+            "exit": "Ausstieg"
+        },
+        "conditions": {
+            "in_segment": "Ist im Segment",
+            "has_tag": "Hat Tag",
+            "opened_email": "Hat eine E-Mail geöffnet",
+            "clicked_email": "Hat in einer E-Mail geklickt",
+            "context_equals": "Auslöserdaten gleich",
+            "field_equals": "Kontaktfeld gleich"
+        },
+        "events": {
+            "opened": "Öffnung",
+            "clicked": "Klick"
+        },
+        "operations": {
+            "add_tag": "Tag hinzufügen",
+            "remove_tag": "Tag entfernen",
+            "set_field": "Feld setzen",
+            "list_add": "Zur Liste hinzufügen",
+            "list_remove": "Von der Liste entfernen"
+        },
+        "handles": {
+            "next": "Nächster Schritt",
+            "yes": "Ja",
+            "no": "Nein",
+            "timeout": "Zeit abgelaufen",
+            "else": "Sonst",
+            "variant": "Zweig {key}"
+        },
+        "units": {
+            "minutes": "Minuten",
+            "hours": "Stunden",
+            "days": "Tage"
+        },
+        "duration": {
+            "minutes": "{n} Min.",
+            "hours": "{n} Std.",
+            "days": "{n} Tage"
+        },
+        "summary": {
+            "waitEvent": "bis {event}, max. {time}",
+            "branches": "{n} Zweige"
+        },
+        "issues": {
+            "missing_trigger": "Fehlender Auslöser: die Journey kann nicht starten.",
+            "multiple_triggers": "Mehrere Auslöser: eine Journey kann einen Auslöser haben.",
+            "unknown_node_type": "Unbekannter Knotentyp.",
+            "orphan_node": "Verwaister Knoten: vom Auslöser aus nicht erreichbar.",
+            "trigger_unconnected": "Der Auslöser ist mit keinem ersten Schritt verbunden.",
+            "loop_without_wait": "Endlosschleife: der Kreis enthält kein Warten.",
+            "config_required": "Pflichteinstellung fehlt ({field}).",
+            "config_invalid": "Ungültige Einstellung ({field}).",
+            "reference_missing": "Das referenzierte Element existiert nicht ({field}).",
+            "invalid_edge": "Ungültige Verbindung.",
+            "duplicate_output": "Ein Ausgang kann nur auf einen Schritt zeigen.",
+            "ab_weights_invalid": "A/B-Gewichte müssen 100 % ergeben (2–5 Zweige).",
+            "multiple_goals": "Nur eine Zielbedingung ist erlaubt.",
+            "unconnected_output": "Nicht verbundener Ausgang ({field}) — der Lauf endet hier."
+        },
+        "config": {
+            "label": "Name auf der Fläche",
+            "none": "Keine",
+            "choose": "Auswählen…",
+            "conditionType": "Bedingung",
+            "segment": "Segment",
+            "tag": "Tag",
+            "withinHours": "In den letzten Stunden",
+            "field": "Feld",
+            "contextKey": "Schlüssel der Auslöserdaten",
+            "value": "Wert",
+            "list": "Liste",
+            "offsetDays": "Versatz (Tage)",
+            "offsetHint": "Negativ: vor dem Datum, positiv: danach.",
+            "form": "Formular",
+            "any": "Beliebig",
+            "anyHint": "Leer lassen, um bei jedem zu starten.",
+            "event": "Ereignisname",
+            "eventHint": "Das Feld „event“ von POST /v1/journeys/events.",
+            "interaction": "Interaktion",
+            "interactionOpen": "Öffnung",
+            "interactionClick": "Klick",
+            "campaign": "Kampagne",
+            "route": "Eingangsroute",
+            "template": "Vorlage",
+            "fromEmail": "Absenderadresse",
+            "fromHint": "Von einer verifizierten Domain; leer = Standard.",
+            "subject": "Betreff",
+            "subjectHint": "Leer = Betreff der Vorlage.",
+            "waitMode": "Wartemodus",
+            "waitTime": "Dauer",
+            "waitEvent": "Bis zu einem Ereignis",
+            "waitFor": "Ereignis",
+            "timeout": "Höchstens",
+            "duration": "Dauer",
+            "unit": "Einheit",
+            "branchName": "Name des Zweigs",
+            "removeBranch": "Zweig entfernen",
+            "addBranch": "Zweig hinzufügen",
+            "removeVariant": "Zweig entfernen",
+            "addVariant": "Zweig hinzufügen",
+            "weightTotal": "Summe: {total} % (muss 100 % sein)",
+            "operation": "Vorgang",
+            "endpoint": "Webhook-Endpunkt",
+            "endpointHint": "Signiertes (HMAC) Ereignis an einen unter Webhooks registrierten Endpunkt, mit Wiederholungen.",
+            "goalHint": "Mit dem Ziel endet der Lauf erfolgreich. Optionale Bedingung: wer sie erfüllt, steigt überall aus.",
+            "exitHint": "Der Kontakt verlässt die Journey hier.",
+            "firstStep": "Erster Schritt",
+            "outputs": "Ausgänge",
+            "notConnected": "— nicht verbunden —",
+            "duplicate": "Duplizieren",
+            "delete": "Löschen"
+        }
     }
 }

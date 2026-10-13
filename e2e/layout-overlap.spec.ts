@@ -322,6 +322,10 @@ async function measure(page: Page, tolerance: number): Promise<Finding[]> {
             if (['svg', 'path', 'option', 'select', 'input', 'textarea', 'script', 'style'].includes(element.tagName.toLowerCase())) continue;
             if (style.overflowX === 'auto' || style.overflowX === 'scroll') continue;
             if (style.textOverflow === 'ellipsis') continue;
+            // A VÉGTELEN VÁSZON (journey, v1.1 · 6. modul — Vue Flow) belső síkja: a pásztázás és a
+            // nagyítás MAGA a túlnyúlás, a külső `.vue-flow` vágja. A csomópontok és a vászon
+            // körüli elemek mérése változatlan.
+            if (element.classList.contains('vue-flow__container')) continue;
             if (!isVisible(element)) continue;
             if (element.clientWidth === 0) continue;
 
