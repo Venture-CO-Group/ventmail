@@ -12,6 +12,7 @@ use App\Modules\Tenancy\Models\Workspace;
 use App\Modules\Tenancy\Services\WorkspaceContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Symfony\Component\Mime\Address;
 
 uses(RefreshDatabase::class);
 
@@ -201,4 +202,17 @@ it('éles környezetben a fake függőségek nem köthetők be', function () {
     $guard = file_get_contents(app_path('Modules/Sending/Providers/SendingServiceProvider.php'));
 
     expect($guard)->toContain('isProduction');
+});
+
+it('a PostalDriver a feladó NEVÉT RFC 5322 szerint idézi (vessző, idézőjel, nem ASCII)', function () {
+    // N6 · a nyers `név <cím>` összefűzés egy `Kávé, Kft "Nádor"` névvel két címzettnek /
+    // hibás fejlécnek látszott; a Symfony `Address` idézi és szükség esetén kódolja.
+    config(['sending.postal.endpoint' => 'https://postal.test', 'sending.postal.api_key' => 'kulcs']);
+
+    Http::fake(['https://postal.test/*' => Http::response(['data' => ['message_id' => 'x']])]);
+
+    (new PostalDriver)->send(outbound(['from_name' => 'Kávé, Kft "Nádor"']));
+
+    Http::assertSent(fn ($request) => ($request['from'] ?? null) === (new Address('no-reply@pelda.hu', 'Kávé, Kft "Nádor"'))->toString()
+        && str_starts_with((string) $request['from'], '"'));
 });

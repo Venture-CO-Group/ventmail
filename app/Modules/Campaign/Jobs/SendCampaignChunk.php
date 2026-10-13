@@ -199,13 +199,16 @@ final class SendCampaignChunk implements ShouldQueue
      */
     private function subjectFor(string $subject, array $variables): string
     {
-        if (! str_contains($subject, '{{')) {
-            return $subject;
+        if (str_contains($subject, '{{')) {
+            $subject = app(TemplateRenderer::class)->render($subject, $variables, escape: false);
         }
 
-        $rendered = app(TemplateRenderer::class)->render($subject, $variables, escape: false);
+        // MINDEN vezérlőkarakter szóköz (review RS2/N5) — nem csak a CR/LF: a NUL, a BEL és
+        // a többi C0/DEL egy kontakt-mezőből a fejlécbe nem kerülhet. A `messages.subject`
+        // `varchar(255)`: a tárgy 255 karakterre vágódik (a hosszú név nem 500-as hiba).
+        $clean = trim((string) preg_replace('/[\x00-\x1F\x7F]+/u', ' ', $subject));
 
-        return trim((string) preg_replace('/[\r\n\t]+/', ' ', $rendered));
+        return mb_substr((string) preg_replace('/ {2,}/', ' ', $clean), 0, 255);
     }
 
     /**

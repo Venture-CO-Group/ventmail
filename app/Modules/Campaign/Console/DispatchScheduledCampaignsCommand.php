@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace App\Modules\Campaign\Console;
 
-use App\Modules\Campaign\Actions\StartCampaign;
+use App\Modules\Audit\Services\AuditLogger;
+use App\Modules\Campaign\Jobs\StartCampaignJob;
 use App\Modules\Campaign\Models\Campaign;
+use App\Modules\Campaign\Services\CampaignChecklist;
+use App\Modules\Campaign\Services\CampaignLifecycle;
 use App\Modules\Tenancy\Models\Workspace;
 use App\Modules\Tenancy\Services\WorkspaceContext;
 use Illuminate\Console\Command;
@@ -34,7 +37,7 @@ final class DispatchScheduledCampaignsCommand extends Command
 
     protected $description = 'Az esedékes, ütemezett kampányok indítása.';
 
-    public function handle(WorkspaceContext $context, StartCampaign $start): int
+    public function handle(WorkspaceContext $context, CampaignLifecycle $lifecycle, CampaignChecklist $checklist, AuditLogger $audit): int
     {
         $started = 0;
         $failed = 0;
@@ -54,7 +57,7 @@ final class DispatchScheduledCampaignsCommand extends Command
         $previous = $context->hasWorkspace() ? $context->workspace() : null;
 
         try {
-            Workspace::query()->orderBy('id')->chunkById(50, function ($workspaces) use ($context, $start, &$started, &$failed): void {
+            Workspace::query()->orderBy('id')->chunkById(50, function ($workspaces) use ($context, $lifecycle, $checklist, $audit, &$started, &$failed): void {
                 foreach ($workspaces as $workspace) {
                     $context->set($workspace);
 
@@ -67,7 +70,25 @@ final class DispatchScheduledCampaignsCommand extends Command
 
                     foreach ($due as $campaign) {
                         try {
-                            $start($campaign);
+                            // A SZERVER-ELLENŐRZÉSEK az indítás pillanatában is (review RS1): az
+                            // ütemezés óta a domain hitelesítése lejárhatott, a sablon postai
+                            // címe helyőrzőre változhatott, a közönség elveszíthette a
+                            // megerősített hozzájárulást. A hiányos kampány VÁZLAT lesz, nem
+                            // indul el — és ez auditált.
+                            $failing = $checklist->failingChecks($campaign);
+
+                            if ($failing !== []) {
+                                $lifecycle->unschedule($campaign);
+                                $audit->log('campaign.unscheduled_by_checklist', $campaign, context: ['failing' => $failing]);
+                                $failed++;
+
+                                continue;
+                            }
+
+                            // LEFOGLALÁS + háttér-materializálás (review RB1): az ütemező sem
+                            // tart egy 300k-s felírást a percenkénti futásában.
+                            $claimed = $lifecycle->start($campaign);
+                            StartCampaignJob::dispatch((string) $claimed->uuid, (int) $claimed->workspace_id);
                             $started++;
                         } catch (Throwable $e) {
                             report($e);

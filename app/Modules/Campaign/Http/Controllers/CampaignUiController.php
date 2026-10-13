@@ -4,14 +4,13 @@ declare(strict_types=1);
 
 namespace App\Modules\Campaign\Http\Controllers;
 
-use App\Modules\Analytics\Models\CampaignEngagement;
 use App\Modules\Analytics\Services\Rates;
 use App\Modules\Audience\Models\ContactList;
 use App\Modules\Audience\Models\Segment;
-use App\Modules\Campaign\Actions\StartCampaign;
+use App\Modules\Campaign\Jobs\RefreshCampaignStats;
+use App\Modules\Campaign\Jobs\StartCampaignJob;
 use App\Modules\Campaign\Models\Campaign;
 use App\Modules\Campaign\Models\CampaignRecipient;
-use App\Modules\Campaign\Services\AudienceResolver;
 use App\Modules\Campaign\Services\CampaignChecklist;
 use App\Modules\Campaign\Services\CampaignLifecycle;
 use App\Modules\Domains\Models\Domain;
@@ -23,6 +22,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Unique;
@@ -148,21 +148,26 @@ final class CampaignUiController
      */
     private function engagementStats(Collection $campaigns): array
     {
-        if ($campaigns->isEmpty()) {
-            return [];
+        $stats = [];
+
+        foreach ($campaigns as $campaign) {
+            // A KÜLDÉS NÉLKÜLI kampánynak nincs mit számolni.
+            if (! in_array((string) $campaign->status, ['sending', 'paused', 'sent', 'canceled'], true)) {
+                continue;
+            }
+
+            $cached = Cache::get(RefreshCampaignStats::cacheKey((string) $campaign->uuid));
+
+            // A KÉRÉSBEN SOSEM számolunk (review RS6): a hiányzó érték háttérben töltődik, a
+            // sor addig „—"-t mutat.
+            if (is_array($cached)) {
+                $stats[(string) $campaign->uuid] = $cached;
+            } else {
+                RefreshCampaignStats::dispatch((string) $campaign->uuid, (int) $campaign->workspace_id);
+            }
         }
 
-        return CampaignEngagement::query()
-            ->whereIn('scope', $campaigns->map(fn (Campaign $campaign) => 'campaign:'.$campaign->uuid)->all())
-            ->selectRaw('scope, count(*) filter (where delivered > 0) as delivered, count(*) filter (where opens > 0 or clicks > 0) as opened, count(*) filter (where clicks > 0) as clicked')
-            ->groupBy('scope')
-            ->get()
-            ->mapWithKeys(fn ($row) => [substr((string) $row->scope, strlen('campaign:')) => [
-                'delivered' => (int) $row->delivered,
-                'opened' => (int) $row->opened,
-                'clicked' => (int) $row->clicked,
-            ]])
-            ->all();
+        return $stats;
     }
 
     /**
@@ -171,7 +176,7 @@ final class CampaignUiController
      * A szakaszok állapota és a szerver-ellenőrzések a `CampaignChecklist`-ből jönnek; a
      * küldés gombja ugyanazon a listán áll, amit a `transition()` az indításnál újra kérdez.
      */
-    public function show(Request $request, string $uuid, AudienceResolver $resolver, CampaignChecklist $checklist, WorkspaceContext $context): Response
+    public function show(Request $request, string $uuid, CampaignChecklist $checklist, WorkspaceContext $context): Response
     {
         Gate::authorize('campaign.create');
 
@@ -220,7 +225,7 @@ final class CampaignUiController
                     'clicked' => (int) $variant->clicked_count,
                 ])->values()->all(),
             ],
-            'checklist' => $checklist->evaluate($campaign),
+            'checklist' => $state = $checklist->evaluate($campaign),
             // A KIMENET címzett-állapot + ok szerint: „miért nem ment ki?" — a PreSendGate
             // elutasításának kódjával (pl. NO_CONSENT, SENDING_RESTRICTED).
             'outcomes' => CampaignRecipient::query()
@@ -246,8 +251,9 @@ final class CampaignUiController
             'domains' => Domain::query()->where('status', 'verified')->orderBy('name')->pluck('name')->map(fn ($name) => (string) $name)->values()->all(),
             'mergeTags' => array_values(array_filter(EditorCatalog::mergeTags(), static fn (array $tag) => ! ($tag['link'] ?? false))),
             'defaultTimezone' => WorkspaceTimezone::for($context->workspace(), $request->user()),
-            // A „KINEK MEGY KI?" kérdésre az indítás ELŐTT kell válaszolni.
-            'estimate' => $resolver->estimate($campaign),
+            // A „KINEK MEGY KI?" kérdésre az indítás ELŐTT kell válaszolni — a checklist
+            // ugyanazon feloldásából (review RS4: egy számlálás, nem kettő).
+            'estimate' => (int) ($state['sections'][0]['estimate'] ?? 0),
         ]);
     }
 
@@ -276,7 +282,7 @@ final class CampaignUiController
      * A szakaszok külön-külön menthetők a felületen, de mindig a TELJES űrlapot küldik: két
      * részleges mentés versenye így nem írhat felül egy másik szakaszt félig.
      */
-    public function update(Request $request, string $uuid): RedirectResponse
+    public function update(Request $request, string $uuid, CampaignChecklist $checklist, CampaignLifecycle $lifecycle): RedirectResponse
     {
         Gate::authorize('campaign.create');
 
@@ -338,6 +344,26 @@ final class CampaignUiController
             // A NEM SZERKESZTHETŐ állapotot a MODELL tiltja (küldés közben a célzás
             // átírása fél kampányt küldene máshova). A felület a szabály OKÁT mondja el.
             return back()->with('error', $e->getMessage());
+        }
+
+        // AZ ÜTEMEZETT kampány szerkesztése (review RS1): az időpont és a tartalom a checklisttel
+        // újra érvényesül. Ha minden kész, ÚJRAÜTEMEZ (az új helyi idő az új UTC-pillanat), ha
+        // nem, VISSZAVESZI vázlatba — egy hiányossá szerkesztett kampány nem indulhat el az
+        // eredeti időpontban.
+        if ($campaign->status === 'scheduled') {
+            $fresh = $campaign->fresh();
+
+            try {
+                if (! $checklist->evaluate($fresh)['ready'] || $fresh->send_mode !== 'later') {
+                    throw new RuntimeException(__('studio.checklist.unscheduled'));
+                }
+
+                $lifecycle->schedule($fresh, (string) $fresh->scheduled_local, (string) $fresh->timezone);
+            } catch (\Throwable $e) {
+                $lifecycle->unschedule($campaign->fresh());
+
+                return back()->with('error', __('studio.checklist.unscheduled'));
+            }
         }
 
         return back()->with('success', __('ventmail.campaigns.saved'));
@@ -435,17 +461,16 @@ final class CampaignUiController
      * gomb letiltása kényelem, ez a határ (szigorú TemplateCompliance, hitelesített domain,
      * megerősített consent). A küldés pillanatában pedig a PreSendGate dönt címzettenként.
      *
-     * A `start` (és a `send` „most" ága) a `StartCampaign` actiont hívja, ami MATERIALIZÁLJA
-     * a címzetteket és elindítja a kötegeket. Korábban a felület a puszta
-     * `CampaignLifecycle::start()`-ot hívta: a kampány `sending`-re váltott, de egyetlen
-     * címzett sem jött létre, tehát semmi nem ment ki.
+     * A `start` (és a `send` „most" ága) a kérésben csak LEFOGLAL, és a `StartCampaignJob`
+     * MATERIALIZÁL a `campaign` soron (review RB1/S4): egy 300k-s célzás nem egy webkérés
+     * idejében íródik fel. (A v1.1 előtt a felület a puszta `CampaignLifecycle::start()`-ot
+     * hívta: a kampány `sending`-re váltott, de egyetlen címzett sem jött létre.)
      */
     public function transition(
         Request $request,
         string $uuid,
         CampaignLifecycle $lifecycle,
         CampaignChecklist $checklist,
-        StartCampaign $start,
     ): RedirectResponse {
         // AZ INDÍTÁS ÉS AZ ÜTEMEZÉS külön képesség: a `author` szerep írhat kampányt, de
         // nem küldheti ki.
@@ -479,7 +504,8 @@ final class CampaignUiController
             match ($action) {
                 'schedule' => $lifecycle->schedule($campaign, (string) $validated['localTime'], (string) $validated['timezone']),
                 'unschedule' => $lifecycle->unschedule($campaign),
-                'start' => $start($campaign),
+                // LEFOGLALÁS a kérésben, materializálás + kötegek a `campaign` soron (RB1/S4).
+                'start' => StartCampaignJob::dispatch((string) $lifecycle->start($campaign)->uuid, (int) $campaign->workspace_id),
                 'pause' => $lifecycle->pause($campaign),
                 'resume' => $lifecycle->resume($campaign),
                 'cancel' => $lifecycle->cancel($campaign),

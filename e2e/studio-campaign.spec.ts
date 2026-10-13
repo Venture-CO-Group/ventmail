@@ -108,5 +108,7 @@ test('a kampánylista szűr állapot szerint', async ({ page }) => {
 
     const statuses = await page.locator('[data-testid^="campaign-row-status-"]').evaluateAll((nodes) => nodes.map((node) => node.getAttribute('data-status')));
 
+    // NEM ÜRES (review NIT): egy üres lista mellett az `every` mindig igaz lenne.
+    expect(statuses.length).toBeGreaterThan(0);
     expect(statuses.every((status) => status === 'draft')).toBe(true);
 });

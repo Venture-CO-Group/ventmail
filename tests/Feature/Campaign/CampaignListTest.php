@@ -46,6 +46,10 @@ it('a sor statisztikája a meglévő analitikából jön: küldött, egyedi nyit
     StudioFixtures::engagement($ws, 'c@pelda.hu', null, null, $scope);
     StudioFixtures::engagement($ws, 'd@pelda.hu', null, null, $scope);
 
+    // Az ELSŐ kérés nem számol (review RS6): a háttér-job tölti a gyorsítótárat (a teszt-sor
+    // szinkron), a második már a kész számot mutatja.
+    listPage($this)->assertOk()->assertInertia(fn ($page) => $page->where('campaigns.1.openRate', null));
+
     listPage($this)->assertOk()->assertInertia(fn ($page) => $page
         ->component('Campaign/Index')
         ->where('campaigns.1.name', 'Elküldött')

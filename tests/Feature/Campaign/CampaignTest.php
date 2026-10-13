@@ -479,6 +479,13 @@ it('az ESEDÉKES kampányt az ütemező elindítja', function () {
     $list = ContactList::create(['name' => 'Lista']);
     subscriber('anna@pelda.hu', $list);
 
+    // v1.1 (review RS1) · az ütemező indítás előtt a szerver-ellenőrzéseket is lefuttatja
+    // (szigorú lábléc: valódi postai cím) — a sablon ezért teljes láblécet kap.
+    $this->template->forceFill(['blocks' => [['type' => 'section', 'children' => [['type' => 'column', 'children' => [
+        ['type' => 'text', 'attrs' => ['content' => 'Szia!']],
+        ['type' => 'footer', 'attrs' => ['company' => 'Kft', 'address' => 'Nádor utca 1., 1051 Budapest', 'content' => 'x', 'unsubscribe_label' => 'Le', 'preferences_label' => 'Beá']],
+    ]]]]], 'marketing' => true])->save();
+
     $campaign = app(CampaignLifecycle::class)->schedule(
         campaignFor($list),
         now()->addMinutes(5)->toDateTimeString(),

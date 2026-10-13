@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Campaign\Services;
 
 use App\Modules\Campaign\Enums\CampaignStatus;
+use App\Modules\Campaign\Jobs\StartCampaignJob;
 use App\Modules\Campaign\Models\Campaign;
 use App\Modules\Template\Models\Template;
 use App\Modules\Template\Services\TemplateCompliance;
@@ -146,6 +147,18 @@ final class CampaignLifecycle
      */
     public function resume(Campaign $campaign): Campaign
     {
+        // v1.1 (review RB1) · MÉG NEM MATERIALIZÁLT kampány (a háttér-materializálás elbukott,
+        // és a job szüneteltette): a folytatás ÚJRA materializál — nem „befejezett" egy olyan
+        // kampány, aminek egyetlen címzettje sem jött létre.
+        if ($campaign->recipients()->doesntExist() && (int) $campaign->recipient_count === 0) {
+            $this->transition($campaign, CampaignStatus::Sending);
+            $campaign->save();
+
+            StartCampaignJob::dispatch((string) $campaign->uuid, (int) $campaign->workspace_id);
+
+            return $campaign->fresh();
+        }
+
         if ($campaign->recipients()->where('status', 'pending')->doesntExist()) {
             return $this->complete($campaign);
         }

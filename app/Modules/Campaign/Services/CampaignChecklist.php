@@ -13,6 +13,7 @@ use App\Modules\Sending\Services\DomainNormalizer;
 use App\Modules\Template\Models\Template;
 use App\Modules\Template\Services\TemplateCompliance;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Throwable;
 
 /**
@@ -41,6 +42,9 @@ final class CampaignChecklist
 {
     /** A tárgy ajánlott hossza (karakter) — csak jelzés, nem feltétel. */
     public const SUBJECT_RECOMMENDED = [30, 60];
+
+    /** A consent-metszet gyorsítótárának élettartama (mp). */
+    public const CONSENT_CACHE_SECONDS = 120;
 
     public function __construct(
         private readonly AudienceResolver $audience,
@@ -268,11 +272,20 @@ final class CampaignChecklist
      */
     private function consentCheck(Campaign $campaign, int $estimate): array
     {
-        $confirmed = $estimate === 0 ? 0 : Consent::query()
-            ->where('channel', 'marketing')
-            ->where('status', 'confirmed')
-            ->whereIn('email', $this->audience->query($campaign)->reorder()->select('email'))
-            ->count();
+        // GYORSÍTÓTÁR a célzás lenyomatára (review RS4): a checklist minden mentés után újra
+        // kiértékelődik, a metszet-számlálás viszont egy 300k-s célzásnál drága. A kulcs a
+        // workspace + a célzás (listák, szegmensek, kizárások) — más célzás más kulcs, tehát a
+        // szám a célzás változásakor azonnal friss; a consent-állapot változását 2 percen belül
+        // követi (a küldéskor úgyis a kapu dönt).
+        $confirmed = $estimate === 0 ? 0 : (int) Cache::remember(
+            $this->targetingKey('campaign-consent', $campaign),
+            self::CONSENT_CACHE_SECONDS,
+            fn (): int => Consent::query()
+                ->where('channel', 'marketing')
+                ->where('status', 'confirmed')
+                ->whereIn('email', $this->audience->query($campaign)->reorder()->select('email'))
+                ->count(),
+        );
 
         return [
             'key' => 'consent',
@@ -285,6 +298,40 @@ final class CampaignChecklist
     private function estimate(Campaign $campaign): int
     {
         return $this->audience->estimate($campaign);
+    }
+
+    /**
+     * A SZERVER-ELLENŐRZÉSEK közül a bukók (domain, compliance, consent) — az ütemező az
+     * indítás előtt ezt kérdezi (review RS1). A felületi szakaszok (pl. „most / később")
+     * egy már ütemezett kampánynál nem értelmezettek, ezért itt nem számítanak.
+     *
+     * @return list<string>
+     */
+    public function failingChecks(Campaign $campaign): array
+    {
+        $campaign->loadMissing(['template', 'variants.template']);
+
+        $checks = [
+            $this->domainCheck($campaign),
+            $this->complianceCheck($campaign),
+            $this->consentCheck($campaign, $this->estimate($campaign)),
+        ];
+
+        return array_values(array_map(
+            static fn (array $check): string => (string) $check['key'],
+            array_filter($checks, static fn (array $check): bool => ! $check['ok']),
+        ));
+    }
+
+    /** A célzás lenyomata a gyorsítótár-kulcshoz. */
+    private function targetingKey(string $prefix, Campaign $campaign): string
+    {
+        return sprintf('%s:%d:%s', $prefix, (int) $campaign->workspace_id, sha1((string) json_encode([
+            $this->uuids($campaign->target_lists),
+            $this->uuids($campaign->target_segments),
+            $this->uuids($campaign->exclude_lists),
+            $this->uuids($campaign->exclude_segments),
+        ])));
     }
 
     private function isVerified(string $email): bool

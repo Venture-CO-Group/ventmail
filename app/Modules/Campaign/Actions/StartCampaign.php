@@ -57,6 +57,19 @@ final class StartCampaign
         // materializálódik.
         $campaign = $this->lifecycle->start($campaign);
 
+        return $this->materialize($campaign);
+    }
+
+    /**
+     * A CÍMZETTEK MATERIALIZÁLÁSA és a kötegek indítása — a már LEFOGLALT (`sending`) kampányon.
+     *
+     * v1.1 (review RB1/S4): a felület és az ütemező a kérésben csak lefoglal, ez a lépés a
+     * `StartCampaignJob`-ban fut a `campaign` soron — egy 300k-s célzás nem egy webkérés
+     * idejében materializálódik. Ismételhető: a beszúrás `insertOrIgnore`, a kötegek a
+     * `pending` sorokra indulnak.
+     */
+    public function materialize(Campaign $campaign): Campaign
+    {
         // A TENANT-HATÁR: a kötegelt beszúrás megkerüli az Eloquent `creating` hookját,
         // tehát a `BelongsToWorkspace::assertOwnWorkspace` sem fut le rajta. Ezért a
         // szabályt ITT mondjuk ki újra. Nem elméleti: az `insertOrIgnore` bármilyen
