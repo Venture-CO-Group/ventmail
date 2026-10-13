@@ -162,6 +162,17 @@
     ugyanaz a worker írja és olvassa, a purge (1 óránál régebbi) a volume-on takarít; a konténer-lokális
     `/tmp`-n egy OOM-maradék a konténer élettartamáig foglalna. A `storage/framework` (cache, view)
     konténer-lokális marad.
+    **Átállás (D254, v1.1 modul 8 review):** a D227 előtti színek a sablon-képeket és a privát fájlokat
+    a SAJÁT konténer-rétegükben tartják. A `deploy.sh` 7. lépése ezért a régi szín `down`-ja ELŐTT
+    (a drain után) egyszer átmásolja a régi `app` konténer `/app/storage/app` tartalmát a két volume-ra:
+    `docker cp` → root segédkonténer (a kiadás image-e) → staging a volume-on → bejegyzésenként csak ami
+    még NINCS ott (az új szín által írt fájl nem íródik felül), tulajdonos és jogosultság megőrizve →
+    ellenőrzés (minden fájl a helyén, az újonnan másolt mérete egyezik) → `.d227-migrated` jelölő
+    (`migrated=… files=… bytes=…`). A jelölővel a lépés no-op; ha a régi színnek nincs `app` konténere,
+    nincs mit másolni. **Hiba esetén** a régi szín FUT marad (nincs `down` — a fájljai egyetlen
+    példánya), a `.d227-pending` minden további deployt tilt, és a javítás után a
+    `./deploy.sh --migrate-storage` fejezi be (ellenőrzés → `down`). Ellenőrzés: a jelölő tartalma
+    (`docker run --rm -v ventmail-storage:/d alpine cat /d/.d227-migrated`).
 
 17. **PDF-renderer sidecar (v1.1 modul 8, D238).** `deploy/compose.render.yml` (projekt `ventmail-render`,
     színfüggetlen, a `deploy.sh` 2. lépése indítja és health-re vár): Gotenberg `8.37.0-chromium`, tag ÉS

@@ -8,8 +8,13 @@ printf '%s\n' "$role" > /tmp/ventmail-role
 
 # D227: storage/app is the shared `ventmail-storage` volume (compose.prod.yml). A fresh volume is
 # populated from the image (owned by 10001); a volume with the wrong owner must stop the
-# container visibly instead of failing every upload, import and report later.
+# container visibly instead of failing every upload, import and report later. The writability check runs
+# before `mkdir`, so a wrongly owned volume gets the clear message, not a bare mkdir error.
 ensure_storage() {
+    if [ ! -w storage/app ]; then
+        echo "entrypoint: storage/app is not writable by $(id -u); fix the ventmail-storage volume ownership" >&2
+        exit 1
+    fi
     mkdir -p storage/app/private storage/app/public
     for dir in storage/app/private storage/app/public; do
         if [ ! -w "$dir" ]; then

@@ -322,7 +322,8 @@ it('a Gotenberg-sidecar tag+digest szerint pinelt, belső hálón, kimenő forga
         ->and($command)->toContain('--chromium-allow-list=^file:///tmp/.*')
         ->toContain('--api-disable-download-from=true')
         ->toContain('--webhook-disable=true')
-        ->toContain('--chromium-clear-storage=true');
+        ->toContain('--chromium-clear-storage=true')
+        ->toContain('--api-body-limit=10MB');
 
     // CSAK az app és a worker éri el (a riport-job a worker `reports` során fut, a letöltés az appon).
     foreach (vmProdCompose()['services'] as $name => $service) {

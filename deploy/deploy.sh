@@ -18,7 +18,10 @@
 #                                           colour keeps working on the new schema.
 #   6. start the release on the idle colour next to the serving one; wait for health
 #   7. healthy   -> drain the old colour (its /up turns 503, the edge's health check
-#                   moves traffic to the new one), then stop it gracefully
+#                   moves traffic to the new one), copy its storage onto the shared
+#                   volumes once (D227/D254: no overwrite, verified, marker), then
+#                   stop it gracefully. A failed copy keeps it running and blocks
+#                   deploys until `deploy.sh --migrate-storage` succeeds.
 #      unhealthy -> discard the new colour; the old one never stopped serving
 #
 # Idempotent: deploying the running tag again converges to the same state.
@@ -39,6 +42,14 @@ die() {
     log "FAILED: $*"
     exit 1
 }
+
+# `deploy.sh --migrate-storage`: finish a D227 storage migration that a previous deploy could not
+# complete (the old colour was left running on purpose; see migrate_d227 below).
+mode=deploy
+if [ "${1:-}" = "--migrate-storage" ]; then
+    mode=migrate-storage
+    set -- "$(cat "$APP_DIR/.deployed-tag" 2>/dev/null || true)"
+fi
 
 tag="${1:-}"
 if ! [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ || "$tag" =~ ^[0-9a-f]{40}$ ]]; then
@@ -70,6 +81,15 @@ unset APP_URL TRUSTED_PROXIES REDIS_PASSWORD
 mkdir .deploy.lock 2>/dev/null || die "another deploy is running (remove $APP_DIR/.deploy.lock if it is stale)"
 trap 'rmdir "$APP_DIR/.deploy.lock" 2>/dev/null || true' EXIT
 
+# D227 / D254: the pre-D227 colours keep the template images and private files in their own
+# container layer. Before such a colour is removed, its storage/app is copied onto the shared
+# volumes. A failed copy leaves that colour RUNNING (its files are the only copy) and records it
+# here; until `deploy.sh --migrate-storage` finishes the copy, no deploy may run: a new deploy
+# would recreate that colour and destroy its container layer.
+if [ "$mode" = deploy ] && [ -f .d227-pending ]; then
+    die "a storage migration is pending for colour $(cat .d227-pending); run ./deploy.sh --migrate-storage first (see deploy.log)"
+fi
+
 previous="$(cat .deployed-tag 2>/dev/null || true)"
 active="$(cat .active-color 2>/dev/null || true)"
 if [ -z "$active" ]; then
@@ -89,6 +109,97 @@ colour() { # colour <name> <tag> <compose args...>
     VENTMAIL_TAG="$release" VENTMAIL_COLOR="$name" docker compose -p "ventmail-$name" -f compose.prod.yml "$@"
 }
 data() { docker compose -p ventmail-data -f compose.data.yml "$@"; }
+
+# migrate_d227 <old colour> <helper image>: copy the old colour's /app/storage/app onto the shared
+# volumes (ventmail-storage, with ventmail-storage-public nested at public/), NEVER overwriting a
+# file the new colour already wrote, preserving owner and mode (root helper, `tar -p`, `cp -p`); verify every copied file (present; same size unless it pre-existed); write the
+# `.d227-migrated` marker. Idempotent: with the marker present it does nothing. Non-zero on any
+# failure (the caller then keeps the colour running).
+migrate_d227() {
+    local old="$1" helper="$2" cid
+    local mounts=(-v ventmail-storage:/dst -v ventmail-storage-public:/dst/public)
+
+    if docker run --rm --label vm.step=d227-marker-check --user 0 --entrypoint sh "${mounts[@]}" "$helper" -c 'test -f /dst/.d227-migrated'; then
+        log "storage: D227 migration already done (marker present)"
+        return 0
+    fi
+
+    cid="$(docker ps -aq --filter "label=com.docker.compose.project=ventmail-$old" --filter "label=com.docker.compose.service=app" | head -1)"
+    if [ -z "$cid" ]; then
+        log "storage: colour $old has no app container; nothing to migrate"
+        return 0
+    fi
+
+    # 1. copy: the old container's storage/app as a tar stream into a staging dir on the volume,
+    #    then into place without overwriting; the files that already existed are listed first.
+    docker cp "$cid:/app/storage/app" - | docker run --rm -i --label vm.step=d227-copy --user 0 --entrypoint sh "${mounts[@]}" "$helper" -c '
+        set -eu
+        if [ -d /dst/.d227-staging ]; then rm -r /dst/.d227-staging; fi
+        mkdir -p /dst/.d227-staging
+        find /dst -path /dst/.d227-staging -prune -o -type f -print > /dst/.d227-staging/.preexisting
+        tar -x -p -C /dst/.d227-staging -f -
+        # Entry by entry (busybox `cp -n` skips whole existing directories, `tar -k` fails on them):
+        # a missing directory is created with the source owner/mode, a missing file copied with
+        # `cp -p`; anything that already exists (the new colour wrote it) is left untouched.
+        cd /dst/.d227-staging/app
+        find . -mindepth 1 -type d | sort | while IFS= read -r d; do
+            if [ ! -e "/dst/$d" ]; then
+                mkdir "/dst/$d"; chown "$(stat -c %u:%g "$d")" "/dst/$d"; chmod "$(stat -c %a "$d")" "/dst/$d"
+            fi
+        done
+        find . -type f | while IFS= read -r f; do
+            if [ ! -e "/dst/$f" ]; then cp -p "$f" "/dst/$f"; fi
+        done
+    ' || return 1
+
+    # 2. verify: every staged file is in place; a newly copied file has the staged size.
+    docker run --rm --label vm.step=d227-verify --user 0 --entrypoint sh "${mounts[@]}" "$helper" -c '
+        set -eu
+        cd /dst/.d227-staging/app
+        files=0; bytes=0; bad=0
+        find . -type f > /tmp/staged
+        while IFS= read -r f; do
+            rel="${f#./}"; files=$((files + 1))
+            size="$(stat -c %s "$f")"; bytes=$((bytes + size))
+            if [ ! -f "/dst/$rel" ]; then echo "missing: $rel" >&2; bad=$((bad + 1)); continue; fi
+            if ! grep -qxF "/dst/$rel" /dst/.d227-staging/.preexisting && [ "$(stat -c %s "/dst/$rel")" != "$size" ]; then
+                echo "size mismatch: $rel" >&2; bad=$((bad + 1))
+            fi
+        done < /tmp/staged
+        [ "$bad" -eq 0 ] || { echo "$bad file(s) failed verification" >&2; exit 1; }
+        printf "migrated=%s files=%s bytes=%s\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$files" "$bytes" > /dst/.d227-migrated
+        chown 10001:10001 /dst/.d227-migrated
+        cd /
+        rm -r /dst/.d227-staging
+        echo "files=$files bytes=$bytes"
+    ' || return 1
+
+    log "storage: D227 migration from $old verified, marker written"
+}
+
+# retire <old colour> <old tag> <helper image>: migrate the storage, then stop the colour. A
+# failed migration keeps the colour running and blocks further deploys (.d227-pending).
+retire() {
+    local old="$1" old_tag="$2" helper="$3"
+
+    if ! migrate_d227 "$old" "$helper"; then
+        printf '%s\n' "$old" >.d227-pending
+        die "storage migration from $old FAILED; $old keeps running (drained) and holds the only copy of its files. Fix the cause, then run ./deploy.sh --migrate-storage (do NOT deploy again before that)"
+    fi
+
+    colour "$old" "$old_tag" down --remove-orphans || log "warning: could not stop $old; stop it by hand"
+    rm -f .d227-pending
+    log "retired $old ($old_tag)"
+}
+
+if [ "$mode" = migrate-storage ]; then
+    [ -f .d227-pending ] || die "no storage migration is pending"
+    pending="$(cat .d227-pending)"
+    [[ "$pending" =~ ^(blue|green)$ ]] || die ".d227-pending is invalid"
+    retire "$pending" "$tag" "$IMAGE:$tag"
+    log "storage migration finished; deploys are unblocked"
+    exit 0
+fi
 render() { docker compose -p ventmail-render -f compose.render.yml "$@"; }
 ops() { colour ops "$tag" --profile ops run --rm --no-deps -T ops artisan "$@"; }
 
@@ -150,8 +261,7 @@ if [ -n "$active" ] && [ "$active" != "$next" ]; then
     colour "$active" "${previous:-$tag}" exec -T web touch /tmp/ventmail-draining ||
         log "warning: could not mark $active as draining; stopping it anyway"
     sleep "$DRAIN_SECONDS"
-    colour "$active" "${previous:-$tag}" down --remove-orphans || log "warning: could not stop $active; stop it by hand"
-    log "retired $active ($previous)"
+    retire "$active" "${previous:-$tag}" "$IMAGE:$tag"
 fi
 
 log "deployed $tag on $next"

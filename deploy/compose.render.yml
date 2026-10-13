@@ -20,6 +20,8 @@ services:
     command:
       - gotenberg
       - --api-timeout=60s
+      # The multipart upload is bounded app-side too (5 MB HTML+assets); the sidecar refuses more.
+      - --api-body-limit=10MB
       - --chromium-allow-list=^file:///tmp/.*
       - --chromium-max-queue-size=4
       - --chromium-restart-after=50
