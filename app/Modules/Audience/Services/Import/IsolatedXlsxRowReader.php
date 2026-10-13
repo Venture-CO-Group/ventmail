@@ -56,6 +56,14 @@ final class IsolatedXlsxRowReader implements ImportRowReader
 
     private static bool $fallbackLogged = false;
 
+    /**
+     * A fd-záró wrapper shellje (folyamatonként egyszer választva): `false` = még nem választott.
+     */
+    private static string|false|null $wrapperShell = false;
+
+    /** A wrapper-shell jelöltjei, sorrendben (bash a Debian/Ubuntu dash-e előtt; az Alpine `/bin/sh` busybox). */
+    private const SHELL_CANDIDATES = ['/bin/bash', '/usr/bin/bash', '/bin/sh'];
+
     private ?int $childPid = null;
 
     public function __construct(
@@ -259,7 +267,7 @@ final class IsolatedXlsxRowReader implements ImportRowReader
     /** @return list<string> */
     private function command(): array
     {
-        $php = (string) (config('audience.import.xlsx_child_php') ?: (PHP_SAPI === 'cli' ? PHP_BINARY : 'php'));
+        $php = self::phpBinary();
         $memory = max(16, (int) config('audience.import.xlsx_child_memory_mb'));
 
         $options = [
@@ -290,6 +298,21 @@ final class IsolatedXlsxRowReader implements ImportRowReader
             return $child;
         }
 
+        /*
+         | CI (PR #42) · A WRAPPER SHELLJE TÖBBJEGYŰ FD-T IS ZÁRJON. A dash (Debian/Ubuntu `/bin/sh`) a
+         | `exec N>&-`-t csak 0–9-re ismeri: `exec 12>&-` → „exec: 12: not found", exit 127, a gyerek el
+         | sem indul (mérve: GitHub-runner, párhuzamos Pest-worker). A bash és a busybox ash (az éles
+         | Alpine-kép `/bin/sh`-ja) helyesen zár. Ha nincs ilyen shell: FAIL-CLOSED (D256) — inkább
+         | elutasított import, mint örökölt socket a gyerekben.
+         */
+        $shell = self::wrapperShell();
+
+        if ($shell === null) {
+            Log::error('XLSX-gyerekolvasó: nincs olyan shell, ami a többjegyű örökölt fd-ket is lezárja (bash vagy busybox sh kell) — az olvasás elutasítva.');
+
+            throw new ImportLimitExceeded('resources');
+        }
+
         // A WRAPPER (review r11 S1/S2): (1) a 2 fölötti ÖSSZES örökölt fd lezárva az `exec` ELŐTT — a
         // szülő socketjei (Redis, Postgres) és fájljai nem jutnak a gyerekhez; (2) CPU-idő plafon
         // (`ulimit -t`, a falióra-keret + 10 mp): egy árva gyerek sem pörög a végtelenségig; (3) Linuxon a
@@ -308,7 +331,74 @@ final class IsolatedXlsxRowReader implements ImportRowReader
 
         $closeInherited = 'for f in /proc/$$/fd/* /dev/fd/*; do n=${f##*/}; [ "$n" -gt 2 ] 2>/dev/null && eval "exec $n>&-"; done';
 
-        return ['/bin/sh', '-c', $closeInherited.'; '.$limits.' && exec "$@"', 'xlsx-reader', ...$child];
+        return [$shell, '-c', $closeInherited.'; '.$limits.' && exec "$@"', 'xlsx-reader', ...$child];
+    }
+
+    /**
+     * A gyerek PHP-binárisa ABSZOLÚT úttal (CI, PR #42): CLI-ben a futó bináris valódi útja, egyébként
+     * (FPM) a `php` az explicit, minimális PATH-on keresve — a gyerek környezete nem dönthet róla.
+     */
+    private static function phpBinary(): string
+    {
+        $configured = (string) config('audience.import.xlsx_child_php');
+
+        if ($configured !== '') {
+            return $configured;
+        }
+
+        if (PHP_SAPI === 'cli' && PHP_BINARY !== '') {
+            return realpath(PHP_BINARY) ?: PHP_BINARY;
+        }
+
+        foreach (explode(':', self::childEnvironment()['PATH']) as $directory) {
+            if (is_executable($directory.'/php')) {
+                return $directory.'/php';
+            }
+        }
+
+        return 'php';
+    }
+
+    /** A választott wrapper-shell (gyorsítótárazva); `null`, ha egyik jelölt sem zár többjegyű fd-t. */
+    private static function wrapperShell(): ?string
+    {
+        if (self::$wrapperShell === false) {
+            self::$wrapperShell = self::fdClosingShell(self::SHELL_CANDIDATES);
+        }
+
+        return self::$wrapperShell;
+    }
+
+    /**
+     * Az első jelölt, ami a többjegyű fd-t is lezárja.
+     *
+     * @param  list<string>  $candidates
+     */
+    public static function fdClosingShell(array $candidates): ?string
+    {
+        foreach ($candidates as $candidate) {
+            if (self::closesHighDescriptors($candidate)) {
+                return $candidate;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Le tudja-e zárni a shell a 10-es (kétjegyű) fd-t? A dash itt 127-tel bukik („exec: 10: not
+     * found"), a bash és a busybox ash 0-val tér vissza. Minimális környezettel, kimenet nélkül fut.
+     */
+    public static function closesHighDescriptors(string $shell): bool
+    {
+        if (! is_file($shell) || ! is_executable($shell)) {
+            return false;
+        }
+
+        $pipes = [];
+        $process = proc_open([$shell, '-c', 'exec 10>&- && exit 0'], [0 => ['file', '/dev/null', 'r'], 1 => ['file', '/dev/null', 'w'], 2 => ['file', '/dev/null', 'w']], $pipes, null, ['PATH' => '/usr/local/bin:/usr/bin:/bin']);
+
+        return is_resource($process) && proc_close($process) === 0;
     }
 
     /**

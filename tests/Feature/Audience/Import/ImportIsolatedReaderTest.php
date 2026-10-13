@@ -325,3 +325,49 @@ it('polish · az NDJSON-sorplafon a konfigurációból jön (max_columns × max_
     config()->set('audience.import.max_cell_length', 10_000);
     expect($max->invoke(null))->toBe(500 * 10_000 * 6);
 });
+
+/*
+ | CI (PR #42, 2. kör) · A FD-ZÁRÓ WRAPPER SHELLJE. A `exec N>&-` a dash-ben (Debian/Ubuntu `/bin/sh`)
+ | CSAK egyjegyű fd-re működik: `exec 12>&-` → „exec: 12: not found", exit 127 — a gyerek el sem
+ | indul. A GitHub-runneren (dash, a párhuzamos Pest-worker sok nyitott fd-vel) így bukott minden
+ | izolált olvasás. A wrapper ezért csak olyan shellt használ, ami a többjegyű fd-t is le tudja zárni
+ | (bash, busybox ash) — és ha nincs ilyen, FAIL-CLOSED (D256: örökölt fd nem juthat a gyerekhez).
+ */
+it('CI · a többjegyű fd-t le NEM záró shell (dash) nem választható wrapper-shellnek', function () {
+    $dir = sys_get_temp_dir().'/vm-shell-'.bin2hex(random_bytes(4));
+    mkdir($dir);
+    // „dash"-szerű ál-shell: a `exec 10>&-` próbán 127-tel bukik, mint a valódi dash.
+    file_put_contents($dir.'/dashlike', "#!/bin/sh\nexit 127\n");
+    chmod($dir.'/dashlike', 0755);
+
+    try {
+        expect(IsolatedXlsxRowReader::closesHighDescriptors($dir.'/dashlike'))->toBeFalse()
+            ->and(IsolatedXlsxRowReader::closesHighDescriptors($dir.'/nincs-ilyen'))->toBeFalse()
+            ->and(IsolatedXlsxRowReader::fdClosingShell([$dir.'/dashlike', $dir.'/nincs-ilyen']))->toBeNull();
+
+        $real = IsolatedXlsxRowReader::fdClosingShell(['/bin/bash', '/bin/sh']);
+        expect($real)->not->toBeNull()
+            ->and(IsolatedXlsxRowReader::closesHighDescriptors((string) $real))->toBeTrue();
+    } finally {
+        @unlink($dir.'/dashlike');
+        @rmdir($dir);
+    }
+});
+
+it('CI · tíznél több örökölt fd mellett is elindul a gyerek, és egyiket sem örökli', function () {
+    // A szülőben annyi fájl nyílik, hogy biztosan legyen kétjegyű fd (a CI-n a Pest-worker ilyen).
+    $keep = [];
+
+    for ($i = 0; $i < 12; $i++) {
+        $keep[] = fopen(isoPath('.tmp'), 'w');
+    }
+
+    try {
+        $probe = (new IsolatedXlsxRowReader(isoLegit(), null, sys_get_temp_dir(), 30))->probeChildForTests();
+    } finally {
+        array_map('fclose', $keep);
+    }
+
+    expect($probe['env'])->toContain('PATH')
+        ->and(preg_grep('#vm-iso-.*\.tmp#', $probe['fds']))->toBe([]);
+});
