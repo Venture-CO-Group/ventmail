@@ -8,6 +8,7 @@ use App\Modules\Audience\Services\Import\ImportLimitExceeded;
 use App\Modules\Audience\Services\Import\ImportUploads;
 use App\Modules\Audience\Services\Import\IsolatedXlsxRowReader;
 use App\Modules\Audience\Services\Import\XlsxRowReader;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use OpenSpout\Common\Entity\Row;
 use OpenSpout\Writer\XLSX\Writer;
@@ -183,4 +184,123 @@ it('S1(r10) · legfeljebb 255 munkalap — a 256. formátum-hiba a guardban', fu
 
     expect(fn () => app(ImportFileInspector::class)->guard(isoBook($sheet, 256), 'xlsx'))
         ->toThrow(fn (ImportLimitExceeded $e) => expect($e->reason)->toBe('format'));
+});
+
+/* ---------------------------------------------------------------- 11. review-kör: S1, S2, N1, N2 */
+
+/** Sok soros legitim munkafüzet — a gyerek kimenete bőven meghaladja a cső pufferét (64 KB). */
+function isoMany(int $rows = 5000): string
+{
+    $path = isoPath();
+    $writer = new Writer;
+    $writer->openToFile($path);
+    $writer->getCurrentSheet()->setName('Sok');
+
+    for ($i = 0; $i < $rows; $i++) {
+        $writer->addRow(Row::fromValues(['user'.$i.'@pelda.hu', 'Név '.$i, str_repeat('adat ', 10)]));
+    }
+
+    $writer->close();
+
+    return $path;
+}
+
+it('S1(r11) · a gyerek MINIMÁLIS környezetet kap: nincs APP_KEY, DB_*, REDIS_* és egyéb titok', function () {
+    putenv('DB_PASSWORD=titok-a-szuloben');
+    putenv('APP_KEY=base64:titok');
+
+    try {
+        $probe = (new IsolatedXlsxRowReader(isoLegit(), null, sys_get_temp_dir(), 30))->probeChildForTests();
+    } finally {
+        putenv('DB_PASSWORD');
+        putenv('APP_KEY');
+    }
+
+    expect($probe['env'])->toContain('PATH')
+        // A shell (PWD, SHLVL, _) és macOS-en az OS (`__CF_USER_TEXT_ENCODING`, szövegkódolás-jelző) maga
+        // tesz be változót — titkot egyik sem hordoz.
+        ->and(array_values(array_diff($probe['env'], ['PATH', 'PHPRC', 'PHP_INI_SCAN_DIR', 'TMPDIR', 'TMP', 'TEMP', 'PWD', 'SHLVL', '_', '__CF_USER_TEXT_ENCODING'])))->toBe([])
+        ->and($probe['env'])->not->toContain('APP_KEY')
+        ->and(preg_grep('/^(DB_|REDIS_|APP_|MAIL_|AWS_)/', $probe['env']))->toBe([]);
+});
+
+it('S1(r11) · a szülő nyitott fd-i (socket, fájl) NEM jutnak a gyerekhez — csak 0–2 (Linux)', function () {
+    if (! is_dir('/proc/self/fd')) {
+        $this->markTestSkipped('A nyitott fd-k listája /proc nélkül (macOS) nem mérhető; a wrapper itt a /dev/fd-n át zár — Linuxon (CI, éles) fut.');
+    }
+
+    // A szülőben nyitott fájlok és egy TCP-socket — ezek NEM öröklődhetnek.
+    $keep = [];
+
+    for ($i = 0; $i < 5; $i++) {
+        $keep[] = fopen(isoPath('.tmp'), 'w');
+    }
+
+    $server = stream_socket_server('tcp://127.0.0.1:0');
+    $client = stream_socket_client('tcp://'.stream_socket_get_name($server, false));
+
+    $probe = (new IsolatedXlsxRowReader(isoLegit(), null, sys_get_temp_dir(), 30))->probeChildForTests();
+
+    // A 0–2 a csövek. A gyerek SAJÁT fd-i maradhatnak: a futó szkript (a PHP nyitva tartja) és a
+    // `/proc/self/fd` listázásának könyvtár-fd-je (a readlink idejére már zárva: üres cél). Örökölt nem.
+    $script = base_path('app/Modules/Audience/Resources/xlsx-reader-child.php');
+    $inherited = array_values(array_filter($probe['fds'], static function (string $fd) use ($script): bool {
+        [$number, $target] = array_map('trim', explode('->', $fd, 2) + [1 => '']);
+
+        return (int) $number > 2 && $target !== '' && $target !== $script && ! preg_match('#^/proc/\d+/fd$#', $target);
+    }));
+
+    expect($inherited)->toBe([])
+        // Kifejezetten: sem socket, sem a szülő ideiglenes fájljai.
+        ->and(preg_grep('#socket:|vm-iso-.*\.tmp#', $probe['fds']))->toBe([]);
+
+    fclose($client);
+    fclose($server);
+    array_map('fclose', $keep);
+});
+
+it('S2(r11) · árva gyerek: ha a szülő eltűnik (a cső zárva), a gyerek az első sikertelen írásnál kilép (exit 4)', function () {
+    $reader = new IsolatedXlsxRowReader(isoMany(), 'Sok', sys_get_temp_dir(), 30);
+    $command = (new ReflectionMethod($reader, 'command'))->invoke($reader);
+
+    $pipes = [];
+    $process = proc_open($command, [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+    fclose($pipes[0]);
+    // A „szülő" eltűnik: a kimenetet egyáltalán nem olvassa, a cső olvasó végét lezárja.
+    fclose($pipes[1]);
+
+    $started = microtime(true);
+
+    do {
+        $status = proc_get_status($process);
+        usleep(50_000);
+    } while ($status['running'] && microtime(true) - $started < 15);
+
+    fclose($pipes[2]);
+    proc_close($process);
+
+    expect($status['running'])->toBeFalse()
+        ->and($status['exitcode'])->toBe(4)
+        ->and(microtime(true) - $started)->toBeLessThan(15);
+});
+
+it('N1(r11) · a hívó korai leállása (break) utáni SAJÁT kill nem „rendellenes kilépés" a naplóban', function () {
+    Log::spy();
+
+    foreach ((new IsolatedXlsxRowReader(isoMany(), 'Sok', sys_get_temp_dir(), 30))->rows() as $cells) {
+        break;
+    }
+
+    Log::shouldNotHaveReceived('info', [Mockery::on(fn ($message) => is_string($message) && str_contains($message, 'rendellenesen')), Mockery::any()]);
+});
+
+it('N2(r11) · újsor nélküli, 4 MB-nál hosszabb gyerek-kimenet erőforrás-hiba (a puffer korlátos)', function () {
+    // Hamis „php": minden argumentumot figyelmen kívül hagy, és 5 MB-ot ír újsor nélkül.
+    $fake = isoPath('.sh');
+    file_put_contents($fake, "#!/bin/sh\nhead -c 5000000 /dev/zero | tr '\\000' x\nsleep 5\n");
+    chmod($fake, 0755);
+    config()->set('audience.import.xlsx_child_php', $fake);
+
+    expect(fn () => isoRows((new IsolatedXlsxRowReader(isoLegit(), null, sys_get_temp_dir(), 30))->rows()))
+        ->toThrow(fn (ImportLimitExceeded $e) => expect($e->reason)->toBe('resources'));
 });

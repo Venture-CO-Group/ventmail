@@ -42,6 +42,18 @@ final class IsolatedXlsxRowReader implements ImportRowReader
     /** A stderr-ből legfeljebb ennyi bájtot tartunk meg (csak a puffer ürítéséhez, nem naplózzuk). */
     private const STDERR_CAP = 8192;
 
+    /**
+     * Egy NDJSON-sor felső mérete (review r11 N2): 100 oszlop × 2000 karakter, JSON-escape-pel is jóval
+     * alatta. Ennél hosszabb, újsor nélküli kimenet nem a protokoll — erőforrás-hiba.
+     */
+    private const MAX_LINE_BYTES = 4 * 1024 * 1024;
+
+    /** A gyerek környezetéből CSAK ezek öröklődnek (review r11 S1): titok (APP_KEY, DB_*, …) soha. */
+    private const ENV_PASSTHROUGH = ['PHPRC', 'PHP_INI_SCAN_DIR', 'TMPDIR', 'TMP', 'TEMP'];
+
+    /** TESZT-kapcsoló: a gyerek a környezetét és nyitott fd-it jelenti olvasás helyett. */
+    private static bool $testProbe = false;
+
     /** TESZT-kapcsoló: a gyerek ennyi másodpercig vár olvasás előtt. Csak `runningUnitTests()` alatt utazik. */
     private static int $testDelay = 0;
 
@@ -77,7 +89,10 @@ final class IsolatedXlsxRowReader implements ImportRowReader
     public function rows(): Generator
     {
         $pipes = [];
-        $process = proc_open($this->command(), [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+        // MINIMÁLIS környezet (review r11 S1): a gyerek nem látja a szülő titkait (APP_KEY, DB_PASSWORD,
+        // REDIS_PASSWORD …). A php.ini/bővítmény-útvonalak a binárisba fordítottak; ha mégis env adja
+        // (`PHPRC`, `PHP_INI_SCAN_DIR`), az öröklődik — titkot nem hordoz.
+        $process = proc_open($this->command(), [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes, null, self::childEnvironment());
 
         if (! is_resource($process)) {
             throw new ImportLimitExceeded('resources');
@@ -93,6 +108,9 @@ final class IsolatedXlsxRowReader implements ImportRowReader
         $stderr = '';
         $done = false;
         $emitted = 0;
+        // A kimenetel a naplózáshoz (review r11 N1): `null` = a hívó korán leállt (break) — a saját
+        // SIGKILL-ünk nem rendellenes kilépés; `died` = a gyerek magától halt meg; `timeout` = mi öltük meg.
+        $outcome = null;
 
         try {
             while (true) {
@@ -136,12 +154,23 @@ final class IsolatedXlsxRowReader implements ImportRowReader
 
                 if (feof($pipes[1])) {
                     // A gyerek kimenete véget ért `done` nélkül: fatal, signal, OOM-kill.
+                    $outcome = 'died';
+
+                    throw new ImportLimitExceeded('resources');
+                }
+
+                // Újsor nélküli, túl hosszú kimenet: nem a protokoll (review r11 N2).
+                if (strlen($buffer) > self::MAX_LINE_BYTES) {
+                    $outcome = 'died';
+
                     throw new ImportLimitExceeded('resources');
                 }
 
                 $remaining = $deadline - microtime(true);
 
                 if ($remaining <= 0) {
+                    $outcome = 'timeout';
+
                     throw new ImportLimitExceeded('timeout');
                 }
 
@@ -151,6 +180,8 @@ final class IsolatedXlsxRowReader implements ImportRowReader
                 $micro = $seconds === 0 ? (int) (max(0.05, min(1, $remaining)) * 1_000_000) : 0;
 
                 if (@stream_select($read, $write, $except, $seconds, $micro) === false) {
+                    $outcome = 'died';
+
                     throw new ImportLimitExceeded('resources');
                 }
 
@@ -165,8 +196,55 @@ final class IsolatedXlsxRowReader implements ImportRowReader
                 }
             }
         } finally {
-            $this->terminate($process, $pipes, $done, $stderr);
+            $this->terminate($process, $pipes, $done ? 'done' : $outcome, $stderr);
         }
+    }
+
+    /**
+     * TESZT: a gyerek KÖRNYEZETE és NYITOTT fd-i, ugyanazzal a parancssal és env-vel, ahogy az olvasáskor
+     * indul (review r11 S1). Éles futásban nem hívható.
+     *
+     * @return array{env: list<string>, fds: list<string>}
+     */
+    public function probeChildForTests(): array
+    {
+        if (! app()->runningUnitTests()) {
+            throw new \LogicException('Csak tesztben.');
+        }
+
+        self::$testProbe = true;
+
+        try {
+            $pipes = [];
+            $process = proc_open($this->command(), [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes, null, self::childEnvironment());
+            fclose($pipes[0]);
+            $output = (string) stream_get_contents($pipes[1]);
+            fclose($pipes[1]);
+            fclose($pipes[2]);
+            proc_close($process);
+        } finally {
+            self::$testProbe = false;
+        }
+
+        $probe = json_decode(trim($output), true);
+
+        return is_array($probe['probe'] ?? null) ? $probe['probe'] : ['env' => [], 'fds' => []];
+    }
+
+    /** @return array<string, string> */
+    private static function childEnvironment(): array
+    {
+        $environment = ['PATH' => '/usr/local/bin:/usr/bin:/bin'];
+
+        foreach (self::ENV_PASSTHROUGH as $name) {
+            $value = getenv($name);
+
+            if (is_string($value) && $value !== '') {
+                $environment[$name] = $value;
+            }
+        }
+
+        return $environment;
     }
 
     /** @return list<string> */
@@ -184,6 +262,7 @@ final class IsolatedXlsxRowReader implements ImportRowReader
             'maxRows' => (int) config('audience.import.max_rows'),
             // TESZT-kapcsoló: éles futásban SOHA nem utazik (a gyerek csak ezzel a kulccsal vár).
             'delay' => app()->runningUnitTests() ? self::$testDelay : 0,
+            'probe' => app()->runningUnitTests() && self::$testProbe,
         ];
 
         // A php.ini (a bővítmények betöltése) öröklődik; csak a korlátok és a hiba-kimenet felülírva.
@@ -198,21 +277,29 @@ final class IsolatedXlsxRowReader implements ImportRowReader
             json_encode($options, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
         ];
 
-        if (self::addressSpaceLimitSupported()) {
-            $kilobytes = max(65536, (int) config('audience.import.xlsx_child_address_space_mb') * 1024);
-
-            // A címtér-limit a `exec` ELŐTT áll be, tehát a PHP minden foglalása (a libxml malloc-ja is) alá esik.
-            return ['/bin/sh', '-c', 'ulimit -v '.$kilobytes.' && exec "$@"', 'xlsx-reader', ...$child];
+        if (! is_executable('/bin/sh')) {
+            return $child;
         }
 
-        if (! self::$fallbackLogged) {
+        // A WRAPPER (review r11 S1/S2): (1) a 2 fölötti ÖSSZES örökölt fd lezárva az `exec` ELŐTT — a
+        // szülő socketjei (Redis, Postgres) és fájljai nem jutnak a gyerekhez; (2) CPU-idő plafon
+        // (`ulimit -t`, a falióra-keret + 10 mp): egy árva gyerek sem pörög a végtelenségig; (3) Linuxon a
+        // címtér-limit (`ulimit -v`, a libxml malloc-ja is alá esik). A `/proc/$$/fd` Linuxon, a `/dev/fd`
+        // macOS-en sorolja a shell saját fd-it.
+        $limits = 'ulimit -t '.(max(1, $this->timeoutSeconds) + 10);
+
+        if (self::addressSpaceLimitSupported()) {
+            $limits .= ' && ulimit -v '.max(65536, (int) config('audience.import.xlsx_child_address_space_mb') * 1024);
+        } elseif (! self::$fallbackLogged) {
             self::$fallbackLogged = true;
-            Log::info('XLSX-gyerekolvasó: címtér-limit ezen a platformon nem támogatott — memory_limit + időkeret marad.', [
+            Log::info('XLSX-gyerekolvasó: címtér-limit ezen a platformon nem támogatott — memory_limit + CPU- és időkeret marad.', [
                 'os' => PHP_OS_FAMILY,
             ]);
         }
 
-        return $child;
+        $closeInherited = 'for f in /proc/$$/fd/* /dev/fd/*; do n=${f##*/}; [ "$n" -gt 2 ] 2>/dev/null && eval "exec $n>&-"; done';
+
+        return ['/bin/sh', '-c', $closeInherited.'; '.$limits.' && exec "$@"', 'xlsx-reader', ...$child];
     }
 
     /**
@@ -221,7 +308,7 @@ final class IsolatedXlsxRowReader implements ImportRowReader
      * @param  resource  $process
      * @param  array<int, resource>  $pipes
      */
-    private function terminate($process, array $pipes, bool $done, string $stderr): void
+    private function terminate($process, array $pipes, ?string $outcome, string $stderr): void
     {
         $status = proc_get_status($process);
 
@@ -237,9 +324,12 @@ final class IsolatedXlsxRowReader implements ImportRowReader
 
         $exit = proc_close($process);
 
-        if (! $done && $exit !== 0) {
+        // A hívó korai leállása (`break`, pl. a felmérés mintavétele) utáni SAJÁT SIGKILL nem rendellenes —
+        // nem naplózzuk (review r11 N1). A magától meghalt gyerek és az időtúllépés igen.
+        if ($outcome === 'died' || $outcome === 'timeout') {
             // NEM naplózunk tartalmat (a stderr útvonalat, a fájl darabját tartalmazhatja) — csak a tényt.
             Log::info('XLSX-gyerekolvasó rendellenesen lépett ki.', [
+                'outcome' => $outcome,
                 'exit' => $exit,
                 'stderr_bytes' => strlen($stderr),
             ]);

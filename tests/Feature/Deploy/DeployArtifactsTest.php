@@ -291,13 +291,16 @@ it('a gd és a zip telepítve a Dockerfile-ban', function () {
     expect($dockerfile)->toMatch('/install-php-extensions[^\n]* gd\b/')->toMatch('/install-php-extensions[^\n]* zip\b/');
 });
 
-it('az image ellenőrzi, hogy a gyerekfolyamat címtér-limitje (ulimit -v) működik (D222)', function () {
+it('az image ellenőrzi, hogy a gyerekfolyamat címtér-limitje (ulimit -v) ELFOGADOTT és ÉRVÉNYESÜL (D222, D260)', function () {
     $dockerfile = (string) file_get_contents(base_path('Dockerfile'));
 
-    expect($dockerfile)->toMatch("/RUN sh -c 'ulimit -v \\d+ && exec php /");
+    expect($dockerfile)->toMatch("/RUN sh -c 'ulimit -v \\d+ && exec php /")
+        // A negált próba: egy 200 MB-os foglalás 128 MB címtérben el KELL bukjon.
+        ->and($dockerfile)->toMatch("/&& ! sh -c 'ulimit -v 131072 && exec php [^\\n]*200<<20/");
 
-    // A gyerek címtér-limitje a worker-imports konténerbe négy párhuzamos folyamattal is belefér (3g).
-    expect(4 * (150 + (int) config('audience.import.xlsx_child_address_space_mb')))->toBeLessThan(3 * 1024);
+    // A worker-imports (3g) legrosszabb esete (D259): 4 worker × 256 MB memory_limit + master és 2 supervisor
+    // (~150 MB) + 4 gyerek × címtér-limit — 3 GiB alatt.
+    expect(4 * 256 + 150 + 4 * (int) config('audience.import.xlsx_child_address_space_mb'))->toBeLessThan(3 * 1024);
 });
 
 it('a Gotenberg-sidecar tag+digest szerint pinelt, belső hálón, kimenő forgalom és host-port nélkül (D238)', function () {

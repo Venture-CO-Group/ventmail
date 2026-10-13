@@ -73,9 +73,10 @@ return [
         //    is ebbe számít; falióra-keret (mp) a felmérésnek, illetve az import teljes sorolvasásának;
         //  - a PHP bináris (üres: CLI-ben a futó bináris, máskor `php`).
         'xlsx_child_memory_mb' => (int) env('AUDIENCE_IMPORT_XLSX_CHILD_MEMORY_MB', 256),
-        // A címtér 512 MB: a `worker-imports` (3g) 4 folyamata (imports 2 + imports-inspect 2) egyszerre is
-        // belefér: 4 × (≈150 MB worker + 512 MB gyerek) ≈ 2,6 GB (lásd deploy-ovh.md, D224).
-        'xlsx_child_address_space_mb' => (int) env('AUDIENCE_IMPORT_XLSX_CHILD_AS_MB', 512),
+        // A címtér 448 MB (review r11 N3, D259): a `worker-imports` (3g) legrosszabb esete — 4 worker ×
+        // 256 MB memory_limit + master és 2 supervisor (~150 MB) + 4 gyerek × 448 MB — ≈ 2,97 GB < 3g
+        // (lásd deploy-ovh.md). A mért gyerek-csúcs (~495 MB) így a gyereket öli, nem a konténert.
+        'xlsx_child_address_space_mb' => (int) env('AUDIENCE_IMPORT_XLSX_CHILD_AS_MB', 448),
         'xlsx_child_timeout_inspect' => (int) env('AUDIENCE_IMPORT_XLSX_CHILD_TIMEOUT_INSPECT', 45),
         'xlsx_child_timeout_import' => (int) env('AUDIENCE_IMPORT_XLSX_CHILD_TIMEOUT_IMPORT', 3300),
         'xlsx_child_php' => env('AUDIENCE_IMPORT_XLSX_CHILD_PHP'),

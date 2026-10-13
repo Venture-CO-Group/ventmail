@@ -42,9 +42,11 @@ RUN install-php-extensions pdo_pgsql pcntl opcache redis intl zip gd bcmath sock
     && adduser -u 10001 -S -D -H -G ventmail ventmail \
     && rm -f /usr/local/etc/php-fpm.d/zz-docker.conf.dist
 
-# D222: az izolált XLSX-olvasó (IsolatedXlsxRowReader) a busybox `sh` `ulimit -v` beépítettjével korlátozza a
-# gyerekfolyamat CÍMTERÉT (a libxml memóriája is ebbe számít). A build bukjon, ha ez ebben az image-ben nem működik.
-RUN sh -c 'ulimit -v 262144 && exec php -d opcache.enable_cli=0 -r "exit(0);"'
+# D222/D260: az izolált XLSX-olvasó (IsolatedXlsxRowReader) a busybox `sh` `ulimit -v` beépítettjével korlátozza a
+# gyerekfolyamat CÍMTERÉT (a libxml memóriája is ebbe számít). A build bukjon, ha ez ebben az image-ben nem működik:
+# (1) a limit ELFOGADOTT (a PHP elindul alatta), (2) a limit ÉRVÉNYESÜL (200 MB foglalás 128 MB címtérben elbukik).
+RUN sh -c 'ulimit -v 262144 && exec php -d opcache.enable_cli=0 -r "exit(0);"' \
+    && ! sh -c 'ulimit -v 131072 && exec php -d opcache.enable_cli=0 -d memory_limit=-1 -r "str_repeat(\"x\", 200<<20);"' >/dev/null 2>&1
 
 COPY --from=caddy /usr/bin/caddy /usr/local/bin/caddy
 COPY docker/php/php.ini /usr/local/etc/php/conf.d/zz-ventmail.ini

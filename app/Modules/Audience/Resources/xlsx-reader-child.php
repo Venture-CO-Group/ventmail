@@ -6,8 +6,13 @@ declare(strict_types=1);
  | AZ IZOLÁLT XLSX-OLVASÓ GYEREKFOLYAMATA (v1.1 · modul 5, 10. review-kör, D220–D223).
  |
  | Az `IsolatedXlsxRowReader` indítja (`proc_open`), Linuxon `ulimit -v` címtér-limittel, mindenhol
- | `-d memory_limit`-tel és falióra-timeouttal. CSAK OLVAS: Laravel nélkül fut (nincs adatbázis-
- | kapcsolat, nincs hálózat, nincs naplózás), csak a Composer autoloadert tölti be.
+ | `ulimit -t` CPU-idő plafonnal, `-d memory_limit`-tel és falióra-timeouttal. CSAK OLVAS: Laravel nélkül
+ | fut, csak a Composer autoloadert tölti be, és a kódja semmilyen kapcsolatot nem nyit.
+ |
+ | IZOLÁCIÓ (review r11 S1, D255–D256): a gyerek MINIMÁLIS környezetet kap (`PATH`, és ha van, a php.ini-
+ | útvonal és a TMPDIR — titok, pl. APP_KEY, DB_PASSWORD SOHA), és a szülő 2 fölötti fd-ijét (Redis- és
+ | Postgres-socket, nyitott fájlok) a shell-wrapper az `exec` ELŐTT lezárja. Ha a szülő meghal, az első
+ | sikertelen írás leállítja (exit 4), a CPU-plafon pedig felső korlát (review r11 S2).
  |
  | Protokoll (stdout, NDJSON, soronként egy JSON):
  |   {"l": <sorszám>, "c": [<cellák>]}   — egy sor, ugyanaz, amit a folyamaton belüli olvasó adna;
@@ -25,10 +30,14 @@ use App\Modules\Audience\Services\Import\XlsxRowReader;
 require dirname(__DIR__, 4).'/vendor/autoload.php';
 
 $options = json_decode((string) ($argv[1] ?? ''), true);
-$out = fopen('php://stdout', 'wb');
 
-$emit = static function (array $payload) use ($out): void {
-    fwrite($out, json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)."\n");
+// Az `STDOUT` állandó (az fd 1 maga) — a `php://stdout` megnyitása új fd-t (dup) hozna létre.
+$emit = static function (array $payload): void {
+    // A SZÜLŐ ELTŰNT (a cső zárva — a PHP CLI a SIGPIPE-ot figyelmen kívül hagyja): azonnal kilépünk, nem
+    // olvassuk végig árván a fájlt (review r11 S2).
+    if (@fwrite(STDOUT, json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)."\n") === false) {
+        exit(4);
+    }
 };
 
 if (! is_array($options) || ! is_string($options['path'] ?? null)) {
@@ -46,6 +55,22 @@ set_error_handler(static function (int $severity, string $message) use (&$outOfM
 
     return false;
 });
+
+// TESZT-kapcsoló (csak `runningUnitTests()` alatt küldi a szülő): a gyerek KÖRNYEZETÉNEK nevei és a nyitott
+// fd-k (a `/proc/self/fd` listázásához megnyitott könyvtár-fd nélkül) — az izoláció ellenőrzéséhez.
+if (($options['probe'] ?? false) === true) {
+    $fds = [];
+
+    foreach (is_dir('/proc/self/fd') ? (array) scandir('/proc/self/fd') : [] as $fd) {
+        if (ctype_digit((string) $fd)) {
+            $target = (string) @readlink('/proc/self/fd/'.$fd);
+            $fds[] = $fd.' -> '.$target;
+        }
+    }
+
+    $emit(['probe' => ['env' => array_keys(getenv()), 'fds' => $fds]]);
+    exit(0);
+}
 
 if ((int) ($options['delay'] ?? 0) > 0) {
     sleep((int) $options['delay']);
