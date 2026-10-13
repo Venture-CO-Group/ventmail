@@ -51,6 +51,16 @@ import snippets/security-headers.caddy
 	encode zstd gzip
 	import security_headers
 
+	# D227: the public disk (template images, D10) lives on the shared `ventmail-storage-public`
+	# volume, mounted read-only at /app/storage/app/public. Plain files only: no PHP ever runs
+	# from here, and a missing file is a 404. The images are embedded by mail clients and
+	# webmail on other origins, hence a cross-origin resource policy for this path only.
+	handle_path /storage/* {
+		root * /app/storage/app/public
+		header Cross-Origin-Resource-Policy "cross-origin"
+		file_server
+	}
+
 	php_fastcgi unix//run/php/fpm.sock
 	file_server
 

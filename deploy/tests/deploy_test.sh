@@ -87,7 +87,9 @@ setup
 expect "first deploy records the tag and starts blue" '[ "$(deployed)" = v1.0.0 ] && [ "$(color)" = blue ]'
 expect "pull -> data stack -> caches -> backup -> migrate -> colour up, in that order" \
     'order "pull ghcr.io/venture-co-group/ventmail:v1.0.0" "-p ventmail-data .*up -d --wait" "ops artisan config:cache" "ops artisan route:cache" "ops artisan view:cache" "ops artisan event:cache" "pg_dump" "ops artisan migrate --force" "^VENTMAIL_TAG=v1.0.0 VENTMAIL_COLOR=blue .*-p ventmail-blue .*up -d --remove-orphans --wait"'
-expect "shares no storage volume between colours" '! called "volume (inspect|create)"'
+expect "creates the shared storage volumes before any colour or one-off (D227)" \
+    'order "volume create ventmail-storage$" "volume create ventmail-storage-public$" "ops artisan config:cache" "^VENTMAIL_TAG=v1.0.0 VENTMAIL_COLOR=blue .*up -d"'
+expect "never removes or prunes a volume" '! called "volume (rm|prune)"'
 expect "the pre-migration dump lands in the backup dir" 'ls "$BACKUP_DIR"/ventmail/ventmail-predeploy-v1.0.0-*.dump >/dev/null 2>&1'
 APP_URL=https://shell.example TRUSTED_PROXIES=0.0.0.0/0 "$DEPLOY" v1.1.0 >/dev/null 2>&1
 expect "the next release starts on the other colour" 'called "^VENTMAIL_TAG=v1.1.0 VENTMAIL_COLOR=green .*-p ventmail-green .*up -d --remove-orphans --wait" && [ "$(color)" = green ] && [ "$(deployed)" = v1.1.0 ]'

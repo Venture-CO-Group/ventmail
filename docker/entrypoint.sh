@@ -6,7 +6,21 @@ set -eu
 role="${1:-app}"
 printf '%s\n' "$role" > /tmp/ventmail-role
 
+# D227: storage/app is the shared `ventmail-storage` volume (compose.prod.yml). A fresh volume is
+# populated from the image (owned by 10001); a volume with the wrong owner must stop the
+# container visibly instead of failing every upload, import and report later.
+ensure_storage() {
+    mkdir -p storage/app/private storage/app/public
+    for dir in storage/app/private storage/app/public; do
+        if [ ! -w "$dir" ]; then
+            echo "entrypoint: $dir is not writable by $(id -u); fix the ventmail-storage volume ownership" >&2
+            exit 1
+        fi
+    done
+}
+
 warm_caches() {
+    ensure_storage
     # A failure here must stop the container: a half-configured sender that keeps
     # serving is worse than one that is visibly down (deploy.sh discards it).
     php artisan config:cache

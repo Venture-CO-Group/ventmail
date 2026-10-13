@@ -1,5 +1,9 @@
 # ventMail state that outlives a release: Redis (sessions, cache, queues). One instance, shared by the blue and green colours, so a
 # colour switch logs nobody out. Never part of a colour; never removed by deploy.sh.
+#
+# The other shared state, the file storage (D227: the external volumes `ventmail-storage` and
+# `ventmail-storage-public`), is created by deploy.sh step 2 (`docker volume create`, idempotent)
+# and mounted by every colour (compose.prod.yml). Like `ventmail-redis`, nothing removes it.
 name: ventmail-data
 
 services:

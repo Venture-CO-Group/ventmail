@@ -143,6 +143,22 @@
     admin-IP-re szűkítve); tag-alapú pull (a tagot csak a CI építi); kimenő 465/587 a
     konténerekből nincs tiltva (a pool-reputációt csak a 25 érinti).
 
+16. **Megosztott fájltár (v1.1 modul 8, D227 / D242).** A `compose.prod.yml` minden PHP-szerepe (app,
+    worker, worker-imports, scheduler, ops) ugyanazt a `storage/app`-ot látja két KÜLSŐ, nevesített
+    volume-on: `ventmail-storage` → `/app/storage/app` (privát: import-feltöltés, riport-PDF, logó) és
+    `ventmail-storage-public` → `/app/storage/app/public` (sablon-képek, D10). A `web` CSAK a public
+    volume-ot kapja, csak olvasva; a Caddy `/storage/*`-ot sima fájlként szolgálja ki (PHP nélkül,
+    `Cross-Origin-Resource-Policy: cross-origin`, mert a képeket a levelezőkliensek más originről töltik).
+    Két volume egy helyett: így a web a privát fájlokat (importok, riportok) a fájlrendszerében sem látja.
+    A `deploy.sh` 2. lépése `docker volume create`-tel hozza létre (idempotens), semmi nem törli; mindkét
+    szín ugyanazt csatolja (a váltás fájlt nem veszít). Az üres volume-ot a Docker az image tartalmával
+    tölti fel (10001-es tulajdonos); rossz tulajdonosnál az entrypoint `ensure_storage` megállítja a
+    konténert. **Ideiglenes fájlok:** az import openspout-temp (`import-tmp/<uuid>`) és az izolált
+    XLSX-gyerek (D220/D222) temp-je a `local` diszken, tehát a megosztott volume-on van — szándékosan:
+    ugyanaz a worker írja és olvassa, a purge (1 óránál régebbi) a volume-on takarít; a konténer-lokális
+    `/tmp`-n egy OOM-maradék a konténer élettartamáig foglalna. A `storage/framework` (cache, view)
+    konténer-lokális marad.
+
 ## PLAN (sorrend)
 
 1. Hardening (`venture-infra` `boxes/mail/bootstrap-host.sh`) ✔

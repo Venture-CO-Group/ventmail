@@ -95,10 +95,38 @@ it('blue/green: a színek a saját web-upstreamjüket hirdetik, a Postal egy sta
         ->and($web['postal-api']['aliases'])->toBe(['ventmail-web']);
 });
 
-it('a Redis a színeken kívül él, és a kiadások nem osztanak írható tárolót', function () {
+it('a Redis a színeken kívül él; a színek csak a két külső, nevesített storage-volume-ot osztják (D227)', function () {
     expect(vmDataCompose()['name'])->toBe('ventmail-data')
         ->and(vmProdCompose()['services'])->not->toHaveKey('redis')
-        ->and(array_keys(vmProdCompose()['volumes'] ?? []))->toBe(['fpm']);
+        ->and(vmProdCompose()['volumes'])->toBe([
+            'fpm' => [],
+            'storage' => ['name' => 'ventmail-storage', 'external' => true],
+            'storage-public' => ['name' => 'ventmail-storage-public', 'external' => true],
+        ]);
+});
+
+it('a megosztott storage: minden PHP-szerep és az ops ugyanazt a storage/app-ot látja, a web csak a public részt, csak olvasva (D227)', function () {
+    $services = vmProdCompose()['services'];
+    $shared = ['storage:/app/storage/app', 'storage-public:/app/storage/app/public'];
+
+    foreach (['app', 'worker', 'worker-imports', 'scheduler', 'ops'] as $name) {
+        foreach ($shared as $mount) {
+            expect(in_array($mount, $services[$name]['volumes'] ?? [], true))->toBeTrue("{$name} misses {$mount}");
+        }
+    }
+
+    // A web CSAK a nyilvános fájlokat látja (import, riport, logó nem), és nem írhat.
+    $web = $services['web']['volumes'];
+    expect($web)->toContain('storage-public:/app/storage/app/public:ro')
+        ->and(collect($web)->filter(fn (string $m) => str_starts_with($m, 'storage:'))->all())->toBe([]);
+
+    // A Caddy a /storage/* útvonalat CSAK fájlként szolgálja ki (PHP nélkül) a csatolt public részből.
+    $caddy = (string) file_get_contents(base_path('docker/caddy/Caddyfile.web'));
+    expect($caddy)->toMatch('/handle_path \/storage\/\* \{\s*root \* \/app\/storage\/app\/public\s/')
+        ->and($caddy)->toContain('Cross-Origin-Resource-Policy "cross-origin"');
+
+    // Az entrypoint induláskor ellenőrzi, hogy a csatolt tároló írható (rossz jogosultság = látható hiba).
+    expect((string) file_get_contents(base_path('docker/entrypoint.sh')))->toContain('ensure_storage');
 });
 
 it('a FastCGI csak színenkénti unix socketen megy', function () {

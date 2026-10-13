@@ -7,7 +7,8 @@
 # SHA for an emergency rollback); never :latest, never a local build.
 #
 #   1. pull the image                     - fails: nothing changed
-#   2. data stack (Redis, storage) up     - shared by both colours; a no-op once running
+#   2. data stack (Redis) up + the shared  - shared by both colours; a no-op once running
+#      storage volumes (D227)
 #   3. config/route/view/event:cache      - one-off container; proves the release
 #                                           boots with this .env. Fails: nothing changed
 #   4. pg_dump of the app database        - the way back if a migration misbehaves
@@ -97,6 +98,11 @@ log "pulled $(docker image inspect --format '{{index .RepoDigests 0}}' "$IMAGE:$
 
 # 2. the data stack must exist before any colour or one-off (they join its network).
 data up -d --wait --wait-timeout "$WAIT_TIMEOUT" >/dev/null || die "data stack (Redis) did not become healthy; nothing changed"
+# The shared storage volumes (D227): every colour and one-off mounts them. `volume create` is
+# idempotent (an existing volume is kept as is); nothing here ever removes them.
+for volume in ventmail-storage ventmail-storage-public; do
+    docker volume create "$volume" >/dev/null || die "cannot create the $volume volume; nothing changed"
+done
 
 # 3. preflight: the release must boot and cache with the production env.
 for cache in config:cache route:cache view:cache event:cache; do
