@@ -120,3 +120,18 @@ it('a feliratkozás ideje a subscribed_at (ha van), és az ablakban jött-és-me
 
     Carbon::setTestNow();
 });
+
+it('a lemorzsolódás számlálója a nevező kohorszából jön: a cleaned kontakt nem viszi 100% fölé (D291)', function () {
+    Carbon::setTestNow('2026-10-13 12:00:00');
+    AnalyticsFixtures::tenant();
+
+    vmContact('marad@pelda.hu', Carbon::parse('2026-07-01'));
+    $cleaned = Contact::create(['email' => 'tisztitott@pelda.hu', 'status' => 'cleaned']);
+    $cleaned->forceFill(['created_at' => Carbon::parse('2026-07-02'), 'unsubscribed_at' => Carbon::parse('2026-08-10')])->saveQuietly();
+
+    $churn = app(AudienceInsights::class)->churnBetween(Carbon::parse('2026-08-01'), Carbon::parse('2026-08-31'), 'UTC');
+
+    expect($churn['subscribedAtStart'])->toBe(1)->and($churn['unsubscribed'])->toBe(0)->and($churn['rate'])->toBe(0.0);
+
+    Carbon::setTestNow();
+});

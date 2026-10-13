@@ -213,8 +213,11 @@ final class AudienceInsights
 
         // A számláló UGYANAZ a kohorsz, mint a nevező: az induló feliratkozók közül, akik az ablakban
         // mentek el. (Az ablakban feliratkozott-és-leiratkozott nincs a nevezőben, a számlálóban sem.)
+        // Csak a nevező kohorszából (review round 3 N7, D291): `subscribed` vagy `unsubscribed` státusz —
+        // egy `cleaned`/`pending` kontakt leiratkozási ideje nem emelheti az arányt 100% fölé.
         $lost = Contact::query()
             ->whereRaw("{$since} < ?", [$lower])
+            ->whereIn('status', ['subscribed', 'unsubscribed'])
             ->whereNotNull('unsubscribed_at')
             ->where('unsubscribed_at', '>=', $lower)
             ->where('unsubscribed_at', '<', $upper)
