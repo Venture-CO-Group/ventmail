@@ -154,7 +154,16 @@ it('a diff a SZABAD MEMÓRIÁHOZ igazodik — a korláton belül fut, fölötte 
     ini_set('memory_limit', (string) (memory_get_usage(true) + $headroom));
 
     try {
-        $diff = app(VersionDiff::class);
+        /*
+         | D297 — DETERMINISZTIKUS HATÁR. A korlát a pillanatnyi `memory_get_usage(true)`-ból
+         | számolódik, ami a két `compare()` között a Zend-allokátor állapotától függően nőhet
+         | VAGY csökkenhet — a „limit + 1 sor" így néha belefért (flaky). A mérőt ezért a teszt
+         | elején EGYSZER rögzítjük (injektált memória-szonda): a kód és a teszt ugyanazzal a
+         | korláttal számol, a határ pontosan `limit` / `limit + 1`. A tábla közben VALÓDI
+         | memóriában épül a szűkített `memory_limit` alatt — ha a becslés rossz, ez FATAL.
+         */
+        $usage = memory_get_usage(true);
+        $diff = new VersionDiff(static fn (): int => $usage);
         $limit = $diff->regionLimit();
 
         expect($limit)->toBeGreaterThan(0)->toBeLessThanOrEqual(VersionDiff::MAX_REGION_LINES);
@@ -164,7 +173,11 @@ it('a diff a SZABAD MEMÓRIÁHOZ igazodik — a korláton belül fut, fölötte 
         $before = implode("\n", array_map(fn (int $i) => "bal {$i}", range(1, $limit)));
         $after = implode("\n", array_map(fn (int $i) => "jobb {$i}", range(1, $limit)));
 
-        expect($diff->compare($before, $after)['truncated'])->toBeFalse();
+        $within = $diff->compare($before, $after);
+
+        expect($within['truncated'])->toBeFalse()
+            ->and($within['limit'])->toBe($limit)
+            ->and($within['lines'])->not->toBe([]);
 
         // A KORLÁT FÖLÖTT megmondja, hogy nem futott le — nem üres diffet ad (az azt
         // jelentené, hogy nem változott semmi), és nem is hal meg.
@@ -174,6 +187,7 @@ it('a diff a SZABAD MEMÓRIÁHOZ igazodik — a korláton belül fut, fölötte 
         $overflow = $diff->compare($tooBig, $tooBigOther);
 
         expect($overflow['truncated'])->toBeTrue()
+            ->and($overflow['limit'])->toBe($limit)
             ->and($overflow['lines'])->toBe([]);
     } finally {
         ini_set('memory_limit', (string) $original);
@@ -346,4 +360,21 @@ it('IDEGEN workspace sablonja nem aktiválható', function () {
     app(WorkspaceContext::class)->runFor($theirs, function () use ($foreign) {
         expect((int) $foreign->activeVersion()->version)->toBe(1);
     });
+});
+
+it('a régió-korlát a szabad memóriából pontosan számol (injektált szonda)', function () {
+    // D297: a képlet determinisztikus ellenőrzése — 100 MB szabad memória × 25% / 16 bájt/cella
+    // = 1 638 400 cella → √ = 1280 sor; kevés memóriánál 0, bőségesnél a MAX plafon.
+    $original = ini_get('memory_limit');
+    ini_set('memory_limit', '4096M');
+
+    try {
+        $limitBytes = 4096 * 1024 * 1024;
+
+        expect((new VersionDiff(static fn (): int => $limitBytes - 100 * 1024 * 1024))->regionLimit())->toBe(1280)
+            ->and((new VersionDiff(static fn (): int => $limitBytes))->regionLimit())->toBe(0)
+            ->and((new VersionDiff(static fn (): int => 0))->regionLimit())->toBe(VersionDiff::MAX_REGION_LINES);
+    } finally {
+        ini_set('memory_limit', (string) $original);
+    }
 });
