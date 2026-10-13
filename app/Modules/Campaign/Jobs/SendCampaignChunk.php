@@ -206,7 +206,9 @@ final class SendCampaignChunk implements ShouldQueue
         // MINDEN vezérlőkarakter szóköz (review RS2/N5) — nem csak a CR/LF: a NUL, a BEL és
         // a többi C0/DEL egy kontakt-mezőből a fejlécbe nem kerülhet. A `messages.subject`
         // `varchar(255)`: a tárgy 255 karakterre vágódik (a hosszú név nem 500-as hiba).
-        $clean = trim((string) preg_replace('/[\x00-\x1F\x7F]+/u', ' ', $subject));
+        // A C1 vezérlőkarakterek (U+0080–U+009F, köztük a NEL) és a sor-/bekezdés-elválasztó
+        // (U+2028/2029) is ki (review NIT): egyes kliensek sortörésként jelenítik meg őket.
+        $clean = trim((string) preg_replace('/[\x00-\x1F\x7F\x{0080}-\x{009F}\x{2028}\x{2029}]+/u', ' ', $subject));
 
         return mb_substr((string) preg_replace('/ {2,}/', ' ', $clean), 0, 255);
     }

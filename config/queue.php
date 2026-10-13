@@ -16,6 +16,12 @@ return [
     'default' => env('QUEUE_CONNECTION', 'database'),
 
     /*
+     | A kampány-materializálás (`StartCampaignJob`) kapcsolata: Redis-sornál a saját, hosszú
+     | `retry_after`-es `redis_campaign_start`, más meghajtónál (sync a tesztben) az alap.
+     */
+    'campaign_start_connection' => env('CAMPAIGN_START_QUEUE_CONNECTION', env('QUEUE_CONNECTION') === 'redis' ? 'redis_campaign_start' : null),
+
+    /*
     |--------------------------------------------------------------------------
     | Queue Connections
     |--------------------------------------------------------------------------
@@ -96,6 +102,21 @@ return [
             'connection' => env('REDIS_QUEUE_CONNECTION', 'default'),
             'queue' => 'imports-inspect',
             'retry_after' => (int) env('REDIS_IMPORTS_INSPECT_RETRY_AFTER', 90),
+            'block_for' => null,
+            'after_commit' => false,
+        ],
+
+        /*
+         | A KAMPÁNY MATERIALIZÁLÁSÁNAK kapcsolata (v1.1 · 5. modul, review BN1): a `StartCampaignJob` egy
+         | 300k-s célzásnál percekig fut (timeout 900 mp). Az alap 90 mp-es `retry_after` alatt a sor a
+         | futó jobot újra kiadná — dupla materializálás, dupla köteg, felülírt `batch_id`. A `retry_after`
+         | ezért a job timeoutja + ráhagyás.
+         */
+        'redis_campaign_start' => [
+            'driver' => 'redis',
+            'connection' => env('REDIS_QUEUE_CONNECTION', 'default'),
+            'queue' => 'campaign-start',
+            'retry_after' => (int) env('REDIS_CAMPAIGN_START_RETRY_AFTER', 960),
             'block_for' => null,
             'after_commit' => false,
         ],

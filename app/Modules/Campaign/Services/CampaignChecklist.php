@@ -12,6 +12,8 @@ use App\Modules\Domains\Models\Domain;
 use App\Modules\Sending\Services\DomainNormalizer;
 use App\Modules\Template\Models\Template;
 use App\Modules\Template\Services\TemplateCompliance;
+use App\Support\QueryBudget;
+use App\Support\QueryTooExpensive;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Throwable;
@@ -31,6 +33,14 @@ use Throwable;
  *    (golden rule 4). A többit a PreSendGate 3. kapuja a küldéskor elutasítja — a szám
  *    ezt előre megmondja.
  *
+ * ## Keretezett feloldás (review SN3)
+ *
+ * A becslés és a consent-metszet a felhasználó által összerakott szegmenseket oldja fel — egy
+ * webkérésben. Mindkettő `QueryBudget` alatt fut (5 mp); túllépésnél az érték `null`, a jelző
+ * `estimateUnavailable` / `unavailable`, és a felület „becslés nem elérhető"-t mutat. Ez NEM
+ * blokkolja a küldést: a becslés előrejelzés, a materializálás (háttérben, keret nélkül) és a
+ * PreSendGate címzettenként dönt. Az ütemező (`failingChecks`, CLI) keret nélkül számol.
+ *
  * ## Nem kapu, hanem előrejelzés
  *
  * A checklist a felület és az indítás ELŐFELTÉTELE (a kontroller az indításnál ugyanezt
@@ -49,6 +59,7 @@ final class CampaignChecklist
     public function __construct(
         private readonly AudienceResolver $audience,
         private readonly TemplateCompliance $compliance,
+        private readonly QueryBudget $budget,
     ) {}
 
     /**
@@ -64,10 +75,10 @@ final class CampaignChecklist
     {
         $campaign->loadMissing(['template', 'variants.template']);
 
-        $estimate = $this->estimate($campaign);
+        $estimate = $this->budgeted(fn (): int => $this->estimate($campaign));
         $domain = $this->domainCheck($campaign);
         $compliance = $this->complianceCheck($campaign);
-        $consent = $this->consentCheck($campaign, $estimate);
+        $consent = $this->consentCheck($campaign, $estimate, budgeted: true);
 
         $sections = [
             $this->recipients($campaign, $estimate),
@@ -100,18 +111,20 @@ final class CampaignChecklist
     }
 
     /** @return array<string, mixed> */
-    private function recipients(Campaign $campaign, int $estimate): array
+    private function recipients(Campaign $campaign, ?int $estimate): array
     {
         $lists = ContactList::query()->whereIn('uuid', $this->uuids($campaign->target_lists))->pluck('name')->all();
         $segments = Segment::query()->whereIn('uuid', $this->uuids($campaign->target_segments))->pluck('name')->all();
 
         return [
             'key' => 'recipients',
-            'done' => ($lists !== [] || $segments !== []) && $estimate > 0,
+            // Ismeretlen (keret-túllépés) becslésnél a célzás megléte dönt — lásd az osztály docblockját.
+            'done' => ($lists !== [] || $segments !== []) && ($estimate === null || $estimate > 0),
             'lists' => $lists,
             'segments' => $segments,
             'excluded' => count($this->uuids($campaign->exclude_lists)) + count($this->uuids($campaign->exclude_segments)),
             'estimate' => $estimate,
+            'estimateUnavailable' => $estimate === null,
         ];
     }
 
@@ -270,25 +283,39 @@ final class CampaignChecklist
      *
      * @return array<string, mixed>
      */
-    private function consentCheck(Campaign $campaign, int $estimate): array
+    private function consentCheck(Campaign $campaign, ?int $estimate, bool $budgeted = false): array
     {
+        if ($estimate === null) {
+            return ['key' => 'consent', 'ok' => true, 'unavailable' => true, 'confirmed' => null, 'total' => null];
+        }
+
         // GYORSÍTÓTÁR a célzás lenyomatára (review RS4): a checklist minden mentés után újra
         // kiértékelődik, a metszet-számlálás viszont egy 300k-s célzásnál drága. A kulcs a
         // workspace + a célzás (listák, szegmensek, kizárások) — más célzás más kulcs, tehát a
         // szám a célzás változásakor azonnal friss; a consent-állapot változását 2 percen belül
         // követi (a küldéskor úgyis a kapu dönt).
-        $confirmed = $estimate === 0 ? 0 : (int) Cache::remember(
+        $count = fn (): int => Consent::query()
+            ->where('channel', 'marketing')
+            ->where('status', 'confirmed')
+            ->whereIn('email', $this->audience->query($campaign)->reorder()->select('email'))
+            ->count();
+
+        $confirmed = $estimate === 0 ? 0 : Cache::remember(
             $this->targetingKey('campaign-consent', $campaign),
             self::CONSENT_CACHE_SECONDS,
-            fn (): int => Consent::query()
-                ->where('channel', 'marketing')
-                ->where('status', 'confirmed')
-                ->whereIn('email', $this->audience->query($campaign)->reorder()->select('email'))
-                ->count(),
+            $budgeted ? fn (): ?int => $this->budgeted($count) : $count,
         );
+
+        // A KERET-TÚLLÉPÉS nem gyorsítótárazódik (a `null`-t a `remember` nem tárolja), és nem blokkol.
+        if ($confirmed === null) {
+            return ['key' => 'consent', 'ok' => true, 'unavailable' => true, 'confirmed' => null, 'total' => $estimate];
+        }
+
+        $confirmed = (int) $confirmed;
 
         return [
             'key' => 'consent',
+            'unavailable' => false,
             'ok' => $confirmed > 0,
             'confirmed' => $confirmed,
             'total' => $estimate,
@@ -298,6 +325,20 @@ final class CampaignChecklist
     private function estimate(Campaign $campaign): int
     {
         return $this->audience->estimate($campaign);
+    }
+
+    /**
+     * A munka a LEKÉRDEZÉSI KERETBEN; túllépésnél `null` (a hívó „nem elérhető"-t mutat).
+     *
+     * @param  callable(): int  $work
+     */
+    private function budgeted(callable $work): ?int
+    {
+        try {
+            return (int) $this->budget->run($work);
+        } catch (QueryTooExpensive) {
+            return null;
+        }
     }
 
     /**

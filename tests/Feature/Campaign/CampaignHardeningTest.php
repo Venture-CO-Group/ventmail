@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Modules\Audience\Models\Contact;
 use App\Modules\Audience\Models\ContactList;
 use App\Modules\Audience\Models\Segment;
+use App\Modules\Audit\Models\AuditLog;
 use App\Modules\Campaign\Actions\StartCampaign;
 use App\Modules\Campaign\Jobs\RefreshCampaignStats;
 use App\Modules\Campaign\Jobs\SendCampaignChunk;
@@ -23,7 +24,11 @@ use App\Modules\Sending\Models\Message;
 use App\Modules\Template\Models\Template;
 use App\Modules\Tenancy\Models\Workspace;
 use App\Modules\Tenancy\Services\WorkspaceContext;
+use App\Support\QueryBudget;
+use App\Support\QueryTooExpensive;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Queue\Middleware\WithoutOverlapping;
+use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Queue;
 use Tests\Support\StudioFixtures;
@@ -108,7 +113,7 @@ it('RB1 · a küldés a kérésben csak LEFOGLAL; a materializálás és a köte
     expect($campaign->fresh()->status)->toBe('sending')
         ->and($campaign->fresh()->recipients()->count())->toBe(0);
 
-    Queue::assertPushedOn('campaign', StartCampaignJob::class);
+    Queue::assertPushedOn('campaign-start', StartCampaignJob::class);
 });
 
 it('RS7 · a DUPLA indítás nem indít második materializálást', function () {
@@ -307,4 +312,175 @@ it('RS6 · a kampánylista statisztikája gyorsítótárból jön; hiányzó ér
     hardAs($this)->get('/campaigns')->assertInertia(fn ($page) => $page
         ->where('campaigns.0.openRate', 50)
         ->where('campaigns.0.clickRate', 50));
+});
+
+/* ---------------------------------------------------------------- 2. review-kör: BN1, BN2, SN2, SN3, NIT */
+
+it('BN1 · a materializáló job saját kapcsolaton fut: retry_after > a job timeoutja, külön supervisor, átfedés nélkül', function () {
+    $job = new StartCampaignJob('uuid', 1);
+
+    expect($job->queue)->toBe('campaign-start')
+        ->and(config('queue.connections.redis_campaign_start.retry_after'))->toBeGreaterThanOrEqual($job->timeout + 60)
+        ->and(config('queue.connections.redis_campaign_start.queue'))->toBe('campaign-start');
+
+    $supervisor = config('horizon.defaults.campaign-start');
+
+    expect($supervisor['connection'])->toBe('redis_campaign_start')
+        ->and($supervisor['queue'])->toBe(['campaign-start'])
+        ->and($supervisor['timeout'])->toBeGreaterThanOrEqual($job->timeout)
+        ->and($supervisor['timeout'])->toBeLessThan(config('queue.connections.redis_campaign_start.retry_after'))
+        // A KÜLDŐ supervisor nem fogyasztja: egy 15 perces materializálás nem foglal küldő-workert.
+        ->and(config('horizon.defaults.sending.queue'))->not->toContain('campaign-start');
+
+    foreach (['production', 'local', 'testing'] as $env) {
+        expect(config("horizon.environments.{$env}"))->toHaveKey('campaign-start');
+    }
+
+    $overlap = collect($job->middleware())->first(fn ($m) => $m instanceof WithoutOverlapping);
+
+    expect($overlap)->not->toBeNull()
+        ->and($overlap->key)->toBe('uuid')
+        ->and($overlap->releaseAfter)->toBeNull()
+        ->and($overlap->expiresAfter)->toBeGreaterThanOrEqual($job->timeout);
+});
+
+it('BN1 · a materializálás közben SZÜNETELTETETT kampányra nem indul köteg és nem jön új pending sor', function () {
+    hardMember('a@pelda.hu');
+    hardMember('b@pelda.hu');
+
+    $campaign = app(CampaignLifecycle::class)->start(hardCampaign());
+
+    // A job a `sending` modellel indult, közben a felhasználó szüneteltetett.
+    Campaign::query()->whereKey($campaign->getKey())->update(['status' => 'paused']);
+
+    Bus::fake();
+    app(StartCampaign::class)->materialize($campaign);
+
+    Bus::assertNothingBatched();
+
+    $fresh = $campaign->fresh();
+
+    expect($fresh->status)->toBe('paused')
+        ->and($fresh->batch_id)->toBeNull()
+        ->and($fresh->materialized_at)->toBeNull()
+        ->and($fresh->recipients()->where('status', 'pending')->count())->toBe(0);
+});
+
+it('BN1 · a materializálás közben VISSZAVONT kampányon nem marad pending címzett', function () {
+    hardMember('a@pelda.hu');
+
+    $campaign = app(CampaignLifecycle::class)->start(hardCampaign());
+    Campaign::query()->whereKey($campaign->getKey())->update(['status' => 'canceled']);
+
+    Bus::fake();
+    app(StartCampaign::class)->materialize($campaign);
+
+    Bus::assertNothingBatched();
+    expect($campaign->fresh()->status)->toBe('canceled')
+        ->and($campaign->fresh()->recipients()->where('status', 'pending')->count())->toBe(0);
+});
+
+it('BN2 · szerző (campaign.publish nélkül) az ütemezett kampányt nem ütemezheti át: a szerkesztés vázlatba veszi, auditálva', function () {
+    hardMember('a@pelda.hu');
+
+    $campaign = hardCampaign([], 'later');
+    $first = now('Europe/Budapest')->addDays(2)->setTime(9, 0)->format('Y-m-d H:i');
+    $campaign->forceFill(['scheduled_local' => $first])->save();
+    app(CampaignLifecycle::class)->schedule($campaign, $first, 'Europe/Budapest');
+
+    $author = StudioFixtures::user($this->workspace, 'author');
+    $second = now('Europe/Budapest')->addDays(3)->setTime(10, 30)->format('Y-m-d H:i');
+
+    $this->actingAs($author)->withSession(['workspace_uuid' => $this->workspace->uuid])->put('/campaigns/'.$campaign->uuid, [
+        'name' => $campaign->name, 'subject' => 'Szerző tárgya', 'fromEmail' => 'hirlevel@pelda.hu',
+        'templateUuid' => (string) $this->template->uuid, 'targetLists' => [(string) $this->list->uuid],
+        'sendMode' => 'later', 'scheduledLocal' => $second, 'timezone' => 'Europe/Budapest',
+    ])->assertSessionHas('error', __('studio.checklist.unscheduledNoPublish'));
+
+    $fresh = $campaign->fresh();
+
+    expect($fresh->status)->toBe('draft')
+        ->and($fresh->scheduled_at)->toBeNull()
+        ->and($fresh->subject)->toBe('Szerző tárgya')
+        ->and(AuditLog::query()->where('action', 'campaign.unscheduled_by_edit')->exists())->toBeTrue();
+});
+
+it('SN2 · RÉSZLEGES materializálás után a folytatás újra materializál (nem csonka közönségre küld)', function () {
+    hardMember('a@pelda.hu');
+    hardMember('b@pelda.hu');
+    hardMember('c@pelda.hu');
+
+    $campaign = app(CampaignLifecycle::class)->start(hardCampaign());
+
+    // Az első köteg beíródott, aztán a job meghalt: van címzett-sor, de nincs `materialized_at`.
+    $campaign->recipients()->create(['contact_id' => Contact::query()->where('email', 'a@pelda.hu')->value('id'), 'email' => 'a@pelda.hu']);
+    app(CampaignLifecycle::class)->pause($campaign->fresh());
+
+    Queue::fake();
+    app(CampaignLifecycle::class)->resume($campaign->fresh());
+
+    Queue::assertPushed(StartCampaignJob::class, 1);
+    expect($campaign->fresh()->status)->toBe('sending');
+
+    Queue::fake()->except([]);
+    (new StartCampaignJob((string) $campaign->uuid, (int) $this->workspace->getKey()))->handle(app(WorkspaceContext::class), app(StartCampaign::class));
+
+    $fresh = $campaign->fresh();
+
+    expect($fresh->recipients()->count())->toBe(3)
+        ->and($fresh->recipient_count)->toBe(3)
+        ->and($fresh->materialized_at)->not->toBeNull();
+});
+
+it('SN2 · TELJES materializálás után a folytatás nem materializál újra, hanem a pending sorokra indít kötegeket', function () {
+    hardMember('a@pelda.hu');
+
+    $campaign = app(CampaignLifecycle::class)->start(hardCampaign());
+
+    Bus::fake();
+    app(StartCampaign::class)->materialize($campaign->fresh());
+    app(CampaignLifecycle::class)->pause($campaign->fresh());
+
+    Queue::fake();
+    app(CampaignLifecycle::class)->resume($campaign->fresh());
+
+    Queue::assertNotPushed(StartCampaignJob::class);
+    Bus::assertBatchCount(2);
+});
+
+it('SN3 · a checklist becslése KERETEZETT: túl költséges célzásnál „becslés nem elérhető", az oldal betölt és a küldés nem blokkolódik', function () {
+    hardMember('a@pelda.hu');
+    $campaign = hardCampaign();
+
+    app()->instance(QueryBudget::class, new class extends QueryBudget
+    {
+        public function run(callable $work, ?int $milliseconds = null): mixed
+        {
+            throw new QueryTooExpensive;
+        }
+    });
+
+    hardAs($this)->get('/campaigns/'.$campaign->uuid)->assertOk()->assertInertia(fn ($page) => $page
+        ->where('estimate', null)
+        ->where('checklist.sections.0.estimate', null)
+        ->where('checklist.sections.0.estimateUnavailable', true)
+        ->where('checklist.checks.2.unavailable', true)
+        ->where('checklist.ready', true));
+
+    Queue::fake();
+    hardAs($this)->post('/campaigns/'.$campaign->uuid.'/transition', ['action' => 'send'])->assertSessionHas('success');
+    Queue::assertPushed(StartCampaignJob::class, 1);
+});
+
+it('NIT · a tárgyból a C1 vezérlőkarakterek és a sor-/bekezdés-elválasztó is kiesik', function () {
+    hardMember('a@pelda.hu', ['first_name' => "Anna\u{0085}Bcc\u{2028}x\u{2029}y\u{009F}z"]);
+
+    $campaign = hardCampaign(['subject' => 'Szia {{ contact.first_name }}!']);
+
+    hardAs($this)->post('/campaigns/'.$campaign->uuid.'/transition', ['action' => 'send'])->assertSessionHas('success');
+
+    $subject = (string) Message::query()->firstOrFail()->subject;
+
+    expect($subject)->not->toMatch('/[\x{0080}-\x{009F}\x{2028}\x{2029}]/u')
+        ->and($subject)->toBe('Szia Anna Bcc x y z!');
 });

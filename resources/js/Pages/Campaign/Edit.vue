@@ -92,7 +92,8 @@ const props = defineProps<{
     domains: string[];
     mergeTags: MergeTagDef[];
     defaultTimezone: string;
-    estimate: number;
+    /** `null`: a keretezett becslés túllépte az időkorlátot (becslés nem elérhető). */
+    estimate: number | null;
 }>();
 
 const { t } = useI18n();
@@ -209,7 +210,7 @@ const summary = computed<Record<Section['key'], string>>(() => {
             ...(form.value.targetLists.map(listName)),
             ...(form.value.targetSegments.map(segmentName)),
         ].join(' · ')
-            ? `${[...form.value.targetLists.map(listName), ...form.value.targetSegments.map(segmentName)].join(' · ')} — ${t('checklist.estimate', { count: Number(recipients.estimate).toLocaleString() })}`
+            ? `${[...form.value.targetLists.map(listName), ...form.value.targetSegments.map(segmentName)].join(' · ')} — ${recipients.estimate === null ? t('checklist.estimateUnavailable') : t('checklist.estimate', { count: Number(recipients.estimate).toLocaleString() })}`
             : t('checklist.recipientsMissing'),
         sender: sender.fromEmail
             ? `${props.campaign.fromName ? `${props.campaign.fromName} ` : ''}<${sender.fromEmail}> · ${sender.verified ? t('checklist.domainVerified') : t('checklist.domainUnverified')}`
@@ -379,7 +380,7 @@ const sectionTitle = (key: string): string => t(`checklist.section.${key}`);
                     <div v-if="open === item.key" :id="`section-body-${item.key}`" class="vm-cl-section__body">
                         <!-- 1. CÍMZETTEK -->
                         <template v-if="item.key === 'recipients'">
-                            <p data-testid="campaign-estimate">{{ t('campaigns.estimate', { count: estimate.toLocaleString() }) }}</p>
+                            <p data-testid="campaign-estimate">{{ estimate === null ? t('checklist.estimateUnavailable') : t('campaigns.estimate', { count: estimate.toLocaleString() }) }}</p>
                             <VmFieldGroup :legend="t('campaigns.lists')">
                                 <p v-if="!lists.length">{{ t('checklist.noLists') }}</p>
                                 <VtCheckbox
@@ -654,7 +655,8 @@ const sectionTitle = (key: string): string => t(`checklist.section.${key}`);
                             </span>
                             <span class="vm-cl-checks__text">
                                 <strong>{{ t(`checklist.check.${item.key}`) }}</strong>
-                                <small v-if="item.key === 'consent'">{{ t('checklist.consentCount', { confirmed: Number(item.confirmed).toLocaleString(), total: Number(item.total).toLocaleString() }) }}</small>
+                                <small v-if="item.key === 'consent' && item.unavailable">{{ t('checklist.estimateUnavailable') }}</small>
+                                <small v-else-if="item.key === 'consent'">{{ t('checklist.consentCount', { confirmed: Number(item.confirmed).toLocaleString(), total: Number(item.total).toLocaleString() }) }}</small>
                                 <small v-else-if="item.key === 'domain' && !item.ok">{{ (item.unverified as string[]).length ? t('checklist.unverifiedList', { domains: (item.unverified as string[]).join(', ') }) : t('checklist.senderMissing') }}</small>
                                 <small v-else-if="item.key === 'compliance' && !item.ok">
                                     {{ (item.missing as string[]).length ? (item.missing as string[]).map((key) => t(`checklist.missing.${key}`)).join(' · ') : t('checklist.contentMissing') }}

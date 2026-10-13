@@ -26,6 +26,7 @@ return [
         'notReady' => 'La campagne ne peut pas encore être envoyée — il manque : :blockers.',
         'canceled' => 'Campagne annulée.',
         'unscheduled' => 'Après la modification, la campagne ne satisfait plus la checklist ; la planification a été annulée — corrigez-la puis replanifiez.',
+        'unscheduledNoPublish' => 'La campagne est repassée en brouillon : une campagne planifiée ne peut être modifiée qu\'avec le droit de publication. Une personne autorisée peut la replanifier.',
     ],
     'hosted' => [
         'email' => 'Adresse e-mail',

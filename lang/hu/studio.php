@@ -26,6 +26,7 @@ return [
         'notReady' => 'A kampány még nem küldhető — hiányzik: :blockers.',
         'canceled' => 'A kampány megszakítva.',
         'unscheduled' => 'A módosítás után a kampány nem teljesíti a checklistet, ezért az ütemezést visszavontuk — javítsd, és ütemezd újra.',
+        'unscheduledNoPublish' => 'A kampányt vázlatba vettük: ütemezett kampányt csak közzétételi joggal lehet módosítani. Egy közzétevő ütemezheti újra.',
     ],
     'hosted' => [
         'email' => 'E-mail-cím',

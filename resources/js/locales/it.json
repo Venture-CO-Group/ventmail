@@ -1680,6 +1680,7 @@
         "incomplete": "incompleto",
         "estimate": "{count} contatti",
         "recipientsMissing": "Scegli una lista o un segmento.",
+        "estimateUnavailable": "Stima non disponibile (il targeting è troppo costoso da contare rapidamente).",
         "senderMissing": "Imposta un mittente su un dominio verificato.",
         "domainVerified": "dominio verificato",
         "domainUnverified": "dominio non verificato",

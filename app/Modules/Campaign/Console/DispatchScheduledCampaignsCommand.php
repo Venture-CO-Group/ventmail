@@ -12,6 +12,7 @@ use App\Modules\Campaign\Services\CampaignLifecycle;
 use App\Modules\Tenancy\Models\Workspace;
 use App\Modules\Tenancy\Services\WorkspaceContext;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\DB;
 use Throwable;
 
 /**
@@ -70,26 +71,49 @@ final class DispatchScheduledCampaignsCommand extends Command
 
                     foreach ($due as $campaign) {
                         try {
-                            // A SZERVER-ELLENŐRZÉSEK az indítás pillanatában is (review RS1): az
-                            // ütemezés óta a domain hitelesítése lejárhatott, a sablon postai
-                            // címe helyőrzőre változhatott, a közönség elveszíthette a
-                            // megerősített hozzájárulást. A hiányos kampány VÁZLAT lesz, nem
-                            // indul el — és ez auditált.
-                            $failing = $checklist->failingChecks($campaign);
+                            $outcome = DB::transaction(function () use ($campaign, $checklist, $lifecycle, $audit): string {
+                                // SOR-ZÁR + FRISS esedékesség (review BN2/NIT): a kiválasztás óta egy
+                                // szerkesztés átütemezhette vagy vázlatba vehette. A szerkesztés
+                                // ugyanezt a sort zárolja, tehát a kettő sorban fut, nem egymásba.
+                                $locked = Campaign::query()
+                                    ->whereKey($campaign->getKey())
+                                    ->where('status', 'scheduled')
+                                    ->where('scheduled_at', '<=', now())
+                                    ->lockForUpdate()
+                                    ->first();
 
-                            if ($failing !== []) {
-                                $lifecycle->unschedule($campaign);
-                                $audit->log('campaign.unscheduled_by_checklist', $campaign, context: ['failing' => $failing]);
+                                if ($locked === null) {
+                                    return 'skipped';
+                                }
+
+                                // A SZERVER-ELLENŐRZÉSEK az indítás pillanatában is (review RS1): az
+                                // ütemezés óta a domain hitelesítése lejárhatott, a sablon postai
+                                // címe helyőrzőre változhatott, a közönség elveszíthette a
+                                // megerősített hozzájárulást. A hiányos kampány VÁZLAT lesz, nem
+                                // indul el — és ez auditált.
+                                $failing = $checklist->failingChecks($locked);
+
+                                if ($failing !== []) {
+                                    $lifecycle->unschedule($locked);
+                                    $audit->log('campaign.unscheduled_by_checklist', $locked, context: ['failing' => $failing]);
+
+                                    return 'failed';
+                                }
+
+                                // LEFOGLALÁS + háttér-materializálás (review RB1): az ütemező sem
+                                // tart egy 300k-s felírást a percenkénti futásában. A job a commit
+                                // UTÁN kerül a sorba (`afterCommit`).
+                                $claimed = $lifecycle->start($locked);
+                                StartCampaignJob::dispatch((string) $claimed->uuid, (int) $claimed->workspace_id);
+
+                                return 'started';
+                            });
+
+                            if ($outcome === 'started') {
+                                $started++;
+                            } elseif ($outcome === 'failed') {
                                 $failed++;
-
-                                continue;
                             }
-
-                            // LEFOGLALÁS + háttér-materializálás (review RB1): az ütemező sem
-                            // tart egy 300k-s felírást a percenkénti futásában.
-                            $claimed = $lifecycle->start($campaign);
-                            StartCampaignJob::dispatch((string) $claimed->uuid, (int) $claimed->workspace_id);
-                            $started++;
                         } catch (Throwable $e) {
                             report($e);
                             $failed++;

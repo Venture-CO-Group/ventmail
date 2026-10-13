@@ -26,6 +26,7 @@ return [
         'notReady' => 'Die Kampagne kann noch nicht gesendet werden — es fehlt: :blockers.',
         'canceled' => 'Kampagne abgebrochen.',
         'unscheduled' => 'Nach der Änderung erfüllt die Kampagne die Checkliste nicht mehr; die Planung wurde zurückgenommen — korrigiere sie und plane erneut.',
+        'unscheduledNoPublish' => 'Die Kampagne wurde in den Entwurf zurückgesetzt: Eine geplante Kampagne darf nur mit Veröffentlichungsrecht geändert werden. Eine berechtigte Person kann sie erneut planen.',
     ],
     'hosted' => [
         'email' => 'E-Mail-Adresse',

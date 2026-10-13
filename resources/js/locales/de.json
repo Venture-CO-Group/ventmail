@@ -1680,6 +1680,7 @@
         "incomplete": "unvollständig",
         "estimate": "{count} Kontakte",
         "recipientsMissing": "Wähle eine Liste oder ein Segment.",
+        "estimateUnavailable": "Schätzung nicht verfügbar (die Zielgruppe ist für eine schnelle Zählung zu aufwendig).",
         "senderMissing": "Lege einen Absender auf einer verifizierten Domain fest.",
         "domainVerified": "Domain verifiziert",
         "domainUnverified": "Domain nicht verifiziert",

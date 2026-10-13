@@ -9,12 +9,12 @@ use App\Modules\Campaign\Actions\StartCampaign;
 use App\Modules\Campaign\Enums\CampaignStatus;
 use App\Modules\Campaign\Models\Campaign;
 use App\Modules\Campaign\Services\CampaignLifecycle;
-use App\Modules\Sending\Data\SendQueue;
 use App\Modules\Tenancy\Models\Workspace;
 use App\Modules\Tenancy\Services\WorkspaceContext;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Queue\Middleware\WithoutOverlapping;
 use Throwable;
 
 /**
@@ -29,6 +29,16 @@ use Throwable;
  * Ismételhető (a beszúrás `insertOrIgnore`), és egyszerre egy fut kampányonként
  * (`ShouldBeUnique`). Ha a próbálkozások elfogynak, a kampány SZÜNETELTETETT lesz (nem
  * „küldés alatt" örökre): a folytatás (`resume`) újra materializál.
+ *
+ * ## Saját sor és kapcsolat (review BN1)
+ *
+ * A `campaign-start` sor a `redis_campaign_start` kapcsolaton fut (`retry_after` 960 mp > a 900 mp-es
+ * timeout), külön Horizon-supervisorral. A közös `redis` kapcsolat 90 mp-es `retry_after`-e alatt a
+ * futó materializálást a sor újra kiadta volna: két példány írta volna ugyanazt a kampányt, két
+ * köteget indított volna, és a negyedik kiadásnál a `MaxAttemptsExceeded` a SIKERES kampányt
+ * szüneteltette volna. A `ShouldBeUnique` ez ellen nem véd (az a sorba-tételt szűri, nem a
+ * futást) — ezért a `WithoutOverlapping` is: a kampányonkénti zár alatt a második példány
+ * csendben elmarad (a munka már folyik).
  */
 final class StartCampaignJob implements ShouldBeUnique, ShouldQueue
 {
@@ -45,8 +55,20 @@ final class StartCampaignJob implements ShouldBeUnique, ShouldQueue
         public readonly string $campaignUuid,
         public readonly int $workspaceId,
     ) {
-        $this->onQueue(SendQueue::Campaign->value);
+        $this->onConnection(config('queue.campaign_start_connection'));
+        $this->onQueue('campaign-start');
         $this->afterCommit();
+    }
+
+    /** @return list<object> */
+    public function middleware(): array
+    {
+        // A zár lejárata a sor `retry_after`-éig tart: egy meghalt worker zárja nem ragad be.
+        return [
+            (new WithoutOverlapping($this->campaignUuid))
+                ->dontRelease()
+                ->expireAfter((int) config('queue.connections.redis_campaign_start.retry_after', 960)),
+        ];
     }
 
     public function uniqueId(): string

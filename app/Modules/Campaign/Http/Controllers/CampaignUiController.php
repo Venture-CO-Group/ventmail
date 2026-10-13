@@ -7,6 +7,7 @@ namespace App\Modules\Campaign\Http\Controllers;
 use App\Modules\Analytics\Services\Rates;
 use App\Modules\Audience\Models\ContactList;
 use App\Modules\Audience\Models\Segment;
+use App\Modules\Audit\Services\AuditLogger;
 use App\Modules\Campaign\Jobs\RefreshCampaignStats;
 use App\Modules\Campaign\Jobs\StartCampaignJob;
 use App\Modules\Campaign\Models\Campaign;
@@ -23,6 +24,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Unique;
@@ -253,7 +255,8 @@ final class CampaignUiController
             'defaultTimezone' => WorkspaceTimezone::for($context->workspace(), $request->user()),
             // A „KINEK MEGY KI?" kérdésre az indítás ELŐTT kell válaszolni — a checklist
             // ugyanazon feloldásából (review RS4: egy számlálás, nem kettő).
-            'estimate' => (int) ($state['sections'][0]['estimate'] ?? 0),
+            // `null` = a keretezett becslés nem készült el (review SN3): „becslés nem elérhető".
+            'estimate' => $state['sections'][0]['estimate'] ?? null,
         ]);
     }
 
@@ -319,38 +322,58 @@ final class CampaignUiController
             $templateId = Template::query()->where('uuid', $validated['templateUuid'])->firstOrFail()->getKey();
         }
 
-        try {
-            $campaign->fill([
-                'name' => $validated['name'],
-                'subject' => $validated['subject'] ?? '',
-                'preheader' => $validated['preheader'] ?? null,
-                'from_email' => $validated['fromEmail'] ?? null,
-                'from_name' => $validated['fromName'] ?? null,
-                'template_id' => $templateId,
-                'target_lists' => array_values($validated['targetLists'] ?? []),
-                'target_segments' => array_values($validated['targetSegments'] ?? []),
-                'exclude_lists' => array_values($validated['excludeLists'] ?? []),
-                'exclude_segments' => array_values($validated['excludeSegments'] ?? []),
-                'winner_criterion' => $validated['winnerCriterion'] ?? null,
-                'winner_after_minutes' => (int) ($validated['winnerAfterMinutes'] ?? $campaign->winner_after_minutes ?? 240),
-            ]);
+        // SOR-ZÁR a mentés és az ütemezett ág idejére (review NIT): az ütemező (amelyik szintén
+        // zárol) és egy másik szerkesztés nem futhat közé — egy közben `sending`-re váltott
+        // kampányt a már beolvasott állapot alapján nem írunk át, és nem ütemezünk újra.
+        return DB::transaction(function () use ($campaign, $validated, $templateId, $checklist, $lifecycle): RedirectResponse {
+            $campaign = Campaign::query()->whereKey($campaign->getKey())->lockForUpdate()->firstOrFail();
 
-            $campaign->forceFill([
-                'send_mode' => $validated['sendMode'] ?? null,
-                'scheduled_local' => ($validated['sendMode'] ?? null) === 'later' ? ($validated['scheduledLocal'] ?? null) : null,
-                'timezone' => $validated['timezone'] ?? $campaign->timezone,
-            ])->save();
-        } catch (RuntimeException $e) {
-            // A NEM SZERKESZTHETŐ állapotot a MODELL tiltja (küldés közben a célzás
-            // átírása fél kampányt küldene máshova). A felület a szabály OKÁT mondja el.
-            return back()->with('error', $e->getMessage());
-        }
+            try {
+                $campaign->fill([
+                    'name' => $validated['name'],
+                    'subject' => $validated['subject'] ?? '',
+                    'preheader' => $validated['preheader'] ?? null,
+                    'from_email' => $validated['fromEmail'] ?? null,
+                    'from_name' => $validated['fromName'] ?? null,
+                    'template_id' => $templateId,
+                    'target_lists' => array_values($validated['targetLists'] ?? []),
+                    'target_segments' => array_values($validated['targetSegments'] ?? []),
+                    'exclude_lists' => array_values($validated['excludeLists'] ?? []),
+                    'exclude_segments' => array_values($validated['excludeSegments'] ?? []),
+                    'winner_criterion' => $validated['winnerCriterion'] ?? null,
+                    'winner_after_minutes' => (int) ($validated['winnerAfterMinutes'] ?? $campaign->winner_after_minutes ?? 240),
+                ]);
 
-        // AZ ÜTEMEZETT kampány szerkesztése (review RS1): az időpont és a tartalom a checklisttel
-        // újra érvényesül. Ha minden kész, ÚJRAÜTEMEZ (az új helyi idő az új UTC-pillanat), ha
-        // nem, VISSZAVESZI vázlatba — egy hiányossá szerkesztett kampány nem indulhat el az
-        // eredeti időpontban.
-        if ($campaign->status === 'scheduled') {
+                $campaign->forceFill([
+                    'send_mode' => $validated['sendMode'] ?? null,
+                    'scheduled_local' => ($validated['sendMode'] ?? null) === 'later' ? ($validated['scheduledLocal'] ?? null) : null,
+                    'timezone' => $validated['timezone'] ?? $campaign->timezone,
+                ])->save();
+            } catch (RuntimeException $e) {
+                // A NEM SZERKESZTHETŐ állapotot a MODELL tiltja (küldés közben a célzás
+                // átírása fél kampányt küldene máshova). A felület a szabály OKÁT mondja el.
+                return back()->with('error', $e->getMessage());
+            }
+
+            if ($campaign->status !== 'scheduled') {
+                return back()->with('success', __('ventmail.campaigns.saved'));
+            }
+
+            // AZ ÜTEMEZÉS a `campaign.publish` képesség (review BN2): a szerző (`author`) írhat
+            // kampányt, de nem ütemezhet. Egy ütemezett kampány szerkesztése a jóváhagyott
+            // tartalmat és időpontot írja át — publikálási jog nélkül ezért VÁZLATBA kerül
+            // (a tartalom megmarad), auditálva; egy publikáló ütemezheti újra.
+            if (Gate::denies('campaign.publish')) {
+                $lifecycle->unschedule($campaign);
+                app(AuditLogger::class)->log('campaign.unscheduled_by_edit', $campaign, context: ['reason' => 'missing_publish_ability']);
+
+                return back()->with('error', __('studio.checklist.unscheduledNoPublish'));
+            }
+
+            // AZ ÜTEMEZETT kampány szerkesztése (review RS1): az időpont és a tartalom a checklisttel
+            // újra érvényesül. Ha minden kész, ÚJRAÜTEMEZ (az új helyi idő az új UTC-pillanat), ha
+            // nem, VISSZAVESZI vázlatba — egy hiányossá szerkesztett kampány nem indulhat el az
+            // eredeti időpontban.
             $fresh = $campaign->fresh();
 
             try {
@@ -359,14 +382,14 @@ final class CampaignUiController
                 }
 
                 $lifecycle->schedule($fresh, (string) $fresh->scheduled_local, (string) $fresh->timezone);
-            } catch (\Throwable $e) {
+            } catch (\Throwable) {
                 $lifecycle->unschedule($campaign->fresh());
 
                 return back()->with('error', __('studio.checklist.unscheduled'));
             }
-        }
 
-        return back()->with('success', __('ventmail.campaigns.saved'));
+            return back()->with('success', __('ventmail.campaigns.saved'));
+        });
     }
 
     /**

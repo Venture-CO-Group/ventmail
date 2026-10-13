@@ -96,7 +96,11 @@ final class AudienceResolver
                 return;
             }
 
-            $callback($rows, $position);
+            // A `false` visszatérés MEGÁLLÍTJA a bejárást (a materializálás így áll le, ha a
+            // kampányt közben szüneteltették vagy visszavonták — review BN1).
+            if ($callback($rows, $position) === false) {
+                return;
+            }
 
             $position += count($rows);
             $after = $rows[count($rows) - 1]['email'];

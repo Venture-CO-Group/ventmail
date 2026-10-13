@@ -63,6 +63,7 @@ final class Campaign extends Model
             'exclude_segments' => 'array',
             'scheduled_at' => 'datetime',
             'estimated_at' => 'datetime',
+            'materialized_at' => 'datetime',
             'started_at' => 'datetime',
             'finished_at' => 'datetime',
         ];

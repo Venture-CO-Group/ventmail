@@ -107,6 +107,25 @@ return [
             'timeout' => 60,
             'nice' => 0,
         ],
+        /*
+         | A KAMPÁNY MATERIALIZÁLÁSA (review BN1): külön supervisor és kapcsolat. A `StartCampaignJob` egy
+         | 300k-s célzást percekig ír fel — a `sending` supervisor 120 mp-es timeoutja megölné, a Redis
+         | alap 90 mp-es `retry_after`-e pedig kétszer futtatná. Itt timeout 900 < retry_after 960. A
+         | felírás kötegelt (1000 sor), a memória korlátos — a küldő worker-konténerben fut, de NEM
+         | foglal küldő-folyamatot, így a tranzakciós sor nem vár rá (golden rule 4).
+         */
+        'campaign-start' => [
+            'connection' => 'redis_campaign_start',
+            'queue' => ['campaign-start'],
+            'balance' => 'simple',
+            'maxProcesses' => 1,
+            'maxTime' => 0,
+            'maxJobs' => 0,
+            'memory' => 256,
+            'tries' => 3,
+            'timeout' => 900,
+            'nice' => 0,
+        ],
     ],
 
     'environments' => [
@@ -119,16 +138,19 @@ return [
         'production' => [
             'sending' => ['maxProcesses' => 20, 'balanceMaxShift' => 3, 'balanceCooldown' => 3],
             'background' => ['maxProcesses' => 6],
+            'campaign-start' => ['maxProcesses' => 2],
         ],
         'local' => [
             'sending' => ['maxProcesses' => 3],
             'background' => ['maxProcesses' => 2],
+            'campaign-start' => ['maxProcesses' => 1],
             'imports' => ['maxProcesses' => 1],
             'imports-inspect' => ['maxProcesses' => 1],
         ],
         'testing' => [
             'sending' => ['maxProcesses' => 1],
             'background' => ['maxProcesses' => 1],
+            'campaign-start' => ['maxProcesses' => 1],
             'imports' => ['maxProcesses' => 1],
             'imports-inspect' => ['maxProcesses' => 1],
         ],

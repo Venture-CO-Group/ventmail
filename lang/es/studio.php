@@ -26,6 +26,7 @@ return [
         'notReady' => 'La campaña aún no puede enviarse; falta: :blockers.',
         'canceled' => 'Campaña cancelada.',
         'unscheduled' => 'Tras el cambio la campaña ya no cumple la lista de comprobación, así que se canceló la programación: corrígela y vuelve a programarla.',
+        'unscheduledNoPublish' => 'La campaña volvió a borrador: una campaña programada solo puede modificarse con permiso de publicación. Una persona con ese permiso puede volver a programarla.',
     ],
     'hosted' => [
         'email' => 'Correo electrónico',

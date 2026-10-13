@@ -1680,6 +1680,7 @@
         "incomplete": "hiányos",
         "estimate": "{count} kontakt",
         "recipientsMissing": "Válassz listát vagy szegmenst.",
+        "estimateUnavailable": "Becslés nem elérhető (a célzás túl költséges a gyors számoláshoz).",
         "senderMissing": "Add meg a feladót egy hitelesített domainről.",
         "domainVerified": "domain hitelesítve",
         "domainUnverified": "a domain nincs hitelesítve",

@@ -26,6 +26,7 @@ return [
         'notReady' => 'La campagna non può ancora essere inviata — manca: :blockers.',
         'canceled' => 'Campagna annullata.',
         'unscheduled' => 'Dopo la modifica la campagna non supera più la checklist, quindi la pianificazione è stata annullata — correggila e ripianificala.',
+        'unscheduledNoPublish' => 'La campagna è tornata in bozza: una campagna pianificata può essere modificata solo con il permesso di pubblicazione. Chi ha il permesso può ripianificarla.',
     ],
     'hosted' => [
         'email' => 'Indirizzo email',

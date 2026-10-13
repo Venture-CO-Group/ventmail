@@ -226,7 +226,7 @@ it('az import külön worker-konténerben fut (saját limit), és az entrypoint/
         ->and($health)->toContain('worker-imports)');
 
     // A küldő Horizon (production környezet) NEM indítja az import supervisorokat.
-    expect(array_keys(config('horizon.environments.production')))->toBe(['sending', 'background'])
+    expect(array_keys(config('horizon.environments.production')))->toBe(['sending', 'background', 'campaign-start'])
         ->and(array_keys(config('horizon.environments.imports')))->toBe(['imports', 'imports-inspect']);
 });
 

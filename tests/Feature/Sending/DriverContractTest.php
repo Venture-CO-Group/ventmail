@@ -216,3 +216,14 @@ it('a PostalDriver a feladó NEVÉT RFC 5322 szerint idézi (vessző, idézőjel
     Http::assertSent(fn ($request) => ($request['from'] ?? null) === (new Address('no-reply@pelda.hu', 'Kávé, Kft "Nádor"'))->toString()
         && str_starts_with((string) $request['from'], '"'));
 });
+
+it('NIT · CRLF a feladó nevében nem jut a Postal `from` mezőjébe (nincs fejléc-injekció)', function () {
+    config(['sending.postal.endpoint' => 'https://postal.test', 'sending.postal.api_key' => 'kulcs']);
+
+    Http::fake(['https://postal.test/*' => Http::response(['data' => ['message_id' => 'x']])]);
+
+    (new PostalDriver)->send(outbound(['from_name' => "Kft\r\nBcc: tamado@evil.example"]));
+
+    Http::assertSent(fn ($request) => ! preg_match('/[\r\n]/', (string) ($request['from'] ?? ''))
+        && str_ends_with((string) $request['from'], '<no-reply@pelda.hu>'));
+});

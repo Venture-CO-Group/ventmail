@@ -9,6 +9,8 @@ use App\Modules\Campaign\Jobs\StartCampaignJob;
 use App\Modules\Campaign\Models\Campaign;
 use App\Modules\Template\Models\Template;
 use App\Modules\Template\Services\TemplateCompliance;
+use App\Support\QueryBudget;
+use App\Support\QueryTooExpensive;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Bus;
 use InvalidArgumentException;
@@ -147,10 +149,11 @@ final class CampaignLifecycle
      */
     public function resume(Campaign $campaign): Campaign
     {
-        // v1.1 (review RB1) · MÉG NEM MATERIALIZÁLT kampány (a háttér-materializálás elbukott,
-        // és a job szüneteltette): a folytatás ÚJRA materializál — nem „befejezett" egy olyan
-        // kampány, aminek egyetlen címzettje sem jött létre.
-        if ($campaign->recipients()->doesntExist() && (int) $campaign->recipient_count === 0) {
+        // v1.1 (review RB1, SN2) · NEM TELJESEN MATERIALIZÁLT kampány (a háttér-felírás elbukott
+        // vagy közben szüneteltették): a folytatás ÚJRA materializál. A `recipients()->exists()`
+        // nem elég: egy félbehalt felírás első kötegei már ott vannak, és a folytatás a CSONKA
+        // közönségre küldött volna. A `materialized_at` csak a TELJES felírás után íródik.
+        if ($campaign->materialized_at === null) {
             $this->transition($campaign, CampaignStatus::Sending);
             $campaign->save();
 
@@ -189,7 +192,9 @@ final class CampaignLifecycle
      */
     private function cancelBatch(Campaign $campaign): void
     {
-        $batchId = (string) ($campaign->batch_id ?? '');
+        // FRISS érték az adatbázisból (review BN1): a háttér-materializálás a példány betöltése
+        // után indíthatott köteget — az elavult `batch_id` azt nem állítaná le.
+        $batchId = (string) (Campaign::query()->whereKey($campaign->getKey())->value('batch_id') ?? '');
 
         if ($batchId === '') {
             return;
@@ -333,7 +338,17 @@ final class CampaignLifecycle
         }
 
         // A CÉLZÁS ne legyen ÜRES. A becslés friss: a küldés előtti pillanatban kérdezzük.
-        if ($this->audience->estimate($campaign) === 0) {
+        //
+        // KERETEZVE (review SN3): az indítás webkérésben is fut, és egy drága szegmens feloldása
+        // nem foglalhat le egy FPM-workert percekig. Keret-túllépésnél a kérdés nyitva marad —
+        // a háttér-materializálás üres halmaznál a kampányt befejezettre zárja, köteg nélkül.
+        try {
+            $estimate = app(QueryBudget::class)->run(fn (): int => $this->audience->estimate($campaign));
+        } catch (QueryTooExpensive) {
+            $estimate = null;
+        }
+
+        if ($estimate === 0) {
             throw new InvalidArgumentException(
                 'A célzás egyetlen elérhető címzettet sem ad. Ellenőrizd a listákat, a '
                 .'szegmenseket és a kizárásokat.'

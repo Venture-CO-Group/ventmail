@@ -1680,6 +1680,7 @@
         "incomplete": "incomplete",
         "estimate": "{count} contacts",
         "recipientsMissing": "Choose a list or segment.",
+        "estimateUnavailable": "Estimate unavailable (the targeting is too expensive to count quickly).",
         "senderMissing": "Set a sender on a verified domain.",
         "domainVerified": "domain verified",
         "domainUnverified": "domain not verified",

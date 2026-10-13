@@ -26,6 +26,7 @@ return [
         'notReady' => 'The campaign cannot be sent yet — missing: :blockers.',
         'canceled' => 'Campaign canceled.',
         'unscheduled' => 'After the change the campaign no longer passes the checklist, so it was unscheduled — fix it and schedule again.',
+        'unscheduledNoPublish' => 'The campaign was moved back to draft: a scheduled campaign can only be changed with publish rights. A publisher can schedule it again.',
     ],
     'hosted' => [
         'email' => 'Email address',
