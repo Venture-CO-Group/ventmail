@@ -39,6 +39,8 @@ export default defineConfig({
             name: 'chromium',
             use: { ...devices['Desktop Chrome'], storageState: 'e2e/.auth/state.json' },
             dependencies: ['setup'],
+            // A képernyőkép-generálás (leadandó, nem kapu) csak kérésre fut: `npm run screenshots`.
+            testIgnore: process.env.SCREENSHOTS ? undefined : /screenshots\.spec\.ts/,
         },
     ],
 

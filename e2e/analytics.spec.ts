@@ -16,8 +16,21 @@ test.beforeEach(async ({ page }) => {
     await page.goto('/dev/seed-analytics');
 });
 
+/*
+ | A DEMÓ-kampányt választjuk ki EXPLICITEN: alapból a legutóbb kiküldött kampány nyílik, és a
+ | `studio-campaign.spec.ts` egy korábbi futása (ugyanabban a dev-adatbázisban) egy esemény
+ | nélküli „E2E checklist" kampányt hagy hátra — a második teljes futáson az lett az alapértelmezett,
+ | és a kampány-kártyák üres állapotban jelentek meg (mérve).
+ */
 async function openAnalytics(page: Page): Promise<void> {
     await page.goto('/analytics?range=90');
+    const demo = await page
+        .getByTestId('analytics-campaign')
+        .locator('option', { hasText: 'Őszi újdonságok – hírlevél a teljes törzsvendégkörnek (demó' })
+        .first()
+        .getAttribute('value');
+    expect(demo).toBeTruthy();
+    await page.goto(`/analytics?range=90&campaign=${demo}`);
     await expect(page.getByTestId('chart-open-click')).toBeVisible();
 }
 

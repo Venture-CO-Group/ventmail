@@ -7,7 +7,8 @@
         "build": "vite build && vite build --config vite.report.config.ts",
         "typecheck": "vue-tsc --noEmit",
         "e2e": "playwright test",
-        "test:unit": "vitest run"
+        "test:unit": "vitest run",
+        "screenshots": "SCREENSHOTS=1 playwright test e2e/screenshots.spec.ts"
     },
     "dependencies": {
         "@inertiajs/vue3": "^2.0.0",

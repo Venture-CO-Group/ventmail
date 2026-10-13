@@ -123,8 +123,17 @@ test('a szöveg HELYBEN szerkeszthető (félkövér, merge-tag), és a mentés u
 test('a VERZIÓ visszaállítható — és a visszaállítás új verziót ír', async ({ page }) => {
     await page.goto(editorUrl);
 
+    // A billentyű-figyelő a szerkesztő MOUNT-jakor kötődik (`onMounted`), a mount pedig a lusta
+    // nyelvi csomag után jön — a `goto` load-eseménye ennél korábbi lehet. Terhelt teljes futásban
+    // a Ctrl+S így a semmibe ment (mérve: nem volt autosave-kérés). Előbb a kész szerkesztő.
+    await expect(page.getByTestId('editor-canvas')).toBeVisible();
+
     // KÉZI mentés: új verzió a mostani állapotról.
-    await page.keyboard.press('ControlOrMeta+s');
+    // A mentés-KÉRÉST várjuk meg (nem csak a „mentve" állapotot, ami betöltéskor is az).
+    await Promise.all([
+        page.waitForResponse((response) => response.url().endsWith('/autosave') && response.request().method() === 'PUT' && response.ok()),
+        page.keyboard.press('ControlOrMeta+s'),
+    ]);
     await waitSaved(page);
 
     await page.getByTestId('editor-versions').click();
