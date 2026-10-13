@@ -570,7 +570,8 @@
                 "format": "a fájl tartalma nem felel meg a kiterjesztésnek",
                 "sheet": "ismeretlen munkalap",
                 "timeout": "a fájl felmérése túllépte az időkeretet",
-                "line": "a fájlban egy sor túl hosszú"
+                "line": "a fájlban egy sor túl hosszú",
+                "encoding": "a fájl kódolása nem támogatott"
             },
             "result": {
                 "new": "Új kontakt",

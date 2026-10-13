@@ -11,6 +11,7 @@ use App\Modules\Audience\Services\Import\AttributeCoercer;
 use App\Modules\Audience\Services\Import\ImportFileInspector;
 use App\Modules\Audience\Services\Import\ImportLimitExceeded;
 use App\Modules\Audience\Services\Import\ImportWriter;
+use App\Modules\Audience\Services\Import\InspectGate;
 use App\Modules\Audit\Models\AuditLog;
 use App\Modules\Tenancy\Models\Workspace;
 use App\Modules\Tenancy\Services\WorkspaceContext;
@@ -120,14 +121,14 @@ it('a valódi XLSX felmérése a sorszámot a <row> elemekből adja, a mintát k
     expect($profile['rows'])->toBe(50)->and($profile['columns'])->toBe(['email', 'név'])->and(count($profile['sample']))->toBeLessThanOrEqual(5);
 });
 
-it('workspace-enként egyszerre egy felmérés fut', function () {
-    r2In($this->ws, fn () => ContactImport::create(['source_type' => 'csv', 'status' => 'inspecting', 'profile' => []]));
+it('workspace-enként egyszerre egy felmérés fut (a kapu tartja a helyet)', function () {
+    expect(app(InspectGate::class)->acquire($this->ws->id, null))->toBeTrue();
 
     r2As($this->user, $this->ws)
         ->post('/audience/import', ['mode' => 'file', 'file' => UploadedFile::fake()->createWithContent('f.csv', "email\na@pelda.hu\n")])
         ->assertSessionHasErrors('file');
 
-    expect(r2In($this->ws, fn () => ContactImport::query()->count()))->toBe(1)
+    expect(r2In($this->ws, fn () => ContactImport::query()->count()))->toBe(0)
         ->and(Storage::disk('local')->allFiles('imports'))->toBe([]);
 });
 

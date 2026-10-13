@@ -11,6 +11,7 @@ use App\Modules\Audience\Services\Import\ImportFileInspector;
 use App\Modules\Audience\Services\Import\ImportLimitExceeded;
 use App\Modules\Audience\Services\Import\ImportMappingBuilder;
 use App\Modules\Audience\Services\Import\ImportUploads;
+use App\Modules\Audience\Services\Import\InspectGate;
 use App\Modules\Tenancy\Models\Workspace;
 use App\Modules\Tenancy\Services\WorkspaceContext;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -46,10 +47,13 @@ final class InspectContactImport implements ShouldQueue
         private readonly int $workspaceId,
         private readonly string $importUuid,
         private readonly ?string $sheet = null,
+        private readonly ?int $userId = null,
     ) {
         $this->afterCommit();
         $this->onConnection(config('audience.import.connection'));
-        $this->onQueue('imports');
+        // KÜLÖN queue (és Horizon supervisor): a drága felmérés soha nem állítja meg a
+        // `RunContactImport`-ot, és az import-futás sem várakoztatja a felmérést.
+        $this->onQueue('imports-inspect');
     }
 
     public function handle(
@@ -58,15 +62,19 @@ final class InspectContactImport implements ShouldQueue
         ImportUploads $uploads,
         ImportMappingBuilder $mappings,
         ContactImportProcessor $processor,
+        InspectGate $gate,
     ): void {
         $workspace = Workspace::query()->whereKey($this->workspaceId)->first();
 
         if ($workspace === null) {
+            $gate->release($this->workspaceId, $this->userId);
+
             return;
         }
 
         $previous = $context->hasWorkspace() ? $context->workspace() : null;
         $context->set($workspace);
+        $import = null;
 
         try {
             $import = ContactImport::query()->where('uuid', $this->importUuid)->first();
@@ -86,39 +94,44 @@ final class InspectContactImport implements ShouldQueue
 
             $import = $import->fresh();
 
-            try {
-                $format = ((array) $import->profile)['format'] ?? ($import->source_type === 'xlsx' ? 'xlsx' : 'csv');
-                $profile = $inspector->inspect(
-                    $uploads->absolute((string) $import->storage_path),
-                    $format,
-                    $this->sheet,
-                    (int) config('audience.import.inspect_job_budget_seconds'),
-                );
-            } catch (ImportLimitExceeded $e) {
-                $processor->abandon($import, $e->reason);
-
-                return;
-            } catch (Throwable $e) {
-                $processor->abandon($import, 'error');
-                $this->report($e);
-
-                return;
-            }
+            // MINDEN a try-ban, a mentés is: egy itt kiszökő QueryException (a mintában lévő címekkel,
+            // PDO DETAIL/CONTEXT-tel) a failed_jobs-ba és a naplóba kerülne.
+            $format = ((array) $import->profile)['format'] ?? ($import->source_type === 'xlsx' ? 'xlsx' : 'csv');
+            $profile = $inspector->inspect(
+                $uploads->absolute((string) $import->storage_path),
+                $format,
+                $this->sheet,
+                (int) config('audience.import.inspect_job_budget_seconds'),
+            );
 
             $fields = ContactField::query()->orderBy('label')->get(['key', 'label'])
                 ->map(static fn (ContactField $field): array => ['key' => (string) $field->key, 'label' => (string) $field->label])->all();
 
-            $import->forceFill([
-                'profile' => $profile,
-                'mapping' => $mappings->initial($profile, $fields),
-                'total_rows' => $profile['rows'],
-                'phase' => null,
-            ])->saveQuietly();
+            // EGYETLEN feltételes UPDATE minden mezővel: a profil/leképezés csak akkor íródik, ha a
+            // köteg még a mi (claimed) felmérésünk — egy közben törölt/lezárt köteget nem írunk felül.
+            ContactImport::query()->whereKey($import->getKey())
+                ->where('status', ContactImport::STATUS_INSPECTING)->where('phase', 'claimed')
+                ->update([
+                    'profile' => json_encode($profile, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
+                    'mapping' => json_encode($mappings->initial($profile, $fields), JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
+                    'total_rows' => $profile['rows'],
+                    'phase' => null,
+                    'status' => ContactImport::STATUS_DRAFT,
+                    'updated_at' => now(),
+                ]);
+        } catch (ImportLimitExceeded $e) {
+            if ($import !== null) {
+                $processor->abandon($import, $e->reason);
+            }
+        } catch (Throwable $e) {
+            if ($import !== null) {
+                $processor->abandon($import, 'error');
+            }
 
-            ContactImport::query()->whereKey($import->getKey())->where('status', ContactImport::STATUS_INSPECTING)
-                ->update(['status' => ContactImport::STATUS_DRAFT, 'updated_at' => now()]);
+            $this->report($e);
         } finally {
             $previous === null ? $context->forget() : $context->set($previous);
+            $gate->release($this->workspaceId, $this->userId);
         }
     }
 
@@ -143,6 +156,7 @@ final class InspectContactImport implements ShouldQueue
             }
 
             $this->report($e);
+            app(InspectGate::class)->release($this->workspaceId, $this->userId);
         } finally {
             $previous === null ? $context->forget() : $context->set($previous);
         }

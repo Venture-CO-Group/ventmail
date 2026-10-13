@@ -570,7 +570,8 @@
                 "format": "el contenido del archivo no coincide con la extensión",
                 "sheet": "hoja desconocida",
                 "timeout": "el análisis del archivo superó el tiempo límite",
-                "line": "una línea del archivo es demasiado larga"
+                "line": "una línea del archivo es demasiado larga",
+                "encoding": "la codificación del archivo no es compatible"
             },
             "result": {
                 "new": "Contactos nuevos",

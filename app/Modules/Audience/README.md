@@ -49,6 +49,14 @@ folyamat → eredmény. Négy bevitel: kézi egyedi, beillesztett lista, CSV, XL
   `InspectContactImport` jobban készül (`imports` queue, 60 mp timeout, `inspecting` → `draft`
   feltételes átmenet; hibánál/timeoutnál `abandon()`: fájl, minta törlődik, `failed`). A
   munkalap-váltás is ez. Az openspout a kérésben NEM fut. Workspace-enként 1 egyidejű felmérés.
+- **Felmérés-sor védelme (4. kör):** külön `imports-inspect` queue + Horizon supervisor (a hosszú
+  futásokat nem állítja meg); az `InspectGate` számlálói workspace-, user- és globális plafont
+  adnak a SORBAN ÁLLÓ felmérésekre is (telt kapu = „foglalt”, queue-mélység védelme). A guard MINDEN
+  zip-bejegyzésben számol csomópontot, névtől függetlenül; a munkalap-nevek a `workbook.xml`-ből
+  jönnek (nem az openspoutból). Az openspout előtöltése alatt a belső időkeret hatástalan: a valós
+  határ a job 60 mp-es worker-kill timeoutja és a csomópont-plafonok. NUL-bájt és UTF-16 → kódolási
+  hiba; a QueryException-leképezés a `DETAIL/CONTEXT` sorokat is levágja (nincs cím a naplóban és
+  a `failed_jobs`-ban).
 - **Zip-bomba:** a központi jegyzék mérete hamisítható, ezért a feltöltéskor a VALÓS kitömörített
   bájtokat számoljuk streamen (megszakítás a deklarált méretnél / plafonnál / időkeretnél). A
   felmérés kérésen belül fut (`inspect_budget_seconds`, alap 25 mp): a képernyőnek a fejléc és a

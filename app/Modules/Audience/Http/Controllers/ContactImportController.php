@@ -21,6 +21,7 @@ use App\Modules\Audience\Services\Import\ImportFileInspector;
 use App\Modules\Audience\Services\Import\ImportLimitExceeded;
 use App\Modules\Audience\Services\Import\ImportMappingBuilder;
 use App\Modules\Audience\Services\Import\ImportUploads;
+use App\Modules\Audience\Services\Import\InspectGate;
 use App\Modules\Audit\Services\AuditLogger;
 use App\Modules\Tenancy\Services\WorkspaceContext;
 use Illuminate\Contracts\Cache\LockTimeoutException;
@@ -58,6 +59,7 @@ final class ContactImportController
         private readonly ImportMappingBuilder $mappings,
         private readonly AuditLogger $audit,
         private readonly WorkspaceContext $context,
+        private readonly InspectGate $gate,
     ) {}
 
     /** A varázsló nyitóképernyője (nincs még köteg). */
@@ -81,22 +83,21 @@ final class ContactImportController
         $workspaceId = $this->context->workspaceId();
         $mode = (string) $request->input('mode');
 
-        // Workspace-enként EGY egyidejű felmérés (D71): a „van-e már futó?” ellenőrzés és a rekord
-        // létrehozása egy zárban, hogy két párhuzamos feltöltés ne lásson egyszerre szabad helyet.
-        try {
-            $import = Cache::lock('import-inspect-slot:'.$workspaceId, 10)->block(3, function () use ($request, $workspaceId, $mode): ?ContactImport {
-                if ($this->inspectingNow() > 0) {
-                    return null;
-                }
+        // A FELMÉRÉS-KAPU a tárolás ELŐTT (D71): workspace-enként, tulajdonosonként és globálisan
+        // korlátozott egyidejű (sorban álló + futó) felmérés — a foglalás tartja a helyet a tárolás és
+        // az őrök alatt is, és a job végén szabadul. Telt kapu = „foglalt” (queue-mélység védelme).
+        $userId = $request->user()?->getKey();
 
-                return $this->storeDraft($request, $workspaceId, $mode);
-            });
-        } catch (LockTimeoutException) {
-            $import = null;
+        if (! $this->gate->acquire($workspaceId, $userId)) {
+            return back()->withErrors(['file' => (string) __('ventmail.audience.import.inspectBusy')]);
         }
 
-        if ($import === null) {
-            return back()->withErrors(['file' => (string) __('ventmail.audience.import.inspectBusy')]);
+        try {
+            $import = $this->storeDraft($request, $workspaceId, $mode);
+        } catch (\Throwable $e) {
+            $this->gate->release($workspaceId, $userId);
+
+            throw $e;
         }
 
         return redirect()->route('audience.import.show', $import->uuid);
@@ -114,13 +115,24 @@ final class ContactImportController
             return back()->withErrors(['sheet' => (string) __('ventmail.audience.import.limit.sheet')]);
         }
 
-        if ($this->inspectingNow() > 0) {
+        // UGYANAZ a kapu, mint a feltöltésnél (egy zárolt, egységes szabály): a munkalap-váltás is
+        // felmérés, és nem kerülheti meg a korlátokat.
+        $workspaceId = $this->context->workspaceId();
+        $userId = $request->user()?->getKey();
+
+        if (! $this->gate->acquire($workspaceId, $userId)) {
             return back()->withErrors(['sheet' => (string) __('ventmail.audience.import.inspectBusy')]);
         }
 
-        // Az újrafelmérés a HÁTTÉRBEN fut (D71); a köteg addig `inspecting`, a leképezés 409.
-        $this->lock($import, ContactImport::STATUS_INSPECTING);
-        InspectContactImport::dispatch($this->context->workspaceId(), (string) $import->uuid, (string) $request->input('sheet'));
+        try {
+            // Az újrafelmérés a HÁTTÉRBEN fut (D71); a köteg addig `inspecting`, a leképezés 409.
+            $this->lock($import, ContactImport::STATUS_INSPECTING);
+            InspectContactImport::dispatch($workspaceId, (string) $import->uuid, (string) $request->input('sheet'), $userId);
+        } catch (\Throwable $e) {
+            $this->gate->release($workspaceId, $userId);
+
+            throw $e;
+        }
 
         return redirect()->route('audience.import.show', $import->uuid);
     }
@@ -284,9 +296,13 @@ final class ContactImportController
         $import = $this->find($uuid);
 
         // FELTÉTELES törlés: a futó, lezárt vagy sikertelen köteghez nem nyúl (409).
+        // Az ELAKADT felmérés (dispatch-hiba, hard-kill: 5 percnél régebbi `inspecting`) is
+        // megszakítható — különben a felhasználó az „Elemzés…” állapotban ragadna.
         $deleted = ContactImport::query()
             ->whereKey($import->getKey())
-            ->whereIn('status', [ContactImport::STATUS_DRAFT, ContactImport::STATUS_PREVIEWED])
+            ->where(fn ($query) => $query
+                ->whereIn('status', [ContactImport::STATUS_DRAFT, ContactImport::STATUS_PREVIEWED])
+                ->orWhere(fn ($stale) => $stale->where('status', ContactImport::STATUS_INSPECTING)->where('updated_at', '<=', now()->subMinutes(5))))
             ->delete();
 
         abort_if($deleted === 0, 409);
@@ -352,18 +368,17 @@ final class ContactImportController
             throw ValidationException::withMessages(['file' => (string) __('ventmail.audience.import.limit.'.$e->reason)]);
         }
 
-        InspectContactImport::dispatch($workspaceId, (string) $import->uuid);
+        try {
+            InspectContactImport::dispatch($workspaceId, (string) $import->uuid, null, $request->user()?->getKey());
+        } catch (\Throwable $e) {
+            // Dispatch-hiba: a rekord nem maradhat örökre `inspecting` (a fájl PII) — takarítunk.
+            $this->uploads->delete($path);
+            $import->delete();
+
+            throw ValidationException::withMessages(['file' => (string) __('ventmail.audience.import.inspectBusy')]);
+        }
 
         return $import;
-    }
-
-    /** Éppen futó (friss) felmérések száma a workspace-ben; az elakadt (5 percnél régebbi) nem számít. */
-    private function inspectingNow(): int
-    {
-        return ContactImport::query()
-            ->where('status', ContactImport::STATUS_INSPECTING)
-            ->where('updated_at', '>=', now()->subMinutes(5))
-            ->count();
     }
 
     private function find(string $uuid): ContactImport

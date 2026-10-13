@@ -570,7 +570,8 @@
                 "format": "the file content does not match its extension",
                 "sheet": "unknown worksheet",
                 "timeout": "inspecting the file exceeded the time budget",
-                "line": "a line in the file is too long"
+                "line": "a line in the file is too long",
+                "encoding": "the file encoding is not supported"
             },
             "result": {
                 "new": "New contacts",

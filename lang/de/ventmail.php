@@ -52,6 +52,7 @@ return [
                 'existing_contact' => 'Der Kontakt existiert bereits, die vorhandenen Daten bleiben unverändert.',
             ],
             'limit' => [
+                'encoding' => 'Die Dateikodierung wird nicht unterstützt (UTF-16 oder NUL-Bytes) — speichere sie als UTF-8- oder Windows-1250-CSV.',
                 'timeout' => 'Die Prüfung der Datei hat das Zeitbudget überschritten — lade eine kleinere Datei hoch.',
                 'line' => 'Eine Zeile in der Datei ist zu lang.',
                 'size' => 'Die Datei ist zu groß.',

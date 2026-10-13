@@ -58,6 +58,12 @@ final class UploadImportRequest extends FormRequest
                 $head = (string) file_get_contents((string) $file->getRealPath(), false, null, 0, 8192);
                 $extension = strtolower($file->getClientOriginalExtension());
 
+                if ($extension !== 'xlsx' && (str_starts_with($head, "\xFF\xFE") || str_starts_with($head, "\xFE\xFF"))) {
+                    $validator->errors()->add('file', (string) __('ventmail.audience.import.limit.encoding'));
+
+                    return;
+                }
+
                 $valid = $extension === 'xlsx'
                     ? str_starts_with($head, "PK\x03\x04")
                     : ! str_contains($head, "\0");

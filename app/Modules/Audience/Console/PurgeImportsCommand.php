@@ -42,6 +42,17 @@ final class PurgeImportsCommand extends Command
                 foreach ($workspaces as $workspace) {
                     $context->set($workspace);
 
+                    // Az 1 óránál régebbi `inspecting` elakadt (a felmérés 60 mp-es): fájl + rekord törlése, nem
+                    // kell hetekig várni a megőrzési időre.
+                    ContactImport::query()
+                        ->where('status', ContactImport::STATUS_INSPECTING)
+                        ->where('updated_at', '<=', now()->subHour())
+                        ->each(function (ContactImport $import) use ($uploads, &$drafts): void {
+                            $uploads->delete($import->storage_path);
+                            $import->delete();
+                            $drafts++;
+                        });
+
                     ContactImport::query()
                         ->whereIn('status', [ContactImport::STATUS_DRAFT, ContactImport::STATUS_INSPECTING, ContactImport::STATUS_PREVIEWING, ContactImport::STATUS_PREVIEWED, ContactImport::STATUS_FAILED])
                         ->where('updated_at', '<=', $cutoff)

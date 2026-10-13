@@ -63,6 +63,7 @@ return [
                 'existing_contact' => 'The contact already exists, the existing data is untouched.',
             ],
             'limit' => [
+                'encoding' => 'The file encoding is not supported (UTF-16 or NUL bytes) — save it as a UTF-8 or Windows-1250 CSV.',
                 'timeout' => 'Inspecting the file exceeded the time budget — upload a smaller file.',
                 'line' => 'A line in the file is too long.',
                 'size' => 'The file is too large.',

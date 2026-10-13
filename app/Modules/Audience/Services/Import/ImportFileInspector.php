@@ -5,8 +5,6 @@ declare(strict_types=1);
 namespace App\Modules\Audience\Services\Import;
 
 use App\Modules\Validation\Services\EmailSyntax;
-use OpenSpout\Reader\XLSX\Options;
-use OpenSpout\Reader\XLSX\Reader;
 use ZipArchive;
 
 /**
@@ -101,7 +99,13 @@ final class ImportFileInspector
         }
 
         $file = $this->sheetFile($path, $sheet);
-        $records = (int) ($stats[$file]['rows'] ?? 0);
+        // A munkalap-fájl statisztikája nélkül (szokatlan nevű bejegyzés) nincs mit felmérni: a
+        // nem-munkalap bejegyzés a szigorú meta-plafont kapta, és ide sosem jut el sorokkal.
+        if (! isset($stats[strtolower($file)]) && ! isset($stats[$file])) {
+            throw new ImportLimitExceeded('format');
+        }
+
+        $records = (int) (($stats[$file] ?? $stats[strtolower($file)])['rows'] ?? 0);
 
         return $this->profile(
             new XlsxRowReader($path, $sheet),
@@ -267,7 +271,22 @@ final class ImportFileInspector
         try {
             $cap = (int) config('audience.import.max_line_bytes');
 
+            // UTF-16 BOM: a fájl nem ASCII-kompatibilis, a sorok NUL-bájtokkal tele — az olvasó
+            // UTF-8-nak venné, és a NUL a mintából az adatbázisba jutna. Kódolási hiba.
+            $bom = (string) fread($handle, 2);
+            rewind($handle);
+
+            if ($bom === "\xFF\xFE" || $bom === "\xFE\xFF") {
+                throw new ImportLimitExceeded('encoding');
+            }
+
             while (($line = fgets($handle, $cap + 1)) !== false) {
+                // NUL-bájt sehol a CSV-ben (UTF-16 BOM nélkül, vagy hibás export): a Postgres
+                // szövegben nem tárolja, és a hibaüzenete a címeket tartalmazná.
+                if (str_contains($line, "\0")) {
+                    throw new ImportLimitExceeded('encoding');
+                }
+
                 // Újsor nélkül a határig teli sor = a fizikai sor túl hosszú.
                 if (strlen($line) > $cap || (strlen($line) === $cap && ! str_ends_with($line, "\n"))) {
                     throw new ImportLimitExceeded('line');
@@ -362,10 +381,12 @@ final class ImportFileInspector
                 throw new ImportLimitExceeded('format');
             }
 
-            $isSheet = str_starts_with($stat['name'], 'xl/worksheets/') && str_ends_with($stat['name'], '.xml');
-            $isXml = str_ends_with($stat['name'], '.xml') || str_ends_with($stat['name'], '.rels');
-            // A sharedStrings és a többi meta-rész az openspout által TELJESEN beolvasott: kisebb plafon.
-            $partCap = str_contains($stat['name'], 'sharedStrings')
+            // NÉV-FÜGGETLEN számlálás: az XLSX bejegyzés-neve a `rels` Target-jéből jön, tehát
+            // `.bin`/`.XML`/bármi lehet — a csomópontot MINDEN bejegyzésben számoljuk, a név csak a
+            // plafont választja (a nem-munkalap bejegyzés a szigorú meta-plafont kapja).
+            $lowerName = strtolower($stat['name']);
+            $isSheet = str_starts_with($lowerName, 'xl/worksheets/') && str_ends_with($lowerName, '.xml');
+            $partCap = str_contains($lowerName, 'sharedstrings')
                 ? (int) config('audience.import.xlsx_max_part_nodes')
                 : (int) config('audience.import.xlsx_max_meta_nodes');
             $entry = 0;
@@ -414,7 +435,7 @@ final class ImportFileInspector
                         }
                     }
 
-                    if ($isXml && ! $isSheet) {
+                    if (! $isSheet) {
                         $nodes += substr_count($chunk, '<');
 
                         if ($nodes > $partCap) {
@@ -442,32 +463,30 @@ final class ImportFileInspector
      */
     private function sheetFile(string $path, string $name): string
     {
+        $rid = null;
+
+        foreach ($this->workbookSheets($path) as $sheet) {
+            if ($sheet['name'] === $name) {
+                $rid = $sheet['rid'];
+            }
+        }
+
         $zip = new ZipArchive;
 
-        if ($zip->open($path, ZipArchive::RDONLY) !== true) {
+        if ($rid === null || $zip->open($path, ZipArchive::RDONLY) !== true) {
             throw new ImportLimitExceeded('format');
         }
 
         try {
-            $workbook = (string) $zip->getFromName('xl/workbook.xml', 1_048_576);
             $rels = (string) $zip->getFromName('xl/_rels/workbook.xml.rels', 1_048_576);
         } finally {
             $zip->close();
         }
 
-        $book = @simplexml_load_string($workbook, options: LIBXML_NONET);
         $relationships = @simplexml_load_string($rels, options: LIBXML_NONET);
 
-        if ($book === false || $relationships === false) {
+        if ($relationships === false) {
             throw new ImportLimitExceeded('format');
-        }
-
-        $rid = null;
-
-        foreach ($book->sheets->sheet ?? [] as $candidate) {
-            if ((string) $candidate['name'] === $name) {
-                $rid = (string) ($candidate->attributes('http://schemas.openxmlformats.org/officeDocument/2006/relationships')['id'] ?? '');
-            }
         }
 
         foreach ($relationships->Relationship ?? [] as $relationship) {
@@ -481,21 +500,53 @@ final class ImportFileInspector
         throw new ImportLimitExceeded('format');
     }
 
-    /** @return list<string> */
+    /**
+     * A munkalapok nevei a `workbook.xml`-ből (simplexml, korlátos olvasás) — NEM az openspoutból:
+     * az újabb XML-menetet indítana a (drága) sharedStrings fölött, és a költséget megduplázná.
+     *
+     * @return list<string>
+     */
     private function sheetNames(string $path): array
     {
-        $reader = new Reader(new Options);
-        $reader->open($path);
         $names = [];
 
-        try {
-            foreach ($reader->getSheetIterator() as $sheet) {
-                $names[] = $sheet->getName();
-            }
-        } finally {
-            $reader->close();
+        foreach ($this->workbookSheets($path) as $sheet) {
+            $names[] = $sheet['name'];
         }
 
         return $names;
+    }
+
+    /** @return list<array{name: string, rid: string}> */
+    private function workbookSheets(string $path): array
+    {
+        $zip = new ZipArchive;
+
+        if ($zip->open($path, ZipArchive::RDONLY) !== true) {
+            throw new ImportLimitExceeded('format');
+        }
+
+        try {
+            $workbook = (string) $zip->getFromName('xl/workbook.xml', 1_048_576);
+        } finally {
+            $zip->close();
+        }
+
+        $book = @simplexml_load_string($workbook, options: LIBXML_NONET);
+
+        if ($book === false) {
+            throw new ImportLimitExceeded('format');
+        }
+
+        $sheets = [];
+
+        foreach ($book->sheets->sheet ?? [] as $candidate) {
+            $sheets[] = [
+                'name' => (string) $candidate['name'],
+                'rid' => (string) ($candidate->attributes('http://schemas.openxmlformats.org/officeDocument/2006/relationships')['id'] ?? ''),
+            ];
+        }
+
+        return $sheets;
     }
 }

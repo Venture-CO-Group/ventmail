@@ -570,7 +570,8 @@
                 "format": "der Dateiinhalt passt nicht zur Endung",
                 "sheet": "unbekanntes Tabellenblatt",
                 "timeout": "die Prüfung der Datei hat das Zeitbudget überschritten",
-                "line": "eine Zeile in der Datei ist zu lang"
+                "line": "eine Zeile in der Datei ist zu lang",
+                "encoding": "die Dateikodierung wird nicht unterstützt"
             },
             "result": {
                 "new": "Neue Kontakte",

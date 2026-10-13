@@ -570,7 +570,8 @@
                 "format": "il contenuto del file non corrisponde all’estensione",
                 "sheet": "foglio sconosciuto",
                 "timeout": "l’analisi del file ha superato il tempo massimo",
-                "line": "una riga del file è troppo lunga"
+                "line": "una riga del file è troppo lunga",
+                "encoding": "la codifica del file non è supportata"
             },
             "result": {
                 "new": "Nuovi contatti",

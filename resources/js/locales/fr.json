@@ -570,7 +570,8 @@
                 "format": "le contenu du fichier ne correspond pas à l’extension",
                 "sheet": "feuille inconnue",
                 "timeout": "l’analyse du fichier a dépassé le délai",
-                "line": "une ligne du fichier est trop longue"
+                "line": "une ligne du fichier est trop longue",
+                "encoding": "l’encodage du fichier n’est pas pris en charge"
             },
             "result": {
                 "new": "Nouveaux contacts",

@@ -89,6 +89,24 @@ return [
             'timeout' => 3600,
             'nice' => 0,
         ],
+
+        /*
+         | A KONTAKT-IMPORT FELMÉRÉSE (D71): KÜLÖN queue és supervisor. A felmérés drága, de korlátos
+         | (60 mp timeout, csomópont-plafonok, felmérés-kapu); a `imports` supervisort (a hosszú
+         | futásokat) soha nem állíthatja meg, és a futások sem várakoztatják a felmérést.
+         */
+        'imports-inspect' => [
+            'connection' => 'redis_imports',
+            'queue' => ['imports-inspect'],
+            'balance' => 'simple',
+            'maxProcesses' => 1,
+            'maxTime' => 0,
+            'maxJobs' => 0,
+            'memory' => 512,
+            'tries' => 1,
+            'timeout' => 60,
+            'nice' => 0,
+        ],
     ],
 
     'environments' => [
@@ -96,16 +114,19 @@ return [
             'sending' => ['maxProcesses' => 20, 'balanceMaxShift' => 3, 'balanceCooldown' => 3],
             'background' => ['maxProcesses' => 6],
             'imports' => ['maxProcesses' => 2],
+            'imports-inspect' => ['maxProcesses' => 2],
         ],
         'local' => [
             'sending' => ['maxProcesses' => 3],
             'background' => ['maxProcesses' => 2],
             'imports' => ['maxProcesses' => 1],
+            'imports-inspect' => ['maxProcesses' => 1],
         ],
         'testing' => [
             'sending' => ['maxProcesses' => 1],
             'background' => ['maxProcesses' => 1],
             'imports' => ['maxProcesses' => 1],
+            'imports-inspect' => ['maxProcesses' => 1],
         ],
     ],
 ];

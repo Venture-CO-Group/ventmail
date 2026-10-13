@@ -64,6 +64,14 @@ final class CsvRowReader implements ImportRowReader
                 foreach ($record as $cell) {
                     $value = (string) $cell;
 
+                    // NUL-bájt a cellában (a felmérés a fájl elején kiszűri, de a fájl közepén is
+                    // lehet): elutasítjuk; a többi vezérlőkaraktert eldobjuk.
+                    if (str_contains($value, "\0")) {
+                        throw new ImportLimitExceeded('encoding');
+                    }
+
+                    $value = (string) preg_replace('/[\x01-\x08\x0B\x0C\x0E-\x1F\x7F]/', '', $value);
+
                     if ($convert) {
                         $value = Windows1250::toUtf8($value);
                     }

@@ -52,6 +52,7 @@ return [
                 'existing_contact' => 'A kontakt már létezik, a meglévő adat érintetlen.',
             ],
             'limit' => [
+                'encoding' => 'A fájl kódolása nem támogatott (UTF-16 vagy NUL-bájt) — mentsd UTF-8 vagy Windows-1250 CSV-ként.',
                 'timeout' => 'A fájl felmérése túllépte az időkeretet — töltsd fel kisebb fájlt.',
                 'line' => 'A fájlban egy sor túl hosszú.',
                 'size' => 'A fájl túl nagy.',

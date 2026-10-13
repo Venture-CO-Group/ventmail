@@ -62,11 +62,21 @@ return [
         'xlsx_max_nodes_before_data' => (int) env('AUDIENCE_IMPORT_XLSX_MAX_NODES_BEFORE_DATA', 2_000_000),
         // A többi, az openspout által TELJESEN beolvasott XML-rész (sharedStrings, styles, workbook…)
         // csomópont-plafonja: a sharedStrings legfeljebb ennyi, a többi (meta) kevesebb.
-        'xlsx_max_part_nodes' => (int) env('AUDIENCE_IMPORT_XLSX_MAX_PART_NODES', 20_000_000),
+        'xlsx_max_part_nodes' => (int) env('AUDIENCE_IMPORT_XLSX_MAX_PART_NODES', 8_000_000),
         'xlsx_max_meta_nodes' => (int) env('AUDIENCE_IMPORT_XLSX_MAX_META_NODES', 1_000_000),
-        // A háttér-felmérés időkerete (a job `$timeout`-ja 60 mp; ez ALATT van, hogy a belső
-        // ellenőrzések még a worker-kill előtt tiszta hibát adjanak).
+        // A háttér-felmérés belső időkerete. FIGYELEM: az openspout XML-előtöltése (a
+        // sharedStrings teljes beolvasása) közben ez a keret NEM érvényesül (nincs hova ellenőrizni);
+        // a VALÓS határ a job 60 mp-es timeoutja (worker-kill → `failed()` → takarítás), és a
+        // csomópont-plafonok, amelyek a drága fájlt a kérésben, olcsón elutasítják.
         'inspect_job_budget_seconds' => (int) env('AUDIENCE_IMPORT_INSPECT_JOB_BUDGET', 50),
+        // A felmérés-sor ELLENŐRZÉSEI (D71): egyidejű felmérések plafonja workspace-enként,
+        // tulajdonosonként (user) és globálisan; a „foglalt” válasz a queue-mélység
+        // védelme (a várakozó felmérések száma nem nőhet korlátlanul). A számláló TTL-je a
+        // lemaradt (elveszett) job maradványát takarítja.
+        'inspect_max_per_workspace' => (int) env('AUDIENCE_IMPORT_INSPECT_MAX_WS', 1),
+        'inspect_max_per_user' => (int) env('AUDIENCE_IMPORT_INSPECT_MAX_USER', 1),
+        'inspect_max_global' => (int) env('AUDIENCE_IMPORT_INSPECT_MAX_GLOBAL', 8),
+        'inspect_gate_ttl_seconds' => (int) env('AUDIENCE_IMPORT_INSPECT_GATE_TTL', 600),
         'xlsx_max_entries' => (int) env('AUDIENCE_IMPORT_XLSX_MAX_ENTRIES', 500),
         'manual_max_rows' => (int) env('AUDIENCE_IMPORT_MANUAL_MAX_ROWS', 20_000),
         // Egy fizikai sor (és egy CSV-rekord egy olvasása) legfeljebb ennyi bájt: sor-határ nélkül

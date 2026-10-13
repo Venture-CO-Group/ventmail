@@ -49,6 +49,7 @@ return [
                 'existing_contact' => 'Le contact existe déjà, les données existantes restent inchangées.',
             ],
             'limit' => [
+                'encoding' => 'L’encodage du fichier n’est pas pris en charge (UTF-16 ou octets NUL) — enregistrez-le en CSV UTF-8 ou Windows-1250.',
                 'timeout' => 'L’analyse du fichier a dépassé le délai — envoyez un fichier plus petit.',
                 'line' => 'Une ligne du fichier est trop longue.',
                 'size' => 'Le fichier est trop volumineux.',

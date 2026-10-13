@@ -82,7 +82,7 @@ export async function writeBigCsv(path: string, rows: number, prefix: string): P
 export function startImportWorker(): ChildProcess {
     return spawn(
         'php',
-        ['-d', 'memory_limit=512M', 'artisan', 'queue:work', 'database', '--queue=imports', '--tries=1', '--timeout=3600', '--sleep=1'],
+        ['-d', 'memory_limit=512M', 'artisan', 'queue:work', 'database', '--queue=imports,imports-inspect', '--tries=1', '--timeout=3600', '--sleep=1'],
         {
             cwd: process.cwd(),
             // A worker belső (nem import) jobjai szinkron futnak; a cache `array`, mint a webszervernél

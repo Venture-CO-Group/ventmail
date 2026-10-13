@@ -89,7 +89,7 @@ final class XlsxRowReader implements ImportRowReader
                 ? $value->format('Y-m-d')
                 : $value->format('Y-m-d H:i:s'),
             is_float($value) => $this->number($value),
-            is_scalar($value) => trim((string) $value),
+            is_scalar($value) => trim((string) preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', '', (string) $value)),
             default => '',
         };
     }

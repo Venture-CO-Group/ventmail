@@ -52,6 +52,7 @@ return [
                 'existing_contact' => 'El contacto ya existe, los datos existentes no se modifican.',
             ],
             'limit' => [
+                'encoding' => 'La codificación del archivo no es compatible (UTF-16 o bytes NUL) — guárdalo como CSV UTF-8 o Windows-1250.',
                 'timeout' => 'El análisis del archivo superó el tiempo límite — sube un archivo más pequeño.',
                 'line' => 'Una línea del archivo es demasiado larga.',
                 'size' => 'El archivo es demasiado grande.',
