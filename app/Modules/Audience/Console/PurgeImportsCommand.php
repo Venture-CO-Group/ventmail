@@ -37,8 +37,11 @@ final class PurgeImportsCommand extends Command
         $reports = 0;
         $cutoff = now()->subDays((int) config('audience.import.retention_days'));
 
+        /** @var array<string, true> $active a futó importok uuid-jai */
+        $active = [];
+
         try {
-            Workspace::query()->withTrashed()->orderBy('id')->chunkById(100, function ($workspaces) use ($context, $uploads, $cutoff, &$drafts, &$reports): void {
+            Workspace::query()->withTrashed()->orderBy('id')->chunkById(100, function ($workspaces) use ($context, $uploads, $cutoff, &$drafts, &$reports, &$active): void {
                 foreach ($workspaces as $workspace) {
                     $context->set($workspace);
 
@@ -91,13 +94,22 @@ final class PurgeImportsCommand extends Command
                         });
 
                     $this->sweepOrphans($uploads, (int) $workspace->id, $cutoff);
+
+                    // A FUTÓ importok ideiglenes könyvtára nem söpörhető (review N3): egy hosszú
+                    // feldolgozás egy órán át nem feltétlenül ír új fájlt a saját temp-könyvtárába.
+                    // A fenti söprés UTÁN gyűjtjük — az elakadt (törölt) felmérés már nincs a listán.
+                    foreach (ContactImport::query()
+                        ->whereIn('status', [ContactImport::STATUS_INSPECTING, ContactImport::STATUS_PREVIEWING, ContactImport::STATUS_PROCESSING])
+                        ->pluck('uuid') as $uuid) {
+                        $active[(string) $uuid] = true;
+                    }
                 }
             });
         } finally {
             $context->forget();
         }
 
-        $this->sweepTemp($uploads);
+        $this->sweepTemp($uploads, $active);
 
         $this->info("Törölve — félbehagyott import: {$drafts}, lejárt hibariport: {$reports}");
 
@@ -133,11 +145,16 @@ final class PurgeImportsCommand extends Command
      * Az `import-tmp/{uuid}` ideiglenes könyvtárak (openspout előtöltő) söprése: az 1 óránál régebbi
      * maradék (OOM-ban megszakadt felmérés) törlődik. Globális könyvtár, nem workspace-hez kötött.
      */
-    private function sweepTemp(ImportUploads $uploads): void
+    /** @param  array<string, true>  $active  a futó importok uuid-jai — ezek könyvtára érintetlen */
+    private function sweepTemp(ImportUploads $uploads, array $active): void
     {
         $disk = $uploads->disk();
 
         foreach ($disk->directories('import-tmp') as $directory) {
+            if (isset($active[basename($directory)])) {
+                continue;
+            }
+
             $newest = 0;
 
             foreach ($disk->allFiles($directory) as $file) {

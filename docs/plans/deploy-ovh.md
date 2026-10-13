@@ -103,8 +103,22 @@
     Wasabi Object Lock csak ha be van állítva (HUMAN-QUEUE: backup-cél). Restore-teszt mindkettőre.
 11. **Rate limit kezdetben**: domain-csoportonként a `SENDING_THROTTLE_*` (Gmail 100, Microsoft 60,
     Yahoo 60, egyéb 60/perc); a tx IP napi kerete 500, a mk-é 0 (`ventmail:ip-pools:sync`).
-12. **Resource limitek**: Postgres 6g · app 2g · worker 2g · Redis 1.25g · MariaDB 2g ·
-    Postal worker 1.5g/pool · Postal web/smtp 768m · edge 256m — egy elszálló worker nem viheti el az MTA-t.
+12. **Resource limitek**: Postgres 6g · app 2g · worker 2g · **worker-imports 3g** · scheduler 512m ·
+    web 256m · Redis 1.25g · MariaDB 2g · Postal worker 1.5g/pool · Postal web/smtp 768m · edge 256m —
+    egy elszálló worker nem viheti el az MTA-t.
+    **Memória-költségvetés (frissítve 2026-10-13, v1.1 import-izoláció után):**
+    - Egy szín (`compose.prod.yml`): app 2g + worker 2g + worker-imports 3g + scheduler 0.5g + web 0.25g
+      = **7.75g**. A blue/green váltás alatt a régi és az új szín együtt fut: **+7.75g** a váltás idejére
+      (a review „+6g” becslése a scheduler/web nélkül számolt). A migrációhoz egyszer futó `ops` +1g.
+    - Közös (színfüggetlen): Postgres 6g, Redis 1.25g, MariaDB 2g, Postal worker 2 × 1.5g, Postal
+      web/smtp, edge 0.25g.
+    - A box (mail-ovh-01): **31 GB RAM, ~28 GB szabad — mérve 2026-10-13.** A limitek PLAFONOK, nem
+      foglalás: a tényleges csúcs a váltás alatt jóval a limitösszeg alatt van, de a limitösszeg a
+      váltás pillanatában megközelíti a box méretét — új szolgáltatás vagy limitemelés előtt ezt a
+      költségvetést újra kell számolni.
+    - A Horizon-környezetek (review B5): a `worker` (`production`) csak sending + background +
+      campaign-start, a `worker-imports` (`imports`) csak imports + imports-inspect supervisort indít —
+      a `config/horizon.php` `defaults`-a ezért üres (a Horizon minden környezetbe beolvasztaná).
 13. **Merge**: a CLAUDE.md „PR-only, auto-merge soha” és a hook a `main`-re pusht tilt; a prompt
     kifejezetten merge-et kér. Megoldás: PR → teljes CI zöld → `gh pr merge --merge` (merge-commit,
     = `--no-ff`) a tulajdonos promptbeli utasítására; nincs GitHub auto-merge és nincs direkt push.

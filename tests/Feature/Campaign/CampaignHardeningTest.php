@@ -323,14 +323,14 @@ it('BN1 · a materializáló job saját kapcsolaton fut: retry_after > a job tim
         ->and(config('queue.connections.redis_campaign_start.retry_after'))->toBeGreaterThanOrEqual($job->timeout + 60)
         ->and(config('queue.connections.redis_campaign_start.queue'))->toBe('campaign-start');
 
-    $supervisor = config('horizon.defaults.campaign-start');
+    $supervisor = config('horizon.environments.production.campaign-start');
 
     expect($supervisor['connection'])->toBe('redis_campaign_start')
         ->and($supervisor['queue'])->toBe(['campaign-start'])
         ->and($supervisor['timeout'])->toBeGreaterThanOrEqual($job->timeout)
         ->and($supervisor['timeout'])->toBeLessThan(config('queue.connections.redis_campaign_start.retry_after'))
         // A KÜLDŐ supervisor nem fogyasztja: egy 15 perces materializálás nem foglal küldő-workert.
-        ->and(config('horizon.defaults.sending.queue'))->not->toContain('campaign-start');
+        ->and(config('horizon.environments.production.sending.queue'))->not->toContain('campaign-start');
 
     foreach (['production', 'local', 'testing'] as $env) {
         expect(config("horizon.environments.{$env}"))->toHaveKey('campaign-start');

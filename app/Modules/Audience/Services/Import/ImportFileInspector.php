@@ -405,6 +405,8 @@ final class ImportFileInspector
             $rows = 0;
             $sixthRowNodes = null;
             $carry = '';
+            // A DTD-keresés farka: a `<!DOCTYPE` / `<!ENTITY` chunkhatáron kettévágva is megfogott.
+            $declTail = '';
 
             try {
                 while (! feof($stream)) {
@@ -420,6 +422,17 @@ final class ImportFileInspector
                     if ($entry > $declared || $total > $ceiling) {
                         throw new ImportLimitExceeded('zip');
                     }
+
+                    // DTD / ENTITÁS-deklaráció (review N2, mélységi védelem): egy XLSX-részben soha nem
+                    // legitim, és az XML-olvasók entitás-kezelésére épülő támadások (XXE, „billion
+                    // laughs") belépési pontja. MINDEN bejegyzésben, kis-nagybetűtől függetlenül.
+                    $scan = $declTail.$chunk;
+
+                    if (stripos($scan, '<!DOCTYPE') !== false || stripos($scan, '<!ENTITY') !== false) {
+                        throw new ImportLimitExceeded('format');
+                    }
+
+                    $declTail = substr($scan, -8);
 
                     if ($isSheet) {
                         // CSOMÓPONT-SZÁMLÁLÁS: a `<` jelek száma olcsó (másodperc törtrésze 200 MB-on),

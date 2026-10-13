@@ -29,6 +29,8 @@ uses(RefreshDatabase::class);
 function r5Zip(array $entries): string
 {
     $path = sys_get_temp_dir().'/vm-r5-'.uniqid().'.xlsx';
+    // A TAKARÍTÁSHOZ (review N4): az `afterEach` törli a teszt által írt fájlokat.
+    r5Files($path);
     $zip = new ZipArchive;
     $zip->open($path, ZipArchive::CREATE);
 
@@ -39,6 +41,20 @@ function r5Zip(array $entries): string
     $zip->close();
 
     return $path;
+}
+
+/** @return list<string> a teszt által írt ideiglenes fájlok (hozzáadás `$path`-szal, ürítés `null`-lal) */
+function r5Files(?string $path = null, bool $reset = false): array
+{
+    static $files = [];
+
+    if ($reset) {
+        $files = [];
+    } elseif ($path !== null) {
+        $files[] = $path;
+    }
+
+    return $files;
 }
 
 function r5Base(array $extra): array
@@ -52,6 +68,7 @@ function r5Base(array $extra): array
 }
 
 beforeEach(function () {
+    r5Files(reset: true);
     Storage::fake('local');
     $this->ws = Workspace::factory()->create();
     $this->user = User::create([
@@ -59,6 +76,14 @@ beforeEach(function () {
         'email' => 'r5-'.uniqid().'@pelda.hu', 'locale' => 'hu',
     ]);
     $this->ws->members()->create(['user_id' => $this->user->getKey(), 'roles' => ['owner']]);
+});
+
+afterEach(function () {
+    foreach (r5Files() as $path) {
+        @unlink($path);
+    }
+
+    r5Files(reset: true);
 });
 
 /* ---------------------------------------------------------------- B4 (a) bájt-plafon */
@@ -229,4 +254,58 @@ it('a köteg állapota tartalmazza az updatedAt-et (az elakadt felmérés üzene
     $this->actingAs($this->user)->withSession(['workspace_uuid' => $this->ws->uuid])
         ->get("/audience/import/{$import->uuid}")
         ->assertInertia(fn ($page) => $page->where('import.status', 'inspecting')->has('import.updatedAt'));
+});
+
+/* ---------------------------------------------------------------- 6. kör: N2, N3, N4 */
+
+it('N2 · DOCTYPE vagy ENTITY deklaráció bármely bejegyzésben formátum-hiba (mélységi védelem)', function (string $entry, string $xml) {
+    // `array_merge`, nem `+`: a munkalap-bejegyzést FELÜL kell írni (az `r5Base` uniója megtartaná az alapot).
+    $path = r5Zip(array_merge(r5Base([]), [$entry => $xml]));
+
+    expect(fn () => app(ImportFileInspector::class)->guard($path, 'xlsx'))
+        ->toThrow(fn (ImportLimitExceeded $e) => expect($e->reason)->toBe('format'));
+})->with([
+    'munkalap DOCTYPE' => ['xl/worksheets/sheet1.xml', '<?xml version="1.0"?><!DOCTYPE x [<!ENTITY a "b">]><worksheet><sheetData/></worksheet>'],
+    'sharedStrings ENTITY' => ['xl/sharedStrings.xml', '<sst><!ENTITY a SYSTEM "file:///etc/passwd"><si><t>x</t></si></sst>'],
+    'kisbetűs doctype' => ['xl/styles.xml', '<!doctype styleSheet><styleSheet/>'],
+]);
+
+it('N2 · a chunkhatáron kettévágott DOCTYPE is megfogott', function () {
+    // A 65 536 bájtos olvasási egység határán: `<!DOC` az első, `TYPE` a második chunkban.
+    $padding = '<x>'.str_repeat('a', 65536 - 3 - 5).'</x>';
+    $xml = substr($padding, 0, 65536 - 5).'<!DOCTYPE z><styleSheet/>';
+
+    expect(substr($xml, 65536 - 5, 5))->toBe('<!DOC');
+
+    $path = r5Zip(r5Base(['xl/styles.xml' => $xml]));
+
+    expect(fn () => app(ImportFileInspector::class)->guard($path, 'xlsx'))->toThrow(ImportLimitExceeded::class);
+});
+
+it('N3 · a purge a FUTÓ (processing / inspecting / previewing) import ideiglenes könyvtárát nem söpri, akkor sem, ha régi', function () {
+    $uploads = app(ImportUploads::class);
+    $context = app(WorkspaceContext::class);
+
+    $running = $context->runFor($this->ws, fn () => ContactImport::create(['source_type' => 'xlsx', 'status' => 'processing', 'profile' => []]));
+    $done = $context->runFor($this->ws, fn () => ContactImport::create(['source_type' => 'xlsx', 'status' => 'completed', 'profile' => []]));
+
+    foreach ([(string) $running->uuid, (string) $done->uuid, 'arva'] as $uuid) {
+        $dir = $uploads->tempDir($uuid);
+        file_put_contents($dir.'/f', 'x');
+        touch($dir.'/f', now()->subHours(3)->timestamp);
+        touch($dir, now()->subHours(3)->timestamp);
+    }
+
+    $this->artisan('audience:purge-imports')->assertSuccessful();
+
+    expect(Storage::disk('local')->exists('import-tmp/'.$running->uuid))->toBeTrue()
+        ->and(Storage::disk('local')->exists('import-tmp/'.$done->uuid))->toBeFalse()
+        ->and(Storage::disk('local')->exists('import-tmp/arva'))->toBeFalse();
+});
+
+it('N4 · a teszt-zipek az afterEach-ben törlődnek', function () {
+    $path = r5Zip(r5Base([]));
+
+    expect(is_file($path))->toBeTrue()
+        ->and(r5Files())->toContain($path);
 });

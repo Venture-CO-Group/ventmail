@@ -65,9 +65,10 @@ it('a telített campaign sor mellett a transactional megy ki ELŐBB', function (
 
 it('a worker-konfiguráció a prioritási sorrendet hordozza', function () {
     // Ha valaki a Horizon-configban átrendezi a sorokat, a kód-szintű prioritás semmit nem ér.
-    $queues = config('horizon.defaults.sending.queue');
-
-    expect($queues)->toBe(SendQueue::priorityOrder());
+    // A küldő supervisor minden környezetben, ahol fut, ugyanezt a sorrendet hordozza.
+    foreach (['production', 'local', 'testing'] as $env) {
+        expect(config("horizon.environments.{$env}.sending.queue"))->toBe(SendQueue::priorityOrder());
+    }
 });
 
 it('a visszalépés exponenciális és van felső korlátja', function () {

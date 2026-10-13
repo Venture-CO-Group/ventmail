@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Laravel\Horizon\ProvisioningPlan;
 use Symfony\Component\Yaml\Yaml;
 
 /*
@@ -225,9 +226,26 @@ it('az import külön worker-konténerben fut (saját limit), és az entrypoint/
     expect($entrypoint)->toContain('worker-imports)')->toContain('horizon --environment=imports')
         ->and($health)->toContain('worker-imports)');
 
-    // A küldő Horizon (production környezet) NEM indítja az import supervisorokat.
-    expect(array_keys(config('horizon.environments.production')))->toBe(['sending', 'background', 'campaign-start'])
-        ->and(array_keys(config('horizon.environments.imports')))->toBe(['imports', 'imports-inspect']);
+    // A TÉNYLEGESEN INDULÓ supervisorok (review B5): a Horizon a `defaults`-ot MINDEN környezetbe
+    // beolvasztja (`array_replace_recursive`), ezért nem a config kulcsait, hanem a
+    // `ProvisioningPlan` kimenetét nézzük. A küldő Horizon (production) NEM indít import
+    // supervisort, az import-konténer (`imports`) pedig küldő / háttér / kampány-indító supervisort.
+    $plan = (new ProvisioningPlan('teszt', config('horizon.environments'), config('horizon.defaults')))->toSupervisorOptions();
+    $started = fn (string $env): array => collect($plan[$env])->keys()->sort()->values()->all();
+
+    expect($started('production'))->toBe(['background', 'campaign-start', 'sending'])
+        ->and($started('imports'))->toBe(['imports', 'imports-inspect'])
+        // A fejlesztői és a teszt-környezet egyetlen Horizonon mind az öt supervisort futtatja.
+        ->and($started('local'))->toBe(['background', 'campaign-start', 'imports', 'imports-inspect', 'sending'])
+        ->and($started('testing'))->toBe(['background', 'campaign-start', 'imports', 'imports-inspect', 'sending']);
+
+    // A felülírt értékek a ténylegesen induló supervisoron is érvényesek (nem csak a configban).
+    expect($plan['production']['sending']->maxProcesses)->toBe(20)
+        ->and($plan['production']['sending']->timeout)->toBe(120)
+        ->and($plan['imports']['imports']->timeout)->toBe(3600)
+        ->and($plan['imports']['imports']->connection)->toBe('redis_imports')
+        ->and($plan['imports']['imports-inspect']->timeout)->toBe(60)
+        ->and($plan['production']['campaign-start']->timeout)->toBe(900);
 });
 
 it('a php.ini kivétel-trace-e nem tartalmaz függvény-argumentumot', function () {

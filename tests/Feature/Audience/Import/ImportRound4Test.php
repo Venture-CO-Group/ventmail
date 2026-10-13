@@ -98,7 +98,7 @@ it('a felmérés külön queue-n fut, és van hozzá Horizon supervisor', functi
 
     expect($job->queue)->toBe('imports-inspect');
 
-    $supervisors = config('horizon.defaults');
+    $supervisors = config('horizon.environments.imports');
 
     expect($supervisors)->toHaveKey('imports-inspect')
         ->and($supervisors['imports-inspect']['queue'])->toBe(['imports-inspect'])
