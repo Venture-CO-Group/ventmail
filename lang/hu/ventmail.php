@@ -137,6 +137,7 @@ return [
         'notActive' => 'A journey nem aktív.',
         'testRunTooExpensive' => 'A teszt-futtatás túl költséges lett — egyszerűsítsd a feltételeket, és próbáld újra.',
         'webhookForbidden' => 'Webhook-végpontot csak webhook-kezelési joggal lehet kiválasztani.',
+        'triggerUnavailable' => 'Ez a trigger még nincs bekötve (hamarosan) — a journey sosem indulna, ezért nem aktiválható.',
     ],
     'gate' => [
         'domain_unverified' => 'A küldő domain nincs hitelesítve.',

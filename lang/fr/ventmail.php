@@ -134,6 +134,7 @@ return [
         'notActive' => "Le parcours n'est pas actif.",
         'testRunTooExpensive' => "L'exécution de test est devenue trop coûteuse — simplifiez les conditions et réessayez.",
         'webhookForbidden' => 'Seuls les utilisateurs pouvant gérer les webhooks peuvent choisir un point de terminaison.',
+        'triggerUnavailable' => "Ce déclencheur n'est pas encore branché (bientôt) — le parcours ne démarrerait jamais, il ne peut donc pas être activé.",
     ],
     'gate' => [
         'domain_unverified' => 'Le domaine d\'envoi n\'est pas vérifié.',

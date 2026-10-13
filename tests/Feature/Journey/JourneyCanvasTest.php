@@ -34,6 +34,7 @@ use App\Modules\Journey\Services\JourneyTrigger;
 use App\Modules\Journey\Services\JourneyWaitWaker;
 use App\Modules\Sending\Drivers\FakeDriver;
 use App\Modules\Sending\Models\Message;
+use App\Modules\Suppression\Models\Suppression;
 use App\Modules\Template\Models\Template;
 use App\Modules\Template\Services\TemplateUsage;
 use App\Modules\Tenancy\Models\Workspace;
@@ -43,6 +44,7 @@ use App\Modules\Webhooks\Models\WebhookDelivery;
 use App\Modules\Webhooks\Models\WebhookEndpoint;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
@@ -829,27 +831,44 @@ it('a nem-uuid sablon-hivatkozás 422-es hiba, nem 500 (m5-r5 S1)', function () 
     }
 });
 
-it('a TESZT-FUTTATÁS a szerzőnek csak az utat mutatja, és pszeudonim azonosítót auditál (SEC-S1)', function () {
-    canvasContact('anna@pelda.hu', confirmed: false);
-    [$nodes, $edges] = welcomeGraph((string) $this->template->uuid);
-    $journey = canvasJourney($nodes, $edges);
+it('a TESZT-FUTTATÁS a szerzőnek 403 — igaz és hamis kontaktra BÁJTRA azonos válasz (review 2, B1)', function () {
+    $vip = ContactTag::create(['name' => 'vip']);
+    $igaz = canvasContact('igaz@pelda.hu');
+    $igaz->tags()->attach($vip->getKey());
+    canvasContact('hamis@pelda.hu', confirmed: false);
+
+    $journey = canvasJourney([
+        cnode('t', 'api_event', ['event' => 'x']),
+        cnode('c', 'condition', ['type' => 'has_tag', 'tag' => (string) $vip->uuid], 100),
+        cnode('yes', 'wait', ['minutes' => 60], 200),
+        cnode('no', 'exit', [], 200),
+    ], [cedge('t', 'c'), cedge('c', 'yes', 'yes'), cedge('c', 'no', 'no')]);
     $session = ['workspace_uuid' => $this->workspace->uuid];
+    $author = canvasUser($this->workspace, Role::Author->value);
 
-    $author = $this->actingAs(canvasUser($this->workspace, Role::Author->value))->withSession($session)
-        ->postJson('/journeys/'.$journey->uuid.'/test-run', ['email' => 'anna@pelda.hu'])->assertOk()->json();
+    $bodies = [];
 
-    expect($author['redacted'])->toBeTrue()
-        ->and(array_column($author['steps'], 'outcome'))->toBe(['entered', 'visited', 'waited', 'exit'])
-        ->and(array_filter(array_column($author['steps'], 'detail'), fn ($detail) => $detail !== null && ! is_numeric($detail)))->toBe([]);
+    foreach (['igaz@pelda.hu', 'hamis@pelda.hu', 'nincs@pelda.hu'] as $email) {
+        $response = $this->actingAs($author)->withSession($session)
+            ->postJson('/journeys/'.$journey->uuid.'/test-run', ['email' => $email])
+            ->assertForbidden();
 
-    $editor = $this->actingAs(canvasUser($this->workspace, Role::Editor->value))->withSession($session)
-        ->postJson('/journeys/'.$journey->uuid.'/test-run', ['email' => 'anna@pelda.hu'])->assertOk()->json();
+        $bodies[] = $response->getContent();
+    }
 
-    expect($editor['redacted'])->toBeFalse()
-        ->and($editor['steps'][1]['detail'])->toBe('NO_CONSENT');
+    expect(array_unique($bodies))->toHaveCount(1)
+        ->and(AuditLog::query()->where('action', 'journey.test_run')->count())->toBe(0);
+
+    // A közönséget látó szerep a részleteket kapja — és az ág valóban különbözik.
+    $editor = canvasUser($this->workspace, Role::Editor->value);
+    $igazUt = $this->actingAs($editor)->withSession($session)->postJson('/journeys/'.$journey->uuid.'/test-run', ['email' => 'igaz@pelda.hu'])->assertOk()->json();
+    $hamisUt = $this->actingAs($editor)->withSession($session)->postJson('/journeys/'.$journey->uuid.'/test-run', ['email' => 'hamis@pelda.hu'])->assertOk()->json();
+
+    expect($igazUt['steps'][2]['node'])->toBe('yes')
+        ->and($hamisUt['steps'][2]['node'])->toBe('no');
 
     $audit = AuditLog::query()->where('action', 'journey.test_run')->latest('id')->firstOrFail();
-    expect($audit->context['contact_hash'] ?? null)->toBe(KeyedHash::of('email', 'anna@pelda.hu'));
+    expect($audit->context['contact_hash'] ?? null)->toBe(KeyedHash::of('email', 'hamis@pelda.hu'));
 });
 
 it('a TESZT-FUTTATÁS feltétel-plafonnal fut, és semmit nem ír (SEC-S1 / N3)', function () {
@@ -1084,4 +1103,134 @@ it('a szüneteltetés csak aktív journey-n megy, sor-zár alatt (N6)', function
         ->assertStatus(409);
 
     expect(AuditLog::query()->where('action', 'journey.paused')->exists())->toBeFalse();
+});
+
+/*
+ | REVIEW 2
+ */
+
+it('a felhasználó és a workspace kemény törlése nem ütközik a verzió megváltoztathatatlanságával (review 2, S1)', function () {
+    [$nodes, $edges] = welcomeGraph((string) $this->template->uuid);
+    $journey = canvasJourney($nodes, $edges);
+    $user = canvasUser($this->workspace);
+    $version = app(JourneyPublisher::class)->publish($journey, $user);
+
+    $user->delete();
+    expect($version->fresh()->published_by)->toBeNull();
+
+    DB::table('journey_steps')->where('journey_version_id', $version->getKey())->where('node_key', 'send')->delete();
+    expect($version->fresh()->entry_step_id)->toBeNull();
+
+    $workspaceId = $this->workspace->getKey();
+    app(WorkspaceContext::class)->forget();
+    DB::table('workspaces')->where('id', $workspaceId)->delete();
+
+    expect(DB::table('journey_versions')->where('workspace_id', $workspaceId)->count())->toBe(0);
+});
+
+it('a régi lánc bekötetlen triggerrel nem aktiválható (review 2, S3)', function () {
+    $journey = Journey::create(['name' => 'Régi címkés', 'trigger_type' => 'tag_added']);
+    $exit = JourneyStep::create(['journey_id' => $journey->getKey(), 'type' => 'exit', 'config' => [], 'position' => 0]);
+    $journey->forceFill(['first_step_id' => $exit->getKey()])->save();
+
+    $this->actingAs(canvasUser($this->workspace))->withSession(['workspace_uuid' => $this->workspace->uuid])
+        ->from('/journeys')
+        ->post('/journeys/'.$journey->uuid.'/activate')
+        ->assertSessionHas('error');
+
+    expect($journey->fresh()->status)->toBe('draft');
+});
+
+it('a szerző a vászon-journey-t sem aktiválhatja a régi útvonalon (review 2, N6)', function () {
+    [$nodes, $edges] = welcomeGraph((string) $this->template->uuid);
+    $journey = canvasJourney($nodes, $edges);
+
+    $this->actingAs(canvasUser($this->workspace, Role::Author->value))->withSession(['workspace_uuid' => $this->workspace->uuid])
+        ->post('/journeys/'.$journey->uuid.'/activate')
+        ->assertForbidden();
+
+    expect($journey->fresh()->status)->toBe('draft');
+});
+
+it('az ébresztés tenant-határon belül marad, és csak az eseményre várót ébreszti (review 2, N1 / N6)', function () {
+    canvasContact('anna@pelda.hu');
+    $esemeny = canvasJourney([
+        cnode('t', 'api_event', ['event' => 'x']),
+        cnode('w', 'wait', ['mode' => 'event', 'event' => 'opened', 'timeout_minutes' => 1440], 100),
+    ], [cedge('t', 'w')], 'Eseményre vár');
+    $ido = canvasJourney([
+        cnode('t', 'api_event', ['event' => 'x']),
+        cnode('w', 'wait', ['minutes' => 1440], 100),
+    ], [cedge('t', 'w')], 'Időre vár');
+    app(JourneyPublisher::class)->publish($esemeny);
+    app(JourneyPublisher::class)->publish($ido);
+
+    foreach (app(JourneyTrigger::class)->fire(TriggerType::ApiEvent, 'anna@pelda.hu', ['event' => 'x']) as $run) {
+        app(JourneyEngine::class)->tick($run);
+    }
+
+    // UGYANAZ a cím egy MÁSIK workspace-ben, eseményre várva.
+    $idegen = Workspace::factory()->create();
+    $idegenRun = app(WorkspaceContext::class)->runFor($idegen, function () {
+        Domain::create(['name' => 'pelda.hu', 'status' => 'verified', 'verified_at' => now()]);
+        canvasContact('anna@pelda.hu');
+        $journey = canvasJourney([
+            cnode('t', 'api_event', ['event' => 'x']),
+            cnode('w', 'wait', ['mode' => 'event', 'event' => 'opened', 'timeout_minutes' => 1440], 100),
+        ], [cedge('t', 'w')], 'Idegen');
+        app(JourneyPublisher::class)->publish($journey);
+        $run = app(JourneyTrigger::class)->fire(TriggerType::ApiEvent, 'anna@pelda.hu', ['event' => 'x'])[0];
+        app(JourneyEngine::class)->tick($run);
+
+        return $run;
+    });
+
+    expect(app(JourneyWaitWaker::class)->wake('anna@pelda.hu'))->toBe(1);
+
+    $resume = fn (Journey $journey) => JourneyRun::query()->where('journey_id', $journey->getKey())->firstOrFail()->resume_at;
+    expect($resume($esemeny)->isFuture())->toBeFalse()
+        ->and($resume($ido)->isFuture())->toBeTrue()
+        ->and(app(WorkspaceContext::class)->runFor($idegen, fn () => $idegenRun->fresh()->resume_at->isFuture()))->toBeTrue();
+});
+
+it('a lista-tagság a suppressiont viselő kontaktnál no-op (review 2, N6)', function () {
+    $contact = canvasContact('anna@pelda.hu');
+    $list = ContactList::create(['name' => 'Hírlevél']);
+    $journey = canvasJourney([
+        cnode('t', 'api_event', ['event' => 'x']),
+        cnode('l', 'list_membership', ['operation' => 'add', 'list' => (string) $list->uuid], 100),
+    ], [cedge('t', 'l')]);
+    app(JourneyPublisher::class)->publish($journey);
+    $run = app(JourneyTrigger::class)->fire(TriggerType::ApiEvent, 'anna@pelda.hu', ['event' => 'x'])[0];
+
+    // A belépés UTÁN jön a suppression (a belépés kapuja már átengedte), a lépés előtt.
+    Suppression::create(['email' => 'anna@pelda.hu', 'reason' => 'manual', 'applies_to' => 'marketing']);
+    $method = new ReflectionMethod(JourneyEngine::class, 'applyListMembership');
+
+    expect($method->invoke(app(JourneyEngine::class), $run->fresh(), $list, false))->toBe('skipped_unsubscribed')
+        ->and(membershipStatus($contact, $list))->toBeNull();
+});
+
+it('az évforduló a workspace időzónájában számít, és a 02-29 nem szökőévben 02-28-án jön (review 2, N6)', function () {
+    $this->workspace->forceFill(['settings' => ['timezone' => 'Pacific/Kiritimati']])->save();
+    ContactField::create(['key' => 'szuletes', 'label' => 'Születés', 'type' => 'date']);
+
+    $szokonapos = canvasContact('szoko@pelda.hu');
+    $szokonapos->setAttribute('attributes', ['szuletes' => '2000-02-29']);
+    $szokonapos->save();
+
+    $journey = canvasJourney([
+        cnode('t', 'date_anniversary', ['field' => 'szuletes']),
+        cnode('e', 'exit', [], 100),
+    ], [cedge('t', 'e')]);
+    app(JourneyPublisher::class)->publish($journey);
+
+    // UTC 2027-02-27 12:00 = Kiritimati (UTC+14) 2027-02-28 02:00 — nem szökőév.
+    $this->travelTo(Carbon::parse('2027-02-27 12:00:00', 'UTC'));
+
+    app(WorkspaceContext::class)->forget();
+    $this->artisan('journeys:detect-dates')->assertSuccessful();
+    app(WorkspaceContext::class)->set($this->workspace);
+
+    expect(JourneyRun::query()->where('journey_id', $journey->getKey())->count())->toBe(1);
 });

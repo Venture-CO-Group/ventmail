@@ -1838,10 +1838,8 @@
                 "skipped_test_mode": "webhook — kihagyva (teszt-mód)",
                 "goal": "cél elérve — a futás sikerrel zárul",
                 "exit": "kilépés",
-                "end": "a lánc vége",
-                "visited": "érintett lépés"
-            },
-            "redacted": "Csak az út látszik: a kapu-okokhoz és a feltétel-részletekhez közönség-kezelési jog kell."
+                "end": "a lánc vége"
+            }
         },
         "validation": {
             "summary": "{errors} hiba · {warnings} figyelmeztetés",

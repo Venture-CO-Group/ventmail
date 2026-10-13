@@ -1838,10 +1838,8 @@
                 "skipped_test_mode": "webhook — omitido (modo prueba)",
                 "goal": "objetivo alcanzado — el recorrido termina",
                 "exit": "salida",
-                "end": "fin de la ruta",
-                "visited": "paso recorrido"
-            },
-            "redacted": "Solo la ruta: los motivos y detalles de condiciones requieren permiso de gestión de audiencia."
+                "end": "fin de la ruta"
+            }
         },
         "validation": {
             "summary": "{errors} errores · {warnings} avisos",

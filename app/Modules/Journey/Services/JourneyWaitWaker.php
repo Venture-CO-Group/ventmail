@@ -31,7 +31,8 @@ final class JourneyWaitWaker
         return JourneyRun::query()
             ->where('email_hash', KeyedHash::of('email', $email))
             ->where('status', 'waiting')
-            ->whereRaw("jsonb_exists(context, '_wait')")
+            // CSAK az ESEMÉNYRE váró futás (review 2, N1): az időalapú várakozást nem rövidítjük.
+            ->whereRaw("context->'_wait'->>'event' = 'true'")
             ->where('resume_at', '>', now())
             ->update(['resume_at' => now()]);
     }

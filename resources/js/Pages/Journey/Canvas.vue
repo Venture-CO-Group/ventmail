@@ -54,7 +54,7 @@ const props = defineProps<{
     issues: Issue[];
     stats: { available: boolean; nodes: Record<string, NodeStat> };
     versions: Array<{ number: number; publishedAt: string | null }>;
-    can: { publish: boolean; webhooks: boolean; testRunDetails: boolean };
+    can: { publish: boolean; webhooks: boolean; testRun: boolean };
 }>();
 
 const { t } = useI18n();
@@ -378,10 +378,20 @@ async function pause(): Promise<void> {
         notice.value = { tone: 'info', text: response.data.message };
     } catch (error) {
         notice.value = { tone: 'danger', text: failure(error) };
+
+        // 409: a journey közben már nem aktív (másik lap / másik felhasználó) — a friss állapot jön.
+        if ((error as AxiosError).response?.status === 409) router.reload({ only: ['journey'] });
     } finally {
         busy.value = '';
     }
 }
+
+watch(
+    () => props.journey.status,
+    (value) => {
+        status.value = value;
+    },
+);
 
 async function testRun(): Promise<void> {
     if (!testEmail.value.trim()) return;
@@ -461,7 +471,7 @@ function issueText(issue: Issue): string {
                 </div>
 
                 <div class="vm-jc-top__actions">
-                    <form class="vm-jc-top__test" @submit.prevent="testRun">
+                    <form v-if="can.testRun" class="vm-jc-top__test" @submit.prevent="testRun">
                         <VtInput v-model="testEmail" type="email" size="sm" :placeholder="t('journeyCanvas.test.placeholder')" :aria-label="t('journeyCanvas.test.contact')" data-testid="test-run-email" />
                         <VtButton type="submit" variant="ghost" size="sm" :loading="busy === 'test'" :disabled="!testEmail.trim()" data-testid="test-run"><VmIcon name="send" /> {{ t('journeyCanvas.actions.testRun') }}</VtButton>
                     </form>

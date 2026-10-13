@@ -88,7 +88,7 @@ final class JourneyCanvasController
             'can' => [
                 'publish' => Gate::allows('journey.publish'),
                 'webhooks' => Gate::allows('webhook.manage'),
-                'testRunDetails' => Gate::allows('audience.manage'),
+                'testRun' => Gate::allows('audience.manage'),
             ],
         ]);
     }
@@ -229,7 +229,14 @@ final class JourneyCanvasController
      */
     public function testRun(Request $request, string $uuid, JourneySimulator $simulator, AuditLogger $audit): JsonResponse
     {
+        /*
+         | A TESZT-FUTTATÁS `audience.manage` (review 2, B1 — D159). Az út maga is orákulum: a
+         | feltétel utáni csomópont elárulja az igaz / hamis eredményt (címke, mező, szegmens,
+         | nyitás), a „nincs ilyen kontakt" a létezést. Ezért a szerző (aki a közönséget nem
+         | látja) nem kap kontakt-alapú választ — sem részleteset, sem „csak utat".
+         */
         Gate::authorize('campaign.create');
+        Gate::authorize('audience.manage');
 
         $validated = $request->validate([
             'email' => ['required', 'string', 'email', 'max:254'],
@@ -244,12 +251,9 @@ final class JourneyCanvasController
             return response()->json(['message' => $e->getMessage()], 422);
         }
 
-        // A RÉSZLETEK (kapu-ok, feltétel-kimenet) csak a közönséget amúgy is látó szerepnek
-        // (review SEC-S1); a szerző az utat látja. A lekérdezések QueryBudget alatt futnak.
-        $detailed = Gate::allows('audience.manage');
-
+        // A lekérdezések QueryBudget alatt futnak (review SEC-S3).
         try {
-            $result = app(QueryBudget::class)->run(fn () => $simulator->run($graph, (string) $validated['email'], $detailed), self::TEST_RUN_BUDGET_MS);
+            $result = app(QueryBudget::class)->run(fn () => $simulator->run($graph, (string) $validated['email']), self::TEST_RUN_BUDGET_MS);
         } catch (QueryTooExpensive) {
             return response()->json(['message' => __('ventmail.journeys.testRunTooExpensive')], 422);
         }
@@ -258,7 +262,6 @@ final class JourneyCanvasController
             // A KONTAKT pszeudonim azonosítója (review SEC-S1): visszakereshető, ki kit tesztelt,
             // nyers cím nélkül.
             'contact_hash' => KeyedHash::of('email', DomainNormalizer::listKey(trim((string) $validated['email']))),
-            'detailed' => $detailed,
             'steps' => count($result['steps']),
             'would_send' => $result['sends'],
             'stopped' => $result['stopped'],

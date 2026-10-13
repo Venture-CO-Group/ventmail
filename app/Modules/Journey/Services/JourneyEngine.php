@@ -434,7 +434,8 @@ final class JourneyEngine
             $minutes = min(self::MAX_WAIT_MINUTES, max(1, (int) ($event ? ($config['timeout_minutes'] ?? 0) : ($config['minutes'] ?? 60))));
             $until = now()->addMinutes($minutes);
 
-            $context['_wait'] = ['step' => (int) $step->getKey(), 'since' => now()->toIso8601String(), 'until' => $until->toIso8601String()];
+            // Az `event` jelző az ébresztőnek szól (review 2, N1): csak az ESEMÉNYRE váró futás ébred.
+            $context['_wait'] = ['step' => (int) $step->getKey(), 'event' => $event, 'since' => now()->toIso8601String(), 'until' => $until->toIso8601String()];
 
             $run->forceFill([
                 'context' => $context,
@@ -662,7 +663,8 @@ final class JourneyEngine
             ->get()
             ->contains(fn (Suppression $row) => $row->isActive());
 
-        if ((string) $contact->status === 'unsubscribed' || $suppressed) {
+        // A `cleaned` (visszapattant / érvénytelen) cím is no-op (review 2, N3).
+        if (in_array((string) $contact->status, ['unsubscribed', 'cleaned'], true) || $suppressed) {
             return 'skipped_unsubscribed';
         }
 
@@ -671,10 +673,19 @@ final class JourneyEngine
             ->where('channel', Channel::Journey->consentScope())
             ->exists();
 
-        $contact->lists()->attach($list->getKey(), [
-            'status' => $consented ? 'subscribed' : 'pending',
-            'subscribed_at' => $consented ? now() : null,
-        ]);
+        /*
+         | PÁRHUZAMOS BESZÚRÁS (review 2, N2): a hiányzó sort a zár nem védi, tehát egy másik
+         | journey ugyanabban a pillanatban beszúrhatja. A beszúrás SAVEPOINT-ban fut (beágyazott
+         | tranzakció): az egyedi-kulcs ütközés így csak azt görgeti vissza, és a kimenet „változatlan".
+         */
+        try {
+            DB::transaction(fn () => $contact->lists()->attach($list->getKey(), [
+                'status' => $consented ? 'subscribed' : 'pending',
+                'subscribed_at' => $consented ? now() : null,
+            ]));
+        } catch (UniqueConstraintViolationException) {
+            return 'unchanged';
+        }
 
         return $consented ? 'added_subscribed' : 'added_pending';
     }

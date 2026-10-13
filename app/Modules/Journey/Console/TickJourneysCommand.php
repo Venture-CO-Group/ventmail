@@ -63,6 +63,11 @@ final class TickJourneysCommand extends Command
          | A WORKSPACE-SORREND FORGÓ (review REV-S3): a büdzsé lejártakor a következő tick a
          | megszakított workspace UTÁNI tenanttal kezd, nem újra a legkisebb id-vel — különben
          | a nagy id-jű tenantok egy terhelt időszakban soha nem jutnának sorra.
+         |
+         | A `chunk()` OFFSET-alapú (a forgó sorrend nem keyset-barát) — review 2, N4: ha egy tick
+         | közben workspace jön létre vagy törlődik, egy tenant kimaradhat vagy kétszer jöhet
+         | sorra. Ez ártalmatlan: a kimaradt a következő percben jön, a dupla léptetést pedig a
+         | lépés-szintű idempotencia (`journey_run_steps` egyedi kulcs) nyeli el.
          */
         $cursor = (int) Cache::get(self::CURSOR_KEY, 0);
         $interruptedAt = null;

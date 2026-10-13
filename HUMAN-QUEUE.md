@@ -48,6 +48,8 @@
       journey-t szüneteltetni kell (`journeys.current_version_id is not null and status = 'active'`
       → `paused`), és a futó gráf-futásokat ellenőrizni (`journey_runs.journey_version_id is not null`).
       Az előre-telepítés után folytatható (publikálás változatlan gráffal = folytatás).
+      A CÉL: visszaállás után a régi kód a journey-szintű célt olvassa, amit az új publikáló már nem
+      frissít (a cél a verzióban él) — a vásznon publikált journey-k célja a régi kódon nem érvényesül.
 - [ ] **Bekötetlen journey-triggerek döntése:** `tag_added`, `tag_removed`, `field_changed` — a forrásnak
       ma nincs egykontaktos hívója (a címkézés tömeges `TagOperations`, a mezők importból jönnek). A
       vásznon „hamarosan", a validátor nem engedi publikálni. Döntés: tüzeljen-e tömeges műveletből

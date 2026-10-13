@@ -1838,10 +1838,8 @@
                 "skipped_test_mode": "webhook — ignoré (mode test)",
                 "goal": "objectif atteint — le parcours se termine",
                 "exit": "sortie",
-                "end": "fin du chemin",
-                "visited": "étape parcourue"
-            },
-            "redacted": "Chemin uniquement : les motifs et détails des conditions exigent le droit de gérer l'audience."
+                "end": "fin du chemin"
+            }
         },
         "validation": {
             "summary": "{errors} erreurs · {warnings} avertissements",

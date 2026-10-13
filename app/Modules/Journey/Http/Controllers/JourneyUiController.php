@@ -127,6 +127,12 @@ final class JourneyUiController
             $locked = Journey::query()->whereKey($journey->getKey())->lockForUpdate()->firstOrFail();
             $locked->load('steps');
 
+            // A BEKÖTETLEN trigger (review 2, S3 — D152 a régi láncra is): a journey sosem
+            // tüzelne, tehát az aktiválás csak hamis biztonságot adna.
+            if (in_array((string) $locked->trigger_type, NodeCatalog::UNAVAILABLE_TRIGGERS, true)) {
+                return __('ventmail.journeys.triggerUnavailable');
+            }
+
             try {
                 $validator->validateChain($locked);
                 $validator->validateGoal($locked);

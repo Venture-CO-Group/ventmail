@@ -71,7 +71,6 @@ export interface TestRunStep {
 export interface TestRunResult {
     contact: string;
     found: boolean;
-    redacted: boolean;
     steps: TestRunStep[];
     sends: number;
     realSends: number;

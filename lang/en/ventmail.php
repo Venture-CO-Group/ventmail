@@ -148,6 +148,7 @@ return [
         'notActive' => 'The journey is not active.',
         'testRunTooExpensive' => 'The test run became too expensive — simplify the conditions and try again.',
         'webhookForbidden' => 'Only users who can manage webhooks may choose a webhook endpoint.',
+        'triggerUnavailable' => 'This trigger is not wired yet (coming soon) — the journey would never start, so it cannot be activated.',
     ],
     'gate' => [
         'domain_unverified' => 'The sending domain is not verified.',

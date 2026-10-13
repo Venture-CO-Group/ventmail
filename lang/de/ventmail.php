@@ -137,6 +137,7 @@ return [
         'notActive' => 'Die Journey ist nicht aktiv.',
         'testRunTooExpensive' => 'Der Testlauf wurde zu aufwendig – vereinfache die Bedingungen und versuche es erneut.',
         'webhookForbidden' => 'Nur Nutzer mit Webhook-Verwaltungsrecht dürfen einen Webhook-Endpunkt wählen.',
+        'triggerUnavailable' => 'Dieser Auslöser ist noch nicht angebunden (bald) – die Journey würde nie starten und kann daher nicht aktiviert werden.',
     ],
     'gate' => [
         'domain_unverified' => 'Die Absenderdomain ist nicht verifiziert.',

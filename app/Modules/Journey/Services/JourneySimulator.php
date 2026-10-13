@@ -57,13 +57,12 @@ final class JourneySimulator
     public function __construct(private readonly JourneyConditions $conditions) {}
 
     /**
+     * A hívó jogosultsága a kontroller dolga: a teszt-futtatás `audience.manage`-hez kötött
+     * (D159), mert a kimenete a kontakt adatainak (consent, suppression, címke, mező) orákuluma.
+     *
      * @return array{contact: string, found: bool, steps: list<array<string, mixed>>, sends: int, realSends: int, simulatedMinutes: int, stopped: ?string}
      */
-    /**
-     * @param  bool  $detailed  a kapu-okok és a feltétel-kimenetek láthatók-e (review SEC-S1:
-     *                          `audience.manage` nélkül csak az út — a csomópontok sorrendje)
-     */
-    public function run(JourneyGraph $graph, string $email, bool $detailed = true): array
+    public function run(JourneyGraph $graph, string $email): array
     {
         $this->conditionsEvaluated = 0;
         $this->segmentsEvaluated = 0;
@@ -75,13 +74,12 @@ final class JourneySimulator
         $sends = 0;
 
         // REFERENCIÁVAL: az eredmény a lezáráskori állapotot adja, nem a definíciókorit.
-        $result = function (?string $stopped) use ($email, $contact, $detailed, &$steps, &$sends, &$clock): array {
+        $result = function (?string $stopped) use ($email, $contact, &$steps, &$sends, &$clock): array {
             return [
                 'contact' => $email,
                 'found' => $contact !== null,
-                'redacted' => ! $detailed,
-                'steps' => $detailed ? $steps : array_map(self::redact(...), $steps),
-                'sends' => $detailed ? $sends : 0,
+                'steps' => $steps,
+                'sends' => $sends,
                 // A VALÓDI küldések száma — mindig nulla; a felület ezt írja ki.
                 'realSends' => 0,
                 'simulatedMinutes' => $clock,
@@ -255,26 +253,6 @@ final class JourneySimulator
         }
 
         return $this->conditions->evaluate($config, $email, $contact);
-    }
-
-    /**
-     * CSAK AZ ÚT (review SEC-S1): a csomópont és az idő marad, a kapu-ok, a feltétel-kimenet és
-     * az ág neve nem — a teszt-futtatás ne legyen a kontakt-adatok (suppression, consent,
-     * nyitás, címke, mezőérték) orákuluma annak, aki a közönséget amúgy nem láthatja.
-     *
-     * @param  array<string, mixed>  $step
-     * @return array<string, mixed>
-     */
-    private static function redact(array $step): array
-    {
-        $keep = ['entered', 'goal', 'exit', 'end', 'waited'];
-
-        return [
-            ...$step,
-            'outcome' => in_array($step['outcome'], $keep, true) ? $step['outcome'] : 'visited',
-            'detail' => null,
-            'handle' => null,
-        ];
     }
 
     /** @return array<string, mixed> */

@@ -137,6 +137,7 @@ return [
         'notActive' => 'El recorrido no está activo.',
         'testRunTooExpensive' => 'La ejecución de prueba resultó demasiado costosa: simplifica las condiciones e inténtalo de nuevo.',
         'webhookForbidden' => 'Solo quien puede gestionar webhooks puede elegir un endpoint de webhook.',
+        'triggerUnavailable' => 'Este disparador aún no está conectado (próximamente): el recorrido nunca empezaría, así que no se puede activar.',
     ],
     'gate' => [
         'domain_unverified' => 'El dominio de envío no está verificado.',

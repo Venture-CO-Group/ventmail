@@ -1838,10 +1838,8 @@
                 "skipped_test_mode": "webhook — saltato (modalità test)",
                 "goal": "obiettivo raggiunto — il percorso si conclude",
                 "exit": "uscita",
-                "end": "fine del percorso",
-                "visited": "passo attraversato"
-            },
-            "redacted": "Solo il percorso: motivi e dettagli delle condizioni richiedono il diritto di gestire il pubblico."
+                "end": "fine del percorso"
+            }
         },
         "validation": {
             "summary": "{errors} errori · {warnings} avvisi",

@@ -1838,10 +1838,8 @@
                 "skipped_test_mode": "webhook — skipped (test mode)",
                 "goal": "goal reached — the run completes",
                 "exit": "exit",
-                "end": "end of path",
-                "visited": "step visited"
-            },
-            "redacted": "Path only: gate reasons and condition details require audience management rights."
+                "end": "end of path"
+            }
         },
         "validation": {
             "summary": "{errors} errors · {warnings} warnings",

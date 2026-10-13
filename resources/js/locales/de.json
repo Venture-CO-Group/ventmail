@@ -1838,10 +1838,8 @@
                 "skipped_test_mode": "Webhook — übersprungen (Testmodus)",
                 "goal": "Ziel erreicht — der Lauf endet erfolgreich",
                 "exit": "Ausstieg",
-                "end": "Ende des Pfads",
-                "visited": "Schritt durchlaufen"
-            },
-            "redacted": "Nur der Pfad: Gründe und Bedingungsdetails erfordern das Recht zur Zielgruppenverwaltung."
+                "end": "Ende des Pfads"
+            }
         },
         "validation": {
             "summary": "{errors} Fehler · {warnings} Warnungen",
