@@ -23,9 +23,13 @@ use Illuminate\Support\Facades\Schema;
  |    felhasználó GDPR-/operátori törlése) és `entry_step_id` → NULL (a lépés törlése, pl. a
  |    workspace kemény törlésének kaszkádjában). Enélkül a trigger ezeket a törléseket
  |    elbuktatná. A NULL nem új tartalom, csak a hivatkozott sor eltűnése.
+ |    SZŰKÍTVE (m6-review3 N2, D271): a NULL-átmenet CSAK FK-kaszkádban engedett — az RI-akció a
+ |    trigger-t beágyazva futtatja, tehát `pg_trigger_depth() > 1`. Egy közvetlen UPDATE (mélység 1)
+ |    nem NULL-ozhat; az `entry_step_id` NULL → érték csak az első rögzítés (`old` NULL).
  |
- | 3. BACKFILL (review 2, S2): a már meglévő verziók a journey-szintű célt kapják, a trigger
- |    létrehozása ELŐTT. (A migráció nem került élesre: helyben bővítve — D161.)
+ | 3. BACKFILL (review 2, S2; m6-review3 N1): MINDEN meglévő verzió (nem csak az aktuális) a
+ |    journey-szintű célt kapja, a trigger létrehozása ELŐTT. (A migráció nem került élesre: helyben
+ |    bővítve — D161; a már lefutott helyi/staging adatbázison `migrate:fresh` kell.)
  */
 return new class extends Migration
 {
@@ -41,7 +45,7 @@ return new class extends Migration
                set goal_type = j.goal_type,
                    goal_config = case when j.goal_type is null then null else j.goal_config end
               from journeys j
-             where j.current_version_id = v.id
+             where v.journey_id = j.id
                and v.goal_type is null
         SQL);
 
@@ -55,12 +59,13 @@ return new class extends Migration
                    or new.number is distinct from old.number
                    or new.graph is distinct from old.graph
                    or new.graph_hash is distinct from old.graph_hash
-                   or (new.published_by is distinct from old.published_by and new.published_by is not null)
+                   or (new.published_by is distinct from old.published_by
+                       and (new.published_by is not null or pg_trigger_depth() <= 1))
                    or new.published_at is distinct from old.published_at
                    or new.goal_type is distinct from old.goal_type
                    or new.goal_config is distinct from old.goal_config
                    or (old.entry_step_id is not null and new.entry_step_id is distinct from old.entry_step_id
-                       and new.entry_step_id is not null) then
+                       and (new.entry_step_id is not null or pg_trigger_depth() <= 1)) then
                     raise exception 'A publikált journey-verzió megváltoztathatatlan (verzió: %)', old.id
                         using errcode = 'check_violation';
                 end if;

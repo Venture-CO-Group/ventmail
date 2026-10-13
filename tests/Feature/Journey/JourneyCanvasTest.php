@@ -1234,3 +1234,46 @@ it('az évforduló a workspace időzónájában számít, és a 02-29 nem szök�
 
     expect(JourneyRun::query()->where('journey_id', $journey->getKey())->count())->toBe(1);
 });
+
+/*
+ | ZÁRÓ POLÍROZÁS (m6-review3)
+ */
+
+it('N2/N3(m6r3) · a NULL-átmenet CSAK FK-kaszkádban engedett: közvetlen UPDATE-tel (és kombinálva) hiba', function () {
+    [$nodes, $edges] = welcomeGraph((string) $this->template->uuid);
+    $user = canvasUser($this->workspace);
+    $version = app(JourneyPublisher::class)->publish(canvasJourney($nodes, $edges), $user);
+
+    expect($version->fresh()->published_by)->not->toBeNull()
+        ->and($version->fresh()->entry_step_id)->not->toBeNull();
+
+    // Minden próba SAVEPOINT-ban (beágyazott tranzakció): a trigger hibája a teszt tranzakcióját nem
+    // szakítja meg. Közvetlen (nem kaszkád) NULL-ozás: a kaszkád-kivétel nem használható kiskapunak.
+    expect(fn () => DB::transaction(fn () => DB::table('journey_versions')->where('id', $version->getKey())->update(['published_by' => null])))
+        ->toThrow(QueryException::class);
+
+    expect(fn () => DB::transaction(fn () => DB::table('journey_versions')->where('id', $version->getKey())->update(['entry_step_id' => null])))
+        ->toThrow(QueryException::class);
+
+    // Kombinált: a NULL-ozás mellé csempészett tartalom-módosítás.
+    expect(fn () => DB::transaction(fn () => DB::table('journey_versions')->where('id', $version->getKey())->update(['published_by' => null, 'graph_hash' => 'x'])))
+        ->toThrow(QueryException::class);
+
+    expect($version->fresh()->graph_hash)->not->toBe('x');
+});
+
+it('N4(m6r3) · a szerzőnél (audience.manage nélkül) a vászon `can.testRun` hamis; a tulajdonosnál igaz', function () {
+    [$nodes, $edges] = welcomeGraph((string) $this->template->uuid);
+    $journey = canvasJourney($nodes, $edges);
+    $session = ['workspace_uuid' => $this->workspace->uuid];
+
+    $this->actingAs(canvasUser($this->workspace, Role::Author->value))->withSession($session)
+        ->get('/journeys/'.$journey->uuid)
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page->where('can.testRun', false));
+
+    $this->actingAs(canvasUser($this->workspace))->withSession($session)
+        ->get('/journeys/'.$journey->uuid)
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page->where('can.testRun', true));
+});
