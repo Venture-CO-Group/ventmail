@@ -42,11 +42,8 @@ final class IsolatedXlsxRowReader implements ImportRowReader
     /** A stderr-ből legfeljebb ennyi bájtot tartunk meg (csak a puffer ürítéséhez, nem naplózzuk). */
     private const STDERR_CAP = 8192;
 
-    /**
-     * Egy NDJSON-sor felső mérete (review r11 N2): 100 oszlop × 2000 karakter, JSON-escape-pel is jóval
-     * alatta. Ennél hosszabb, újsor nélküli kimenet nem a protokoll — erőforrás-hiba.
-     */
-    private const MAX_LINE_BYTES = 4 * 1024 * 1024;
+    /** Egy NDJSON-sor ALSÓ plafonja (lásd `maxLineBytes()`). */
+    private const MIN_LINE_BYTES = 4 * 1024 * 1024;
 
     /** A gyerek környezetéből CSAK ezek öröklődnek (review r11 S1): titok (APP_KEY, DB_*, …) soha. */
     private const ENV_PASSTHROUGH = ['PHPRC', 'PHP_INI_SCAN_DIR', 'TMPDIR', 'TMP', 'TEMP'];
@@ -111,6 +108,7 @@ final class IsolatedXlsxRowReader implements ImportRowReader
         // A kimenetel a naplózáshoz (review r11 N1): `null` = a hívó korán leállt (break) — a saját
         // SIGKILL-ünk nem rendellenes kilépés; `died` = a gyerek magától halt meg; `timeout` = mi öltük meg.
         $outcome = null;
+        $maxLine = self::maxLineBytes();
 
         try {
             while (true) {
@@ -160,7 +158,7 @@ final class IsolatedXlsxRowReader implements ImportRowReader
                 }
 
                 // Újsor nélküli, túl hosszú kimenet: nem a protokoll (review r11 N2).
-                if (strlen($buffer) > self::MAX_LINE_BYTES) {
+                if (strlen($buffer) > $maxLine) {
                     $outcome = 'died';
 
                     throw new ImportLimitExceeded('resources');
@@ -229,6 +227,17 @@ final class IsolatedXlsxRowReader implements ImportRowReader
         $probe = json_decode(trim($output), true);
 
         return is_array($probe['probe'] ?? null) ? $probe['probe'] : ['env' => [], 'fds' => []];
+    }
+
+    /**
+     * Egy NDJSON-sor felső mérete (review r11 N2 → polish, D275): a leghosszabb legitim sor a
+     * konfigurált `max_columns × max_cell_length` karakter, JSON-escape-pel legfeljebb ~6 bájt
+     * karakterenként (`\uXXXX`) — de legalább 4 MB. Ennél hosszabb, újsor nélküli kimenet nem a
+     * protokoll: erőforrás-hiba.
+     */
+    private static function maxLineBytes(): int
+    {
+        return max(self::MIN_LINE_BYTES, (int) config('audience.import.max_columns') * (int) config('audience.import.max_cell_length') * 6);
     }
 
     /** @return array<string, string> */

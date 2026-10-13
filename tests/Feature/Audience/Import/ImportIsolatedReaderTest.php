@@ -262,9 +262,11 @@ it('S1(r11) · a szülő nyitott fd-i (socket, fájl) NEM jutnak a gyerekhez —
 it('S2(r11) · árva gyerek: ha a szülő eltűnik (a cső zárva), a gyerek az első sikertelen írásnál kilép (exit 4)', function () {
     $reader = new IsolatedXlsxRowReader(isoMany(), 'Sok', sys_get_temp_dir(), 30);
     $command = (new ReflectionMethod($reader, 'command'))->invoke($reader);
+    // Ugyanaz a MINIMÁLIS környezet, amivel az olvasó indítja (polish N4).
+    $environment = (new ReflectionMethod(IsolatedXlsxRowReader::class, 'childEnvironment'))->invoke(null);
 
     $pipes = [];
-    $process = proc_open($command, [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+    $process = proc_open($command, [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes, null, $environment);
     fclose($pipes[0]);
     // A „szülő" eltűnik: a kimenetet egyáltalán nem olvassa, a cső olvasó végét lezárja.
     fclose($pipes[1]);
@@ -303,4 +305,16 @@ it('N2(r11) · újsor nélküli, 4 MB-nál hosszabb gyerek-kimenet erőforrás-h
 
     expect(fn () => isoRows((new IsolatedXlsxRowReader(isoLegit(), null, sys_get_temp_dir(), 30))->rows()))
         ->toThrow(fn (ImportLimitExceeded $e) => expect($e->reason)->toBe('resources'));
+});
+
+it('polish · az NDJSON-sorplafon a konfigurációból jön (max_columns × max_cell × 6), legalább 4 MB', function () {
+    $max = new ReflectionMethod(IsolatedXlsxRowReader::class, 'maxLineBytes');
+
+    config()->set('audience.import.max_columns', 100);
+    config()->set('audience.import.max_cell_length', 2000);
+    expect($max->invoke(null))->toBe(4 * 1024 * 1024);
+
+    config()->set('audience.import.max_columns', 500);
+    config()->set('audience.import.max_cell_length', 10_000);
+    expect($max->invoke(null))->toBe(500 * 10_000 * 6);
 });

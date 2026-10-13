@@ -117,8 +117,10 @@
       master (`-d memory_limit=512M`, a valóságban ~50 MB) és a 2 supervisor (~50 MB-onként). Minden
       workernek legfeljebb EGY izolált XLSX-olvasó gyereke fut (D220): címtér-limit **448 MB**
       (`AUDIENCE_IMPORT_XLSX_CHILD_AS_MB`, Linuxon `ulimit -v`; a libxml memóriája is ebbe számít),
-      `memory_limit` 256 MB, CPU-idő `ulimit -t` (a keret + 10 mp). Legrosszabb eset: 4 × 256 MB +
-      ~150 MB + 4 × 448 MB ≈ **2,97 GB < 3 GiB**. A mért gyerek-csúcs (~495 MB, review r11) így a
+      `memory_limit` 256 MiB, CPU-idő `ulimit -t` (a keret + 10 mp). Legrosszabb eset: 4 × 256 MiB +
+      ~150 MiB (BECSLÉS: master + 2 supervisor) + 4 × 448 MiB = **2966 MiB ≈ 2,90 GiB < 3 GiB (3072 MiB,
+      a compose `mem_limit: 3g`)**. A `DeployArtifactsTest` a `memory_limit`-et a `docker/php/php.ini`-ből,
+      a `mem_limit`-et a `deploy/compose.prod.yml`-ből olvassa. A mért gyerek-csúcs (~495 MB, review r11) így a
       GYEREKET állítja meg (`resources` elutasítás), nem a konténert — a cgroup OOM-killer nem viheti
       el a supervisorokat. Az image buildje igazolja, hogy a `ulimit -v` elfogadott ÉS érvényesül
       (Dockerfile, D222/D260). A gyerek minimális környezetet kap (titok nélkül) és a szülő fd-ijét
