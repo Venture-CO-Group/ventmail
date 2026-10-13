@@ -71,6 +71,9 @@ function r4In($test, Closure $c): mixed
 it('a `.bin` / nagybetűs kiterjesztésű sharedStrings- és munkalap-áradatot is megfogja a guard', function (string $name) {
     config()->set('audience.import.xlsx_max_meta_nodes', 1000);
     config()->set('audience.import.xlsx_max_part_nodes', 1000);
+    // A `worksheets/sheet1.bin` a rels szerint a MUNKALAP (review r8 S1: szerep, nem név) — rá a
+    // munkalap-plafon (az első adatsor előtti csomópontok) vonatkozik.
+    config()->set('audience.import.xlsx_max_nodes_before_data', 1000);
 
     $path = r4Zip(r4Base([$name => '<sst>'.str_repeat('<si/>', 20_000).'</sst>']));
 

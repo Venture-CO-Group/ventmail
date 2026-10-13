@@ -163,3 +163,59 @@ it('N2(r7) · a valós Excel-szerű fájl (téma, nyomtatóbeállítás, Power P
     expect($profile['sheets'])->toBe(['Kontaktok'])
         ->and($profile['records'])->toBeGreaterThanOrEqual(2);
 });
+
+/* ---------------------------------------------------------------- 8. kör: B1 (External), S1 (szerep), N1 (activeX) */
+
+const R8_STYLES = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles';
+
+/** A review próbájának tartalma: UTF-16LE + BOM, DTD belső entitásokkal. */
+function r8Payload(string $root): string
+{
+    return "\xFF\xFE".mb_convert_encoding('<?xml version="1.0" encoding="UTF-16"?><!DOCTYPE '.$root.' [<!ENTITY a "x">]><'.$root.'>&a;</'.$root.'>', 'UTF-16LE', 'UTF-8');
+}
+
+it('B1(r8) · a TargetMode="External" típusos cél (sharedStrings / styles) sem mutathat bináris helyre', function (string $type, string $root) {
+    $rels = '<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="'.$type.'" Target="media/p.xml" TargetMode="External"/></Relationships>';
+
+    r7Rejects(r7Zip(r7Book($rels, ['xl/media/p.xml' => r8Payload($root)])));
+})->with([
+    'sharedStrings' => [R7_SHARED, 'sst'],
+    'styles' => [R8_STYLES, 'styleSheet'],
+]);
+
+it('B1(r8) · a TargetMode="External" munkalap-cél is létező, nem bináris bejegyzés kell legyen', function () {
+    $rels = '<Relationships><Relationship Id="rId1" Target="media/p.xml" TargetMode="External"/></Relationships>';
+
+    r7Rejects(r7Zip(r7Book($rels, ['xl/media/p.xml' => r8Payload('worksheet')])));
+});
+
+it('B1(r8) · egyéb külső hivatkozásnál csak a létezés marad ki — a bináris-tilalom nem', function () {
+    $rels = '<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/><Relationship Id="rId3" Type="urn:egyeb" Target="media/x.png" TargetMode="External"/></Relationships>';
+
+    r7Rejects(r7Zip(r7Book($rels, ['xl/media/x.png' => "\x89PNG\r\n\x1a\n"])));
+});
+
+it('S1(r8) · a sharedStrings / styles nem lehet munkalap-cél, és nem élhet az xl/worksheets/ alatt', function (string $rels) {
+    r7Rejects(r7Zip(r7Book($rels, ['xl/worksheets/ss.xml' => '<sst><si><t>x</t></si></sst>'])));
+})->with([
+    'worksheets/ alatt' => ['<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="'.R7_SHARED.'" Target="worksheets/ss.xml"/></Relationships>'],
+    'munkalap-célként is' => ['<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="'.R8_STYLES.'" Target="worksheets/sheet1.xml"/></Relationships>'],
+]);
+
+it('S1(r8) · a plafonokat a FELOLDOTT szerep választja, nem a bejegyzés neve (átnevezett sharedStrings)', function () {
+    config()->set('audience.import.max_cell_length', 100);
+
+    // A sharedStrings neve nem tartalmazza a „sharedstrings" szót — a szövegcsomópont-plafon mégis érvényes.
+    $rels = '<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="'.R7_SHARED.'" Target="strings.xml"/></Relationships>';
+    $path = r7Zip(r7Book($rels, ['xl/strings.xml' => '<sst><si><t>'.str_repeat('a', 5000).'</t></si></sst>']));
+
+    r7Rejects($path, 'zip');
+});
+
+it('N1(r8) · az xl/activeX/*.bin bináris; az activeX*.xml szövegrész ellenőrzött marad', function () {
+    $legit = r7Zip(r7Book(null, ['xl/activeX/activeX1.bin' => "\xD0\xCF\x11\xE0".str_repeat("\0", 64)]));
+
+    expect(fn () => app(ImportFileInspector::class)->guard($legit, 'xlsx'))->not->toThrow(ImportLimitExceeded::class);
+
+    r7Rejects(r7Zip(r7Book(null, ['xl/activeX/activeX1.xml' => r8Payload('ax:ocx')])));
+});

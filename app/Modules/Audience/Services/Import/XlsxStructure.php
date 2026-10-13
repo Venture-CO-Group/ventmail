@@ -51,13 +51,14 @@ final class XlsxStructure
 
     /**
      * Az ismert BINÁRIS helyek (kis-nagybetűtől függetlenül): kép, nyomtatóbeállítás, beágyazott
-     * objektum, Power Pivot modell, miniatűr. Ezek mentesek az XML-ellenőrzés alól — XML-ként a
+     * objektum, Power Pivot modell, ActiveX bináris (`xl/activeX/*.bin` — az `activeX*.xml` szövegrész
+     * ellenőrzött marad), miniatűr. Ezek mentesek az XML-ellenőrzés alól — XML-ként a
      * munkafüzet NEM hivatkozhat rájuk (lásd `ImportFileInspector::assertStructure()`).
      */
     public static function isBinaryPart(string $name): bool
     {
         return (bool) preg_match(
-            '#^(xl/media/|xl/printersettings/|xl/embeddings/|xl/model/item\.data$|docprops/thumbnail\.)#',
+            '#^(xl/media/|xl/printersettings/|xl/embeddings/|xl/model/item\.data$|xl/activex/[^/]*\.bin$|docprops/thumbnail\.)#',
             strtolower(ltrim($name, '/')),
         );
     }

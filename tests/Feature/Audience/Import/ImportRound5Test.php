@@ -57,6 +57,19 @@ function r5Files(?string $path = null, bool $reset = false): array
     return $files;
 }
 
+/**
+ * Munkafüzet, amelynek a `workbook.xml.rels`-e VALÓBAN hivatkozza a sharedStrings-et (review r8 S1: a
+ * plafont a feloldott szerep választja — a nem hivatkozott, csak „sharedStrings" nevű bejegyzést az
+ * openspout nem is olvassa, az a szigorúbb meta-plafont kapja).
+ */
+function r5WithShared(string $sst): array
+{
+    return array_merge(r5Base([]), [
+        'xl/_rels/workbook.xml.rels' => '<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings" Target="sharedStrings.xml"/></Relationships>',
+        'xl/sharedStrings.xml' => $sst,
+    ]);
+}
+
 function r5Base(array $extra): array
 {
     return [
@@ -92,7 +105,7 @@ it('a bájt-nehéz, kevés `<`-t tartalmazó sharedStrings a bájt-plafonon elbu
     config()->set('audience.import.xlsx_max_shared_strings_bytes', 100_000);
 
     // 3 csomópont, de 300 KB szöveg — a csomópont-plafon nem fogná meg.
-    $path = r5Zip(r5Base(['xl/sharedStrings.xml' => '<sst><si><t>'.str_repeat('a ', 150_000).'</t></si></sst>']));
+    $path = r5Zip(r5WithShared('<sst><si><t>'.str_repeat('a ', 150_000).'</t></si></sst>'));
 
     expect(fn () => app(ImportFileInspector::class)->guard($path, 'xlsx'))->toThrow(ImportLimitExceeded::class);
 });
@@ -108,7 +121,7 @@ it('a többi nem-munkalap bejegyzésnek kisebb bájt-plafonja van', function () 
 it('a leghosszabb `<`-mentes szakasz (szövegcsomópont) 4 × a cella-hossz plafon', function () {
     config()->set('audience.import.max_cell_length', 100);
 
-    $path = r5Zip(r5Base(['xl/sharedStrings.xml' => '<sst><si><t>'.str_repeat('b', 5000).'</t></si></sst>']));
+    $path = r5Zip(r5WithShared('<sst><si><t>'.str_repeat('b', 5000).'</t></si></sst>'));
 
     expect(fn () => app(ImportFileInspector::class)->guard($path, 'xlsx'))->toThrow(ImportLimitExceeded::class);
 });
@@ -117,7 +130,7 @@ it('a hosszú szövegcsomópont a chunkhatáron átnyúlva is megfogott', functi
     config()->set('audience.import.max_cell_length', 10_000);
 
     // 100 KB-nyi `<`-mentes szöveg: több 64 KB-os chunkon át.
-    $path = r5Zip(r5Base(['xl/sharedStrings.xml' => '<sst><si><t>'.str_repeat('c', 100_000).'</t></si></sst>']));
+    $path = r5Zip(r5WithShared('<sst><si><t>'.str_repeat('c', 100_000).'</t></si></sst>'));
 
     expect(fn () => app(ImportFileInspector::class)->guard($path, 'xlsx'))->toThrow(ImportLimitExceeded::class);
 });
