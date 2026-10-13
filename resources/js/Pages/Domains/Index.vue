@@ -428,8 +428,4 @@ onBeforeUnmount(() => {
     overflow-wrap: anywhere;
     word-break: break-all;
 }
-
-.vm-link {
-    color: var(--vt-color-accent-400);
-}
 </style>

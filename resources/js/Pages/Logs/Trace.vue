@@ -5,6 +5,7 @@ import VmCard from '../../Components/Form/VmCard.vue';
 import AppLayout from '../../Layouts/AppLayout.vue';
 import { useI18n } from 'vue-i18n';
 import { useFormat } from '../../composables/useFormat';
+import { useCodes } from '../../composables/useCodes';
 
 /**
  * ÜZENET-TRACE (A3 · 23. kritérium) — a „miért nem érkezett meg?" képernyője.
@@ -44,6 +45,7 @@ const props = defineProps<{ trace: Trace }>();
 
 const { t, te } = useI18n({ useScope: 'global' });
 const format = useFormat();
+const code = useCodes();
 
 type GateRow = { gate: string; result: string; detail: string };
 
@@ -55,8 +57,8 @@ const gateColumns = (): VtColumn<GateRow>[] => [
 
 const gateRows = (): GateRow[] =>
     Object.entries(props.trace.gate.gates ?? {}).map(([name, result]) => ({
-        gate: name,
-        result: result.passed ? t('trace.passed') : t('trace.rejected', { reason: result.reason ?? '—' }),
+        gate: code('gate', name),
+        result: result.passed ? t('trace.passed') : t('trace.rejected', { reason: code('reason', result.reason) }),
         detail: result.detail ?? '—',
     }));
 
@@ -71,9 +73,9 @@ const eventColumns = (): VtColumn<EventRow>[] => [
 
 const eventRows = (): EventRow[] =>
     props.trace.events.map((event) => ({
-        type: event.type,
+        type: code('event', event.type),
         recipient: event.recipient ?? '—',
-        reason: event.reason ?? '—',
+        reason: code('reason', event.reason),
         at: event.occurred_at ? format.dateTime(event.occurred_at) : '—',
     }));
 
@@ -92,7 +94,7 @@ const attemptRows = (): AttemptRow[] =>
         attempt: String(attempt.attempt),
         recipient: attempt.recipient,
         code: attempt.code ? String(attempt.code) : '—',
-        classification: attempt.classification ?? '—',
+        classification: code('bounce', attempt.classification),
         response: attempt.response ?? '—',
     }));
 </script>
@@ -109,8 +111,9 @@ const attemptRows = (): AttemptRow[] =>
 
                 <dt>{{ t('trace.status') }}</dt>
                 <dd data-testid="trace-status">
-                    {{ props.trace.message.status }}
-                    <span v-if="props.trace.message.reason"> — {{ props.trace.message.reason }}</span>
+                    <!-- A gépi kód a `data-status`-ban marad (nyelvfüggetlen tesztek), a felirat fordított. -->
+                    <span :data-status="props.trace.message.status">{{ code('event', props.trace.message.status) }}</span>
+                    <span v-if="props.trace.message.reason" :data-reason="props.trace.message.reason"> — {{ code('reason', props.trace.message.reason) }}</span>
                 </dd>
 
                 <dt>{{ t('trace.from') }}</dt>
@@ -127,7 +130,7 @@ const attemptRows = (): AttemptRow[] =>
 
                 <!-- Az aláíratlanul kiment levél DMARC-bukást okoz: a supportnak látnia kell. -->
                 <dd v-if="props.trace.message.dkim_unsigned" class="vm-summary__full" data-testid="trace-dkim-warning">
-                    {{ t('trace.dkimWarning', { reason: props.trace.message.dkim_unsigned }) }}
+                    {{ t('trace.dkimWarning', { reason: code('dkim', props.trace.message.dkim_unsigned) }) }}
                 </dd>
             </dl>
 
@@ -137,11 +140,11 @@ const attemptRows = (): AttemptRow[] =>
                 <li v-for="(item, index) in props.trace.timeline" :key="index" class="vm-timeline__item" :data-kind="item.kind">
                     <span class="vm-timeline__dot" aria-hidden="true" />
                     <div class="vm-timeline__body">
-                        <strong>{{ te(`plat.trace.kind.${item.kind}`) ? t(`plat.trace.kind.${item.kind}`) : item.kind }}</strong>
+                        <strong>{{ te(`plat.trace.kind.${item.kind}`) ? t(`plat.trace.kind.${item.kind}`) : code('event', item.kind) }}</strong>
                         <span class="vm-timeline__meta vt-text-mono">
                             {{ item.at ? format.dateTime(item.at) : '—' }}<template v-if="item.recipient"> · {{ item.recipient }}</template>
                         </span>
-                        <code v-if="item.detail" class="vm-timeline__detail">{{ item.detail }}</code>
+                        <code v-if="item.detail" class="vm-timeline__detail" :title="item.detail">{{ /^[A-Z_]+$/.test(item.detail) ? code('reason', item.detail) : item.detail }}</code>
                     </div>
                 </li>
             </ol>

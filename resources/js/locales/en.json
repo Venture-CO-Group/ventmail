@@ -567,8 +567,8 @@
                 "sourcePlaceholder": "Double opt-in on the website, 2025-03",
                 "date": "Date of consent",
                 "resultingStatus": "Status of the imported contacts:",
-                "statusSubscribed": "Verified consent plus a given source and date. With another legal basis the status would be pending (re-permission needed).",
-                "statusPending": "Non-subscribed · re-permission needed: contacts become pending and receive no marketing until they confirm."
+                "statusSubscribed": "Verified consent plus a given source and date. With another legal basis contacts would be set to awaiting confirmation (re-permission needed).",
+                "statusPending": "Not subscribed · re-permission needed: contacts are set to awaiting confirmation and receive no marketing until they confirm."
             },
             "rolePolicy": "Role-based addresses (e.g. info)",
             "rolePolicyHint": "Not people but shared mailboxes — high complaint risk.",
@@ -2570,5 +2570,120 @@
         "failed": "The list could not be loaded right now.",
         "noMatch": "No matches.",
         "none": "Nothing here yet."
+    },
+    "codes": {
+        "event": {
+            "queued": "queued",
+            "accepted": "accepted",
+            "rejected": "rejected",
+            "delivered": "delivered",
+            "deferred": "deferred",
+            "bounced": "bounced",
+            "complained": "complaint",
+            "unsubscribed": "unsubscribed",
+            "opened": "opened",
+            "clicked": "clicked",
+            "stored": "stored",
+            "failed": "failed"
+        },
+        "gate": {
+            "domain": "domain authentication",
+            "suppression": "suppression",
+            "consent": "consent",
+            "entitlement": "quota / entitlement",
+            "rate_limit": "rate limit",
+            "validation_risk": "address validation risk",
+            "sending_mode": "sending mode",
+            "header_safety": "header safety",
+            "content_safety": "content safety",
+            "recipient_sanity": "recipient check",
+            "unsubscribe_header": "unsubscribe header"
+        },
+        "reason": {
+            "DOMAIN_UNVERIFIED": "unverified domain",
+            "SUPPRESSED": "suppressed",
+            "NO_CONSENT": "no consent",
+            "QUOTA_EXCEEDED": "quota exceeded",
+            "RATE_LIMITED": "rate limited",
+            "VALIDATION_RISK": "risky address",
+            "SENDING_RESTRICTED": "restricted sending mode",
+            "CHANNEL_DISABLED": "channel disabled",
+            "INVALID_REQUEST": "invalid request",
+            "GATE_ERROR": "gate error",
+            "IN_PROGRESS": "in progress",
+            "IDEMPOTENCY_KEY_REUSED": "idempotency key reused"
+        },
+        "dkim": {
+            "no_signing_key": "no signing key",
+            "signing_failed": "signing failed"
+        },
+        "bounce": {
+            "hard": "hard",
+            "soft": "soft",
+            "mailbox_full": "mailbox full",
+            "blocked": "blocked",
+            "spam": "rejected as spam",
+            "policy": "policy rejection"
+        },
+        "channel": {
+            "transactional": "transactional",
+            "marketing": "marketing",
+            "journey": "journey",
+            "campaign": "campaign"
+        },
+        "suppressionReason": {
+            "manual": "manual",
+            "unsubscribe": "unsubscribe",
+            "bounce": "bounce",
+            "blocked": "blocked",
+            "complaint": "complaint",
+            "policy": "policy"
+        },
+        "scope": {
+            "all": "all channels",
+            "marketing": "marketing only",
+            "transactional": "transactional only"
+        },
+        "source": {
+            "tenant": "workspace",
+            "api": "API",
+            "import": "import",
+            "manual": "manual",
+            "platform_admin": "platform admin",
+            "postal": "sending engine (MTA)",
+            "smtp": "SMTP",
+            "form": "form",
+            "engine": "sending engine",
+            "unsubscribe": "unsubscribe",
+            "global": "global"
+        },
+        "status": {
+            "draft": "draft",
+            "active": "active",
+            "paused": "paused",
+            "archived": "archived",
+            "pending": "pending",
+            "processing": "processing",
+            "running": "running",
+            "waiting": "waiting",
+            "completed": "completed",
+            "failed": "failed",
+            "canceled": "canceled",
+            "received": "received",
+            "parsed": "parsed",
+            "routed": "routed",
+            "forward_failed": "forward failed",
+            "quarantined": "quarantined"
+        },
+        "poolType": {
+            "shared": "shared",
+            "dedicated": "dedicated"
+        },
+        "fieldType": {
+            "text": "text",
+            "number": "number",
+            "date": "date",
+            "boolean": "yes/no"
+        }
     }
 }

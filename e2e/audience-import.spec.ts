@@ -95,11 +95,11 @@ test('kézi egyedi felvitel: a jogalap kötelező, a subscribed csak igazolt hoz
     // Igazolt hozzájárulás, de forrás és dátum nélkül sem.
     await chooseBasis(page, 'verified_consent');
     await expect(next).toBeDisabled();
-    await expect(page.getByTestId('import-status-box')).toContainText('pending');
+    await expect(page.getByTestId('import-status-box').locator('[data-status]')).toHaveAttribute('data-status', 'pending');
 
     await fillEvidence(page, `Double opt-in a weboldalon, e2e ${run}`);
     await expect(next).toBeEnabled();
-    await expect(page.getByTestId('import-status-box')).toContainText('subscribed');
+    await expect(page.getByTestId('import-status-box').locator('[data-status]')).toHaveAttribute('data-status', 'subscribed');
 
     await makePreview(page);
     expect(await statValue(page.getByTestId('preview-importable'))).toBe(1);
@@ -117,7 +117,7 @@ test('kézi egyedi felvitel: a jogalap kötelező, a subscribed csak igazolt hoz
     await page.getByTestId('contact-link').first().click();
 
     await expect(page.getByTestId('contact-email')).toHaveText(email);
-    await expect(page.getByTestId('contact-status')).toHaveText('subscribed');
+    await expect(page.getByTestId('contact-status')).toHaveAttribute('data-status', 'subscribed');
     await expect(page.getByTestId('contact-history')).toContainText(`e2e ${run}`);
 });
 
@@ -140,7 +140,7 @@ test('beillesztett lista: hibás, duplikátum és szerepalapú cím külön szá
 
     // Nem igazolt jogalap: forrás és dátum nélkül is mehet, az eredmény pending.
     await chooseBasis(page, 'unknown');
-    await expect(page.getByTestId('import-status-box')).toContainText('pending');
+    await expect(page.getByTestId('import-status-box').locator('[data-status]')).toHaveAttribute('data-status', 'pending');
 
     await makePreview(page);
 
@@ -230,7 +230,7 @@ test('CSV (Windows-1250, pontosvessző): egyéni mező helyben, hibariport, kép
     expect(report).not.toMatch(/,\+36301234567,/);
 
     // A legitimate interest jogalap NEM ad subscribed státuszt: re-permission szükséges.
-    await expect(page.getByTestId('import-audit')).toContainText('pending');
+    await expect(page.getByTestId('import-audit').locator('[data-status]')).toHaveAttribute('data-status', 'pending');
 });
 
 test('XLSX: munkalap-választás, majd ugyanaz a folyamat', async ({ page }) => {

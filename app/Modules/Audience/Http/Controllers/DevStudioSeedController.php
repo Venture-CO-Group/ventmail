@@ -8,7 +8,7 @@ use App\Modules\Audience\Models\Contact;
 use App\Modules\Audience\Models\ContactList;
 use App\Modules\Consent\Services\ConsentRecorder;
 use App\Modules\Consent\Services\PreferenceTokens;
-use App\Modules\Domains\Models\Domain;
+use App\Modules\Domains\Services\DemoDomain;
 use App\Modules\Template\Data\EditorCatalog;
 use App\Modules\Template\Models\Template;
 use App\Modules\Tenancy\Services\WorkspaceContext;
@@ -44,7 +44,7 @@ final class DevStudioSeedController
         $run = preg_replace('/[^a-z0-9]/', '', strtolower((string) $request->query('run', 'x'))) ?: 'x';
         $run = substr($run, 0, 16);
 
-        Domain::firstOrCreate(['name' => 'pelda.hu'], ['status' => 'verified', 'verified_at' => now()]);
+        DemoDomain::ensure();
 
         $list = ContactList::firstOrCreate(['name' => "E2E Studio {$run}"]);
 

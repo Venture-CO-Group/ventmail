@@ -149,3 +149,14 @@ test('PDF-riport: kérés → kész → letöltés (%PDF-)', async ({ page }) =>
     expect(pdf.subarray(0, 5).toString()).toBe('%PDF-');
     expect(download.suggestedFilename()).toMatch(/\.pdf$/);
 });
+
+test('kampány-analitika: nincs „nincs adat" sor egy adatot mutató grafikon mellett (D292)', async ({ page }) => {
+    await openAnalytics(page);
+    const uuid = new URL(page.url()).searchParams.get('campaign');
+
+    await page.goto(`/analytics/campaigns/${uuid}`);
+    await expect(page.getByTestId('chart-open-click')).toBeVisible();
+    // A napi esemény-idősor kártyája csak akkor látszik, ha VAN adata — üres „Napi események: nincs
+    // adat" kártya nem állhat a megnyitás/kattintás grafikon mellett.
+    await expect(page.getByTestId('daily-empty')).toHaveCount(0);
+});

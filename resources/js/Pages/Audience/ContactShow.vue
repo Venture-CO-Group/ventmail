@@ -7,6 +7,7 @@ import VmCard from '../../Components/Form/VmCard.vue';
 import VmTable from '../../Components/Form/VmTable.vue';
 import AppLayout from '../../Layouts/AppLayout.vue';
 import { useFormat } from '../../composables/useFormat';
+import { useCodes } from '../../composables/useCodes';
 
 /**
  * KONTAKT ADATLAPJA: mezők, listák, címkék, a marketing-hozzájárulás állapota és a
@@ -42,6 +43,7 @@ const props = defineProps<{
 }>();
 
 const { t } = useI18n({ useScope: 'global' });
+const code = useCodes();
 const format = useFormat();
 
 const fmt = (iso: string | null): string => (iso ? format.dateTime(iso) : '—');
@@ -81,7 +83,7 @@ const rows = computed<Row[]>(() =>
             <h2>{{ t('audience.contact.fields') }}</h2>
             <dl class="vm-contact-facts" data-testid="contact-fields">
                 <dt>{{ t('audience.status') }}</dt>
-                <dd><VtBadge :tone="contact.status === 'subscribed' ? 'success' : 'warning'" data-testid="contact-status">{{ contact.status }}</VtBadge></dd>
+                <dd><VtBadge :tone="contact.status === 'subscribed' ? 'success' : 'warning'" data-testid="contact-status" :data-status="contact.status">{{ code('contactStatus', contact.status) }}</VtBadge></dd>
                 <dt>{{ t('audience.validation') }}</dt>
                 <dd>{{ contact.validation ?? '—' }}</dd>
                 <dt>{{ t('audience.contact.subscribedAt') }}</dt>
@@ -99,7 +101,7 @@ const rows = computed<Row[]>(() =>
             <h2>{{ t('audience.contact.listsAndTags') }}</h2>
             <p v-if="!lists.length && !tags.length" class="vm-contact-muted">{{ t('audience.contact.none') }}</p>
             <div class="vm-contact-chips" data-testid="contact-lists">
-                <VtBadge v-for="list in lists" :key="list.uuid" tone="accent">{{ list.name }} · {{ list.status }}</VtBadge>
+                <VtBadge v-for="list in lists" :key="list.uuid" tone="accent">{{ list.name }} · {{ code('contactStatus', list.status) }}</VtBadge>
                 <VtBadge v-for="tag in tags" :key="tag" tone="neutral">{{ tag }}</VtBadge>
             </div>
         </VmCard>
@@ -109,7 +111,7 @@ const rows = computed<Row[]>(() =>
             <p v-if="!consent" class="vm-contact-muted">{{ t('audience.contact.noConsent') }}</p>
             <dl v-else class="vm-contact-facts" data-testid="contact-consent">
                 <dt>{{ t('audience.status') }}</dt>
-                <dd><VtBadge :tone="consent.status === 'confirmed' ? 'success' : 'warning'">{{ consent.status }}</VtBadge></dd>
+                <dd><VtBadge :tone="consent.status === 'confirmed' ? 'success' : 'warning'" :data-consent="consent.status">{{ code('consent', consent.status) }}</VtBadge></dd>
                 <dt>{{ t('audience.contact.history.basis') }}</dt>
                 <dd>{{ consent.legalBasis }}</dd>
                 <dt>{{ t('audience.contact.history.source') }}</dt>

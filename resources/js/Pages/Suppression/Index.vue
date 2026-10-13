@@ -12,6 +12,7 @@ import VmTable from '../../Components/Form/VmTable.vue';
 import VmPageHeader from '../../Components/Studio/VmPageHeader.vue';
 import AppLayout from '../../Layouts/AppLayout.vue';
 import { useFormat } from '../../composables/useFormat';
+import { useCodes } from '../../composables/useCodes';
 
 /**
  * TILTÓLISTÁK (v1.1 · 7. modul) — a PreSendGate 2. kapujának a tartalma, KÜLÖN listákon:
@@ -43,6 +44,7 @@ const props = defineProps<{
 }>();
 
 const { t } = useI18n();
+const code = useCodes();
 const format = useFormat();
 
 const LISTS = ['bounces', 'complaints', 'unsubscribes', 'manual'] as const;
@@ -60,9 +62,9 @@ const tabs = computed(() =>
 );
 
 const reasonOptions = computed(() =>
-    props.reasons.filter((code) => code !== 'policy').map((code) => ({ value: code, label: code })),
+    props.reasons.filter((reason) => reason !== 'policy').map((reason) => ({ value: reason, label: code('suppressionReason', reason) })),
 );
-const scopeOptions = computed(() => props.scopes.map((code) => ({ value: code, label: code })));
+const scopeOptions = computed(() => props.scopes.map((scope) => ({ value: scope, label: code('scope', scope) })));
 
 type Row = { email: string; reason: string; scope: string; source: string; created: string; uuid: string };
 
@@ -80,9 +82,9 @@ const byUuid = computed(() => new Map(props.suppressions.items.map((item) => [it
 const rows = computed<Row[]>(() =>
     props.suppressions.items.map((item) => ({
         email: item.email,
-        reason: item.detail ? `${item.reason} · ${item.detail}` : item.reason,
-        scope: item.appliesTo,
-        source: item.source,
+        reason: item.detail ? `${code('suppressionReason', item.reason)} · ${item.detail}` : code('suppressionReason', item.reason),
+        scope: code('scope', item.appliesTo),
+        source: code('source', item.source),
         created: item.createdAt ? format.date(item.createdAt) : '—',
         uuid: item.uuid,
     })),

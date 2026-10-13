@@ -16,6 +16,7 @@ import AppLayout from '../../Layouts/AppLayout.vue';
 import '../../editor.css';
 import { useFormat } from '../../composables/useFormat';
 import VmTargetPicker, { type TargetOption } from '../../Components/Campaign/VmTargetPicker.vue';
+import { useCodes } from '../../composables/useCodes';
 
 /**
  * KAMPÁNY-LÉTREHOZÓ CHECKLIST (v1.1 · 5. modul).
@@ -100,6 +101,7 @@ const props = defineProps<{
 }>();
 
 const { t } = useI18n();
+const code = useCodes();
 const format = useFormat();
 
 /* ---------- az űrlap-állapot (a teljes kampány egy PUT-tal mentődik) ---------- */
@@ -711,7 +713,7 @@ const sectionTitle = (key: string): string => t(`checklist.section.${key}`);
                     <ul class="vm-cl-outcomes">
                         <li v-for="row in outcomes" :key="`${row.status}-${row.reason}`" :data-testid="`outcome-${row.status}`" :data-reason="row.reason">
                             <span>{{ t(`checklist.recipientStatus.${row.status}`) }}</span>
-                            <code v-if="row.reason">{{ row.reason }}</code>
+                            <code v-if="row.reason" :title="row.reason">{{ code('reason', row.reason) }}</code>
                             <strong>{{ format.number(row.count) }}</strong>
                         </li>
                     </ul>

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Identity\Http\Controllers;
 
-use App\Modules\Domains\Models\Domain;
+use App\Modules\Domains\Services\DemoDomain;
 use App\Modules\Events\Models\MessageEvent;
 use App\Modules\Logs\Models\SmtpTransaction;
 use App\Modules\Sending\Actions\SendMessage;
@@ -30,10 +30,7 @@ final class DevSeedController
             404
         );
 
-        Domain::firstOrCreate(
-            ['name' => 'pelda.hu'],
-            ['status' => 'verified', 'verified_at' => now()],
-        );
+        DemoDomain::ensure();
 
         // Idempotens: a teszt többször is meghívhatja, és nem hízik tőle a napló (egyetlen demó
         // üzenet). A statisztika viszont 30 napos ablakot néz, a napló-események pedig

@@ -8,6 +8,7 @@ import VmFormActions from '../Form/VmFormActions.vue';
 import VmStat from '../Form/VmStat.vue';
 import type { ImportState } from './types';
 import { useFormat } from '../../composables/useFormat';
+import { useCodes } from '../../composables/useCodes';
 
 /**
  * 6. LÉPÉS — eredmény: új, frissített, kihagyott, hibás; a hibariport letöltése; és az
@@ -16,6 +17,7 @@ import { useFormat } from '../../composables/useFormat';
 const props = defineProps<{ state: ImportState }>();
 
 const { t } = useI18n({ useScope: 'global' });
+const code = useCodes();
 const format = useFormat();
 // A számok a PROFIL számformátuma szerint (D11), nem a vue-i18n locale-ja szerint.
 const n = (value: number): string => format.number(value);
@@ -93,9 +95,11 @@ function download(): void {
                 <dd class="vm-wrap">{{ state.settings.consentSource ?? '—' }}</dd>
                 <dt>{{ t('audience.import.audit.status') }}</dt>
                 <dd>
-                    <VtBadge :tone="state.settings.resultingStatus === 'subscribed' ? 'success' : 'warning'">
-                        {{ state.settings.resultingStatus ?? '—' }}
-                    </VtBadge>
+                    <span :data-status="state.settings.resultingStatus ?? ''">
+                        <VtBadge :tone="state.settings.resultingStatus === 'subscribed' ? 'success' : 'warning'">
+                            {{ code('contactStatus', state.settings.resultingStatus) }}
+                        </VtBadge>
+                    </span>
                 </dd>
             </dl>
         </VmCard>

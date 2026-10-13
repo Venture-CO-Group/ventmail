@@ -567,8 +567,8 @@
                 "sourcePlaceholder": "Double opt-in a weboldalon, 2025-03",
                 "date": "A hozzájárulás dátuma",
                 "resultingStatus": "Az importált kontaktok státusza:",
-                "statusSubscribed": "Igazolt hozzájárulás + megadott forrás és dátum. Másik jogalap esetén a státusz pending (re-permission szükséges) lenne.",
-                "statusPending": "Non-subscribed · re-permission szükséges: a kontaktok pending állapotba kerülnek, marketing nem megy nekik, amíg meg nem erősítik."
+                "statusSubscribed": "Igazolt hozzájárulás + megadott forrás és dátum. Más jogalapnál a kontaktok megerősítésre váró állapotba kerülnének (újraengedélyezés szükséges).",
+                "statusPending": "Nem feliratkozott · újraengedélyezés szükséges: a kontaktok megerősítésre váró állapotba kerülnek, és amíg meg nem erősítik, marketing nem megy nekik."
             },
             "rolePolicy": "Szerepalapú címek (pl. info)",
             "rolePolicyHint": "Nem személyek, hanem csoportos postafiókok — a panaszrisk magas.",
@@ -2570,5 +2570,120 @@
         "failed": "A lista most nem tölthető be.",
         "noMatch": "Nincs találat.",
         "none": "Még nincs elem."
+    },
+    "codes": {
+        "event": {
+            "queued": "sorba állítva",
+            "accepted": "elfogadva",
+            "rejected": "elutasítva",
+            "delivered": "kézbesítve",
+            "deferred": "késleltetve",
+            "bounced": "visszapattant",
+            "complained": "panasz",
+            "unsubscribed": "leiratkozott",
+            "opened": "megnyitva",
+            "clicked": "kattintva",
+            "stored": "tárolva",
+            "failed": "sikertelen"
+        },
+        "gate": {
+            "domain": "domain-hitelesítés",
+            "suppression": "tiltólista",
+            "consent": "hozzájárulás",
+            "entitlement": "kvóta / jogosultság",
+            "rate_limit": "sebességkorlát",
+            "validation_risk": "címellenőrzési kockázat",
+            "sending_mode": "küldési mód",
+            "header_safety": "fejléc-biztonság",
+            "content_safety": "tartalom-biztonság",
+            "recipient_sanity": "címzett-ellenőrzés",
+            "unsubscribe_header": "leiratkozási fejléc"
+        },
+        "reason": {
+            "DOMAIN_UNVERIFIED": "hitelesítetlen domain",
+            "SUPPRESSED": "tiltólistán",
+            "NO_CONSENT": "nincs hozzájárulás",
+            "QUOTA_EXCEEDED": "kvóta elfogyott",
+            "RATE_LIMITED": "sebességkorlát",
+            "VALIDATION_RISK": "kockázatos cím",
+            "SENDING_RESTRICTED": "korlátozott küldési mód",
+            "CHANNEL_DISABLED": "csatorna kikapcsolva",
+            "INVALID_REQUEST": "érvénytelen kérés",
+            "GATE_ERROR": "kapu-hiba",
+            "IN_PROGRESS": "folyamatban",
+            "IDEMPOTENCY_KEY_REUSED": "újrahasznált idempotency-kulcs"
+        },
+        "dkim": {
+            "no_signing_key": "nincs aláírókulcs",
+            "signing_failed": "az aláírás sikertelen"
+        },
+        "bounce": {
+            "hard": "végleges (hard)",
+            "soft": "átmeneti (soft)",
+            "mailbox_full": "postafiók tele",
+            "blocked": "blokkolt",
+            "spam": "spamként elutasítva",
+            "policy": "szabályzati elutasítás"
+        },
+        "channel": {
+            "transactional": "tranzakciós",
+            "marketing": "marketing",
+            "journey": "journey",
+            "campaign": "kampány"
+        },
+        "suppressionReason": {
+            "manual": "kézi",
+            "unsubscribe": "leiratkozás",
+            "bounce": "visszapattanás",
+            "blocked": "blokkolt",
+            "complaint": "panasz",
+            "policy": "szabályzat"
+        },
+        "scope": {
+            "all": "minden csatorna",
+            "marketing": "csak marketing",
+            "transactional": "csak tranzakciós"
+        },
+        "source": {
+            "tenant": "workspace",
+            "api": "API",
+            "import": "import",
+            "manual": "kézi",
+            "platform_admin": "platform-admin",
+            "postal": "küldőmotor (MTA)",
+            "smtp": "SMTP",
+            "form": "űrlap",
+            "engine": "küldőmotor",
+            "unsubscribe": "leiratkozás",
+            "global": "globális"
+        },
+        "status": {
+            "draft": "vázlat",
+            "active": "aktív",
+            "paused": "szüneteltetve",
+            "archived": "archivált",
+            "pending": "függőben",
+            "processing": "feldolgozás alatt",
+            "running": "fut",
+            "waiting": "várakozik",
+            "completed": "kész",
+            "failed": "sikertelen",
+            "canceled": "megszakítva",
+            "received": "beérkezett",
+            "parsed": "feldolgozva",
+            "routed": "továbbítva",
+            "forward_failed": "továbbítás sikertelen",
+            "quarantined": "karanténban"
+        },
+        "poolType": {
+            "shared": "megosztott",
+            "dedicated": "dedikált"
+        },
+        "fieldType": {
+            "text": "szöveg",
+            "number": "szám",
+            "date": "dátum",
+            "boolean": "igen/nem"
+        }
     }
 }

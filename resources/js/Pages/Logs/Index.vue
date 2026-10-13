@@ -13,6 +13,7 @@ import VmStateBadge from '../../Components/Platform/VmStateBadge.vue';
 import VmPageHeader from '../../Components/Studio/VmPageHeader.vue';
 import AppLayout from '../../Layouts/AppLayout.vue';
 import { useFormat } from '../../composables/useFormat';
+import { useCodes } from '../../composables/useCodes';
 
 /**
  * ESEMÉNYNAPLÓ (A3 · 22. kritérium, v1.1 · 7. modul).
@@ -46,6 +47,7 @@ const props = defineProps<{
 }>();
 
 const { t, te } = useI18n({ useScope: 'global' });
+const code = useCodes();
 const format = useFormat();
 
 const dateOnly = (value: string | null | undefined): string => (value ? value.slice(0, 10) : '');
@@ -105,7 +107,7 @@ const rows = computed<Row[]>(() =>
                 : (message.recipients[0] ?? '—'),
         subject: message.subject ?? '—',
         status: message.status,
-        channel: message.channel,
+        channel: code('channel', message.channel),
         tags: message.tags.join(', ') || '—',
         created_at: message.created_at ? format.dateTime(message.created_at) : '—',
         trace: t('logs.trace'),

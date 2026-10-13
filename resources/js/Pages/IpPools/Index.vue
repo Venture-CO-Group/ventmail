@@ -5,6 +5,7 @@ import VmCard from '../../Components/Form/VmCard.vue';
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import AppLayout from '../../Layouts/AppLayout.vue';
+import { useCodes } from '../../composables/useCodes';
 
 /**
  * IP-POOLOK ÉS WARMUP — olvasható, mert a karantén platform-admin művelet.
@@ -32,6 +33,7 @@ const props = defineProps<{
 }>();
 
 const { t } = useI18n();
+const code = useCodes();
 
 const quarantined = computed(() => props.addresses.filter((ip) => ip.quarantinedAt !== null));
 const warming = computed(() => props.addresses.filter((ip) => ip.warmupState !== 'complete'));
@@ -76,7 +78,7 @@ const rows = computed<Row[]>(() =>
 
             <div v-for="pool in pools" :key="pool.uuid" class="vm-cluster" :data-testid="`pool-${pool.uuid}`">
                 <strong>{{ pool.name }}</strong>
-                <span>{{ pool.type }}</span>
+                <span>{{ code('poolType', pool.type) }}</span>
                 <!-- A MEGOSZTOTT pool reputációját mások forgalma is alakítja — ezt tudni kell. -->
                 <span>{{ pool.shared ? t('ipPools.shared') : t('ipPools.dedicated') }}</span>
             </div>

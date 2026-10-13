@@ -107,9 +107,11 @@ const timelineChart = ref<InstanceType<typeof VmLineChart> | null>(null);
             </div>
         </VmCard>
 
-        <VmChartCard id="daily" :title="t('analytics.chart.daily')" :subtitle="t('analytics.eventsNote')" :context="campaign.name" :chart="daily.length ? dailyChart : null">
-            <VmLineChart v-if="daily.length" ref="dailyChart" :categories="daily.map((d) => d.day)" :series="dailySeries" :label="t('analytics.chart.daily')" testid="chart-daily" />
-            <p v-else data-testid="daily-empty">{{ t('analytics.noData') }}</p>
+        <!-- D292: a napi ESEMÉNY-idősor (aggregátum) kártyája csak adattal látszik. Üresen a mellette
+             álló, adatot mutató megnyitás/kattintás grafikonnal ellentmondana („nincs adat"); ha egyik
+             sorozatnak sincs adata, a megnyitás/kattintás kártya mondja ki. -->
+        <VmChartCard v-if="daily.length" id="daily" :title="t('analytics.chart.daily')" :subtitle="t('analytics.eventsNote')" :context="campaign.name" :chart="dailyChart">
+            <VmLineChart ref="dailyChart" :categories="daily.map((d) => d.day)" :series="dailySeries" :label="t('analytics.chart.daily')" testid="chart-daily" />
         </VmChartCard>
 
         <Deferred data="charts">

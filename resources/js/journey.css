@@ -782,6 +782,16 @@
     grid-template-columns: minmax(0, 1fr);
 }
 
+/* D292: mobilon a minitérkép nem takarhat csomópontot — a kis vásznon úgyis a teljes gráf látszik. */
+.vm-jc--compact .vm-jc-minimap {
+    display: none;
+}
+
+/* A journey neve kompakt fejlécben a teljes sort kapja (nem vágódik „Üdvözlő sorozat ("-ra). */
+.vm-jc--compact .vm-jc-top__name input {
+    flex-basis: 100%;
+}
+
 .vm-jc--compact .vm-jc-palette {
     overflow-x: auto;
     overflow-y: hidden;

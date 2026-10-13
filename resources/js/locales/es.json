@@ -567,8 +567,8 @@
                 "sourcePlaceholder": "Doble confirmación en la web, 2025-03",
                 "date": "Fecha del consentimiento",
                 "resultingStatus": "Estado de los contactos importados:",
-                "statusSubscribed": "Consentimiento verificado con fuente y fecha indicadas. Con otra base legal el estado sería pending (se necesita re-permission).",
-                "statusPending": "Non-subscribed · se necesita re-permission: los contactos pasan a pending y no reciben marketing hasta que confirmen."
+                "statusSubscribed": "Consentimiento verificado con fuente y fecha. Con otra base legal los contactos quedarían pendientes de confirmación (se necesita nuevo permiso).",
+                "statusPending": "No suscrito · se necesita nuevo permiso: los contactos quedan pendientes de confirmación y no reciben marketing hasta confirmar."
             },
             "rolePolicy": "Direcciones de rol (p. ej. info)",
             "rolePolicyHint": "No son personas sino buzones compartidos — alto riesgo de quejas.",
@@ -2570,5 +2570,120 @@
         "failed": "No se puede cargar la lista ahora.",
         "noMatch": "Sin resultados.",
         "none": "Aún no hay elementos."
+    },
+    "codes": {
+        "event": {
+            "queued": "en cola",
+            "accepted": "aceptado",
+            "rejected": "rechazado",
+            "delivered": "entregado",
+            "deferred": "aplazado",
+            "bounced": "rebotado",
+            "complained": "queja",
+            "unsubscribed": "dado de baja",
+            "opened": "abierto",
+            "clicked": "clic",
+            "stored": "almacenado",
+            "failed": "fallido"
+        },
+        "gate": {
+            "domain": "autenticación del dominio",
+            "suppression": "lista de supresión",
+            "consent": "consentimiento",
+            "entitlement": "cuota / derechos",
+            "rate_limit": "límite de velocidad",
+            "validation_risk": "riesgo de validación de dirección",
+            "sending_mode": "modo de envío",
+            "header_safety": "seguridad de cabeceras",
+            "content_safety": "seguridad del contenido",
+            "recipient_sanity": "comprobación de destinatarios",
+            "unsubscribe_header": "cabecera de baja"
+        },
+        "reason": {
+            "DOMAIN_UNVERIFIED": "dominio no verificado",
+            "SUPPRESSED": "suprimido",
+            "NO_CONSENT": "sin consentimiento",
+            "QUOTA_EXCEEDED": "cuota superada",
+            "RATE_LIMITED": "limitado por velocidad",
+            "VALIDATION_RISK": "dirección arriesgada",
+            "SENDING_RESTRICTED": "modo de envío restringido",
+            "CHANNEL_DISABLED": "canal desactivado",
+            "INVALID_REQUEST": "solicitud no válida",
+            "GATE_ERROR": "error de control",
+            "IN_PROGRESS": "en curso",
+            "IDEMPOTENCY_KEY_REUSED": "clave de idempotencia reutilizada"
+        },
+        "dkim": {
+            "no_signing_key": "sin clave de firma",
+            "signing_failed": "error de firma"
+        },
+        "bounce": {
+            "hard": "permanente (hard)",
+            "soft": "temporal (soft)",
+            "mailbox_full": "buzón lleno",
+            "blocked": "bloqueado",
+            "spam": "rechazado como spam",
+            "policy": "rechazo por política"
+        },
+        "channel": {
+            "transactional": "transaccional",
+            "marketing": "marketing",
+            "journey": "recorrido",
+            "campaign": "campaña"
+        },
+        "suppressionReason": {
+            "manual": "manual",
+            "unsubscribe": "baja",
+            "bounce": "rebote",
+            "blocked": "bloqueado",
+            "complaint": "queja",
+            "policy": "política"
+        },
+        "scope": {
+            "all": "todos los canales",
+            "marketing": "solo marketing",
+            "transactional": "solo transaccional"
+        },
+        "source": {
+            "tenant": "espacio de trabajo",
+            "api": "API",
+            "import": "importación",
+            "manual": "manual",
+            "platform_admin": "admin de la plataforma",
+            "postal": "motor de envío (MTA)",
+            "smtp": "SMTP",
+            "form": "formulario",
+            "engine": "motor de envío",
+            "unsubscribe": "baja",
+            "global": "global"
+        },
+        "status": {
+            "draft": "borrador",
+            "active": "activo",
+            "paused": "en pausa",
+            "archived": "archivado",
+            "pending": "pendiente",
+            "processing": "procesando",
+            "running": "en ejecución",
+            "waiting": "esperando",
+            "completed": "completado",
+            "failed": "fallido",
+            "canceled": "cancelado",
+            "received": "recibido",
+            "parsed": "analizado",
+            "routed": "enrutado",
+            "forward_failed": "reenvío fallido",
+            "quarantined": "en cuarentena"
+        },
+        "poolType": {
+            "shared": "compartido",
+            "dedicated": "dedicado"
+        },
+        "fieldType": {
+            "text": "texto",
+            "number": "número",
+            "date": "fecha",
+            "boolean": "sí/no"
+        }
     }
 }

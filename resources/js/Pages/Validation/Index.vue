@@ -10,6 +10,7 @@ import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import AppLayout from '../../Layouts/AppLayout.vue';
 import { useFormat } from '../../composables/useFormat';
+import { useCodes } from '../../composables/useCodes';
 
 /**
  * CÍMELLENŐRZÉS. A legnagyobb üzleti értékű mező az ELGÉPELÉS-JAVASLAT: egy `gmial.com`
@@ -38,6 +39,7 @@ interface Verdict {
 const props = defineProps<{ jobs: Job[]; usage: number; verdict: Verdict | null }>();
 
 const { t } = useI18n();
+const code = useCodes();
 const format = useFormat();
 
 const email = ref('');
@@ -58,7 +60,7 @@ const columns: VtColumn<Row>[] = [
 const rows = computed<Row[]>(() =>
     props.jobs.map((job) => ({
         name: job.name,
-        status: job.status,
+        status: code('status', job.status),
         progress: `${job.processed}/${job.total}`,
         // A LEJÁRAT nem részletkérdés: a feltöltött lista az ügyfél teljes címlistája
         // lehet, és nincs jogalapunk megőrizni az ellenőrzés után.

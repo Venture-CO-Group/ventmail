@@ -15,6 +15,46 @@
     overflow-wrap: anywhere;
 }
 
+/* D292 · KÖZÖS LINK */
+/*
+ | A felület linkjei TOKENES színt kapnak, nem a böngésző natív (sötét háttéren olvashatatlan) kékjét.
+ | Nulla specificitás (`:where`): bármely komponens-osztály felülírja (gombként, kártyaként stílusolt
+ | linkek). A sablonszerkesztő vászna KIVÉTEL: ott a LEVÉL linkjei látszanak, a levél saját színével.
+ | A kontrasztot (≥ 4,5 : 1 a sötét téma minden felületén) a `tests/js/design/link-contrast.test.ts` őrzi.
+ */
+:where(.vm-shell__main) :where(a:not(.vm-ed-canvas a)) {
+    color: var(--vt-color-accent-300);
+    text-decoration-line: underline;
+    text-decoration-thickness: from-font;
+    text-underline-offset: calc(var(--vt-space-1) / 2);
+}
+
+:where(.vm-shell__main) :where(a:not(.vm-ed-canvas a)):hover {
+    color: var(--vt-color-accent-200);
+}
+
+:where(.vm-shell__main) :where(a:not(.vm-ed-canvas a)):focus-visible {
+    outline: thin solid var(--vt-color-accent-300);
+    outline-offset: calc(var(--vt-space-1) / 2);
+    border-radius: var(--vt-radius-sm);
+}
+
+/*
+ | D292 · FÜL- ÉS SZEGMENSSÁVOK keskeny képernyőn TÖRDELNEK (nem lógnak ki, és nem rejtik el a
+ | levágott fület egy görgethető sávban). A @venture/ui `VtSegmented` / `VtTabs` alapból egysoros;
+ | az elem-típus a specificitást a komponens saját (azonos súlyú) szabálya fölé emeli.
+ | Az e2e `layout-overlap` „clipped-bar" mérése őrzi (390 px).
+ */
+.vm-shell__main div.vt-segmented {
+    flex-wrap: wrap;
+    max-inline-size: 100%;
+}
+
+.vm-shell__main div.vt-tabs__list {
+    flex-wrap: wrap;
+    overflow-x: visible;
+}
+
 /* TÖRDELÉS: azonosítók, e-mailek, domainek, URL-ek, ahol a teljes értéket látni kell. */
 .vm-wrap {
     overflow-wrap: anywhere;

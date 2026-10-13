@@ -16,6 +16,7 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import AppLayout from '../../Layouts/AppLayout.vue';
 import { useFormat } from '../../composables/useFormat';
+import { useCodes } from '../../composables/useCodes';
 
 /**
  * KÖZÖNSÉG. A consent-állapot a kapcsolat MELLETT van, nem külön képernyőn: a marketing
@@ -59,6 +60,7 @@ const props = defineProps<{
 }>();
 
 const { t, te } = useI18n();
+const code = useCodes();
 const format = useFormat();
 
 const search = ref(props.search);
@@ -415,7 +417,7 @@ function createList(): void {
             <p v-if="!fields.length">{{ t('audience.noCustomFields') }}</p>
             <ul v-else class="vm-audience-fields">
                 <li v-for="field in fields" :key="field.uuid" :data-testid="`field-${field.key}`">
-                    <span class="vm-truncate" :title="field.label"><strong>{{ field.label }}</strong> <code>{{ field.key }}</code> · {{ field.type }}</span>
+                    <span class="vm-truncate" :title="field.label"><strong>{{ field.label }}</strong> <code>{{ field.key }}</code> · {{ code('fieldType', field.type) }}</span>
                     <VtCheckbox
                         :model-value="field.preferenceVisible"
                         :data-testid="`field-preference-${field.key}`"

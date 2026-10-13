@@ -14,6 +14,7 @@ import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import AppLayout from '../../Layouts/AppLayout.vue';
 import { useFormat } from '../../composables/useFormat';
+import { useCodes } from '../../composables/useCodes';
 
 /**
  * SMTP-HITELESÍTŐK. A jelszó EGYSZER látszik; a lista a csatorna-korlátot és az utolsó
@@ -41,6 +42,7 @@ const props = defineProps<{
 }>();
 
 const { t } = useI18n();
+const code = useCodes();
 const format = useFormat();
 const page = usePage<{ flash: { secret: { kind: string; username?: string; password?: string } | null } }>();
 
@@ -60,7 +62,7 @@ const domainOptions = computed(() => [
     ...props.domains.map((item) => ({ value: item.uuid, label: item.name })),
 ]);
 
-const channelOptions = computed(() => props.channels.map((code) => ({ value: code, label: code })));
+const channelOptions = computed(() => props.channels.map((channel) => ({ value: channel, label: code('channel', channel) })));
 
 type Row = { name: string; username: string; domain: string; channel: string; used: string; state: string; uuid: string };
 
@@ -82,7 +84,7 @@ const rows = computed<Row[]>(() =>
         name: credential.name,
         username: credential.username,
         domain: credential.domain ?? t('smtp.anyDomain'),
-        channel: credential.channel,
+        channel: code('channel', credential.channel),
         used: credential.lastUsedAt ? format.dateTime(credential.lastUsedAt) : t('smtp.neverUsed'),
         state: credential.revokedAt ? 'revoked' : 'active',
         uuid: credential.uuid,

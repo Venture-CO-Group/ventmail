@@ -10,6 +10,7 @@ import VmFormSection from '../../Components/Form/VmFormSection.vue';
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import AppLayout from '../../Layouts/AppLayout.vue';
+import { useCodes } from '../../composables/useCodes';
 
 /** JOURNEY-K. A futó példányok száma mondja meg, hogy a journey tényleg ÉL-e. */
 const props = defineProps<{
@@ -18,6 +19,7 @@ const props = defineProps<{
 }>();
 
 const { t } = useI18n();
+const code = useCodes();
 
 const name = ref('');
 const trigger = ref(props.triggers[0] ?? 'api_event');
@@ -35,8 +37,8 @@ const columns: VtColumn<Row>[] = [
 const rows = computed<Row[]>(() =>
     props.journeys.map((journey) => ({
         name: journey.name,
-        status: journey.status,
-        trigger: journey.trigger,
+        status: code('status', journey.status),
+        trigger: code('trigger', journey.trigger),
         steps: String(journey.steps),
         runs: String(journey.activeRuns),
     })),

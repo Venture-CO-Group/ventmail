@@ -6,6 +6,7 @@ import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import AppLayout from '../../Layouts/AppLayout.vue';
 import { useFormat } from '../../composables/useFormat';
+import { useCodes } from '../../composables/useCodes';
 
 /**
  * KÉZBESÍTHETŐSÉG — a három jel, ami elárulja, hogy baj lesz, mielőtt az ügyfél telefonál.
@@ -21,6 +22,7 @@ const props = defineProps<{
 }>();
 
 const { t } = useI18n();
+const code = useCodes();
 const format = useFormat();
 
 const unverified = computed(() => props.domains.filter((domain) => domain.status !== 'verified'));
@@ -109,7 +111,7 @@ const dmarcRows = computed<DmarcRow[]>(() =>
 
             <div v-for="test in seedTests" :key="test.name" class="vm-cluster" :data-testid="`seed-${test.name}`">
                 <strong>{{ test.name }}</strong>
-                <span>{{ test.status }}</span>
+                <span :data-status="test.status">{{ code('status', test.status) }}</span>
                 <!-- A HIÁNYZÓ is számít: a nevezőben benne van, különben a legrosszabb eset
                      kimaradna a statisztikából. -->
                 <span>{{ t('deliverability.inbox') }}: {{ test.inboxRate }}%</span>

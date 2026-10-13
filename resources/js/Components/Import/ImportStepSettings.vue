@@ -9,6 +9,7 @@ import VmFormRow from '../Form/VmFormRow.vue';
 import VmTagInput from '../Form/VmTagInput.vue';
 import type { ImportErrors, ImportList, ImportState } from './types';
 import { useFormat } from '../../composables/useFormat';
+import { useCodes } from '../../composables/useCodes';
 
 /**
  * 3. LÉPÉS — beállítások: cél lista, címkék, a meglévők frissítése, és a KÖTELEZŐ jogalap.
@@ -22,6 +23,7 @@ const props = defineProps<{ state: ImportState; lists: ImportList[]; errors: Imp
 const emit = defineEmits<{ (e: 'saved'): void; (e: 'back'): void; (e: 'errors', value: ImportErrors): void }>();
 
 const { t } = useI18n({ useScope: 'global' });
+const code = useCodes();
 const format = useFormat();
 // A számok a PROFIL számformátuma szerint (D11), nem a vue-i18n locale-ja szerint.
 const n = (value: number): string => format.number(value);
@@ -147,7 +149,8 @@ function save(): void {
         <div class="vm-import-status" :class="{ 'is-subscribed': subscribed }" role="status" data-testid="import-status-box">
             <strong>
                 {{ t('audience.import.legal.resultingStatus') }}
-                <VtBadge :tone="subscribed ? 'success' : 'warning'">{{ subscribed ? 'subscribed' : 'pending' }}</VtBadge>
+                <!-- D292: a gépi kód a `data-status`-ban, a jelvény a fordított címkét mutatja. -->
+                <span :data-status="subscribed ? 'subscribed' : 'pending'"><VtBadge :tone="subscribed ? 'success' : 'warning'">{{ code('contactStatus', subscribed ? 'subscribed' : 'pending') }}</VtBadge></span>
             </strong>
             <span class="vt-text-muted">
                 {{ subscribed ? t('audience.import.legal.statusSubscribed') : t('audience.import.legal.statusPending') }}

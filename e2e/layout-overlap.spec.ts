@@ -203,7 +203,7 @@ test.afterAll(async ({ browser }) => {
 });
 
 interface Finding {
-    kind: 'text-overlap' | 'overflow' | 'page-scroll';
+    kind: 'text-overlap' | 'overflow' | 'page-scroll' | 'clipped-bar' | 'minimap-overlap';
     message: string;
 }
 
@@ -355,6 +355,49 @@ async function measure(page: Page, tolerance: number): Promise<Finding[]> {
             }
         }
 
+        /*
+         | D292 · FÜL- ÉS SZEGMENSSÁVOK: minden fül / opció TELJESEN látszik — a nézetben és minden
+         | vágó (overflow) ős dobozában. A görgethető fülsor (`overflow-x: auto`) a túlcsordulás-mérőn
+         | átcsúszna, a felhasználó viszont csak egy levágott „Le…" fület lát: a sáv tördeljen.
+         */
+        for (const option of Array.from(document.querySelectorAll('.vt-segmented__option, .vt-tabs__tab'))) {
+            if (!isVisible(option)) continue;
+
+            const rect = option.getBoundingClientRect();
+
+            if (rect.width === 0) continue;
+
+            let clipped = rect.left < -tol || rect.right > window.innerWidth + tol;
+
+            for (let node = option.parentElement; node && !clipped; node = node.parentElement) {
+                const overflow = getComputedStyle(node).overflowX;
+
+                if (overflow === 'visible') continue;
+
+                const box = node.getBoundingClientRect();
+                clipped = rect.left < box.left - tol || rect.right > box.right + tol;
+            }
+
+            if (clipped) {
+                findings.push({ kind: 'clipped-bar', message: `levágott fül/opció: ${describe(option)} — "${(option.textContent ?? '').trim().slice(0, 40)}"` });
+            }
+        }
+
+        // D292 · A JOURNEY-MINITÉRKÉP nem takarhat csomópontot (mobilon rejtett vagy félreálló).
+        for (const map of Array.from(document.querySelectorAll('.vue-flow__minimap'))) {
+            if (!isVisible(map)) continue;
+
+            const box = map.getBoundingClientRect();
+
+            for (const node of Array.from(document.querySelectorAll('.vue-flow__node'))) {
+                const rect = node.getBoundingClientRect();
+
+                if (Math.min(box.right, rect.right) - Math.max(box.left, rect.left) > tol && Math.min(box.bottom, rect.bottom) - Math.max(box.top, rect.top) > tol) {
+                    findings.push({ kind: 'minimap-overlap', message: `a minitérkép takarja: ${describe(node)}` });
+                }
+            }
+        }
+
         return findings;
     }, tolerance);
 }
@@ -406,11 +449,17 @@ test('a mérő megtalálja az átfedést, a túlcsordulást és az oldal-görget
                 <span style="display:block;white-space:nowrap">egy-nagyon-hosszu-torhetetlen-szo-ami-kilog</span>
             </div>
             <div style="position:absolute;top:200px;left:0;width:900px;height:10px">x</div>
+            <div class="vt-tabs__list" style="position:absolute;top:240px;left:0;width:120px;overflow-x:auto;display:flex">
+                <button class="vt-tabs__tab" style="flex:none;width:100px">Első fül</button>
+                <button class="vt-tabs__tab" style="flex:none;width:100px">Második fül</button>
+            </div>
+            <div class="vue-flow__node" style="position:absolute;top:300px;left:300px;width:100px;height:40px"></div>
+            <div class="vue-flow__minimap" style="position:absolute;top:310px;left:320px;width:100px;height:60px"></div>
         </body>`);
 
     const kinds = new Set((await measure(page, TOLERANCE)).map((finding) => finding.kind));
 
-    expect([...kinds].sort()).toEqual(['overflow', 'page-scroll', 'text-overlap']);
+    expect([...kinds].sort()).toEqual(['clipped-bar', 'minimap-overlap', 'overflow', 'page-scroll', 'text-overlap']);
 });
 
 for (const width of WIDTHS) {

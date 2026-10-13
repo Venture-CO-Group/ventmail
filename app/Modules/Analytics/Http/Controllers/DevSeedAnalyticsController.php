@@ -10,7 +10,7 @@ use App\Modules\Analytics\Services\ClickMap;
 use App\Modules\Audience\Models\Contact;
 use App\Modules\Audit\Services\KeyedHash;
 use App\Modules\Campaign\Models\Campaign;
-use App\Modules\Domains\Models\Domain;
+use App\Modules\Domains\Services\DemoDomain;
 use App\Modules\Journey\Models\Journey;
 use App\Modules\Journey\Models\JourneyStep;
 use App\Modules\Logs\Models\DomainDailyStat;
@@ -45,7 +45,7 @@ final class DevSeedAnalyticsController
         }
 
         $workspaceId = $context->workspaceId();
-        $domain = Domain::firstOrCreate(['name' => 'pelda.hu'], ['status' => 'verified', 'verified_at' => now()]);
+        $domain = DemoDomain::ensure();
 
         DB::transaction(function () use ($workspaceId, $domain): void {
             $template = Template::create([
