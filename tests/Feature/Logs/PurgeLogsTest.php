@@ -205,7 +205,11 @@ it('a törlési kérés MIND a négy PII-tárolóból eltünteti a személyt', f
         'classification' => 'delivered',
     ]);
 
-    WebhookDelivery::create([
+    // A SAJÁT sorát mérjük, nem az `->first()`-et: a `MessageEvent::created` a dispatcheren át
+    // EGY MÁSIK (függő) kézbesítést is ír ugyanerre az üzenetre, és rendezés nélkül a Postgres
+    // fizikai sorrendje dönti el, melyik az „első" (a v1.1 · 7. modul extra írásai után
+    // mérve meg is fordult).
+    $manual = WebhookDelivery::create([
         'webhook_endpoint_id' => $endpoint->getKey(),
         'event_type' => 'delivered',
         'message_uuid' => $uuid,
@@ -224,14 +228,15 @@ it('a törlési kérés MIND a négy PII-tárolóból eltünteti a személyt', f
     expect(SmtpTransaction::query()->first()->response_text)->toBeNull();
     expect(SmtpTransaction::query()->first()->lines)->toBe([]);
     expect(DeliveryAttempt::query()->first()->recipient)->toBeNull();
-    expect(WebhookDelivery::query()->first()->payload)->toBe([]);
+    // MINDEN kézbesítési sor payloadja redaktált (a dispatcheré és a kézzel írt is).
+    expect(WebhookDelivery::query()->pluck('payload')->unique()->values()->all())->toBe([[]]);
 
     // …a TÉNY viszont megmaradt: enélkül a kézbesítési statisztika és a panasz-bizonyíték
     // is elveszne, és az anonimizált aggregátum már nem személyes adat.
     expect(MessageEvent::query()->first()->type)->toBe('delivered');
     expect(MessageEvent::query()->first()->redacted_at)->not->toBeNull();
     expect(DeliveryAttempt::query()->first()->code)->toBe(250);
-    expect(WebhookDelivery::query()->first()->status)->toBe('delivered');
+    expect($manual->fresh()->status)->toBe('delivered');
 });
 
 it('a törlési kérés az ÉKEZETES alakot is megtalálja', function () {
