@@ -188,6 +188,7 @@ echo blue >"$APP_DIR/.active-color"
 export FAKE_FAIL='-p ventmail-green .*(up -d --remove-orphans|down)'
 out="$("$DEPLOY" v1.1.0 2>&1 || true)"
 expect "says so when discarding a failed colour also fails" 'grep -qi "could not remove" <<<"$out"'
+expect "... and names the safe recovery command with VENTMAIL_TAG/VENTMAIL_COLOR (D299)" 'grep -q "VENTMAIL_TAG=v1.1.0 VENTMAIL_COLOR=green docker compose -p ventmail-green -f compose.prod.yml down --remove-orphans" <<<"$out"'
 teardown
 
 # --- D227 / D254 (+ review round 2, D277-D281): the old colour is stopped after the drain, its
@@ -372,6 +373,25 @@ setup
 export FAKE_FAIL='d227-marker-check' FAKE_APP_CID=0ldapp
 "$DEPLOY" v1.1.0 >/dev/null 2>&1
 expect "a live pre-existing <name>.d227-part is never reused: the old version goes to the conflicts (D296)" 'grep -q "conflict kept (temp name taken)" "$CALLS"'
+teardown
+
+# --- closing NITs: two pre-D227 colours at once (D298), atomic marker + leftover cleanup (D300).
+setup
+"$DEPLOY" v1.0.0 >/dev/null 2>&1
+printf 'green\n' >"$APP_DIR/.active-color"; printf 'v1.1.0\n' >"$APP_DIR/.deployed-tag"
+echo blue >"$APP_DIR/.d227-pending"
+export FAKE_FAIL='d227-marker-check' FAKE_CIDS='blue:0ldblue green:0ldgreen'
+: >"$CALLS"
+rc=0; out="$("$DEPLOY" --migrate-storage 2>&1)" || rc=$?
+expect "two pre-D227 colours: the stopped one is copied and removed, but the global marker is deferred (D298)" \
+    '[ "$rc" -eq 0 ] && called "cp 0ldblue:/app/storage/app -" && called "D227_FINAL=0 --label vm.step=d227-verify" && called "-p ventmail-blue .*down" && grep -q "marker deferred" <<<"$out"'
+export FAKE_CIDS='green:0ldgreen'
+: >"$CALLS"
+rc=0; "$DEPLOY" v1.2.0 >/dev/null 2>&1 || rc=$?
+expect "... and retiring the other one copies its layer too, then writes the marker (D298)" \
+    '[ "$rc" -eq 0 ] && order "cp 0ldgreen:/app/storage/app -" "D227_FINAL=1 --label vm.step=d227-verify" "-p ventmail-green .*down"'
+expect "the marker is written atomically; a later run clears interrupt leftovers next to it (D300)" \
+    'grep -q "mv /dst/.d227-migrated.tmp /dst/.d227-migrated" "$CALLS" && grep -q "rm -f /dst/.d227-preexisting /dst/.d227-preexisting.tmp" "$CALLS"'
 teardown
 
 setup

@@ -174,8 +174,9 @@
       (`D227_MIN_FREE_FACTOR`, `D227_MIN_FREE_MARGIN_KB`); különben semmi nem íródik;
     - a már ott lévő (az új szín által írt) fájlok listája (`.d227-preexisting`) CSAK az első kísérletben
       készül, a stagingen kívül, és újrapróbáláskor nem számolódik újra;
-    - minden fájl **atomian** másolódik (`<név>.d227-part` → `mv`), az újrapróbálás előbb törli a
-      maradék `*.d227-part`-okat — csonka fájl soha nem kerül a végleges névre;
+    - minden fájl **atomian, felülírás nélkül** másolódik (`<név>.d227-part`, majd `ln` a végleges
+      névre — ha az már létezik, az ütközés-ágba megy), az újrapróbálás előbb törli a SAJÁT maradék
+      `.d227-part`-jait — csonka fájl soha nem kerül a végleges névre;
     - ütközésnél (más tartalom ugyanazon az úton) az új szín változata marad, a régi a
       `.d227-conflicts/` alá kerül (naplózva); a kihagyott szimlinkek száma naplózva;
     - az ellenőrzés a migrált fájlokat **bájtra** (`cmp`) veti össze; maradék `*.d227-part` = hiba;
@@ -196,9 +197,17 @@
       D227 előtti); a guard az ilyen cél-színt újra létrehozhatja (nincs mentendő réteg), és csak
       D227 előtti színnél áll meg — csak azt szabad a `.d227-pending`-be írni. A friss-box jelölő csak
       akkor íródik, ha egyik szín-projektnek sincs (leállított) konténere sem.
-    - **Friss box / már volume-os szín (D288):** az első deploy (nincs korábbi szín) a jelölőt másolás
-      nélkül írja; egy szín, amelynek `app` konténere már a volume-ot csatolja (`docker inspect`), nem
-      másolódik önmagára — jelölő, és kész.
+    - **Friss box (D288, D295):** az első deploy (nincs korábbi szín, és egyik szín-projektnek sincs
+      konténere) a jelölőt másolás nélkül írja. Egy már volume-os szín nem másolódik önmagára, és
+      jelölőt SEM ír (D293) — lásd fent.
+    - **Két egyidejű D227 előtti szín (D298):** a jelölő globális, ezért csak akkor íródik, ha a MÁSIK
+      színnek sincs D227 előtti `app` konténere; addig az egyik szín migrálása után a jelölő vár, és a
+      másik szín kivezetésekor az ő rétege is átmásolódik.
+    - **Megszakítás a jelölő és a takarítás között (D300):** a jelölő atomian íródik; a következő
+      futás a jelölő mellett megmaradt stagingot és `.d227-preexisting`-et eltakarítja.
+    - **Részlegesen elindult, egészségtelen szín (D299):** a hibaüzenet a biztonságos parancsot adja
+      (`VENTMAIL_TAG=<tag> VENTMAIL_COLOR=<szín> docker compose -p ventmail-<szín> -f compose.prod.yml
+      down --remove-orphans`) — az a szín már a volume-on fut, nincs mentendő rétege.
     - **Ellenőrzés (D287, D289):** a forrás tar-stream bejegyzés-száma (`tar -t`) és a staging egyezik
       (egy fejléc-határon csonkult stream nem mehet át); a no-clobber `ln`-nel (nincs ellenőrzés–mozgatás
       verseny); csak a SAJÁT `.d227-part` maradékok törlődnek; az ütközés-másolat is atomi és `cmp`-elt.

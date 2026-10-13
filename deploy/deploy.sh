@@ -134,7 +134,13 @@ migrate_d227() {
     local old="$1" helper="$2" all cid mounted source_kb entries free_kb need_kb
     local mounts=(-v ventmail-storage:/dst -v ventmail-storage-public:/dst/public)
 
-    if docker run --rm --label vm.step=d227-marker-check --user 0 --entrypoint sh "${mounts[@]}" "$helper" -c 'test -f /dst/.d227-migrated'; then
+    # With the marker present, leftovers of an interrupt between the marker and the cleanup (staging,
+    # pre-existing list) are removed here (closing NIT N4, D300).
+    if docker run --rm --label vm.step=d227-marker-check --user 0 --entrypoint sh "${mounts[@]}" "$helper" -c '
+        [ -f /dst/.d227-migrated ] || exit 1
+        if [ -d /dst/.d227-staging ]; then rm -r /dst/.d227-staging; fi
+        rm -f /dst/.d227-preexisting /dst/.d227-preexisting.tmp /dst/.d227-migrated.tmp
+    '; then
         log "storage: D227 migration already done (marker present)"
         return 0
     fi
@@ -229,9 +235,21 @@ migrate_d227() {
         ok=1
     ' || return 1
 
+    # The marker is GLOBAL (closing NIT N1, D298): it may only be written when the OTHER colour
+    # holds no pre-D227 layer either (no app container, or one already on the volume). Two
+    # pre-D227 colours at once: this one is copied and removed, the marker waits for the other.
+    local other final=1 other_cid
+    if [ "$old" = blue ]; then other=green; else other=blue; fi
+    other_cid="$(docker ps -aq --filter "label=com.docker.compose.project=ventmail-$other" --filter "label=com.docker.compose.service=app")" || { log "storage: cannot look up the app container of $other"; return 1; }
+    other_cid="$(head -1 <<<"$other_cid")"
+    if [ -n "$other_cid" ] && ! app_on_volume "$other_cid"; then
+        final=0
+        log "storage: colour $other is pre-D227 too; the marker is NOT written until it is migrated"
+    fi
+
     # 2. verify: the staged tree has the source's entry count; a migrated file is byte-identical; a
     #    pre-existing one exists; a conflict copy is byte-identical; no part file of ours is left.
-    docker run --rm -e "D227_ENTRIES=$entries" --label vm.step=d227-verify --user 0 --entrypoint sh "${mounts[@]}" "$helper" -c '
+    docker run --rm -e "D227_ENTRIES=$entries" -e "D227_FINAL=$final" --label vm.step=d227-verify --user 0 --entrypoint sh "${mounts[@]}" "$helper" -c '
         set -eu
         ok=0
         trap '"'"'if [ "$ok" != 1 ] && [ -d /dst/.d227-staging ]; then rm -r /dst/.d227-staging; fi'"'"' EXIT
@@ -257,8 +275,12 @@ migrate_d227() {
             if ! cmp -s "$f" "/dst/$rel"; then echo "content mismatch: $rel" >&2; bad=$((bad + 1)); fi
         done < /tmp/staged
         [ "$bad" -eq 0 ] || { echo "$bad file(s) failed verification" >&2; exit 1; }
-        printf "migrated=%s files=%s bytes=%s\\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$files" "$bytes" > /dst/.d227-migrated
-        chown 10001:10001 /dst/.d227-migrated
+        if [ "${D227_FINAL:-1}" = 1 ]; then
+            # Atomic marker (N4): never a half-written file.
+            printf "migrated=%s files=%s bytes=%s\\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$files" "$bytes" > /dst/.d227-migrated.tmp
+            chown 10001:10001 /dst/.d227-migrated.tmp
+            mv /dst/.d227-migrated.tmp /dst/.d227-migrated
+        fi
         cd /
         rm -r /dst/.d227-staging
         rm /dst/.d227-preexisting
@@ -266,7 +288,11 @@ migrate_d227() {
         echo "files=$files bytes=$bytes"
     ' || return 1
 
-    log "storage: D227 migration from $old verified, marker written"
+    if [ "$final" = 1 ]; then
+        log "storage: D227 migration from $old verified, marker written"
+    else
+        log "storage: D227 migration from $old verified (marker deferred: $other is still pre-D227)"
+    fi
 }
 
 # mark_d227 <helper image> <note>: write the `.d227-migrated` marker without a copy (a fresh box or
@@ -315,7 +341,7 @@ d227_guard() {
     if [ -z "$cid" ]; then
         die "colour $target has containers but no app container, and the D227 storage migration is not done; inspect it by hand (docker ps -a --filter label=com.docker.compose.project=ventmail-$target) before deploying"
     fi
-    die "colour $target is a pre-D227 colour (its files live in its container layer) and the D227 storage migration is not done: recreating it would destroy them. Record it and migrate first: echo $target > .d227-pending && ./deploy.sh --migrate-storage"
+    die "colour $target is a pre-D227 colour (its files live in its container layer) and the D227 storage migration is not done: recreating it would destroy them. Record it and migrate first: echo $target > .d227-pending && ./deploy.sh --migrate-storage (if the serving colour is pre-D227 too, the marker is written only after it has been migrated as well)"
 }
 
 # retire <old colour> <old tag> <helper image>: stop the (drained) colour first - its workers and
@@ -409,7 +435,7 @@ fi
 if ! colour "$next" "$tag" up -d --remove-orphans --wait --wait-timeout "$WAIT_TIMEOUT"; then
     log "$tag did not become healthy on $next; discarding it"
     colour "$next" "$tag" down --remove-orphans ||
-        log "warning: could not remove the failed $next colour; it receives no traffic while unhealthy, remove it by hand"
+        log "warning: could not remove the failed $next colour; it receives no traffic while unhealthy. It runs this release on the shared volume, so removing it is safe: cd $APP_DIR && VENTMAIL_TAG=$tag VENTMAIL_COLOR=$next docker compose -p ventmail-$next -f compose.prod.yml down --remove-orphans"
     die "$tag is NOT deployed; ${active:-nothing} keeps serving ${previous:-nothing} and was never stopped"
 fi
 log "$next is healthy on $tag"
