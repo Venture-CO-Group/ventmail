@@ -6,7 +6,11 @@ use App\Modules\Domains\Models\Domain;
 use App\Modules\Sending\Drivers\FakeDriver;
 use App\Modules\Sending\Models\Message;
 use App\Modules\Sending\Models\RawMimeMessage;
+use App\Modules\Smtp\Contracts\SubmissionSink;
+use App\Modules\Smtp\Data\ChannelSecurity;
 use App\Modules\Smtp\Models\SmtpCredential;
+use App\Modules\Smtp\Protocol\SmtpSession;
+use App\Modules\Smtp\Services\CredentialAuthenticator;
 use App\Modules\Suppression\Models\Suppression;
 use App\Modules\Tenancy\Models\Workspace;
 use App\Modules\Tenancy\Services\WorkspaceContext;
@@ -310,10 +314,10 @@ it('a leiratkozó fejléc BETŰZÉSTŐL függetlenül elakad a relayen', functio
  | már hitelesített kapcsolaton SEM küldhet tovább — 421, és a kapcsolat zárul.
  */
 it('a munkamenet közben visszavont hitelesítő nem küldhet, és a kapcsolat zárul', function () {
-    $session = new \App\Modules\Smtp\Protocol\SmtpSession(
-        app(\App\Modules\Smtp\Services\CredentialAuthenticator::class),
-        app(\App\Modules\Smtp\Contracts\SubmissionSink::class),
-        \App\Modules\Smtp\Data\ChannelSecurity::encrypted('TLSv1.3'),
+    $session = new SmtpSession(
+        app(CredentialAuthenticator::class),
+        app(SubmissionSink::class),
+        ChannelSecurity::encrypted('TLSv1.3'),
         'smtp.ventmail.test',
     );
 

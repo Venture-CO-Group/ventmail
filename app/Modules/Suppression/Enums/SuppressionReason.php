@@ -89,7 +89,6 @@ enum SuppressionReason: string
             return $incoming;
         }
 
-
         $existingSticky = $existing->isIrrevocableByTenant();
         $incomingSticky = $incoming->isIrrevocableByTenant();
 

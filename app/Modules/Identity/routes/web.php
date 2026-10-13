@@ -2,8 +2,8 @@
 
 declare(strict_types=1);
 
-use App\Modules\Identity\Http\Controllers\ApiKeyController;
 use App\Modules\Api\Http\Controllers\DeveloperDocsController;
+use App\Modules\Identity\Http\Controllers\ApiKeyController;
 use App\Modules\Identity\Http\Controllers\DevLoginController;
 use App\Modules\Identity\Http\Controllers\DevSeedController;
 use App\Modules\Identity\Http\Controllers\LocaleController;

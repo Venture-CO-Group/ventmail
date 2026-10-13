@@ -13,8 +13,8 @@ use App\Modules\Suppression\Models\Suppression;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Contracts\Pagination\CursorPaginator;
 use Illuminate\Database\UniqueConstraintViolationException;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 
 /**

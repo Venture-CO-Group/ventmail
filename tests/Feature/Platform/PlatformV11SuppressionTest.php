@@ -9,6 +9,7 @@ use App\Modules\Identity\Models\ApiKey;
 use App\Modules\Sending\Actions\SendMessage;
 use App\Modules\Sending\Models\Message;
 use App\Modules\Suppression\Models\Suppression;
+use App\Modules\Suppression\Services\SuppressionStore;
 use App\Modules\Tenancy\Models\Workspace;
 use App\Modules\Tenancy\Services\WorkspaceContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -268,7 +269,7 @@ it('a legacy hard_bounce sor a Bounce-ok fülön és a /v1-en bounce-ként jelen
 });
 
 it('az automatikus bounce-tiltás bounce okkal íródik, hard/soft a detailben, és nem fokozható le', function () {
-    $row = app(WorkspaceContext::class)->runFor($this->workspace, fn () => app(\App\Modules\Suppression\Services\SuppressionStore::class)->recordBounce('Uj.Bounce@example.test', true));
+    $row = app(WorkspaceContext::class)->runFor($this->workspace, fn () => app(SuppressionStore::class)->recordBounce('Uj.Bounce@example.test', true));
 
     expect($row->reason)->toBe('bounce')->and($row->detail)->toBe('hard');
 

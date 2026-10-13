@@ -10,11 +10,13 @@ use App\Modules\Identity\Enums\Role;
 use App\Modules\IpPools\Models\IpAddress;
 use App\Modules\IpPools\Models\IpPool;
 use App\Modules\Logs\Models\DomainDailyStat;
+use App\Modules\Logs\Services\DomainStatsRecorder;
 use App\Modules\Sending\Actions\SendMessage;
 use App\Modules\Sending\Models\Message;
 use App\Modules\Tenancy\Models\Workspace;
 use App\Modules\Tenancy\Services\WorkspaceContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 
 uses(RefreshDatabase::class);
 
@@ -177,18 +179,19 @@ it('RS4: batch-úton egy írás +N, testmode nem „küldött", és a hibás rec
     expect(DomainDailyStat::query()->where('domain_id', $this->domain->id)->value('sent'))->toBe(3);
 
     // Egy elhasaló recorder a hívó tranzakcióját nem teszi használhatatlanná (savepoint).
-    app()->instance(\App\Modules\Logs\Services\DomainStatsRecorder::class, new class {
+    app()->instance(DomainStatsRecorder::class, new class
+    {
         public function record(): void
         {
-            \Illuminate\Support\Facades\DB::select('select 1/0');
+            DB::select('select 1/0');
         }
     });
 
-    \Illuminate\Support\Facades\DB::transaction(function () use ($message): void {
+    DB::transaction(function () use ($message): void {
         statEvent($message, 'opened');
 
         // Ha a tranzakció mérgezett lenne, ez „current transaction is aborted" hibát adna.
-        expect(\Illuminate\Support\Facades\DB::selectOne('select 1 as ok')->ok)->toBe(1);
+        expect(DB::selectOne('select 1 as ok')->ok)->toBe(1);
     });
 });
 
@@ -197,21 +200,21 @@ it('N1 (D199): külső rollback után a következő tranzakció eseményei is sz
     $before = (int) DomainDailyStat::query()->where('domain_id', $this->domain->id)->value('opened');
 
     try {
-        \Illuminate\Support\Facades\DB::transaction(function () use ($message): void {
+        DB::transaction(function () use ($message): void {
             statEvent($message, 'opened');
-            throw new \RuntimeException('rollback');
+            throw new RuntimeException('rollback');
         });
-    } catch (\RuntimeException) {
+    } catch (RuntimeException) {
     }
 
     expect((int) DomainDailyStat::query()->where('domain_id', $this->domain->id)->value('opened'))->toBe($before);
 
-    \Illuminate\Support\Facades\DB::transaction(function () use ($message): void {
+    DB::transaction(function () use ($message): void {
         statEvent($message, 'opened');
         statEvent($message, 'opened');
 
         // Belső savepoint commitja nem viszi el a köteget.
-        \Illuminate\Support\Facades\DB::transaction(fn () => statEvent($message, 'opened'));
+        DB::transaction(fn () => statEvent($message, 'opened'));
     });
 
     expect((int) DomainDailyStat::query()->where('domain_id', $this->domain->id)->value('opened'))->toBe($before + 3);

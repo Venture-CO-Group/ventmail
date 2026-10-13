@@ -8,6 +8,7 @@ use App\Modules\Suppression\Models\Suppression;
 use App\Modules\Suppression\Services\SuppressionStore;
 use App\Modules\Tenancy\Models\Workspace;
 use App\Modules\Tenancy\Services\WorkspaceContext;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -129,7 +130,7 @@ it('a törlés is FOR UPDATE zárol, és a közben beírt leiratkozást NEM tör
 
     // A zár után a törlés a FRISS (leiratkozás) állapotra dönt: 403-nak megfelelő kivétel.
     expect(fn () => app(SuppressionStore::class)->removeWithJustification($this->email, 'Jegy #1', 'ui'))
-        ->toThrow(\Illuminate\Auth\Access\AuthorizationException::class);
+        ->toThrow(AuthorizationException::class);
 
     expect(DB::table('suppressions')->where('workspace_id', $this->workspaceId)->where('email', $this->email)->value('reason'))->toBe('unsubscribe');
 });

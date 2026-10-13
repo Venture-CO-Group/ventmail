@@ -65,18 +65,18 @@ final class ApiKeyController
             'keys' => ApiKey::query()->orderByDesc('id')->get()
                 ->concat(ApiKey::query()->onlyTrashed()->orderByDesc('deleted_at')->limit(self::MAX_REVOKED)->get())
                 ->map(fn (ApiKey $key) => [
-                'uuid' => (string) $key->uuid,
-                'name' => (string) $key->name,
-                // A PREFIX az, amiről a kulcs FELISMERHETŐ a naplóban — a titok nélkül.
-                'prefix' => (string) $key->prefix,
-                'scopes' => array_values((array) $key->scopes),
-                'channels' => $key->channels === null ? null : array_values((array) $key->channels),
-                'testmode' => (bool) $key->testmode,
-                'ip_allowlist' => array_values((array) $key->ip_allowlist),
-                'last_used_at' => $key->last_used_at?->toIso8601String(),
-                'created_at' => $key->created_at?->toIso8601String(),
-                'revoked_at' => $key->deleted_at?->toIso8601String(),
-            ])->values()->all(),
+                    'uuid' => (string) $key->uuid,
+                    'name' => (string) $key->name,
+                    // A PREFIX az, amiről a kulcs FELISMERHETŐ a naplóban — a titok nélkül.
+                    'prefix' => (string) $key->prefix,
+                    'scopes' => array_values((array) $key->scopes),
+                    'channels' => $key->channels === null ? null : array_values((array) $key->channels),
+                    'testmode' => (bool) $key->testmode,
+                    'ip_allowlist' => array_values((array) $key->ip_allowlist),
+                    'last_used_at' => $key->last_used_at?->toIso8601String(),
+                    'created_at' => $key->created_at?->toIso8601String(),
+                    'revoked_at' => $key->deleted_at?->toIso8601String(),
+                ])->values()->all(),
             'availableScopes' => self::SCOPES,
             'availableChannels' => Channel::values(),
         ]);

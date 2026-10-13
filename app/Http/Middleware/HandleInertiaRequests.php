@@ -12,6 +12,7 @@ use App\Modules\Tenancy\Services\WorkspaceContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Middleware;
+use Symfony\Component\HttpFoundation\Response;
 
 /**
  * Minden oldalnak átadott megosztott adat — a felület KÖZÖS ÁLLAPOTA.
@@ -41,7 +42,7 @@ final class HandleInertiaRequests extends Middleware
      * a szülő UTÁN fűzzük hozzá: nem hitelesített válasznál a nyelv az `Accept-Language`-től
      * függ, és a gyorsítótár/edge nem keverheti a nyelveket.
      */
-    public function handle(Request $request, \Closure $next): \Symfony\Component\HttpFoundation\Response
+    public function handle(Request $request, \Closure $next): Response
     {
         $response = parent::handle($request, $next);
 
