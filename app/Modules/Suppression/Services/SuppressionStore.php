@@ -12,6 +12,8 @@ use App\Modules\Suppression\Enums\SuppressionScope;
 use App\Modules\Suppression\Models\Suppression;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Contracts\Pagination\CursorPaginator;
+use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Carbon;
 use InvalidArgumentException;
 
@@ -85,39 +87,80 @@ final class SuppressionStore
         string $source,
         ?string $detail = null,
     ): Suppression {
-        $existing = Suppression::query()
+        /*
+         | SOROS FELDOLGOZÁS (v1.1 · 7. modul review 2 S1, D198).
+         |
+         | Zár nélkül két párhuzamos felvétel ugyanazt a RÉGI sort olvasná: a második (pl.
+         | `blocked`) felülírhatná a közben beírt leiratkozást, ami így törölhetővé válna; nem
+         | létező sornál pedig mindkettő INSERT-et adna, és a második unique-hibával 500-zal
+         | bukna (a one-click POST nem rögzülne). Ezért: a meglévő sor `FOR UPDATE`, a
+         | beszúrás savepointban, ütközésnél a nyertes sor újraolvasva `FOR UPDATE` — és a
+         | `merged()` szabály mindig a ZÁROLT, friss állapotra fut.
+         */
+        return DB::transaction(function () use ($email, $reasonEnum, $scopeEnum, $expiresAt, $source, $detail): Suppression {
+            $existing = $this->lockedOwnRow($email);
+
+            if ($existing === null) {
+                $created = $this->createUnlessExists([
+                    'email' => $email,
+                    'reason' => $reasonEnum->value,
+                    'applies_to' => $scopeEnum->value,
+                    'expires_at' => $reasonEnum->isPermanent() ? null : $expiresAt,
+                    'source' => $source,
+                    'detail' => $detail,
+                ]);
+
+                if ($created !== null) {
+                    return $created;
+                }
+
+                // Egy párhuzamos kérés közben beszúrta: az ő sorára fésülünk.
+                $existing = $this->lockedOwnRow($email) ?? throw new \RuntimeException('A tiltás-sor eltűnt az ütközés után.');
+            }
+
+            $existingReason = SuppressionReason::tryFrom((string) $existing->reason);
+            $existingScope = SuppressionScope::tryFrom((string) $existing->applies_to) ?? SuppressionScope::All;
+            $merged = SuppressionReason::merged($existingReason, $reasonEnum);
+
+            $existing->update([
+                // A visszavonhatatlan ok RAGADÓS, egyébként a súlyosabb marad (D186).
+                'reason' => $merged->value,
+                // A hatókör csak BŐVÜLHET (marketing → all), soha nem szűkül.
+                'applies_to' => $scopeEnum->isStricterThan($existingScope)
+                    ? $scopeEnum->value
+                    : $existingScope->value,
+                // A lejárat csak SZIGORODHAT: permanens ok törli, egyébként a korábbi marad.
+                'expires_at' => $reasonEnum->isPermanent() || $merged->isPermanent() ? null : $existing->expires_at,
+            ]);
+
+            return $existing->fresh();
+        });
+    }
+
+    /** A workspace SAJÁT sora a címre, `FOR UPDATE` zárral (a hívó tranzakciójában). */
+    private function lockedOwnRow(string $email): ?Suppression
+    {
+        return Suppression::query()
             ->whereNotNull('workspace_id')
             ->where('email', $email)
             ->orderBy('id')
+            ->lockForUpdate()
             ->first();
+    }
 
-        if ($existing === null) {
-            return Suppression::create([
-                'email' => $email,
-                'reason' => $reasonEnum->value,
-                'applies_to' => $scopeEnum->value,
-                'expires_at' => $reasonEnum->isPermanent() ? null : $expiresAt,
-                'source' => $source,
-                'detail' => $detail,
-            ]);
+    /**
+     * Beszúrás SAVEPOINTBAN: a `(workspace_id, email)` egyedi kulcs ütközése nem mérgezi a
+     * hívó tranzakcióját, és nem 500 — `null`-t ad, a hívó a nyertes sort zárolja újra.
+     *
+     * @param  array<string, mixed>  $attributes
+     */
+    public function createUnlessExists(array $attributes): ?Suppression
+    {
+        try {
+            return DB::transaction(fn () => Suppression::create($attributes));
+        } catch (UniqueConstraintViolationException) {
+            return null;
         }
-
-        $existingReason = SuppressionReason::tryFrom((string) $existing->reason);
-        $existingScope = SuppressionScope::tryFrom((string) $existing->applies_to) ?? SuppressionScope::All;
-        $merged = SuppressionReason::merged($existingReason, $reasonEnum);
-
-        $existing->update([
-            // A visszavonhatatlan ok RAGADÓS, egyébként a súlyosabb marad (D186).
-            'reason' => $merged->value,
-            // A hatókör csak BŐVÜLHET (marketing → all), soha nem szűkül.
-            'applies_to' => $scopeEnum->isStricterThan($existingScope)
-                ? $scopeEnum->value
-                : $existingScope->value,
-            // A lejárat csak SZIGORODHAT: permanens ok törli, egyébként a korábbi marad.
-            'expires_at' => $reasonEnum->isPermanent() || $merged->isPermanent() ? null : $existing->expires_at,
-        ]);
-
-        return $existing->fresh();
     }
 
     /**

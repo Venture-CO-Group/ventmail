@@ -191,3 +191,28 @@ it('RS4: batch-úton egy írás +N, testmode nem „küldött", és a hibás rec
         expect(\Illuminate\Support\Facades\DB::selectOne('select 1 as ok')->ok)->toBe(1);
     });
 });
+
+it('N1 (D199): külső rollback után a következő tranzakció eseményei is számolódnak, a visszagördültek nem', function () {
+    $message = statSend();
+    $before = (int) DomainDailyStat::query()->where('domain_id', $this->domain->id)->value('opened');
+
+    try {
+        \Illuminate\Support\Facades\DB::transaction(function () use ($message): void {
+            statEvent($message, 'opened');
+            throw new \RuntimeException('rollback');
+        });
+    } catch (\RuntimeException) {
+    }
+
+    expect((int) DomainDailyStat::query()->where('domain_id', $this->domain->id)->value('opened'))->toBe($before);
+
+    \Illuminate\Support\Facades\DB::transaction(function () use ($message): void {
+        statEvent($message, 'opened');
+        statEvent($message, 'opened');
+
+        // Belső savepoint commitja nem viszi el a köteget.
+        \Illuminate\Support\Facades\DB::transaction(fn () => statEvent($message, 'opened'));
+    });
+
+    expect((int) DomainDailyStat::query()->where('domain_id', $this->domain->id)->value('opened'))->toBe($before + 3);
+});

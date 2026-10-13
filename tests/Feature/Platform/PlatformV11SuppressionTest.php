@@ -236,3 +236,8 @@ it('NIT: a DELETE indoklása query-paraméterként is jöhet, és a + jeles cím
     supApi()->deleteJson('/v1/suppressions/'.rawurlencode('anna+hirlevel@example.test').'?reason=query-indok')
         ->assertNoContent();
 });
+
+it('N2 (D200): a felvétel a MENTETT ok listájára visz (ragadós leiratkozásnál a leiratkozásokhoz)', function () {
+    supAs()->from('/suppressions')->post('/suppressions', ['email' => 'leiratkozott@example.test', 'reason' => 'blocked', 'appliesTo' => 'all'])
+        ->assertRedirect('/suppressions?list=unsubscribes');
+});

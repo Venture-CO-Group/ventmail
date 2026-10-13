@@ -16,6 +16,9 @@ use Illuminate\Support\Facades\Log;
  */
 final class E2eWebhookSink
 {
+    /** A figyelmeztetés folyamatonként EGYSZER (N4) — nem minden boot-on. */
+    private static bool $warned = false;
+
     public static function enabled(): bool
     {
         $prefix = (string) config('webhooks.e2e_sink', '');
@@ -25,7 +28,10 @@ final class E2eWebhookSink
         }
 
         if (app()->isProduction() || ! app()->environment('local', 'testing')) {
-            Log::warning('A WEBHOOKS_E2E_SINK csak local/testing környezetben hat — figyelmen kívül hagyva.');
+            if (! self::$warned) {
+                self::$warned = true;
+                Log::notice('A WEBHOOKS_E2E_SINK csak local/testing környezetben hat — figyelmen kívül hagyva.');
+            }
 
             return false;
         }

@@ -7,6 +7,7 @@ namespace App\Modules\Logs\Services;
 use App\Modules\Events\Models\MessageEvent;
 use App\Modules\Logs\Models\DomainDailyStat;
 use App\Modules\Sending\Models\Message;
+use Illuminate\Database\DatabaseTransactionRecord;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -43,13 +44,12 @@ final class DomainStatsRecorder
     private array $domains = [];
 
     /**
-     * A még ki nem írt növekmények: `workspace|domain|day` → oszlop → N (RS4, D194).
+     * A még ki nem írt növekmények KÜLSŐ tranzakciónként (RS4 D194, review 2 N1 D199):
+     * gyökér-tranzakció azonosító → `workspace|domain|day` → oszlop → N.
      *
-     * @var array<string, array<string, int>>
+     * @var array<int, array<string, array<string, int>>>
      */
-    private array $pending = [];
-
-    private bool $flushScheduled = false;
+    private array $batches = [];
 
     public function record(MessageEvent $event): void
     {
@@ -72,33 +72,56 @@ final class DomainStatsRecorder
 
         $key = (int) $event->workspace_id.'|'.$domainId.'|'.($event->occurred_at ?? now())->toDateString();
 
-        // Ha a korábbi ütemezett kiírás nem futott le (a tranzakció visszagördült), a
-        // függő növekmények is érvénytelenek: azok a levelek nem mentek ki.
-        if ($this->flushScheduled && DB::transactionLevel() === 0) {
-            $this->pending = [];
-            $this->flushScheduled = false;
+        $root = $this->rootTransaction();
+
+        // Tranzakción kívül nincs mit összevonni: azonnal kiírjuk.
+        if ($root === null) {
+            $this->write([$key => [$column => 1]]);
+
+            return;
         }
 
-        $this->pending[$key][$column] = ($this->pending[$key][$column] ?? 0) + 1;
+        $id = spl_object_id($root);
 
-        if (! $this->flushScheduled) {
-            $this->flushScheduled = true;
+        if (! isset($this->batches[$id])) {
+            $this->batches[$id] = [];
 
             /*
-             | EGY kiírás a COMMIT után, nem címzettenként (RS4, D194): egy 1000 címzettes batch
-             | 1000 eseménye EGY `+1000`-es upsert a forró soron, és csak a sikeres commit után
-             | — visszagördült küldés nem számít. Tranzakción kívül azonnal fut.
+             | EGY kiírás a KÜLSŐ (gyökér) tranzakció commitja után (RS4, D194): egy 1000
+             | címzettes batch 1000 eseménye EGY `+1000`-es upsert a forró soron. A visszahívások
+             | a GYÖKÉR rekordon ülnek (D199): egy belső savepoint commitja/rollbackje nem viszi el
+             | őket, a gyökér rollbackje pedig a köteget is eldobja — a következő külső tranzakció
+             | ÚJ köteget nyit, tehát egy korábbi rollback után sem vesznek el események.
              */
-            DB::afterCommit(fn () => $this->flush());
+            $root->addCallback(function () use ($id): void {
+                $batch = $this->batches[$id] ?? [];
+                unset($this->batches[$id]);
+                $this->write($batch);
+            });
+            $root->addCallbackForRollback(function () use ($id): void {
+                unset($this->batches[$id]);
+            });
         }
+
+        $this->batches[$id][$key][$column] = ($this->batches[$id][$key][$column] ?? 0) + 1;
     }
 
-    public function flush(): void
+    /**
+     * A jelenlegi kapcsolat KÜLSŐ, alkalmazás-szintű tranzakciója (a visszahívásokra
+     * alkalmas legkülső rekord), vagy `null`, ha nincs ilyen.
+     */
+    private function rootTransaction(): ?DatabaseTransactionRecord
     {
-        $pending = $this->pending;
-        $this->pending = [];
-        $this->flushScheduled = false;
+        $connection = DB::connection()->getName();
 
+        return app('db.transactions')
+            ->callbackApplicableTransactions()
+            ->first(fn (DatabaseTransactionRecord $transaction) => $transaction->connection === $connection);
+    }
+
+    /** @param array<string, array<string, int>> $pending */
+    private function write(array $pending): void
+    {
         foreach ($pending as $key => $columns) {
             [$workspaceId, $domainId, $day] = explode('|', $key);
 

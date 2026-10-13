@@ -83,10 +83,11 @@ final class SuppressionUiController
             'appliesTo' => ['required', 'string', Rule::in(array_map(fn ($case) => $case->value, SuppressionScope::cases()))],
         ]);
 
-        $store->addFromUi($validated['email'], $validated['reason'], $validated['appliesTo']);
+        $saved = $store->addFromUi($validated['email'], $validated['reason'], $validated['appliesTo']);
 
-        // A felvett cím a SAJÁT listáján jelenik meg (különben a felhasználó nem látná).
-        $list = collect(SuppressionReason::categories())->search(fn (array $reasons) => in_array($validated['reason'], $reasons, true)) ?: 'manual';
+        // A cím a MENTETT ok listáján jelenik meg (N2, D200): egy ragadós leiratkozásra
+        // felvett „blocked" a leiratkozások között marad — oda kell vinni a felhasználót.
+        $list = collect(SuppressionReason::categories())->search(fn (array $reasons) => in_array((string) $saved->reason, $reasons, true)) ?: 'manual';
 
         return redirect()->route('suppressions.index', ['list' => $list])->with('success', __('ventmail.suppressions.added'));
     }
