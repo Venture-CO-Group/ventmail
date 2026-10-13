@@ -7,6 +7,7 @@ namespace App\Modules\Template\Http\Controllers;
 use App\Modules\Template\Models\Template;
 use App\Modules\Template\Models\TemplateVersion;
 use App\Modules\Template\Services\TemplateEditorSaver;
+use App\Modules\Template\Services\TemplatePublishLocked;
 use App\Modules\Template\Services\TemplateUsage;
 use App\Modules\Template\Services\TemplateVersions;
 use Illuminate\Http\JsonResponse;
@@ -62,7 +63,11 @@ final class TemplateVersionController
         // sérüljön.
         $saver->assertValid((array) $version->blocks, $version->styles, (bool) $template->marketing);
 
-        $restored = $versions->restore($template, $version);
+        try {
+            $restored = $versions->restore($template, $version);
+        } catch (TemplatePublishLocked $e) {
+            return response()->json(['message' => $e->getMessage()], 403);
+        }
 
         return response()->json([
             'template' => TemplateUiController::payload($template->fresh() ?? $template),

@@ -62,6 +62,32 @@ final class TemplateUsage
         ]);
     }
 
+    /**
+     * A KÜLDÉSRE ÉLESÍTETT sablon-sorok MEGOSZTOTT zárja (`FOR SHARE`, review SEC4-S1) — a kampány
+     * indítása / ütemezése és a journey publikálása hívja a SAJÁT tranzakciójában. A szerkesztő
+     * mentése (`FOR UPDATE`) addig vár; utána a `writeDenial()` már az aktív használatot látja.
+     *
+     * @param  list<int>  $ids  sablon-id-k
+     */
+    public function lockForActivation(array $ids): void
+    {
+        $ids = array_values(array_unique(array_filter($ids, static fn ($id): bool => $id !== null)));
+
+        if ($ids !== []) {
+            Template::query()->whereKey($ids)->orderBy('id')->sharedLock()->get(['id']);
+        }
+    }
+
+    /** @param list<string> $uuids sablon-uuid-k (a journey lépései uuid-dal hivatkoznak) */
+    public function lockForActivationByUuid(array $uuids): void
+    {
+        $uuids = array_values(array_unique(array_filter(array_map(static fn ($uuid): string => strtolower(trim((string) $uuid)), $uuids))));
+
+        if ($uuids !== []) {
+            Template::query()->whereIn('uuid', $uuids)->orderBy('id')->sharedLock()->get(['id']);
+        }
+    }
+
     /** @return array{campaigns: list<string>, journeys: list<string>} a blokkoló hivatkozások nevei */
     public function blockers(Template $template): array
     {

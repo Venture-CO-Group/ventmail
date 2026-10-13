@@ -142,9 +142,12 @@ final class SubmitForm
                 static fn ($value): bool => $value !== null && $value !== '',
             );
 
-            // A `pending` csak ÚJ kontaktnál: aki már `subscribed`, azt egy újabb beküldés
-            // nem rontja vissza megerősítetlenre.
-            $contact->status = $contact->exists && $contact->status === 'subscribed' ? 'subscribed' : 'pending';
+            // A `pending` CSAK ÚJ kontaktnál (review N-c): a létező kontakt állapotát — legyen az
+            // `subscribed`, `unsubscribed` vagy `bounced` — egy idegen beküldése nem írja át. A
+            // feliratkozás megerősítése a levélben lévő linkből történik, nem az űrlapból.
+            if (! $contact->exists) {
+                $contact->status = 'pending';
+            }
             $contact->save();
 
             // A LISTATAGSÁG csak ha még nincs: a meglévő (akár megerősített) tagságot egy idegen
@@ -245,9 +248,14 @@ final class SubmitForm
 
         $workspaceHits = RateLimiter::increment($workspaceKey, 86400);
         $globalHits = RateLimiter::increment($globalKey, 86400);
+        // A FELSZABADÍTÁS csak élő (pozitív) számlálón csökkent (review N-b): a közben lejárt kulcs
+        // a `decrement`-tel -1-ről indulna újra, és a következő napi keretet csendben megnövelné.
         $release = static function () use ($workspaceKey, $globalKey): void {
-            RateLimiter::decrement($workspaceKey, 86400);
-            RateLimiter::decrement($globalKey, 86400);
+            foreach ([$workspaceKey, $globalKey] as $key) {
+                if (RateLimiter::attempts($key) > 0) {
+                    RateLimiter::decrement($key, 86400);
+                }
+            }
         };
 
         if ($workspaceHits > self::DOI_PER_WORKSPACE_ADDRESS_PER_DAY || $globalHits > self::DOI_PER_ADDRESS_PER_DAY) {

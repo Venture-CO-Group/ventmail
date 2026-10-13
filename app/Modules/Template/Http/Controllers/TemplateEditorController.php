@@ -11,6 +11,7 @@ use App\Modules\Template\Services\MjmlWriter;
 use App\Modules\Template\Services\PlainTextWriter;
 use App\Modules\Template\Services\TemplateEditorSaver;
 use App\Modules\Template\Services\TemplateOptimizer;
+use App\Modules\Template\Services\TemplatePublishLocked;
 use App\Modules\Template\Services\TemplateTestSender;
 use App\Modules\Template\Services\TemplateUsage;
 use App\Modules\Template\Services\TemplateVersions;
@@ -47,7 +48,12 @@ final class TemplateEditorController
         }
         $data = $this->editorInput($request, $template);
 
-        $version = $saver->save($template, $data, $request->boolean('manual') ? 'save' : 'autosave');
+        try {
+            $version = $saver->save($template, $data, $request->boolean('manual') ? 'save' : 'autosave');
+        } catch (TemplatePublishLocked $e) {
+            // A zár alatti kapu (SEC4-S1): az előellenőrzés óta lett aktív a sablon.
+            return response()->json(['message' => $e->getMessage()], 403);
+        }
 
         return response()->json([
             'savedAt' => $template->updated_at?->toIso8601String(),

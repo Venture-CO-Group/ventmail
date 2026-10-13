@@ -270,6 +270,52 @@ it('S4 · a nyilvános űrlap a LÉTEZŐ kontakt nevét és attribútumait nem �
         ->and($fresh->status)->toBe('subscribed');
 });
 
+it('N-b · a foglalás felszabadítása lejárt (közben törölt) kulcson nem visz negatívba', function () {
+    $hash = KeyedHash::of('email', 'lejart@pelda.hu');
+    $keys = ['doi-mail:ws:'.$this->workspace->getKey().':'.$hash, 'doi-mail:'.$hash];
+
+    // A küldés KÖZBEN a kulcsok lejárnak; a kapu (hitelesítetlen domain) elutasít → felszabadítás.
+    $real = app(SendMessage::class);
+    app()->instance(SendMessage::class, new class($real, $keys)
+    {
+        public function __construct(private $real, private array $keys) {}
+
+        public function __invoke(array $attributes)
+        {
+            foreach ($this->keys as $key) {
+                RateLimiter::clear($key);
+            }
+
+            return ($this->real)($attributes);
+        }
+    });
+
+    $this->post('/f/'.hardeningForm()->slug, ['email' => 'lejart@pelda.hu', 'consent' => '1', '_elapsed' => 10])->assertOk();
+
+    foreach ($keys as $key) {
+        expect(RateLimiter::attempts($key))->toBe(0);
+    }
+});
+
+it('N-c · idegen beküldés a LÉTEZŐ, nem feliratkozott kontakt állapotát nem állítja pending-re', function () {
+    $contact = Contact::create(['email' => 'leiratkozott@pelda.hu', 'status' => 'unsubscribed']);
+
+    app(SubmitForm::class)(hardeningForm(), new FormSubmission(
+        email: 'leiratkozott@pelda.hu',
+        elapsedSeconds: 10,
+    ));
+
+    expect($contact->fresh()->status)->toBe('unsubscribed');
+
+    // Az ÚJ kontakt továbbra is pending.
+    app(SubmitForm::class)(hardeningForm(['name' => 'Új']), new FormSubmission(
+        email: 'uj-kontakt@pelda.hu',
+        elapsedSeconds: 10,
+    ));
+
+    expect(Contact::query()->where('email', 'uj-kontakt@pelda.hu')->value('status'))->toBe('pending');
+});
+
 /* ---------------------------------------------------------------- S3 */
 
 it('S3 · a hozzájárulás jelölőnégyzete SZERVEROLDALON is kötelező', function () {

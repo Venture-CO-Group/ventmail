@@ -13,24 +13,34 @@ use App\Modules\Campaign\Jobs\StartCampaignJob;
 use App\Modules\Campaign\Models\Campaign;
 use App\Modules\Campaign\Services\CampaignBatchDispatcher;
 use App\Modules\Campaign\Services\CampaignLifecycle;
+use App\Modules\Campaign\Services\CampaignStateChanged;
 use App\Modules\Consent\Services\ConsentRecorder;
 use App\Modules\Domains\Models\Domain;
 use App\Modules\Journey\Enums\TriggerType;
 use App\Modules\Journey\Models\Journey;
 use App\Modules\Journey\Models\JourneyRun;
 use App\Modules\Journey\Models\JourneyStep;
+use App\Modules\Journey\Services\JourneyGraphInvalid;
+use App\Modules\Journey\Services\JourneyPublisher;
 use App\Modules\Sending\Actions\SendMessage;
 use App\Modules\Sending\Drivers\FakeDriver;
 use App\Modules\Sending\Models\Message;
 use App\Modules\Template\Models\Template;
+use App\Modules\Template\Models\TemplateAsset;
+use App\Modules\Template\Services\TemplateEditorSaver;
+use App\Modules\Template\Services\TemplatePublishLocked;
+use App\Modules\Template\Services\TemplateVersions;
 use App\Modules\Tenancy\Models\Workspace;
 use App\Modules\Tenancy\Services\WorkspaceContext;
 use App\Support\QueryBudget;
 use App\Support\QueryTooExpensive;
+use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Queue\Middleware\WithoutOverlapping;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Queue;
 use Tests\Support\StudioFixtures;
 
@@ -611,4 +621,226 @@ it('R-S1 · ha a kötegek indítása KÖZBEN szüneteltetik, a batch_id nem ír�
         ->and(Bus::findBatch($batchId)?->cancelled())->toBeTrue()
         ->and($campaign->fresh()->batch_id)->toBeNull()
         ->and($campaign->fresh()->status)->toBe('paused');
+});
+
+/* ---------------------------------------------------------------- 4. review-kör */
+
+/**
+ * PÁRHUZAMOS VÁLTOZÁS SZIMULÁLÁSA: az első olyan lekérdezés UTÁN, amelynek SQL-je minden
+ * `$needles` elemet tartalmaz, egyszer lefut a `$then` (egy „másik kérés" írása).
+ */
+function r4After(array $needles, callable $then): void
+{
+    $fired = false;
+
+    Event::listen(QueryExecuted::class, function ($query) use ($needles, $then, &$fired): void {
+        if ($fired) {
+            return;
+        }
+
+        foreach ($needles as $needle) {
+            if (! str_contains(strtolower($query->sql), strtolower($needle))) {
+                return;
+            }
+        }
+
+        $fired = true;
+        $then();
+    });
+}
+
+it('R4-S1 · két párhuzamos folytatás (dupla kattintás, két fül) PONTOSAN EGY köteget indít', function () {
+    hardMember('a@pelda.hu');
+    $campaign = app(CampaignLifecycle::class)->start(hardCampaign());
+
+    Bus::fake();
+    app(StartCampaign::class)->materialize($campaign->fresh());
+    app(CampaignLifecycle::class)->pause($campaign->fresh());
+
+    // Mindkét kérés a `paused` állapotot látta.
+    $first = $campaign->fresh();
+    $second = $campaign->fresh();
+
+    app(CampaignLifecycle::class)->resume($first);
+    app(CampaignLifecycle::class)->resume($second);
+
+    // 1 az indításé + 1 a folytatásé — a második folytatás nem indít újat.
+    Bus::assertBatchCount(2);
+    expect($campaign->fresh()->status)->toBe('sending');
+});
+
+it('R4-S2 · az állapot-ütközés dedikált kivétel, a felhasználó nyelvén (nem magyar belső szöveg)', function () {
+    app()->setLocale('en');
+    hardMember('a@pelda.hu');
+    $stale = r3Scheduled();
+    Campaign::query()->whereKey($stale->getKey())->update(['status' => 'sending']);
+
+    expect(fn () => app(CampaignLifecycle::class)->unschedule($stale))
+        ->toThrow(CampaignStateChanged::class, __('studio.checklist.changed', [], 'en'));
+});
+
+it('R4 NIT · a felületi indítás a ZÁROLT sort hasonlítja: a betöltés és a zár között elindított kampány nem indul másodszor', function () {
+    app()->setLocale('en');
+    hardMember('a@pelda.hu');
+    Queue::fake();
+    $campaign = hardCampaign();
+
+    // A kérés betölti a kampányt (`draft`), mielőtt a sorzárat felvenné — közben egy másik
+    // kérés (vagy az ütemező) elindítja.
+    r4After(['from "campaigns"', '"uuid" = ?'], fn () => DB::table('campaigns')->where('id', $campaign->getKey())->update(['status' => 'sending']));
+
+    hardAs($this)->post('/campaigns/'.$campaign->uuid.'/transition', ['action' => 'send'])
+        ->assertSessionHas('error', __('studio.checklist.changed', [], 'en'));
+
+    Queue::assertNotPushed(StartCampaignJob::class);
+});
+
+it('R4 NIT · az ütemező FRISS példányon ellenőriz, és csak TÉNYLEGES váltás után auditál', function () {
+    hardMember('a@pelda.hu');
+    $campaign = hardCampaign([], 'later');
+    app(CampaignLifecycle::class)->schedule($campaign, now()->addMinutes(5)->toDateTimeString(), 'UTC');
+    Domain::query()->update(['status' => 'pending']);
+    $this->travel(10)->minutes();
+
+    // Az esedékes-lista után a felhasználó maga vette vissza vázlatba.
+    r4After(['from "campaigns"', '"scheduled_at" <= ?'], fn () => DB::table('campaigns')->where('id', $campaign->getKey())->update(['status' => 'draft', 'scheduled_at' => null]));
+
+    $this->artisan('campaigns:dispatch-scheduled')->assertSuccessful();
+
+    expect($campaign->fresh()->status)->toBe('draft')
+        ->and(AuditLog::query()->where('action', 'campaign.unscheduled_by_checklist')->exists())->toBeFalse();
+});
+
+it('R4 NIT · a lezárás a közben szüneteltetett kampányon csendes no-op (nincs failed job)', function () {
+    hardMember('a@pelda.hu');
+    $stale = app(CampaignLifecycle::class)->start(hardCampaign());
+    Campaign::query()->whereKey($stale->getKey())->update(['status' => 'paused']);
+
+    expect(app(CampaignLifecycle::class)->completeIfSending($stale))->toBeNull()
+        ->and($stale->fresh()->status)->toBe('paused');
+});
+
+it('SEC4-S1 · a publikálási kapu a MENTŐ tranzakcióján belül, a sablon-sor zárja alatt is érvényes', function () {
+    hardMember('a@pelda.hu');
+    r3Scheduled();
+
+    $author = StudioFixtures::user($this->workspace, 'author');
+    $this->actingAs($author);
+
+    expect(fn () => app(TemplateEditorSaver::class)->save($this->template, ['blocks' => $this->template->blocks], 'save'))
+        ->toThrow(TemplatePublishLocked::class);
+
+    $version = app(TemplateVersions::class)->snapshot($this->template->fresh(), 'save');
+
+    if ($version !== null) {
+        expect(fn () => app(TemplateVersions::class)->restore($this->template->fresh(), $version))
+            ->toThrow(TemplatePublishLocked::class);
+    }
+});
+
+it('SEC4-S1 · az indítás és az ütemezés a hivatkozott sablon-sorokat is zárolja (FOR SHARE)', function () {
+    hardMember('a@pelda.hu');
+    Queue::fake();
+    $campaign = hardCampaign();
+    $sql = [];
+    DB::listen(function ($query) use (&$sql): void {
+        $sql[] = strtolower($query->sql);
+    });
+
+    hardAs($this)->post('/campaigns/'.$campaign->uuid.'/transition', ['action' => 'send'])->assertSessionHas('success');
+
+    expect(collect($sql)->contains(fn (string $q) => str_contains($q, 'from "templates"') && str_contains($q, 'for share')))->toBeTrue();
+});
+
+it('SEC4-S1 · a journey publikálása a send_email sablonokat zárolja (FOR SHARE)', function () {
+    $journey = Journey::create(['name' => 'Vászon', 'trigger_type' => TriggerType::FormSignup->value, 'trigger_config' => []]);
+    $node = fn (string $id, string $type, array $config, int $y) => ['id' => $id, 'type' => $type, 'position' => ['x' => 0, 'y' => $y], 'label' => '', 'config' => $config];
+    $edge = fn (string $source, string $target) => ['id' => "e-{$source}-{$target}", 'source' => $source, 'sourceHandle' => 'out', 'target' => $target];
+
+    $journey->forceFill(['graph' => [
+        'nodes' => [
+            $node('t', 'api_event', ['event' => 'signup'], 0),
+            $node('send', 'send_email', ['template' => (string) $this->template->uuid, 'from_email' => 'hirlevel@pelda.hu'], 100),
+            $node('end', 'exit', [], 200),
+        ],
+        'edges' => [$edge('t', 'send'), $edge('send', 'end')],
+    ]])->save();
+
+    $sql = [];
+    DB::listen(function ($query) use (&$sql): void {
+        $sql[] = strtolower($query->sql);
+    });
+
+    try {
+        app(JourneyPublisher::class)->publish($journey->fresh());
+    } catch (JourneyGraphInvalid $e) {
+        // A gráf-formátum a modul 6 dolga; a zárnak a validálás ELŐTT kell megtörténnie.
+    }
+
+    expect(collect($sql)->contains(fn (string $q) => str_contains($q, 'from "templates"') && str_contains($q, 'for share')))->toBeTrue();
+});
+
+it('SEC4-S2 · köteg-generáció CAS: ha közben másik köteg íródott a kampányra, a saját köteg törlődik', function () {
+    hardMember('a@pelda.hu');
+    $campaign = app(CampaignLifecycle::class)->start(hardCampaign());
+    $campaign->recipients()->create(['contact_id' => Contact::query()->value('id'), 'email' => 'a@pelda.hu']);
+
+    // Ez a dispatcher a `null` generációt látta; közben egy folytatás a saját kötegét írta fel.
+    $seen = $campaign->fresh();
+    Campaign::query()->whereKey($campaign->getKey())->update(['batch_id' => 'masik-koteg']);
+
+    Bus::fake();
+    $batchId = app(CampaignBatchDispatcher::class)->dispatch($seen);
+
+    expect($campaign->fresh()->batch_id)->toBe('masik-koteg')
+        ->and($batchId)->not->toBe('masik-koteg');
+
+    Bus::assertBatched(fn ($batch) => $batch->name === 'campaign:'.$campaign->uuid);
+});
+
+it('SEC4-S2 · a másik köteg által már elküldött címzett nem számolódik másodszor (sent_count, variáns)', function () {
+    hardMember('a@pelda.hu');
+    $campaign = app(CampaignLifecycle::class)->start(hardCampaign());
+
+    Bus::fake();
+    app(StartCampaign::class)->materialize($campaign->fresh());
+    $recipient = $campaign->recipients()->firstOrFail();
+
+    // A címzett-sorok beolvasása UTÁN egy párhuzamos köteg elküldte és beszámolta ugyanezt a címzettet.
+    r4After(['from "campaign_recipients"', '"status" = ?'], function () use ($recipient, $campaign): void {
+        DB::table('campaign_recipients')->where('id', $recipient->getKey())->update(['status' => 'sent', 'sent_at' => now()]);
+        DB::table('campaigns')->where('id', $campaign->getKey())->update(['sent_count' => 1]);
+    });
+
+    (new SendCampaignChunk((string) $campaign->uuid, (int) $this->workspace->getKey(), [$recipient->getKey()]))
+        ->handle(app(WorkspaceContext::class), app(SendMessage::class));
+
+    expect($campaign->fresh()->sent_count)->toBe(1);
+});
+
+it('N-d · az aktív sablonban hivatkozott kép törlése publikálási jogot kér', function () {
+    hardMember('a@pelda.hu');
+    $asset = TemplateAsset::create(['driver' => 'local', 'path' => 'assets/x.png', 'url' => 'https://cdn.pelda.hu/assets/x-'.uniqid().'.png', 'mime' => 'image/png', 'size' => 10, 'width' => 10, 'height' => 10]);
+    $free = TemplateAsset::create(['driver' => 'local', 'path' => 'assets/y.png', 'url' => 'https://cdn.pelda.hu/assets/y-'.uniqid().'.png', 'mime' => 'image/png', 'size' => 10, 'width' => 10, 'height' => 10]);
+
+    $blocks = $this->template->blocks;
+    $blocks[0]['children'][0]['children'][] = ['type' => 'image', 'attrs' => ['src' => $asset->url, 'alt' => 'Kép']];
+    $this->template->forceFill(['blocks' => $blocks])->saveQuietly();
+    r3Scheduled();
+
+    r3As($this, 'author')->deleteJson('/template-assets/'.$asset->uuid)->assertForbidden();
+    r3As($this, 'author')->deleteJson('/template-assets/'.$free->uuid)->assertOk();
+
+    expect(TemplateAsset::query()->whereKey($asset->getKey())->exists())->toBeTrue();
+});
+
+it('R4-S3 · a zárolt sablon szerkesztője a tiltás okát kapja (csak olvasható mód); publikálónak nincs zár', function () {
+    hardMember('a@pelda.hu');
+    r3Scheduled();
+
+    r3As($this, 'author')->get('/templates/'.$this->template->uuid)->assertOk()
+        ->assertInertia(fn ($page) => $page->where('writeDenial', fn ($value) => is_string($value) && $value !== ''));
+
+    r3As($this, 'editor')->get('/templates/'.$this->template->uuid)->assertOk()
+        ->assertInertia(fn ($page) => $page->where('writeDenial', null));
 });

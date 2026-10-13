@@ -71,6 +71,19 @@ final class CampaignLifecycle
     }
 
     /** VISSZAVÉTEL vázlatba — a felhasználó még szerkeszt. */
+    /**
+     * Mint az `unschedule()`, de azt is megmondja, TÉNYLEGESEN visszavette-e (az ütemező csak
+     * ekkor auditál — review R4 NIT).
+     *
+     * @return array{0: Campaign, 1: bool}
+     */
+    public function unscheduleTracked(Campaign $campaign): array
+    {
+        return $this->changeTracked($campaign, CampaignStatus::Draft, static function (Campaign $locked): void {
+            $locked->forceFill(['scheduled_at' => null]);
+        });
+    }
+
     public function unschedule(Campaign $campaign): Campaign
     {
         return $this->change($campaign, CampaignStatus::Draft, static function (Campaign $locked): void {
@@ -162,7 +175,12 @@ final class CampaignLifecycle
         // nem elég: egy félbehalt felírás első kötegei már ott vannak, és a folytatás a CSONKA
         // közönségre küldött volna. A `materialized_at` csak a TELJES felírás után íródik.
         if ($campaign->materialized_at === null) {
-            $resumed = $this->change($campaign, CampaignStatus::Sending);
+            [$resumed, $changed] = $this->changeTracked($campaign, CampaignStatus::Sending);
+
+            // CSAK a ténylegesen váltó hívás indít materializálást (R4-S1).
+            if (! $changed) {
+                return $resumed;
+            }
 
             StartCampaignJob::dispatch((string) $resumed->uuid, (int) $resumed->workspace_id);
 
@@ -177,7 +195,13 @@ final class CampaignLifecycle
         // Az állapot a zár alatt vált, a kötegek a COMMIT UTÁN indulnak: tranzakción belül
         // indított chunk-job a még nem látható `sending` helyett `paused`-ot olvasna, és a
         // köteget csendben elfogyasztaná.
-        $campaign = $this->change($campaign, CampaignStatus::Sending);
+        [$campaign, $changed] = $this->changeTracked($campaign, CampaignStatus::Sending);
+
+        // DUPLA KATTINTÁS / KÉT FÜL (review R4-S1): a második folytatás no-op — köteget csak a
+        // ténylegesen váltó hívás indít, különben két köteg futna ugyanarra a `pending` halmazra.
+        if (! $changed) {
+            return $campaign;
+        }
 
         // A FOLYTATÁS ÚJ KÖTEGEKET INDÍT. Ez korábban kimaradt: a `resume()` átírta az
         // állapotot `sending`-re, a `batch_id` VÁLTOZATLAN maradt, és egyetlen job sem
@@ -220,6 +244,20 @@ final class CampaignLifecycle
         });
     }
 
+    /**
+     * LEZÁRÁS, ha a kampány MÉG küldés alatt van — a köteg-job útja (review R4 NIT). A közben
+     * szüneteltetett / visszavont kampány nem hiba: a job csendben kilép (nincs failed job), a
+     * folytatás pedig maga zár, ha nincs több `pending`.
+     */
+    public function completeIfSending(Campaign $campaign): ?Campaign
+    {
+        try {
+            return $this->complete($campaign);
+        } catch (CampaignStateChanged) {
+            return null;
+        }
+    }
+
     public function cancel(Campaign $campaign): Campaign
     {
         $canceled = $this->change($campaign, CampaignStatus::Canceled, static function (Campaign $locked): void {
@@ -256,21 +294,30 @@ final class CampaignLifecycle
      */
     private function change(Campaign $campaign, CampaignStatus $target, ?callable $mutate = null, bool $allowSame = false): Campaign
     {
+        return $this->changeTracked($campaign, $target, $mutate, $allowSame)[0];
+    }
+
+    /**
+     * Mint a `change()`, de azt is visszaadja, hogy TÉNYLEGESEN váltott-e (review R4-S1): a no-op
+     * ágon (a sor már a célállapotban) a hívó nem indíthat mellékhatást — pl. a folytatás nem
+     * indíthat második köteget ugyanarra a `pending` halmazra.
+     *
+     * @param  (callable(Campaign): void)|null  $mutate
+     * @return array{0: Campaign, 1: bool}
+     */
+    private function changeTracked(Campaign $campaign, CampaignStatus $target, ?callable $mutate = null, bool $allowSame = false): array
+    {
         $expected = (string) $campaign->getOriginal('status', $campaign->status);
 
-        return DB::transaction(function () use ($campaign, $target, $mutate, $allowSame, $expected): Campaign {
+        return DB::transaction(function () use ($campaign, $target, $mutate, $allowSame, $expected): array {
             $locked = Campaign::query()->whereKey($campaign->getKey())->lockForUpdate()->firstOrFail();
 
             if ((string) $locked->status === $target->value && ! $allowSame) {
-                return $locked;
+                return [$locked, false];
             }
 
             if ((string) $locked->status !== $expected) {
-                throw new RuntimeException(sprintf(
-                    'A kampány állapota közben megváltozott (%s → %s). Töltsd újra az oldalt, és próbáld újra.',
-                    $expected,
-                    (string) $locked->status,
-                ));
+                throw new CampaignStateChanged($expected, (string) $locked->status);
             }
 
             $this->transition($locked, $target);
@@ -281,7 +328,7 @@ final class CampaignLifecycle
 
             $locked->save();
 
-            return $locked->fresh() ?? $locked;
+            return [$locked->fresh() ?? $locked, true];
         });
     }
 

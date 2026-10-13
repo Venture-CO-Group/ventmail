@@ -66,10 +66,13 @@ const props = defineProps<{
     assets: AssetDef[];
     testRecipients: Array<{ email: string; kind: string }>;
     senderDomains: string[];
+    /** CSAK OLVASHATÓ MÓD oka (review R4-S3): aktív kampány / journey sablonja, publikálási jog nélkül. */
+    writeDenial: string | null;
 }>();
 
 const { t } = useI18n();
-const editor = useEditor(props.template);
+const locked = computed(() => props.writeDenial !== null);
+const editor = useEditor(props.template, { readOnly: props.writeDenial !== null });
 const compact = useCompactNav();
 // KÖZÉPSŐ szélesség (≈ 1280 alatt): a tulajdonságpanel fiókként nyílik, a vászon kapja a helyet.
 const narrow = useBelow(10);
@@ -414,7 +417,8 @@ async function submitName(name: string): Promise<void> {
             const response = await axios.post<{ uuid: string; url: string }>(`/templates/${props.template.uuid}/copy`, { ...editor.payload(true), name });
 
             if (modal.mode === 'saveAs') {
-                await editor.save(true);
+                // A zárolt sablon nem menthető (a szerver elutasítaná) — a másolat viszi a munkát.
+                if (!locked.value) await editor.save(true);
                 router.visit(response.data.url);
             } else {
                 notice.value = t('editor.save.templateDone', { name });
@@ -517,14 +521,14 @@ function openTest(): void {
             <!-- FELSŐ SÁV -->
             <header class="vm-ed-top">
                 <div class="vm-ed-top__name">
-                    <input v-model="editor.name.value" :aria-label="t('editor.top.name')" maxlength="120" data-testid="editor-name" />
+                    <input v-model="editor.name.value" :aria-label="t('editor.top.name')" maxlength="120" :readonly="locked" data-testid="editor-name" />
                     <span class="vm-ed-status" :class="`vm-ed-status--${editor.saveState.value}`" role="status" data-testid="save-status" :data-state="editor.saveState.value">
                         <span class="vm-ed-status__dot" aria-hidden="true" />{{ statusLabel }}
                     </span>
-                    <button type="button" class="vm-ed-iconbtn" :disabled="!editor.canUndo.value" :aria-label="t('editor.top.undo')" :title="t('editor.top.undo')" data-testid="editor-undo" @click="editor.undo()">
+                    <button type="button" class="vm-ed-iconbtn" :disabled="locked || !editor.canUndo.value" :aria-label="t('editor.top.undo')" :title="t('editor.top.undo')" data-testid="editor-undo" @click="editor.undo()">
                         <VmIcon name="undo" />
                     </button>
-                    <button type="button" class="vm-ed-iconbtn" :disabled="!editor.canRedo.value" :aria-label="t('editor.top.redo')" :title="t('editor.top.redo')" data-testid="editor-redo" @click="editor.redo()">
+                    <button type="button" class="vm-ed-iconbtn" :disabled="locked || !editor.canRedo.value" :aria-label="t('editor.top.redo')" :title="t('editor.top.redo')" data-testid="editor-redo" @click="editor.redo()">
                         <VmIcon name="redo" />
                     </button>
                     <button type="button" class="vm-ed-iconbtn" :aria-label="t('editor.top.versions')" :title="t('editor.top.versions')" data-testid="editor-versions" @click="versionsOpen = true">
@@ -535,7 +539,8 @@ function openTest(): void {
                 <div class="vm-ed-top__actions">
                     <VtButton variant="ghost" data-testid="editor-preview" @click="previewOpen = true"><VmIcon name="eye" /> {{ t('editor.top.preview') }}</VtButton>
                     <div class="vm-ed-split">
-                        <VtButton :loading="editor.saveState.value === 'saving'" data-testid="editor-save-exit" @click="saveAndExit">{{ t('editor.top.saveExit') }}</VtButton>
+                        <VtButton v-if="locked" data-testid="editor-copy-locked" @click="openName('saveAs')">{{ t('editor.locked.copy') }}</VtButton>
+                        <VtButton v-else :loading="editor.saveState.value === 'saving'" data-testid="editor-save-exit" @click="saveAndExit">{{ t('editor.top.saveExit') }}</VtButton>
                         <button
                             type="button"
                             class="vm-ed-iconbtn"
@@ -555,13 +560,18 @@ function openTest(): void {
                     </div>
                 </div>
 
+                <div v-if="locked" class="vm-banner vm-banner--warning vm-ed-locked" role="status" data-testid="template-locked">
+                    <p><strong>{{ t('editor.locked.title') }}</strong> {{ writeDenial }}</p>
+                    <VtButton variant="ghost" data-testid="editor-copy-banner" @click="openName('saveAs')">{{ t('editor.locked.copy') }}</VtButton>
+                </div>
                 <p v-if="editor.saveState.value === 'error' && editor.saveError.value" class="vm-banner vm-banner--danger vm-ed-error" role="alert" data-testid="save-error">
                     {{ editor.saveError.value }}
                 </p>
                 <p v-if="notice" class="vm-banner vm-ed-error" role="status" data-testid="editor-notice" @click="notice = null">{{ notice }}</p>
             </header>
 
-            <div class="vm-ed-body" :class="{ 'vm-ed-body--compact': compact, 'vm-ed-body--narrow': narrow && !compact }">
+            <!-- CSAK OLVASHATÓ: az `inert` a vásznat, a sínt és a paneleket egyszerre teszi kezelhetetlenné. -->
+            <div class="vm-ed-body" :class="{ 'vm-ed-body--compact': compact, 'vm-ed-body--narrow': narrow && !compact, 'vm-ed-body--locked': locked }" :inert="locked" data-testid="editor-body">
                 <!-- SÍN -->
                 <nav class="vm-ed-rail" :aria-label="t('editor.rail.label')">
                     <button

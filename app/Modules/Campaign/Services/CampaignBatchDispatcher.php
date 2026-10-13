@@ -40,6 +40,9 @@ final class CampaignBatchDispatcher
      */
     public function dispatch(Campaign $campaign): ?string
     {
+        // A KÖTEG-GENERÁCIÓ, amire ez a hívás épít (review SEC4-S2): a betöltött példány `batch_id`-je.
+        $seen = $campaign->batch_id === null ? null : (string) $campaign->batch_id;
+
         $jobs = [];
 
         $campaign->recipients()
@@ -72,9 +75,15 @@ final class CampaignBatchDispatcher
         // folytatás pedig egy második köteget indítana ugyanarra a `pending` halmazra (dupla
         // számlálók). Ezért a `batch_id` csak `sending` állapotú kampányra íródik, különben a
         // friss köteg azonnal törlődik.
+        //
+        // KÖTEG-GENERÁCIÓ CAS (review SEC4-S2): a `sending` állapot önmagában nem elég — egy
+        // pause + resume a köteg-építés ablakában újra `sending`-re állítja, és a folytatás a SAJÁT
+        // kötegét indítja. Ezért csak akkor írunk, ha a `batch_id` még az, amit a hívás látott; ha
+        // közben egy másik köteg íródott fel, ez a köteg az árva — és törlődik.
         $written = Campaign::query()
             ->whereKey($campaign->getKey())
             ->where('status', 'sending')
+            ->whereRaw('batch_id is not distinct from ?', [$seen])
             ->update(['batch_id' => $batch->id, 'updated_at' => now()]);
 
         if ($written === 0) {

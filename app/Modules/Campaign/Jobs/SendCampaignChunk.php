@@ -62,6 +62,12 @@ final class SendCampaignChunk implements ShouldQueue
     private const OUTCOME_RETRY = 'retry';
 
     /**
+     * A címzettet KÖZBEN egy másik köteg már lezárta (review SEC4-S2): nem számolódik, mert a
+     * számlálót az a köteg növelte, amelyik a `pending → végállapot` átmenetet ténylegesen végrehajtotta.
+     */
+    private const OUTCOME_ALREADY = 'already';
+
+    /**
      * AZ ÁTMENETI elutasítások — ezek nem zárják ki a címzettet a kampányból.
      *
      * A `RATE_LIMITED` a másodperces/percenkénti limit, a `GATE_ERROR` pedig egy kapu
@@ -148,6 +154,10 @@ final class SendCampaignChunk implements ShouldQueue
             foreach ($recipients as $recipient) {
                 $outcome = $this->sendTo($campaign, $recipient, $send, $variables->forContact($recipient->contact, $workspace));
 
+                if ($outcome === self::OUTCOME_ALREADY) {
+                    continue;
+                }
+
                 if ($outcome === self::OUTCOME_RETRY) {
                     // ÁTMENETI ELUTASÍTÁS: a sor `pending` marad, és a job VISSZAMEGY a
                     // sorba. Lásd a `sendTo()` indoklását.
@@ -183,6 +193,37 @@ final class SendCampaignChunk implements ShouldQueue
         } finally {
             $previous === null ? $context->forget() : $context->set($previous);
         }
+    }
+
+    /**
+     * A címzett VÉGÁLLAPOTA — feltételes átmenettel (review SEC4-S2).
+     *
+     * Két köteg (pl. egy pause + resume a köteg-építés ablakában, vagy egy újrakiadott job)
+     * ugyanazt a `pending` sort is beolvashatja. A levél ilyenkor sem megy ki kétszer (az
+     * idempotencia-kulcs visszajátszik — `SendResult::$replayed`), de a számlálók (`sent_count`,
+     * variáns-számláló → A/B győztes) duplán nőttek volna. Ezért a sor CSAK `pending`-ből vált,
+     * és a számláló csak annál a kötegnél nő, amelyik ezt az átmenetet ténylegesen végrehajtotta.
+     *
+     * Szándékosan NEM „visszajátszás = nem számol": egy job, amely kiküldte a levelet, de a
+     * számlálás előtt meghalt, az újrapróbáláskor visszajátszást kap — a sor viszont még `pending`,
+     * tehát a számlálás egyszer, helyesen megtörténik.
+     *
+     * @param  array<string, mixed>  $attributes
+     */
+    private function finalize(CampaignRecipient $recipient, array $attributes, string $outcome): string
+    {
+        $updated = CampaignRecipient::query()
+            ->whereKey($recipient->getKey())
+            ->where('status', 'pending')
+            ->update($attributes + ['updated_at' => now()]);
+
+        if ($updated === 0) {
+            return self::OUTCOME_ALREADY;
+        }
+
+        $recipient->forceFill($attributes)->syncOriginal();
+
+        return $outcome;
     }
 
     /** @var array<int, array{html: string, text: string}> sablon-id → a kampány-preheaderrel fordított törzs */
@@ -283,9 +324,7 @@ final class SendCampaignChunk implements ShouldQueue
         $template = $variant?->template ?? $campaign->template;
 
         if ($template === null) {
-            $recipient->forceFill(['status' => 'failed', 'skip_reason' => 'no_template'])->save();
-
-            return self::OUTCOME_FAILED;
+            return $this->finalize($recipient, ['status' => 'failed', 'skip_reason' => 'no_template'], self::OUTCOME_FAILED);
         }
 
         /*
@@ -330,14 +369,12 @@ final class SendCampaignChunk implements ShouldQueue
             ]);
 
             if ($result->decision->allowed) {
-                $recipient->forceFill([
+                return $this->finalize($recipient, [
                     'status' => 'sent',
                     'skip_reason' => null,
                     'message_uuid' => $result->message?->uuid,
                     'sent_at' => now(),
-                ])->save();
-
-                return self::OUTCOME_SENT;
+                ], self::OUTCOME_SENT);
             }
 
             $reason = (string) $result->decision->reason;
@@ -352,9 +389,7 @@ final class SendCampaignChunk implements ShouldQueue
                 $existing = Message::query()->where('idempotency_key', $key)->first();
 
                 if ($existing !== null && $existing->status !== 'rejected') {
-                    $recipient->forceFill(['status' => 'sent', 'skip_reason' => null, 'message_uuid' => $existing->uuid, 'sent_at' => now()])->save();
-
-                    return self::OUTCOME_SENT;
+                    return $this->finalize($recipient, ['status' => 'sent', 'skip_reason' => null, 'message_uuid' => $existing->uuid, 'sent_at' => now()], self::OUTCOME_SENT);
                 }
 
                 $reason = (string) ($existing?->reason ?? $reason);
@@ -362,13 +397,11 @@ final class SendCampaignChunk implements ShouldQueue
 
             if (in_array($reason, self::TRANSIENT_REASONS, true)) {
                 if ($attempt + 1 >= self::MAX_TRANSIENT_ATTEMPTS) {
-                    $recipient->forceFill([
+                    return $this->finalize($recipient, [
                         'status' => 'failed',
                         'skip_reason' => 'transient_exhausted:'.$reason,
                         'message_uuid' => $result->message?->uuid,
-                    ])->save();
-
-                    return self::OUTCOME_FAILED;
+                    ], self::OUTCOME_FAILED);
                 }
 
                 // A SOR `pending` marad — a köteg újrafutása ÚJ kísérlet-kulccsal veszi fel.
@@ -377,7 +410,7 @@ final class SendCampaignChunk implements ShouldQueue
                 return self::OUTCOME_RETRY;
             }
 
-            $recipient->forceFill([
+            return $this->finalize($recipient, [
                 'status' => 'skipped',
                 // A KAPU DÖNTÉSE a `skip_reason`: a riportnak meg kell tudnia mondani, hogy
                 // MIÉRT nem kapta meg valaki — „nincs consent" és „suppression-listán van"
@@ -385,9 +418,7 @@ final class SendCampaignChunk implements ShouldQueue
                 'skip_reason' => $reason === '' ? 'rejected' : $reason,
                 'message_uuid' => $result->message?->uuid,
                 'sent_at' => null,
-            ])->save();
-
-            return self::OUTCOME_FAILED;
+            ], self::OUTCOME_FAILED);
         } catch (Throwable $e) {
             // EGY CÍMZETT HIBÁJA a SORÁT jelöli meg, nem dobja el a köteget: 250 közül egy
             // hibás miatt 249 nem maradhat levél nélkül.
@@ -402,12 +433,10 @@ final class SendCampaignChunk implements ShouldQueue
                 'exception' => $e::class,
             ]);
 
-            $recipient->forceFill([
+            return $this->finalize($recipient, [
                 'status' => 'failed',
                 'skip_reason' => 'error:'.class_basename($e),
-            ])->save();
-
-            return self::OUTCOME_FAILED;
+            ], self::OUTCOME_FAILED);
         }
     }
 
@@ -469,7 +498,8 @@ final class SendCampaignChunk implements ShouldQueue
         // de az a batch elkészítésekor rögzül — egy folytatás (`resume`) új batchet indít,
         // és a régi callback már nem hívódna meg.
         if ($pending === 0 && (string) $campaign->status === 'sending') {
-            app(CampaignLifecycle::class)->complete($campaign);
+            // A közben szüneteltetett kampány nem hiba (review R4 NIT): csendes no-op.
+            app(CampaignLifecycle::class)->completeIfSending($campaign);
 
             $campaign = $campaign->fresh() ?? $campaign;
         }

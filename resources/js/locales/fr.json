@@ -1461,6 +1461,10 @@
             "saveAs": "Enregistrer sous",
             "saveTemplate": "Enregistrer comme modèle",
             "saveBlock": "Enregistrer comme bloc"
+        },
+        "locked": {
+            "title": "Lecture seule.",
+            "copy": "Créer une copie"
         }
     },
     "library": {

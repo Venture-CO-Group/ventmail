@@ -14,9 +14,11 @@ use App\Modules\Campaign\Models\Campaign;
 use App\Modules\Campaign\Models\CampaignRecipient;
 use App\Modules\Campaign\Services\CampaignChecklist;
 use App\Modules\Campaign\Services\CampaignLifecycle;
+use App\Modules\Campaign\Services\CampaignStateChanged;
 use App\Modules\Domains\Models\Domain;
 use App\Modules\Template\Data\EditorCatalog;
 use App\Modules\Template\Models\Template;
+use App\Modules\Template\Services\TemplateUsage;
 use App\Modules\Tenancy\Services\WorkspaceContext;
 use App\Support\WorkspaceTimezone;
 use Illuminate\Database\Eloquent\Builder;
@@ -376,6 +378,9 @@ final class CampaignUiController
             // eredeti időpontban.
             $fresh = $campaign->fresh();
 
+            // Az ÚJRAÜTEMEZÉS is élesítés: a sablon-sorok megosztott zárja (SEC4-S1).
+            app(TemplateUsage::class)->lockForActivation($fresh->templateIds());
+
             try {
                 if (! $checklist->evaluate($fresh)['ready'] || $fresh->send_mode !== 'later') {
                     throw new RuntimeException(__('studio.checklist.unscheduled'));
@@ -527,8 +532,13 @@ final class CampaignUiController
                     $locked = Campaign::query()->whereKey($campaign->getKey())->lockForUpdate()->firstOrFail();
 
                     if ((string) $locked->status !== (string) $campaign->status) {
-                        throw new RuntimeException(__('studio.checklist.changed'));
+                        throw new CampaignStateChanged((string) $campaign->status, (string) $locked->status);
                     }
+
+                    // A HIVATKOZOTT SABLONOK megosztott zárja (review SEC4-S1): a szerkesztő mentése
+                    // (FOR UPDATE) ezalatt vár, a checklist így a véglegesen kiküldendő tartalmat látja,
+                    // és a commit után a mentés már az aktív használatot (publikálási kaput) látja.
+                    app(TemplateUsage::class)->lockForActivation($locked->templateIds());
 
                     $state = $checklist->evaluate($locked);
 
@@ -557,6 +567,9 @@ final class CampaignUiController
                     'cancel' => $lifecycle->cancel($campaign),
                 };
             }
+        } catch (CampaignStateChanged) {
+            // VERSENYHELYZET (review R4-S2): a felhasználó nyelvén, belső állapotnevek nélkül.
+            return back()->with('error', __('studio.checklist.changed'));
         } catch (\Throwable $e) {
             // Az állapotgép és a kapuk (hitelesített domain, consent, leiratkozó blokk)
             // hibáit UGYANÚGY jelezzük: a marketinges számára mindkettő ugyanaz a kérdés —

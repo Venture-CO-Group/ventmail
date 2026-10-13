@@ -85,6 +85,13 @@ final class TemplateVersions
     public function restore(Template $template, TemplateVersion $version): TemplateVersion
     {
         return DB::transaction(function () use ($template, $version): TemplateVersion {
+            // A visszaállítás is ÍRÁS: a publikálási kapu a sor zárja alatt (review SEC4-S1).
+            $locked = Template::query()->whereKey($template->getKey())->lockForUpdate()->firstOrFail();
+
+            if (($denial = app(TemplateUsage::class)->writeDenial($locked)) !== null) {
+                throw new TemplatePublishLocked($denial);
+            }
+
             $template->fill([
                 'subject' => $version->subject,
                 'preheader' => $version->preheader,

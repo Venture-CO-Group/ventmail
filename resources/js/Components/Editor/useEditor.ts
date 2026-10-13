@@ -30,7 +30,13 @@ interface Snapshot {
     preheader: string;
 }
 
-export function useEditor(template: TemplateData) {
+/**
+ * `readOnly` (review R4-S3): a sablon aktív kampányt / journey-t szolgál, és a felhasználónak nincs
+ * publikálási joga — a szerver úgyis elutasítaná a mentést. Ilyenkor nincs autosave és nincs
+ * mentés (nincs 403-hurok, nincs „mentetlen változás" figyelmeztetés); a munka másolatba menthető.
+ */
+export function useEditor(template: TemplateData, options: { readOnly?: boolean } = {}) {
+    const readOnly = options.readOnly === true;
     const name = ref(template.name);
     const subject = ref(template.subject ?? '');
     const preheader = ref(template.preheader ?? '');
@@ -133,7 +139,7 @@ export function useEditor(template: TemplateData) {
     }
 
     function markDirty(): void {
-        if (suppressWatch) return;
+        if (suppressWatch || readOnly) return;
 
         saveState.value = 'dirty';
         window.clearTimeout(timer);
@@ -153,6 +159,8 @@ export function useEditor(template: TemplateData) {
 
     async function save(manual: boolean): Promise<boolean> {
         window.clearTimeout(timer);
+
+        if (readOnly) return false;
 
         if (inFlight) {
             pending = true;
@@ -198,6 +206,8 @@ export function useEditor(template: TemplateData) {
     const canRedo = computed(() => future.value.length > 0);
 
     function onBeforeUnload(event: BeforeUnloadEvent): void {
+        if (readOnly) return;
+
         if (saveState.value === 'dirty' || saveState.value === 'saving' || saveState.value === 'error') {
             event.preventDefault();
         }
@@ -232,6 +242,7 @@ export function useEditor(template: TemplateData) {
         save,
         payload,
         markDirty,
+        readOnly,
     };
 }
 

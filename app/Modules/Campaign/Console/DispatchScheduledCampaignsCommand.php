@@ -9,6 +9,7 @@ use App\Modules\Campaign\Jobs\StartCampaignJob;
 use App\Modules\Campaign\Models\Campaign;
 use App\Modules\Campaign\Services\CampaignChecklist;
 use App\Modules\Campaign\Services\CampaignLifecycle;
+use App\Modules\Template\Services\TemplateUsage;
 use App\Modules\Tenancy\Models\Workspace;
 use App\Modules\Tenancy\Services\WorkspaceContext;
 use Illuminate\Console\Command;
@@ -82,13 +83,25 @@ final class DispatchScheduledCampaignsCommand extends Command
                             // (`update()`) addig egy FPM-workert tartana várakozásban. A közbeni
                             // szerkesztés így sem csúszik át: az `update()` maga újraértékeli a
                             // checklistet, és a zár alatt itt a friss állapot / esedékesség dönt.
-                            $failing = $checklist->failingChecks($campaign);
+                            //
+                            // FRISS példányon (review R4 NIT): a lista óta a felhasználó javíthatta vagy
+                            // maga vehette vissza — egy elavult példány hamis auditot / vázlatba vételt adna.
+                            $current = $campaign->fresh();
+
+                            if ($current === null || (string) $current->status !== 'scheduled') {
+                                continue;
+                            }
+
+                            $failing = $checklist->failingChecks($current);
 
                             if ($failing !== []) {
-                                // Állapot-ellenőrzött váltás (review S2): ha közben megváltozott, kivétel.
-                                $lifecycle->unschedule($campaign);
-                                $audit->log('campaign.unscheduled_by_checklist', $campaign, context: ['failing' => $failing]);
-                                $failed++;
+                                // Állapot-ellenőrzött váltás (review S2); az audit csak TÉNYLEGES váltás után.
+                                [$unscheduled, $changed] = $lifecycle->unscheduleTracked($current);
+
+                                if ($changed) {
+                                    $audit->log('campaign.unscheduled_by_checklist', $unscheduled, context: ['failing' => $failing]);
+                                    $failed++;
+                                }
 
                                 continue;
                             }
@@ -107,6 +120,9 @@ final class DispatchScheduledCampaignsCommand extends Command
                                 if ($locked === null) {
                                     return 'skipped';
                                 }
+
+                                // A hivatkozott sablonok megosztott zárja (SEC4-S1), mint a felületi indításnál.
+                                app(TemplateUsage::class)->lockForActivation($locked->templateIds());
 
                                 // LEFOGLALÁS + háttér-materializálás (review RB1): az ütemező sem
                                 // tart egy 300k-s felírást a percenkénti futásában. A job a commit

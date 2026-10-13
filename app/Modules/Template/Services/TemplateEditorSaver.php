@@ -32,6 +32,7 @@ final class TemplateEditorSaver
         private readonly TemplateCompliance $compliance,
         private readonly TemplateVersions $versions,
         private readonly AuditLogger $audit,
+        private readonly TemplateUsage $usage,
     ) {}
 
     /**
@@ -74,6 +75,17 @@ final class TemplateEditorSaver
         $this->assertValid($data['blocks'], $styles, (bool) $template->marketing);
 
         return DB::transaction(function () use ($template, $data, $styles, $reason): ?TemplateVersion {
+            // A PUBLIKÁLÁSI KAPU a sor ZÁRJA ALATT (review SEC4-S1): a kontroller előellenőrzése és
+            // a mentés között egy publikáló ütemezhette a sablont használó kampányt. A kampány
+            // indítása / ütemezése és a journey publikálása ugyanezt a sort `FOR SHARE` zárolja,
+            // tehát a kettő sorban fut: vagy a mentés látja az aktív használatot, vagy az ütemezés
+            // a már mentett (és a checklisten átvizsgált) tartalmat.
+            $locked = Template::query()->whereKey($template->getKey())->lockForUpdate()->firstOrFail();
+
+            if (($denial = $this->usage->writeDenial($locked)) !== null) {
+                throw new TemplatePublishLocked($denial);
+            }
+
             // S4: az autosave (másodpercenként is jöhet) nem írja a teljes diffet az auditba.
             $template->compactAudit = $reason === 'autosave';
 

@@ -140,4 +140,18 @@ final class Campaign extends Model
     {
         return $this->variants()->count() > 1;
     }
+
+    /**
+     * A kampány és a változatai által hivatkozott sablon-id-k — a küldésre élesítés ezeket zárolja
+     * (`TemplateUsage::lockForActivation`, review SEC4-S1).
+     *
+     * @return list<int>
+     */
+    public function templateIds(): array
+    {
+        return array_values(array_filter([
+            $this->template_id === null ? null : (int) $this->template_id,
+            ...$this->variants()->pluck('template_id')->map(static fn ($id) => $id === null ? null : (int) $id)->all(),
+        ]));
+    }
 }

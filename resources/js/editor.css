@@ -97,6 +97,24 @@
     margin: 0;
 }
 
+/* CSAK OLVASHATÓ sablon (review R4-S3): az ok és a „Másolat" gomb egy sorban, tördelődve. */
+.vm-ed-locked {
+    flex: 1 1 100%;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--vt-space-2);
+}
+
+.vm-ed-locked p {
+    margin: 0;
+}
+
+.vm-ed-body--locked {
+    opacity: 0.7;
+}
+
 .vm-ed-top__actions {
     display: flex;
     flex-wrap: wrap;

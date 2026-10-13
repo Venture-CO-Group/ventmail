@@ -407,6 +407,7 @@ final class ImportFileInspector
             $carry = '';
             // A DTD-keresés farka: a `<!DOCTYPE` / `<!ENTITY` chunkhatáron kettévágva is megfogott.
             $declTail = '';
+            $isXmlPart = (bool) preg_match('/\.(xml|rels)$/i', (string) $stat['name']);
 
             try {
                 while (! feof($stream)) {
@@ -426,6 +427,15 @@ final class ImportFileInspector
                     // DTD / ENTITÁS-deklaráció (review N2, mélységi védelem): egy XLSX-részben soha nem
                     // legitim, és az XML-olvasók entitás-kezelésére épülő támadások (XXE, „billion
                     // laughs") belépési pontja. MINDEN bejegyzésben, kis-nagybetűtől függetlenül.
+                    // UTF-16 KÓDOLÁSÚ XML-rész (review N-a): a fenti ASCII-alapú DTD-keresés (`<!DOCTYPE`)
+                    // UTF-16-ban vak lenne (`<\0!\0D\0…`). Az Excel UTF-8-at ír; az XML-részekben
+                    // (`.xml`, `.rels`) ezért a BOM-os vagy NUL-t tartalmazó tartalom formátum-hiba. A
+                    // bináris bejegyzések (`xl/media/*`) NUL-jai nem számítanak.
+                    if ($isXmlPart && (($entry === strlen($chunk) && (str_starts_with($chunk, "\xFF\xFE") || str_starts_with($chunk, "\xFE\xFF")))
+                        || str_contains($chunk, "\0"))) {
+                        throw new ImportLimitExceeded('format');
+                    }
+
                     $scan = $declTail.$chunk;
 
                     if (stripos($scan, '<!DOCTYPE') !== false || stripos($scan, '<!ENTITY') !== false) {

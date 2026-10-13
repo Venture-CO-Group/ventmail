@@ -12,6 +12,7 @@ use App\Modules\Journey\Graph\NodeCatalog;
 use App\Modules\Journey\Models\Journey;
 use App\Modules\Journey\Models\JourneyStep;
 use App\Modules\Journey\Models\JourneyVersion;
+use App\Modules\Template\Services\TemplateUsage;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -51,6 +52,15 @@ final class JourneyPublisher
             $locked = Journey::query()->whereKey($journey->getKey())->lockForUpdate()->firstOrFail();
 
             $graph = JourneyGraph::fromArray(is_array($locked->graph) ? $locked->graph : null);
+
+            // A `send_email` lépések SABLONJAINAK megosztott zárja (review SEC4-S1), a validálás ELŐTT:
+            // a szerkesztő mentése (FOR UPDATE) ezalatt vár, és a commit után már az aktív
+            // journey-t látja — publikálási jog nélkül nem írhatja át a kiküldendő tartalmat.
+            app(TemplateUsage::class)->lockForActivationByUuid(array_values(array_map(
+                static fn (array $node): string => (string) ($node['config']['template'] ?? ''),
+                array_filter($graph->nodes, static fn (array $node): bool => $node['type'] === 'send_email'),
+            )));
+
             $issues = $this->validator->validate($graph);
 
             if (JourneyGraphValidator::hasErrors($issues)) {

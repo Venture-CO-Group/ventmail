@@ -13,8 +13,10 @@ use App\Modules\Journey\Models\JourneyRun;
 use App\Modules\Journey\Services\JourneyGraphInvalid;
 use App\Modules\Journey\Services\JourneyPublisher;
 use App\Modules\Journey\Services\JourneyValidator;
+use App\Modules\Template\Services\TemplateUsage;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -128,9 +130,18 @@ final class JourneyUiController
             return back()->with('error', $e->getMessage());
         }
 
-        $journey->forceFill(['status' => 'active'])->save();
+        DB::transaction(function () use ($journey, $audit): void {
+            // A `send_email` lépések sablonjainak megosztott zárja (review SEC4-S1) — mint a vászon
+            // publikálásánál: az aktiválás után a szerző már nem írhatja át a kiküldendő tartalmat.
+            app(TemplateUsage::class)->lockForActivationByUuid($journey->steps
+                ->where('type', 'send_email')
+                ->map(static fn ($step): string => (string) (((array) $step->config)['template'] ?? ''))
+                ->values()->all());
 
-        $audit->log('journey.activated', $journey, context: ['legacy_chain' => true]);
+            $journey->forceFill(['status' => 'active'])->save();
+
+            $audit->log('journey.activated', $journey, context: ['legacy_chain' => true]);
+        });
 
         return back()->with('success', __('ventmail.journeys.activated'));
     }

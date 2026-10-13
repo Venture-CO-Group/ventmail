@@ -309,3 +309,14 @@ it('N4 · a teszt-zipek az afterEach-ben törlődnek', function () {
     expect(is_file($path))->toBeTrue()
         ->and(r5Files())->toContain($path);
 });
+
+it('N-a · UTF-16 kódolású (BOM-os vagy NUL-os) XML-rész formátum-hiba — az ASCII DTD-szűrő ott vak lenne', function (string $bytes) {
+    $path = r5Zip(array_merge(r5Base([]), ['xl/styles.xml' => $bytes]));
+
+    expect(fn () => app(ImportFileInspector::class)->guard($path, 'xlsx'))
+        ->toThrow(fn (ImportLimitExceeded $e) => expect($e->reason)->toBe('format'));
+})->with([
+    'UTF-16LE BOM' => ["\xFF\xFE".mb_convert_encoding('<!DOCTYPE x><styleSheet/>', 'UTF-16LE', 'UTF-8')],
+    'UTF-16BE BOM' => ["\xFE\xFF".mb_convert_encoding('<!DOCTYPE x><styleSheet/>', 'UTF-16BE', 'UTF-8')],
+    'BOM nélküli UTF-16LE' => [mb_convert_encoding('<?xml version="1.0" encoding="UTF-16"?><styleSheet/>', 'UTF-16LE', 'UTF-8')],
+]);

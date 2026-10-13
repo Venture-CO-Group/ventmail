@@ -14,6 +14,7 @@ use App\Modules\Template\Models\TemplateAsset;
 use App\Modules\Template\Services\MjmlCompiler;
 use App\Modules\Template\Services\MjmlWriter;
 use App\Modules\Template\Services\TemplateEditorSaver;
+use App\Modules\Template\Services\TemplatePublishLocked;
 use App\Modules\Template\Services\TemplateTestSender;
 use App\Modules\Template\Services\TemplateUsage;
 use App\Modules\Template\Services\TemplateVersions;
@@ -68,7 +69,7 @@ final class TemplateUiController
         ]);
     }
 
-    public function show(string $uuid, WorkspaceContext $context, TemplateTestSender $tests, MjmlWriter $writer, MjmlCompiler $compiler): Response
+    public function show(string $uuid, WorkspaceContext $context, TemplateTestSender $tests, MjmlWriter $writer, MjmlCompiler $compiler, TemplateUsage $usage): Response
     {
         Gate::authorize('template.create');
 
@@ -87,6 +88,10 @@ final class TemplateUiController
             'senderDomains' => Domain::query()->where('status', 'verified')->orderBy('name')->pluck('name')->values()->all(),
             // AZ ELŐNÉZET a VALÓDI fordítón megy át: amit itt lát, az megy ki.
             'preview' => $this->preview($template, $writer, $compiler),
+            // CSAK OLVASHATÓ MÓD (review R4-S3): ha a sablon aktív kampányt / journey-t szolgál, és a
+            // felhasználónak nincs publikálási joga, a szerkesztő ezt az okot mutatja, és csak
+            // másolatot enged — nem engedi szerkeszteni azt, amit úgysem menthet el.
+            'writeDenial' => $usage->writeDenial($template),
         ]);
     }
 
@@ -183,13 +188,18 @@ final class TemplateUiController
             'styles' => ['nullable', 'array'],
         ]);
 
-        $saver->save($template, [
-            'name' => $validated['name'],
-            'subject' => $validated['subject'] ?? null,
-            'preheader' => $validated['preheader'] ?? null,
-            'blocks' => $validated['blocks'],
-            'styles' => $request->has('styles') ? ($validated['styles'] ?? null) : $template->styles,
-        ], 'save');
+        try {
+            $saver->save($template, [
+                'name' => $validated['name'],
+                'subject' => $validated['subject'] ?? null,
+                'preheader' => $validated['preheader'] ?? null,
+                'blocks' => $validated['blocks'],
+                'styles' => $request->has('styles') ? ($validated['styles'] ?? null) : $template->styles,
+            ], 'save');
+        } catch (TemplatePublishLocked $e) {
+            // A zár alatti kapu (SEC4-S1): az előellenőrzés óta lett aktív a sablon.
+            return back()->with('error', $e->getMessage());
+        }
 
         return back()->with('success', __('ventmail.templates.saved'));
     }
