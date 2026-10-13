@@ -70,6 +70,36 @@ final class DomainStatistics
         });
     }
 
+    /**
+     * BOUNCE-TÍPUSOK egy időszakra (v1.1 · 8. modul, D231): típusonkénti összeg + a
+     * „besorolatlan" maradék (a migráció előtti napok és az ismeretlen besorolás).
+     *
+     * @return array{total: int, classes: array<string, int>, unclassified: int}
+     */
+    public function bounceTypes(CarbonInterface $from, CarbonInterface $to): array
+    {
+        return $this->budget->run(function () use ($from, $to): array {
+            $columns = array_map(static fn (string $class) => 'bounced_'.$class, DomainStatsRecorder::BOUNCE_CLASSES);
+            $sums = implode(', ', array_map(static fn (string $c) => "coalesce(sum({$c}), 0) as {$c}", ['bounced', ...$columns]));
+
+            $row = DomainDailyStat::query()
+                ->whereBetween('day', [$from->toDateString(), $to->toDateString()])
+                ->toBase()
+                ->selectRaw($sums)
+                ->first();
+
+            $classes = [];
+
+            foreach (DomainStatsRecorder::BOUNCE_CLASSES as $class) {
+                $classes[$class] = (int) ($row->{'bounced_'.$class} ?? 0);
+            }
+
+            $total = (int) ($row->bounced ?? 0);
+
+            return ['total' => $total, 'classes' => $classes, 'unclassified' => max(0, $total - array_sum($classes))];
+        }, 2000);
+    }
+
     /** @return array<string, int|float|null> */
     private function metrics(object $row): array
     {

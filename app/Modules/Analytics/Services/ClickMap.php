@@ -108,7 +108,7 @@ final class ClickMap
         string $recipient,
     ): void {
         $workspaceId = $this->workspaceId();
-        $url = $this->normalize($url);
+        $url = self::normalize($url);
 
         // A KORLÁT a HATÓKÖRÖN (kampány/journey), nem az üzeneten — lásd a
         // `MAX_LINKS_PER_SCOPE` indoklását.
@@ -360,7 +360,7 @@ final class ClickMap
      * `https://pelda.hu/akcio` viszont KETTŐBE — vagyis a rangsor hasadt, pontosan az,
      * amit a docblock „a térkép hazudik a rangsorról"-ként ír le.
      */
-    private function normalize(string $url): string
+    private static function normalize(string $url): string
     {
         $url = trim($url);
 
@@ -393,7 +393,7 @@ final class ClickMap
 
         $normalized .= $path;
 
-        $query = $this->safeQuery($parts['query'] ?? '');
+        $query = self::safeQuery($parts['query'] ?? '');
 
         if ($query !== '') {
             $normalized .= '?'.$query;
@@ -412,7 +412,7 @@ final class ClickMap
      * Ami kiesik, az a személyes adat és a címzettenkénti azonosító — ami marad, a
      * kampány-mérés (`utm_*`, `ref`, `gclid`).
      */
-    private function safeQuery(string $query): string
+    private static function safeQuery(string $query): string
     {
         if ($query === '') {
             return '';
@@ -450,6 +450,16 @@ final class ClickMap
         ksort($kept);
 
         return http_build_query($kept);
+    }
+
+    /**
+     * Egy NYERS cél-URL térkép-kulcsa (v1.1 · 8. modul, hőtérkép): ugyanaz a normalizálás és
+     * ugyanaz a kulcsolt hash, amivel a `record()` a `url_hash` oszlopot írja. A sablon `<a href>`
+     * -jei így pontosan a rögzített kattintás-sorokra képeződnek.
+     */
+    public static function linkKey(string $url): string
+    {
+        return KeyedHash::of('click-url', self::normalize($url));
     }
 
     private function known(string $scope, string|int $value, string $url): bool

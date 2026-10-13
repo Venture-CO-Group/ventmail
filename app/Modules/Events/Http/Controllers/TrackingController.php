@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Events\Http\Controllers;
 
 use App\Modules\Analytics\Services\ClickMap;
+use App\Modules\Analytics\Services\ClientStatsRecorder;
 use App\Modules\Events\Data\TrackingClaim;
 use App\Modules\Events\Models\MessageEvent;
 use App\Modules\Events\Services\TrackingTokens;
@@ -238,6 +239,15 @@ final class TrackingController
              */
             if ($type === 'clicked' && $destination !== null) {
                 $this->mapClick($message, $claim->recipient, $destination);
+            }
+
+            // v1.1 · 8. modul (D229): ESZKÖZ/KLIENS-bontás. A User-Agent itt osztályozódik és
+            // ELDOBÓDIK — sem az eseménybe, sem a webhookba, sem naplóba nem kerül. A hiba a
+            // követést nem buktatja el.
+            try {
+                app(ClientStatsRecorder::class)->record($message, $type, $request->userAgent());
+            } catch (Throwable $e) {
+                Log::warning('Az eszköz-statisztika nem frissült', ['exception' => $e::class]);
             }
 
             $this->fireCampaignInteraction($message, (string) $claim->recipient, $type);

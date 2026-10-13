@@ -113,18 +113,50 @@ final class AudienceInsights
     public function growth(int $days, string $timezone): array
     {
         $start = Carbon::now($timezone)->startOfDay()->subDays($days - 1);
-        $from = $start->copy()->utc();
+
+        return $this->growthBetween($start, Carbon::now($timezone)->startOfDay(), $timezone);
+    }
+
+    /** A leghosszabb lekérdezhető ablak napokban (v1.1 · 8. modul: egyedi időszak). */
+    public const MAX_RANGE_DAYS = 366;
+
+    /**
+     * NAPI bontás TETSZŐLEGES zárt időszakra (v1.1 · 8. modul) — a `growth()` erre delegál, az
+     * alakja ugyanaz. A `from`/`to` a megadott időzóna NAPJAI (mindkettő benne van); legfeljebb
+     * `MAX_RANGE_DAYS` nap.
+     *
+     * @return list<array{date: string, new: int, unsubscribed: int, net: int}>
+     */
+    public function growthBetween(Carbon $from, Carbon $to, string $timezone): array
+    {
+        $start = Carbon::parse($from->toDateString(), $timezone)->startOfDay();
+        $end = Carbon::parse($to->toDateString(), $timezone)->startOfDay();
+
+        if ($end->lt($start)) {
+            [$start, $end] = [$end, $start];
+        }
+
+        $days = (int) $start->diffInDays($end) + 1;
+
+        if ($days > self::MAX_RANGE_DAYS) {
+            throw new \InvalidArgumentException('Az időszak legfeljebb '.self::MAX_RANGE_DAYS.' nap lehet.');
+        }
+
+        $lower = $start->copy()->utc();
+        $upper = $end->copy()->addDay()->utc();
 
         // A `created_at` időzóna NÉLKÜLI (UTC-ben írt) oszlop: előbb UTC-nek jelöljük, utána
         // váltunk a workspace zónájára. Az `unsubscribed_at` `timestamptz`.
         $new = $this->daily(
-            Contact::query()->where('created_at', '>=', $from->toDateTimeString()),
+            Contact::query()
+                ->where('created_at', '>=', $lower->toDateTimeString())
+                ->where('created_at', '<', $upper->toDateTimeString()),
             "(created_at at time zone 'UTC') at time zone ?",
             $timezone,
         );
 
         $unsubscribed = $this->daily(
-            Contact::query()->whereNotNull('unsubscribed_at')->where('unsubscribed_at', '>=', $from),
+            Contact::query()->whereNotNull('unsubscribed_at')->where('unsubscribed_at', '>=', $lower)->where('unsubscribed_at', '<', $upper),
             'unsubscribed_at at time zone ?',
             $timezone,
         );

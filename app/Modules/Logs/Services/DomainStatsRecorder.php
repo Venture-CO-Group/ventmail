@@ -38,6 +38,9 @@ final class DomainStatsRecorder
         'clicked' => 'clicked',
     ];
 
+    /** A `BounceClass` értékei — mindegyiknek saját `bounced_<osztály>` oszlopa van (D231). */
+    public const BOUNCE_CLASSES = ['hard', 'soft', 'mailbox_full', 'blocked', 'spam', 'policy'];
+
     private const MEMO_LIMIT = 1000;
 
     /** @var array<string, array{0: int, 1: bool}> üzenet → [domain_id, testmode] */
@@ -79,7 +82,7 @@ final class DomainStatsRecorder
         // nem fut (review 3 N2) — VÉDEKEZŐ ág a közvetlen hívóknak (pl. konzolos újraszámolás),
         // akik tranzakció nélkül hívnák: azoknál se vesszen el a növekmény.
         if ($root === null) {
-            $this->write([$key => [$column => 1]]);
+            $this->write([$key => array_fill_keys($this->columnsFor($column, $event), 1)]);
 
             return;
         }
@@ -106,7 +109,27 @@ final class DomainStatsRecorder
             });
         }
 
-        $this->batches[$id][$key][$column] = ($this->batches[$id][$key][$column] ?? 0) + 1;
+        foreach ($this->columnsFor($column, $event) as $target) {
+            $this->batches[$id][$key][$target] = ($this->batches[$id][$key][$target] ?? 0) + 1;
+        }
+    }
+
+    /**
+     * A növelendő oszlopok: a fő számláló, és bounce-nál a TÍPUS-oszlop is (v1.1 · 8. modul,
+     * D231) — ugyanabban a kötegben, ugyanabban az upsertben. Ismeretlen / hiányzó besorolás:
+     * csak a `bounced` nő (a grafikon „besorolatlan" sora = `bounced − Σ típus`).
+     *
+     * @return list<string>
+     */
+    private function columnsFor(string $column, MessageEvent $event): array
+    {
+        if ($column !== 'bounced') {
+            return [$column];
+        }
+
+        $class = (string) (((array) $event->payload)['classification'] ?? '');
+
+        return in_array($class, self::BOUNCE_CLASSES, true) ? [$column, 'bounced_'.$class] : [$column];
     }
 
     /**

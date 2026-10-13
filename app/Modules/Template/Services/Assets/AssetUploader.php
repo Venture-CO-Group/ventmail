@@ -31,9 +31,6 @@ use Throwable;
  */
 final class AssetUploader
 {
-    /** A progresszív JPEG scan-jeinek felső száma (S2) — egy valódi kép 10 körül van. */
-    private const MAX_JPEG_SCANS = 100;
-
     /** @var array<string, string> MIME → kiterjesztés */
     private const ALLOWED = [
         'image/jpeg' => 'jpg',
@@ -45,6 +42,7 @@ final class AssetUploader
     public function __construct(
         private readonly AssetStore $store,
         private readonly WorkspaceContext $context,
+        private readonly ImageInspector $inspector,
     ) {}
 
     public function upload(UploadedFile $file): TemplateAsset
@@ -56,30 +54,24 @@ final class AssetUploader
         }
 
         $contents = (string) file_get_contents($file->getRealPath());
-        $mime = (string) (new \finfo(FILEINFO_MIME_TYPE))->buffer($contents);
-        $info = @getimagesizefromstring($contents);
-
-        if (! isset(self::ALLOWED[$mime]) || $info === false || ($info['mime'] ?? null) !== $mime) {
-            throw ValidationException::withMessages(['file' => __('ventmail.editor.assets.badType')]);
-        }
-
-        [$width, $height] = [(int) $info[0], (int) $info[1]];
         $limit = (int) config('template.assets.max_dimension');
 
-        if ($width < 1 || $height < 1 || $width > $limit || $height > $limit) {
-            throw ValidationException::withMessages(['file' => __('ventmail.editor.assets.badDimensions', ['max' => $limit])]);
-        }
+        // A KÖZÖS ellenőrző lánc (v1.1 · 8. modul: `ImageInspector`, a workspace-logó is ezt használja).
+        try {
+            $image = $this->inspector->inspect($contents, self::ALLOWED, $limit);
+            $mime = $image->mime;
+            [$width, $height] = [$image->width, $image->height];
 
-        // PROGRESSZÍV JPEG CPU-bomba (S2): a dekódolás ideje a scan-ek számával nő. A
-        // scan-fejléc (SOS, `FF DA`) az entrópia-kódolt adatban nem fordulhat elő (ott a
-        // `FF` bájt `FF 00`-ként töltődik), tehát a puszta számlálás pontos.
-        if ($mime === 'image/jpeg' && substr_count($contents, "\xFF\xDA") > self::MAX_JPEG_SCANS) {
-            throw ValidationException::withMessages(['file' => __('ventmail.editor.assets.badType')]);
+            // ÚJRAKÓDOLÁS metaadat nélkül (SS5): az EXIF (GPS, készülék, név) különben a
+            // publikus URL-en bárkinek olvasható lenne.
+            $contents = $this->inspector->reencode($contents, $mime);
+        } catch (ImageRejected $rejected) {
+            throw ValidationException::withMessages(['file' => match ($rejected->reason) {
+                'dimensions' => __('ventmail.editor.assets.badDimensions', ['max' => $limit]),
+                'processing' => __('ventmail.editor.assets.processing'),
+                default => __('ventmail.editor.assets.badType'),
+            }]);
         }
-
-        // ÚJRAKÓDOLÁS metaadat nélkül (SS5): az EXIF (GPS, készülék, név) különben a
-        // publikus URL-en bárkinek olvasható lenne.
-        $contents = $this->reencode($contents, $mime);
 
         $workspace = $this->context->workspace();
         $quota = (int) config('template.assets.workspace_quota_bytes');
@@ -127,56 +119,5 @@ final class AssetUploader
                 throw $e;
             }
         });
-    }
-
-    /**
-     * A kép ÚJRAKÓDOLÁSA GD-vel: a kimenet csak pixeladat, metaadat (EXIF, XMP, ICC-
-     * megjegyzés) nélkül. A GIF-et nem kódoljuk újra (az animáció a GD-n elveszne), hanem a
-     * blokkjait szűrjük: a komment- és a nem-animációs alkalmazás-kiterjesztés (XMP) kiesik
-     * (`GifMetadata`).
-     *
-     * GD nélkül a feltöltés ELUTASUL (fail-closed): metaadatos képet nem teszünk publikussá.
-     */
-    private function reencode(string $contents, string $mime): string
-    {
-        if ($mime === 'image/gif') {
-            try {
-                return GifMetadata::strip($contents);
-            } catch (\InvalidArgumentException) {
-                throw ValidationException::withMessages(['file' => __('ventmail.editor.assets.badType')]);
-            }
-        }
-
-        if (! function_exists('imagecreatefromstring')) {
-            throw ValidationException::withMessages(['file' => __('ventmail.editor.assets.processing')]);
-        }
-
-        $image = @imagecreatefromstring($contents);
-
-        if ($image === false) {
-            throw ValidationException::withMessages(['file' => __('ventmail.editor.assets.badType')]);
-        }
-
-        if ($mime === 'image/png' || $mime === 'image/webp') {
-            imagealphablending($image, false);
-            imagesavealpha($image, true);
-        }
-
-        ob_start();
-
-        $ok = match ($mime) {
-            'image/jpeg' => imagejpeg($image, null, 88),
-            'image/png' => imagepng($image, null, 9),
-            'image/webp' => imagewebp($image, null, 88),
-            default => false,
-        };
-
-        $out = (string) ob_get_clean();
-
-        if (! $ok || $out === '') {
-            throw ValidationException::withMessages(['file' => __('ventmail.editor.assets.processing')]);
-        }
-
-        return $out;
     }
 }
