@@ -28,6 +28,7 @@ final class Domain extends Model
         'spf_status', 'dkim_status', 'dmarc_status', 'ptr_status', 'mta_sts_status',
         'bimi_status', 'inbound_mx_status', 'tracking_enabled', 'require_tls',
         'verified_at', 'unverified_at', 'last_checked_at', 'dkim_active_selector',
+        'return_path_status', 'return_path_marketing_status',
     ];
 
     /** A privát kulcs sosem kerül szerializálva a válaszba. */
@@ -47,6 +48,8 @@ final class Domain extends Model
         'bimi_status' => 'disabled',
         'tracking_status' => 'pending',
         'inbound_mx_status' => 'disabled',
+        'return_path_status' => 'pending',
+        'return_path_marketing_status' => 'pending',
     ];
 
     public function uniqueIds(): array

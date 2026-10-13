@@ -38,6 +38,8 @@ test('a menüből minden platform-képernyő elérhető', async ({ page }) => {
 test('az API-kulcs kiállításkor EGYSZER látszik', async ({ page }) => {
     await page.goto('/api-keys');
 
+    // v1.1: a kiállító űrlap modalban nyílik (a mockup szerint az oldalfej gombjáról).
+    await page.getByTestId('key-new').click();
     await page.getByTestId('key-name').fill('E2E kulcs');
     // A `VtCheckbox` belső `<input>`-ja vizuálisan rejtett (a pipát a `span` rajzolja),
     // ezért a CÍMKÉRE kattintunk — ahogy a felhasználó is tenné.

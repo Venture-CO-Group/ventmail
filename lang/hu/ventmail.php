@@ -235,4 +235,9 @@ return [
             'empty' => 'Teszt-küldés előtt mentsd a sablont.',
         ],
     ],
+    // v1.1 · 7. modul (Platform)
+    'plat' => [
+        'dkimRotated' => 'Új DKIM-kulcs generálva — vedd fel az új rekordot a DNS-be.',
+        'invalidAllowlist' => 'Az IP-allowlist csak érvényes IP-címeket vagy CIDR-tartományokat tartalmazhat (max. 50).',
+    ],
 ];

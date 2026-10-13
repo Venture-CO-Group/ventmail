@@ -2020,5 +2020,90 @@
             "anniversary": "Every year (anniversary)",
             "once": "Once (on the exact date)"
         }
+    },
+    "plat": {
+        "copy": "Copy",
+        "copied": "Copied",
+        "cancel": "Cancel",
+        "confirm": "Confirm",
+        "rotate": "Rotate",
+        "state": {
+            "label": "Status",
+            "verified": "OK",
+            "active": "Active",
+            "rotating": "Rotating",
+            "pending": "Propagating…",
+            "failed": "Failed",
+            "revoked": "Revoked",
+            "dead_letter": "Dead-letter",
+            "disabled": "Disabled",
+            "optional": "Optional",
+            "listed": "Listed",
+            "clean": "Clean",
+            "quarantined": "Quarantined",
+            "warming": "Warming up"
+        },
+        "eyebrow": {
+            "domains": "Platform · Domains",
+            "apiKeys": "Platform · API keys",
+            "smtp": "Platform · SMTP"
+        },
+        "domains": {
+            "title": "Sending domains",
+            "lead": "No sending from an unverified domain. Add the records at your DNS provider; the status updates live.",
+            "okCount": "{ok} / {total} records OK",
+            "dkimTitle": "DKIM key",
+            "activeSelector": "Signing selector",
+            "publishedSelector": "Selector to publish",
+            "rotatedAt": "Last rotation",
+            "previousSelector": "Previous selector valid until",
+            "rotateHint": "A new selector is issued for publishing; the old one stays valid for {days} days while the new record propagates.",
+            "rotateConfirm": "A new DKIM key will be generated. Add the new DKIM record to DNS; we keep signing with the old key for up to {days} days until the new one appears.",
+            "lastChecked": "Last checked: {at}",
+            "recheck": "Re-check",
+            "trackingPending": "The tracking CNAME has not propagated yet — sending is allowed, but click tracking only works once the record appears.",
+            "purpose": "Purpose",
+            "allRecords": "All records (MTA-STS, TLS-RPT, MX) in the wizard",
+            "record": {
+                "spf": "SPF",
+                "dkim": "DKIM",
+                "dmarc": "DMARC",
+                "return_path_transactional": "Return-Path (transactional)",
+                "return_path_marketing": "Return-Path (marketing)",
+                "tracking": "Tracking CNAME"
+            }
+        },
+        "keys": {
+            "lead": "Workspace-bound keys with scopes and an IP allowlist. The key value is shown only once, at creation.",
+            "allowlist": "IP allowlist",
+            "anyAddress": "Any address",
+            "issuedTitle": "Key created",
+            "allowlistHint": "IP addresses or CIDR ranges separated by commas or new lines (max 50). Leave empty to allow any address.",
+            "revokeConfirm": "The key \"{name}\" ({prefix}…) stops working immediately; integrations using it will get 401. The action is audited.",
+            "scopeCard": {
+                "messages": {
+                    "title": "messages:send",
+                    "text": "Send messages via the Messages API; Idempotency-Key is required."
+                },
+                "read": {
+                    "title": "templates:read · events:read",
+                    "text": "Read stored templates and the event log."
+                },
+                "suppressions": {
+                    "title": "suppressions:write",
+                    "text": "Add suppressions and delete them with a reason; complaints cannot be deleted."
+                }
+            }
+        },
+        "smtp": {
+            "lead": "Per-domain username and password for SMTP submission. The password is shown once, stored hashed, and can be rotated.",
+            "issuedTitle": "New SMTP credential",
+            "connection": "Connection",
+            "host": "Host",
+            "port": "Port",
+            "perDomain": "A domain-bound credential can only send from that domain. There is no plaintext auth; every submission passes the same PreSendGate as the API.",
+            "rotateConfirm": "A new username and password will be issued for \"{name}\"; the old one stops working immediately. The action is audited.",
+            "revokeConfirm": "The credential \"{name}\" stops working immediately. The action is audited."
+        }
     }
 }

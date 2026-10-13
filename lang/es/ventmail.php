@@ -235,4 +235,9 @@ return [
             'empty' => 'Guarda la plantilla antes de enviar una prueba.',
         ],
     ],
+    // v1.1 · 7. modul (Platform)
+    'plat' => [
+        'dkimRotated' => 'Nueva clave DKIM generada: añade el nuevo registro al DNS.',
+        'invalidAllowlist' => 'La lista de IP permitidas solo puede contener direcciones IP o rangos CIDR válidos (máx. 50).',
+    ],
 ];

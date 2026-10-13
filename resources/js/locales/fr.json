@@ -2020,5 +2020,90 @@
             "anniversary": "Chaque année (anniversaire)",
             "once": "Une fois (à la date exacte)"
         }
+    },
+    "plat": {
+        "copy": "Copier",
+        "copied": "Copié",
+        "cancel": "Annuler",
+        "confirm": "Confirmer",
+        "rotate": "Renouveler",
+        "state": {
+            "label": "Statut",
+            "verified": "OK",
+            "active": "Actif",
+            "rotating": "Renouvellement",
+            "pending": "Propagation…",
+            "failed": "Échec",
+            "revoked": "Révoqué",
+            "dead_letter": "Dead-letter",
+            "disabled": "Désactivé",
+            "optional": "Facultatif",
+            "listed": "Listé",
+            "clean": "Propre",
+            "quarantined": "En quarantaine",
+            "warming": "Montée en charge"
+        },
+        "eyebrow": {
+            "domains": "Plateforme · Domaines",
+            "apiKeys": "Plateforme · Clés API",
+            "smtp": "Plateforme · SMTP"
+        },
+        "domains": {
+            "title": "Domaines d'envoi",
+            "lead": "Aucun envoi depuis un domaine non vérifié. Ajoutez les enregistrements chez votre fournisseur DNS ; le statut se met à jour en direct.",
+            "okCount": "{ok} / {total} enregistrements OK",
+            "dkimTitle": "Clé DKIM",
+            "activeSelector": "Sélecteur de signature",
+            "publishedSelector": "Sélecteur à publier",
+            "rotatedAt": "Dernier renouvellement",
+            "previousSelector": "Ancien sélecteur valide jusqu'au",
+            "rotateHint": "Un nouveau sélecteur est émis ; l'ancien reste valide {days} jours le temps que le nouvel enregistrement se propage.",
+            "rotateConfirm": "Une nouvelle clé DKIM sera générée. Ajoutez le nouvel enregistrement DKIM au DNS ; nous signons avec l'ancienne clé jusqu'à {days} jours, le temps que la nouvelle apparaisse.",
+            "lastChecked": "Dernière vérification : {at}",
+            "recheck": "Revérifier",
+            "trackingPending": "Le CNAME de suivi ne s'est pas encore propagé — l'envoi est autorisé, mais le suivi des clics ne fonctionne qu'une fois l'enregistrement visible.",
+            "purpose": "Rôle",
+            "allRecords": "Tous les enregistrements (MTA-STS, TLS-RPT, MX) dans l'assistant",
+            "record": {
+                "spf": "SPF",
+                "dkim": "DKIM",
+                "dmarc": "DMARC",
+                "return_path_transactional": "Return-Path (transactionnel)",
+                "return_path_marketing": "Return-Path (marketing)",
+                "tracking": "CNAME de suivi"
+            }
+        },
+        "keys": {
+            "lead": "Clés liées à l'espace de travail, avec scopes et liste d'IP autorisées. La valeur n'est affichée qu'une fois, à la création.",
+            "allowlist": "Liste d'IP autorisées",
+            "anyAddress": "N'importe quelle adresse",
+            "issuedTitle": "Clé créée",
+            "allowlistHint": "Adresses IP ou plages CIDR séparées par des virgules ou des retours à la ligne (50 max). Laissez vide pour autoriser n'importe quelle adresse.",
+            "revokeConfirm": "La clé « {name} » ({prefix}…) cesse immédiatement de fonctionner ; les intégrations qui l'utilisent recevront 401. L'action est auditée.",
+            "scopeCard": {
+                "messages": {
+                    "title": "messages:send",
+                    "text": "Envoi de messages via l'API Messages ; Idempotency-Key obligatoire."
+                },
+                "read": {
+                    "title": "templates:read · events:read",
+                    "text": "Lecture des modèles stockés et du journal d'événements."
+                },
+                "suppressions": {
+                    "title": "suppressions:write",
+                    "text": "Ajouter des suppressions et les supprimer avec un motif ; les plaintes ne peuvent pas être supprimées."
+                }
+            }
+        },
+        "smtp": {
+            "lead": "Identifiant et mot de passe par domaine pour la soumission SMTP. Le mot de passe s'affiche une fois, est stocké haché et peut être renouvelé.",
+            "issuedTitle": "Nouvel identifiant SMTP",
+            "connection": "Connexion",
+            "host": "Serveur",
+            "port": "Port",
+            "perDomain": "Un identifiant lié à un domaine ne peut envoyer que depuis ce domaine. Pas d'authentification en clair ; chaque soumission passe par le même PreSendGate que l'API.",
+            "rotateConfirm": "Un nouvel identifiant et un nouveau mot de passe seront émis pour « {name} » ; l'ancien cesse immédiatement de fonctionner. L'action est auditée.",
+            "revokeConfirm": "L'identifiant « {name} » cesse immédiatement de fonctionner. L'action est auditée."
+        }
     }
 }

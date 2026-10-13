@@ -84,6 +84,15 @@ final class AuthenticateApiKey
             return $this->unauthorized($failureKey);
         }
 
+        // IP-ALLOWLIST (D14). Ugyanaz a válasz, mint a rossz kulcsra: egy külön kód orákulum
+        // lenne arra, hogy a (máshonnan ellopott) kulcs ÉRVÉNYES. A hiba-vödröt nem töltjük —
+        // ez nem találgatás, hanem rossz helyről jövő, egyébként hiteles hívás.
+        if (! $key->allowsAddress(ClientAddress::of($request))) {
+            Log::notice('API-kulcs az IP-allowlisten kívülről', ['api_key_prefix' => (string) $key->prefix]);
+
+            return $this->unauthorized([]);
+        }
+
         $workspace = Workspace::query()->whereKey($key->workspace_id)->first();
 
         if ($workspace === null) {

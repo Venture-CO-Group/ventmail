@@ -2020,5 +2020,90 @@
             "anniversary": "Évente (évforduló)",
             "once": "Egyszer (a pontos dátumon)"
         }
+    },
+    "plat": {
+        "copy": "Másolás",
+        "copied": "Másolva",
+        "cancel": "Mégse",
+        "confirm": "Megerősítés",
+        "rotate": "Rotálás",
+        "state": {
+            "label": "Állapot",
+            "verified": "Rendben",
+            "active": "Aktív",
+            "rotating": "Rotáció alatt",
+            "pending": "Terjed…",
+            "failed": "Hiba",
+            "revoked": "Visszavonva",
+            "dead_letter": "Dead-letter",
+            "disabled": "Kikapcsolva",
+            "optional": "Opcionális",
+            "listed": "Listán",
+            "clean": "Tiszta",
+            "quarantined": "Karanténban",
+            "warming": "Warmup"
+        },
+        "eyebrow": {
+            "domains": "Platform · Domainek",
+            "apiKeys": "Platform · API-kulcsok",
+            "smtp": "Platform · SMTP"
+        },
+        "domains": {
+            "title": "Küldő domainek",
+            "lead": "Verifikálatlan domainről nincs küldés. A rekordokat a DNS-szolgáltatódnál kell felvenni; az állapot élőben frissül.",
+            "okCount": "{ok} / {total} rekord rendben",
+            "dkimTitle": "DKIM-kulcs",
+            "activeSelector": "Aláíró selector",
+            "publishedSelector": "Közzéteendő selector",
+            "rotatedAt": "Utolsó rotáció",
+            "previousSelector": "Előző selector érvényes eddig",
+            "rotateHint": "Új selector kerül közzétételre; a régi {days} napig érvényes marad, amíg az új rekord terjed.",
+            "rotateConfirm": "Új DKIM-kulcsot generálunk. Vedd fel az új DKIM-rekordot a DNS-be; a régi kulccsal {days} napig még aláírunk, amíg az új meg nem jelenik.",
+            "lastChecked": "Utolsó ellenőrzés: {at}",
+            "recheck": "Újraellenőrzés",
+            "trackingPending": "A tracking CNAME még nem terjedt el — a küldés engedélyezett, a kattintáskövetés viszont csak a rekord megjelenése után működik.",
+            "purpose": "Cél",
+            "allRecords": "Összes rekord (MTA-STS, TLS-RPT, MX) a varázslóban",
+            "record": {
+                "spf": "SPF",
+                "dkim": "DKIM",
+                "dmarc": "DMARC",
+                "return_path_transactional": "Return-Path (tranzakciós)",
+                "return_path_marketing": "Return-Path (marketing)",
+                "tracking": "Tracking CNAME"
+            }
+        },
+        "keys": {
+            "lead": "Workspace-hez kötött kulcsok scope-okkal és IP-allowlisttel. A kulcs értéke létrehozáskor csak egyszer látszik.",
+            "allowlist": "IP-allowlist",
+            "anyAddress": "Bármely cím",
+            "issuedTitle": "Kulcs létrehozva",
+            "allowlistHint": "IP-címek vagy CIDR-tartományok vesszővel vagy sortöréssel elválasztva (max. 50). Üresen hagyva bármely címről használható.",
+            "revokeConfirm": "A(z) „{name}” ({prefix}…) kulcs azonnal érvénytelen lesz; az ezt használó integrációk 401-et kapnak. A művelet auditált.",
+            "scopeCard": {
+                "messages": {
+                    "title": "messages:send",
+                    "text": "Üzenet küldése a Messages API-n; Idempotency-Key kötelező."
+                },
+                "read": {
+                    "title": "templates:read · events:read",
+                    "text": "Tárolt sablonok és az eseménynapló olvasása."
+                },
+                "suppressions": {
+                    "title": "suppressions:write",
+                    "text": "Suppression-bejegyzés felvétele és törlése indoklással; panasz nem törölhető."
+                }
+            }
+        },
+        "smtp": {
+            "lead": "Domainenként felhasználó és jelszó az SMTP-beküldéshez. A jelszó csak egyszer látszik, hash-elve tároljuk, és rotálható.",
+            "issuedTitle": "Új SMTP-hitelesítő",
+            "connection": "Kapcsolódás",
+            "host": "Szerver",
+            "port": "Port",
+            "perDomain": "Domainhez kötött hitelesítő csak arról a domainről küldhet. Plaintext hitelesítés nincs; minden beküldés ugyanazon a PreSendGate-en megy át, mint az API.",
+            "rotateConfirm": "Új jelszót és felhasználónevet adunk ki a(z) „{name}” hitelesítőhöz; a régi azonnal érvénytelen. A művelet auditált.",
+            "revokeConfirm": "A(z) „{name}” hitelesítő azonnal érvénytelen lesz. A művelet auditált."
+        }
     }
 }

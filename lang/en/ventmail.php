@@ -251,4 +251,9 @@ return [
             'empty' => 'Save the template before sending a test.',
         ],
     ],
+    // v1.1 · 7. modul (Platform)
+    'plat' => [
+        'dkimRotated' => 'New DKIM key generated — add the new record to DNS.',
+        'invalidAllowlist' => 'The IP allowlist may only contain valid IP addresses or CIDR ranges (max 50).',
+    ],
 ];

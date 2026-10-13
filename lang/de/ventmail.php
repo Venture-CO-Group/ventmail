@@ -235,4 +235,9 @@ return [
             'empty' => 'Speichern Sie die Vorlage vor dem Testversand.',
         ],
     ],
+    // v1.1 · 7. modul (Platform)
+    'plat' => [
+        'dkimRotated' => 'Neuer DKIM-Schlüssel erzeugt — lege den neuen Eintrag im DNS an.',
+        'invalidAllowlist' => 'Die IP-Allowlist darf nur gültige IP-Adressen oder CIDR-Bereiche enthalten (max. 50).',
+    ],
 ];

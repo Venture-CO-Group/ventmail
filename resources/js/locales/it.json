@@ -2020,5 +2020,90 @@
             "anniversary": "Ogni anno (anniversario)",
             "once": "Una volta (alla data esatta)"
         }
+    },
+    "plat": {
+        "copy": "Copia",
+        "copied": "Copiato",
+        "cancel": "Annulla",
+        "confirm": "Conferma",
+        "rotate": "Ruota",
+        "state": {
+            "label": "Stato",
+            "verified": "OK",
+            "active": "Attivo",
+            "rotating": "In rotazione",
+            "pending": "In propagazione…",
+            "failed": "Errore",
+            "revoked": "Revocato",
+            "dead_letter": "Dead-letter",
+            "disabled": "Disattivato",
+            "optional": "Facoltativo",
+            "listed": "In lista",
+            "clean": "Pulito",
+            "quarantined": "In quarantena",
+            "warming": "Warm-up"
+        },
+        "eyebrow": {
+            "domains": "Piattaforma · Domini",
+            "apiKeys": "Piattaforma · Chiavi API",
+            "smtp": "Piattaforma · SMTP"
+        },
+        "domains": {
+            "title": "Domini di invio",
+            "lead": "Nessun invio da un dominio non verificato. Aggiungi i record presso il tuo provider DNS; lo stato si aggiorna in tempo reale.",
+            "okCount": "{ok} / {total} record OK",
+            "dkimTitle": "Chiave DKIM",
+            "activeSelector": "Selettore di firma",
+            "publishedSelector": "Selettore da pubblicare",
+            "rotatedAt": "Ultima rotazione",
+            "previousSelector": "Selettore precedente valido fino al",
+            "rotateHint": "Viene emesso un nuovo selettore; il vecchio resta valido per {days} giorni mentre il nuovo record si propaga.",
+            "rotateConfirm": "Verrà generata una nuova chiave DKIM. Aggiungi il nuovo record DKIM al DNS; continuiamo a firmare con la vecchia chiave per un massimo di {days} giorni finché la nuova non compare.",
+            "lastChecked": "Ultimo controllo: {at}",
+            "recheck": "Ricontrolla",
+            "trackingPending": "Il CNAME di tracciamento non si è ancora propagato — l'invio è consentito, ma il tracciamento dei clic funziona solo quando il record è visibile.",
+            "purpose": "Scopo",
+            "allRecords": "Tutti i record (MTA-STS, TLS-RPT, MX) nella procedura guidata",
+            "record": {
+                "spf": "SPF",
+                "dkim": "DKIM",
+                "dmarc": "DMARC",
+                "return_path_transactional": "Return-Path (transazionale)",
+                "return_path_marketing": "Return-Path (marketing)",
+                "tracking": "CNAME di tracciamento"
+            }
+        },
+        "keys": {
+            "lead": "Chiavi legate al workspace con scope e allowlist IP. Il valore della chiave è mostrato una sola volta, alla creazione.",
+            "allowlist": "Allowlist IP",
+            "anyAddress": "Qualsiasi indirizzo",
+            "issuedTitle": "Chiave creata",
+            "allowlistHint": "Indirizzi IP o intervalli CIDR separati da virgole o a capo (max 50). Lascia vuoto per consentire qualsiasi indirizzo.",
+            "revokeConfirm": "La chiave \"{name}\" ({prefix}…) smette subito di funzionare; le integrazioni che la usano riceveranno 401. L'azione è registrata.",
+            "scopeCard": {
+                "messages": {
+                    "title": "messages:send",
+                    "text": "Invio di messaggi tramite l'API Messages; Idempotency-Key obbligatorio."
+                },
+                "read": {
+                    "title": "templates:read · events:read",
+                    "text": "Lettura dei modelli salvati e del registro eventi."
+                },
+                "suppressions": {
+                    "title": "suppressions:write",
+                    "text": "Aggiungere soppressioni ed eliminarle con un motivo; i reclami non si possono eliminare."
+                }
+            }
+        },
+        "smtp": {
+            "lead": "Utente e password per dominio per l'invio SMTP. La password è mostrata una volta, salvata come hash e ruotabile.",
+            "issuedTitle": "Nuova credenziale SMTP",
+            "connection": "Connessione",
+            "host": "Server",
+            "port": "Porta",
+            "perDomain": "Una credenziale legata a un dominio può inviare solo da quel dominio. Nessuna autenticazione in chiaro; ogni invio passa dallo stesso PreSendGate dell'API.",
+            "rotateConfirm": "Verranno emessi nuovo utente e nuova password per \"{name}\"; i vecchi smettono subito di funzionare. L'azione è registrata.",
+            "revokeConfirm": "La credenziale \"{name}\" smette subito di funzionare. L'azione è registrata."
+        }
     }
 }

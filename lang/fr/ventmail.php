@@ -237,4 +237,9 @@ return [
             'empty' => 'Enregistrez le modèle avant d’envoyer un test.',
         ],
     ],
+    // v1.1 · 7. modul (Platform)
+    'plat' => [
+        'dkimRotated' => 'Nouvelle clé DKIM générée — ajoutez le nouvel enregistrement au DNS.',
+        'invalidAllowlist' => 'La liste d\'IP autorisées ne peut contenir que des adresses IP ou plages CIDR valides (50 max).',
+    ],
 ];

@@ -235,4 +235,9 @@ return [
             'empty' => 'Salva il modello prima di inviare una prova.',
         ],
     ],
+    // v1.1 · 7. modul (Platform)
+    'plat' => [
+        'dkimRotated' => 'Nuova chiave DKIM generata — aggiungi il nuovo record al DNS.',
+        'invalidAllowlist' => 'L\'allowlist IP può contenere solo indirizzi IP o intervalli CIDR validi (max 50).',
+    ],
 ];

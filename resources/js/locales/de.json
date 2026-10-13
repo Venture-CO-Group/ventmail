@@ -2020,5 +2020,90 @@
             "anniversary": "Jährlich (Jahrestag)",
             "once": "Einmalig (am genauen Datum)"
         }
+    },
+    "plat": {
+        "copy": "Kopieren",
+        "copied": "Kopiert",
+        "cancel": "Abbrechen",
+        "confirm": "Bestätigen",
+        "rotate": "Rotieren",
+        "state": {
+            "label": "Status",
+            "verified": "OK",
+            "active": "Aktiv",
+            "rotating": "Rotation läuft",
+            "pending": "Wird verbreitet…",
+            "failed": "Fehler",
+            "revoked": "Widerrufen",
+            "dead_letter": "Dead-Letter",
+            "disabled": "Deaktiviert",
+            "optional": "Optional",
+            "listed": "Gelistet",
+            "clean": "Sauber",
+            "quarantined": "In Quarantäne",
+            "warming": "Warm-up"
+        },
+        "eyebrow": {
+            "domains": "Plattform · Domains",
+            "apiKeys": "Plattform · API-Schlüssel",
+            "smtp": "Plattform · SMTP"
+        },
+        "domains": {
+            "title": "Absender-Domains",
+            "lead": "Von nicht verifizierten Domains wird nicht gesendet. Lege die Einträge bei deinem DNS-Anbieter an; der Status aktualisiert sich live.",
+            "okCount": "{ok} / {total} Einträge OK",
+            "dkimTitle": "DKIM-Schlüssel",
+            "activeSelector": "Signier-Selector",
+            "publishedSelector": "Zu veröffentlichender Selector",
+            "rotatedAt": "Letzte Rotation",
+            "previousSelector": "Vorheriger Selector gültig bis",
+            "rotateHint": "Ein neuer Selector wird zur Veröffentlichung erzeugt; der alte bleibt {days} Tage gültig, während der neue Eintrag sich verbreitet.",
+            "rotateConfirm": "Ein neuer DKIM-Schlüssel wird erzeugt. Lege den neuen DKIM-Eintrag im DNS an; bis zu {days} Tage signieren wir weiter mit dem alten Schlüssel, bis der neue sichtbar ist.",
+            "lastChecked": "Zuletzt geprüft: {at}",
+            "recheck": "Erneut prüfen",
+            "trackingPending": "Der Tracking-CNAME ist noch nicht verbreitet — Senden ist erlaubt, Klick-Tracking funktioniert aber erst, wenn der Eintrag sichtbar ist.",
+            "purpose": "Zweck",
+            "allRecords": "Alle Einträge (MTA-STS, TLS-RPT, MX) im Assistenten",
+            "record": {
+                "spf": "SPF",
+                "dkim": "DKIM",
+                "dmarc": "DMARC",
+                "return_path_transactional": "Return-Path (transaktional)",
+                "return_path_marketing": "Return-Path (Marketing)",
+                "tracking": "Tracking-CNAME"
+            }
+        },
+        "keys": {
+            "lead": "Workspace-gebundene Schlüssel mit Scopes und IP-Allowlist. Der Schlüssel wird nur einmal bei der Erstellung angezeigt.",
+            "allowlist": "IP-Allowlist",
+            "anyAddress": "Jede Adresse",
+            "issuedTitle": "Schlüssel erstellt",
+            "allowlistHint": "IP-Adressen oder CIDR-Bereiche, durch Komma oder Zeilenumbruch getrennt (max. 50). Leer lassen für jede Adresse.",
+            "revokeConfirm": "Der Schlüssel „{name}\" ({prefix}…) wird sofort ungültig; Integrationen damit erhalten 401. Die Aktion wird protokolliert.",
+            "scopeCard": {
+                "messages": {
+                    "title": "messages:send",
+                    "text": "Nachrichten über die Messages API senden; Idempotency-Key ist Pflicht."
+                },
+                "read": {
+                    "title": "templates:read · events:read",
+                    "text": "Gespeicherte Vorlagen und das Ereignisprotokoll lesen."
+                },
+                "suppressions": {
+                    "title": "suppressions:write",
+                    "text": "Sperreinträge anlegen und mit Begründung löschen; Beschwerden sind nicht löschbar."
+                }
+            }
+        },
+        "smtp": {
+            "lead": "Benutzername und Passwort pro Domain für den SMTP-Versand. Das Passwort wird einmal angezeigt, gehasht gespeichert und ist rotierbar.",
+            "issuedTitle": "Neue SMTP-Zugangsdaten",
+            "connection": "Verbindung",
+            "host": "Server",
+            "port": "Port",
+            "perDomain": "Domain-gebundene Zugangsdaten senden nur von dieser Domain. Keine Klartext-Authentifizierung; jede Einlieferung durchläuft dasselbe PreSendGate wie die API.",
+            "rotateConfirm": "Für „{name}\" werden neuer Benutzername und neues Passwort ausgestellt; die alten werden sofort ungültig. Die Aktion wird protokolliert.",
+            "revokeConfirm": "Die Zugangsdaten „{name}\" werden sofort ungültig. Die Aktion wird protokolliert."
+        }
     }
 }
