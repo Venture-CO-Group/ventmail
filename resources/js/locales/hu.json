@@ -967,7 +967,8 @@
             "sent": "Küldött",
             "complaintRate": "Panasz-arány",
             "newContacts": "Új kontakt",
-            "churnRate": "Lemorzsolódás"
+            "churnRate": "Lemorzsolódás",
+            "newSubscribers": "Új feliratkozó"
         },
         "table": {
             "variant": "Változat",

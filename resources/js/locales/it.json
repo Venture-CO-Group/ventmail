@@ -967,7 +967,8 @@
             "sent": "Inviate",
             "complaintRate": "Tasso di reclami",
             "newContacts": "Nuovi contatti",
-            "churnRate": "Abbandono"
+            "churnRate": "Abbandono",
+            "newSubscribers": "Nuovi iscritti"
         },
         "table": {
             "variant": "Variante",

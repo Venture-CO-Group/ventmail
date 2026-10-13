@@ -102,3 +102,21 @@ it('múltbeli ablakra is helyes a lemorzsolódás nevezője; a pending nem új f
 
     Carbon::setTestNow();
 });
+
+it('a feliratkozás ideje a subscribed_at (ha van), és az ablakban jött-és-ment kontakt nem lemorzsolódás (D283)', function () {
+    Carbon::setTestNow('2026-10-13 12:00:00');
+    AnalyticsFixtures::tenant();
+
+    vmContact('regi@pelda.hu', Carbon::parse('2026-07-01'));
+    // Júliusban jött létre, de csak augusztusban erősítette meg (DOI): induláskor még NEM volt feliratkozó.
+    $late = Contact::create(['email' => 'kesei@pelda.hu', 'status' => 'subscribed']);
+    $late->forceFill(['created_at' => Carbon::parse('2026-07-20'), 'subscribed_at' => Carbon::parse('2026-08-03 09:00', 'UTC')])->saveQuietly();
+    // Az ablakban jött és ment: se a nevezőben, se a számlálóban.
+    vmContact('atfuto@pelda.hu', Carbon::parse('2026-08-05'), Carbon::parse('2026-08-20'));
+
+    $churn = app(AudienceInsights::class)->churnBetween(Carbon::parse('2026-08-01'), Carbon::parse('2026-08-31'), 'UTC');
+
+    expect($churn)->toBe(['subscribedAtStart' => 1, 'newSubscribed' => 2, 'unsubscribed' => 0, 'rate' => 0.0]);
+
+    Carbon::setTestNow();
+});

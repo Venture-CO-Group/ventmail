@@ -310,7 +310,10 @@ final class ClickMap
                         'campaign_uuid' => $group->campaign_uuid,
                         'journey_id' => $group->journey_id === null ? null : (int) $group->journey_id,
                         'url_hash' => (string) $group->url_hash,
-                        'url' => (string) $group->url,
+                        // GDPR (review round 2 S4, D282): az összevont sorba a REDAKTÁLT cím kerül — egy
+                        // törlési kérés vagy a retenció után a javítás előtti, e-mailes útvonal sem marad
+                        // a táblában. A kulcs (`url_hash`) marad: a térkép-sor azonossága nem változik.
+                        'url' => self::redactStored((string) $group->url),
                         'recipient_hash' => self::AGGREGATED_HASH,
                         'clicks' => (int) $group->clicks,
                         'unique_clicks' => (int) $group->unique_clicks,
@@ -421,14 +424,20 @@ final class ClickMap
      */
     public static function redactPath(string $path): string
     {
-        if ($path === '' || (! str_contains($path, '@') && stripos($path, '%40') === false)) {
+        if ($path === '' || ! self::carriesAddress($path)) {
             return $path;
         }
 
         return implode('/', array_map(
-            static fn (string $segment): string => str_contains($segment, '@') || stripos($segment, '%40') !== false ? '{redacted}' : $segment,
+            static fn (string $segment): string => self::carriesAddress($segment) ? '{redacted}' : $segment,
             explode('/', $path),
         ));
+    }
+
+    /** `@`, `%40` vagy a kétszer kódolt `%2540` (review round 2 N6). */
+    private static function carriesAddress(string $value): bool
+    {
+        return str_contains($value, '@') || stripos($value, '%40') !== false || stripos($value, '%2540') !== false;
     }
 
     /**
@@ -443,8 +452,9 @@ final class ClickMap
 
         $parts = parse_url($url);
 
+        // FAIL-CLOSED (review round 2 N6): egy nem értelmezhető, de címet hordozó érték nem jut ki nyersen.
         if ($parts === false || ! isset($parts['host'])) {
-            return $url;
+            return self::carriesAddress($url) ? '{redacted}' : $url;
         }
 
         $out = ($parts['scheme'] ?? 'https').'://'.$parts['host'].(isset($parts['port']) ? ':'.$parts['port'] : '');

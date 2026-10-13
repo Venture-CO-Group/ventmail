@@ -143,7 +143,7 @@ final class ReportDocumentBuilder
             }
 
             if ($audience['available'] ?? false) {
-                $view['kpis'][] = [$t->get('analytics.kpi.newContacts'), $fmt($audience['churn']['new'])];
+                $view['kpis'][] = [$t->get('analytics.kpi.newSubscribers'), $fmt($audience['churn']['new'])];
                 $view['kpis'][] = [$t->get('analytics.kpi.churnRate'), $pct($audience['churn']['rate'])];
 
                 $view['charts']['growth'] = [

@@ -967,7 +967,8 @@
             "sent": "Envoyés",
             "complaintRate": "Taux de plaintes",
             "newContacts": "Nouveaux contacts",
-            "churnRate": "Attrition"
+            "churnRate": "Attrition",
+            "newSubscribers": "Nouveaux abonnés"
         },
         "table": {
             "variant": "Variante",

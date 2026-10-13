@@ -14,6 +14,7 @@ use App\Modules\Audit\Services\KeyedHash;
 use App\Modules\Campaign\Models\CampaignVariant;
 use App\Modules\Identity\Models\ApiKey;
 use App\Modules\Template\Services\TemplateVersions;
+use App\Modules\Tenancy\Services\WorkspaceContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
@@ -255,4 +256,39 @@ it('nem UUID-alakú kampány/journey paraméter 404, nem 500', function () {
     $this->actingAs($user)->withSession(['workspace_uuid' => $workspace->uuid])->get('/analytics?campaign=nem-uuid')->assertNotFound();
     $this->actingAs($user)->withSession(['workspace_uuid' => $workspace->uuid])->get('/analytics?journey=1%27%20or%201=1')->assertNotFound();
     $this->actingAs($user)->withSession(['workspace_uuid' => $workspace->uuid])->get('/analytics/campaigns/nem-uuid')->assertNotFound();
+});
+
+it('GDPR: a törlési kérés és a retenciós összevonás után az e-mailes útvonal sem marad a táblában (D282)', function () {
+    [$workspace] = AnalyticsFixtures::tenant();
+    $campaign = AnalyticsFixtures::campaign();
+
+    foreach (['erintett@pelda.hu' => 'https://shop.pelda.hu/u/erintett@pelda.hu/ajanlat', 'masik@pelda.hu' => 'https://shop.pelda.hu/u/masik%40pelda.hu/x'] as $recipient => $url) {
+        // A javítás ELŐTT tárolt alak: nyers útvonal (a mai `record()` már redaktálna).
+        LinkClick::query()->insert([
+            'workspace_id' => $workspace->getKey(), 'message_uuid' => (string) Str::uuid7(), 'campaign_uuid' => $campaign->uuid,
+            'url_hash' => KeyedHash::of('click-url', $url), 'url' => $url, 'recipient_hash' => KeyedHash::of('email', $recipient),
+            'clicks' => 1, 'unique_clicks' => 1, 'first_clicked_at' => now()->subDays(200), 'last_clicked_at' => now()->subDays(200),
+            'created_at' => now(), 'updated_at' => now(),
+        ]);
+    }
+
+    app(WorkspaceContext::class)->forget();
+    $this->artisan('logs:redact-subject', ['email' => 'erintett@pelda.hu'])->assertSuccessful();
+    $this->artisan('analytics:purge-click-map')->assertSuccessful();
+
+    app(WorkspaceContext::class)->set($workspace);
+    $urls = LinkClick::query()->pluck('url')->all();
+
+    expect($urls)->not->toBeEmpty();
+    foreach ($urls as $url) {
+        expect($url)->not->toContain('@')->not->toContain('%40');
+    }
+});
+
+it('a tárolt cím redaktálása fail-closed: @, %40, %2540, és a nem értelmezhető alak is (N6)', function () {
+    expect(ClickMap::redactStored('https://a.hu/u/x%2540y.hu/z'))->toBe('https://a.hu/u/{redacted}/z')
+        ->and(ClickMap::redactStored('https://a.hu/u/X%40Y.HU'))->toBe('https://a.hu/u/{redacted}')
+        ->and(ClickMap::redactStored('nem url de@cim.hu'))->toBe('{redacted}')
+        ->and(ClickMap::redactStored('https://a.hu/akcio?utm_source=x'))->toBe('https://a.hu/akcio?utm_source=x')
+        ->and(ClickMap::redactStored(ClickMap::OVERFLOW_URL))->toBe(ClickMap::OVERFLOW_URL);
 });

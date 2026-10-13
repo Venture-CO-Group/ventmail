@@ -967,7 +967,8 @@
             "sent": "Отправлено",
             "complaintRate": "Доля жалоб",
             "newContacts": "Новые контакты",
-            "churnRate": "Отток"
+            "churnRate": "Отток",
+            "newSubscribers": "Новые подписчики"
         },
         "table": {
             "variant": "Вариант",

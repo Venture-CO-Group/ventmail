@@ -967,7 +967,8 @@
             "sent": "Sent",
             "complaintRate": "Complaint rate",
             "newContacts": "New contacts",
-            "churnRate": "Churn"
+            "churnRate": "Churn",
+            "newSubscribers": "New subscribers"
         },
         "table": {
             "variant": "Variant",

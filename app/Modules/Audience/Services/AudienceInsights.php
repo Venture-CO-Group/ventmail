@@ -181,9 +181,11 @@ final class AudienceInsights
      *   és vagy ma is `subscribed`, vagy `unsubscribed`, de a leiratkozásuk a kezdet UTÁN volt. A
      *   `pending` (DOI-megerősítésre váró) és a `cleaned` kontakt nem számít (a `cleaned` időpontja
      *   nem ismert). Múltbeli ablakra is helyes — nem a mai létszámból visszaszámolva.
-     * - `newSubscribed`: az időszakban létrejött, feliratkozott (vagy azóta leiratkozott) kontakt; a
-     *   `pending` nem új feliratkozó.
-     * - `unsubscribed`: az időszakban leiratkozottak.
+     * - `newSubscribed`: az időszakban feliratkozott (vagy azóta leiratkozott) kontakt; a `pending` nem
+     *   új feliratkozó. (A növekedés-grafikon „Új" sora minden LÉTREHOZOTT kontaktot mutat — a KPI
+     *   felirata ezért „Új feliratkozó".)
+     * - `unsubscribed`: az INDULÓ feliratkozók közül az időszakban leiratkozottak (ugyanaz a kohorsz,
+     *   mint a nevezőé, így az arány nem mehet 100% fölé).
      * - `rate` = leiratkozott / induló feliratkozott (%).
      *
      * @return array{subscribedAtStart: int, newSubscribed: int, unsubscribed: int, rate: float}
@@ -193,20 +195,26 @@ final class AudienceInsights
         $lower = Carbon::parse($from->toDateString(), $timezone)->startOfDay()->utc();
         $upper = Carbon::parse($to->toDateString(), $timezone)->startOfDay()->addDay()->utc();
 
+        // A feliratkozás ideje: a `subscribed_at` (DOI-megerősítés), ennek híján a létrehozás (review
+        // round 2 N1, D283). A `created_at` időzóna nélküli UTC — ezért a kifejezett átváltás.
+        $since = "coalesce(subscribed_at, created_at at time zone 'UTC')";
+
         $atStart = Contact::query()
-            ->where('created_at', '<', $lower->toDateTimeString())
+            ->whereRaw("{$since} < ?", [$lower])
             ->where(fn (Builder $query) => $query
                 ->where('status', 'subscribed')
                 ->orWhere(fn (Builder $q) => $q->where('status', 'unsubscribed')->where('unsubscribed_at', '>=', $lower)))
             ->count();
 
         $new = Contact::query()
-            ->where('created_at', '>=', $lower->toDateTimeString())
-            ->where('created_at', '<', $upper->toDateTimeString())
+            ->whereRaw("{$since} >= ? and {$since} < ?", [$lower, $upper])
             ->whereIn('status', ['subscribed', 'unsubscribed'])
             ->count();
 
+        // A számláló UGYANAZ a kohorsz, mint a nevező: az induló feliratkozók közül, akik az ablakban
+        // mentek el. (Az ablakban feliratkozott-és-leiratkozott nincs a nevezőben, a számlálóban sem.)
         $lost = Contact::query()
+            ->whereRaw("{$since} < ?", [$lower])
             ->whereNotNull('unsubscribed_at')
             ->where('unsubscribed_at', '>=', $lower)
             ->where('unsubscribed_at', '<', $upper)

@@ -967,7 +967,8 @@
             "sent": "Gesendet",
             "complaintRate": "Beschwerderate",
             "newContacts": "Neue Kontakte",
-            "churnRate": "Abwanderung"
+            "churnRate": "Abwanderung",
+            "newSubscribers": "Neue Abonnenten"
         },
         "table": {
             "variant": "Variante",
