@@ -4,14 +4,19 @@ declare(strict_types=1);
 
 namespace App\Modules\Journey\Http\Controllers;
 
-use App\Modules\Journey\Enums\StepType;
+use App\Models\User;
+use App\Modules\Audit\Services\AuditLogger;
 use App\Modules\Journey\Enums\TriggerType;
+use App\Modules\Journey\Graph\NodeCatalog;
 use App\Modules\Journey\Models\Journey;
 use App\Modules\Journey\Models\JourneyRun;
-use App\Modules\Journey\Models\JourneyStep;
+use App\Modules\Journey\Services\JourneyGraphInvalid;
+use App\Modules\Journey\Services\JourneyPublisher;
 use App\Modules\Journey\Services\JourneyValidator;
+use App\Modules\Template\Services\TemplateUsage;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -19,21 +24,17 @@ use Inertia\Response;
 use InvalidArgumentException;
 
 /**
- * JOURNEY-K (68–71. kritérium): lista, lépéslánc, aktiválás.
+ * JOURNEY-K (68–71. kritérium): lista, létrehozás, a régi lánc aktiválása.
  *
- * ## A LÁNC LISTA, nem vászon — és ez tudatos
- *
- * A `@venture/ui`-ban nincs gráf- vagy vászon-primitív, a golden rule pedig a lokális
- * komponens-gyártást tiltja (jelenteni kell, nem megkerülni). A lépéslánc viszont
- * SORREND: az első lépéstől a következőig, elágazásnál `else`-ággal. Ez listaként
- * pontosan leírható, billentyűzettel is bejárható — a vizuális vászon a `@venture/ui`
- * bővítése után jöhet.
+ * A v1.1 óta a journey a VÁSZONON szerkesztődik (`JourneyCanvasController`, D4/D5); az új
+ * journey a választott trigger-csomóponttal indul. A v1.1 előtti, láncolt journey a vásznon
+ * is megnyílik, és amíg nem publikálják újra, a régi lánca fut.
  *
  * ## AZ AKTIVÁLÁS validál
  *
- * A `JourneyValidator` a láncot (nincs kör, van kilépés), a lépéseket és a célt nézi. Ha
- * ez csak futásidőben derülne ki, a journey „aktív" lenne, és a címzettek beragadnának
- * egy hurokba.
+ * A vászon journey-jét a `JourneyGraphValidator` (árva csomópont, hiányzó trigger, várakozás
+ * nélküli kör, kötelező konfiguráció), a régi láncot a `JourneyValidator` nézi. Ha ez csak
+ * futásidőben derülne ki, a journey „aktív" lenne, és a címzettek beragadnának egy hurokba.
  */
 final class JourneyUiController
 {
@@ -51,7 +52,11 @@ final class JourneyUiController
                     'name' => (string) $journey->name,
                     'status' => (string) $journey->status,
                     'trigger' => (string) $journey->trigger_type,
-                    'steps' => (int) $journey->steps_count,
+                    // A VÁSZON journey-jénél a gráf akció-csomópontjai számítanak (a verziók
+                    // lépései összeadva megtévesztők lennének); a régi láncnál a lépések.
+                    'steps' => is_array($journey->graph)
+                        ? count(array_filter((array) ($journey->graph['nodes'] ?? []), static fn ($node): bool => is_array($node) && NodeCatalog::isAction((string) ($node['type'] ?? ''))))
+                        : (int) $journey->steps_count,
                     // A FUTÓ példányok száma az, ami megmondja, hogy a journey ÉL-e:
                     // egy aktív journey nulla futással konfigurációs hiba.
                     'activeRuns' => JourneyRun::query()
@@ -60,43 +65,6 @@ final class JourneyUiController
                         ->count(),
                 ])->values()->all(),
             'triggers' => array_map(fn (TriggerType $type) => $type->value, TriggerType::cases()),
-        ]);
-    }
-
-    public function show(string $uuid): Response
-    {
-        Gate::authorize('campaign.create');
-
-        $journey = Journey::query()->with('steps')->where('uuid', $uuid)->firstOrFail();
-
-        $steps = $journey->steps->keyBy('id');
-
-        return Inertia::render('Journey/Edit', [
-            'journey' => [
-                'uuid' => (string) $journey->uuid,
-                'name' => (string) $journey->name,
-                'description' => $journey->description,
-                'status' => (string) $journey->status,
-                'trigger' => (string) $journey->trigger_type,
-                'allowReentry' => (bool) $journey->allow_reentry,
-                'firstStep' => $journey->first_step_id === null
-                    ? null
-                    : (string) ($steps[$journey->first_step_id]?->uuid ?? ''),
-            ],
-            // A LÁNC SORRENDBEN: a felület nem gráfot rajzol, hanem az utat mutatja meg.
-            'steps' => $journey->steps->sortBy('position')->map(fn (JourneyStep $step) => [
-                'uuid' => (string) $step->uuid,
-                'type' => (string) $step->type,
-                'position' => (int) $step->position,
-                'config' => (array) $step->config,
-                'next' => $step->next_step_id === null ? null : (string) ($steps[$step->next_step_id]?->uuid ?? ''),
-                'else' => $step->else_step_id === null ? null : (string) ($steps[$step->else_step_id]?->uuid ?? ''),
-            ])->values()->all(),
-            'stepTypes' => array_map(fn (StepType $type) => $type->value, StepType::cases()),
-            'runs' => [
-                'active' => JourneyRun::query()->where('journey_id', $journey->getKey())->where('status', 'active')->count(),
-                'completed' => JourneyRun::query()->where('journey_id', $journey->getKey())->where('status', 'completed')->count(),
-            ],
         ]);
     }
 
@@ -112,46 +80,84 @@ final class JourneyUiController
         $journey = Journey::create([
             'name' => $validated['name'],
             'trigger_type' => $validated['trigger'],
+            // v1.1 · a VÁSZON a választott trigger-csomóponttal indul.
+            'graph' => [
+                'nodes' => [[
+                    'id' => 'trigger',
+                    'type' => $validated['trigger'],
+                    'position' => ['x' => 0, 'y' => 0],
+                    'label' => '',
+                    'config' => [],
+                ]],
+                'edges' => [],
+            ],
         ]);
 
         return redirect()->route('journeys.show', ['uuid' => $journey->uuid]);
     }
 
-    public function activate(string $uuid, JourneyValidator $validator): RedirectResponse
+    public function activate(Request $request, string $uuid, JourneyValidator $validator, JourneyPublisher $publisher, AuditLogger $audit): RedirectResponse
     {
-        // AZ AKTIVÁLÁS küldést indít — ugyanaz a felelősség, mint a kampány kiküldése.
-        Gate::authorize('campaign.publish');
-
-        $journey = Journey::query()->with('steps')->where('uuid', $uuid)->firstOrFail();
-
-        try {
-            $validator->validateChain($journey);
-            $validator->validateGoal($journey);
-        } catch (InvalidArgumentException $e) {
-            /*
-             | A LÁNC HIBÁJA az AKTIVÁLÁSNÁL derül ki, nem a századik címzettnél.
-             |
-             | Egy körkörös lánc vagy kilépés nélküli journey a futásban ragadna be — és
-             | ott már címzettek vannak benne.
-             */
-            return back()->with('error', $e->getMessage());
-        }
-
-        $journey->forceFill(['status' => 'active'])->save();
-
-        return back()->with('success', __('ventmail.journeys.activated'));
-    }
-
-    public function pause(string $uuid): RedirectResponse
-    {
-        Gate::authorize('campaign.publish');
+        // AZ AKTIVÁLÁS küldést indít — ugyanaz a felelősség, mint a kampány kiküldése. A v1.1
+        // óta saját képesség (`journey.publish`), ugyanazokkal a szerepekkel.
+        Gate::authorize('journey.publish');
 
         $journey = Journey::query()->where('uuid', $uuid)->firstOrFail();
 
-        // A SZÜNET nem törli a futásokat: a benne lévő címzettek ott maradnak, ahol
-        // vannak, és a folytatáskor onnan mennek tovább.
-        $journey->forceFill(['status' => 'paused'])->save();
+        // A VÁSZON journey-je a publikálón megy (verzió + lépések), a régi lánc a régi úton.
+        if (is_array($journey->graph)) {
+            try {
+                /** @var User|null $actor */
+                $actor = $request->user();
+                $publisher->publish($journey, $actor);
+            } catch (JourneyGraphInvalid) {
+                return back()->with('error', __('ventmail.journeys.publishInvalid'));
+            }
 
-        return back()->with('success', __('ventmail.journeys.paused'));
+            return back()->with('success', __('ventmail.journeys.activated'));
+        }
+
+        /*
+         | A RÉGI LÁNC aktiválása SOR-ZÁR alatt (review m5-r5 N4): a journey sora zárolt, a lépések
+         | és a validálás a zár ALATT olvasódnak, és a sablonok megosztott zárja is ugyanebben a
+         | tranzakcióban jön — egy közben futó szerkesztés nem csúszhat a validálás és az
+         | aktiválás közé.
+         */
+        $error = DB::transaction(function () use ($journey, $validator, $audit): ?string {
+            $locked = Journey::query()->whereKey($journey->getKey())->lockForUpdate()->firstOrFail();
+            $locked->load('steps');
+
+            // A BEKÖTETLEN trigger (review 2, S3 — D152 a régi láncra is): a journey sosem
+            // tüzelne, tehát az aktiválás csak hamis biztonságot adna.
+            if (in_array((string) $locked->trigger_type, NodeCatalog::UNAVAILABLE_TRIGGERS, true)) {
+                return __('ventmail.journeys.triggerUnavailable');
+            }
+
+            try {
+                $validator->validateChain($locked);
+                $validator->validateGoal($locked);
+            } catch (InvalidArgumentException $e) {
+                // A LÁNC HIBÁJA az AKTIVÁLÁSNÁL derül ki, nem a századik címzettnél.
+                return $e->getMessage();
+            }
+
+            // A `send_email` lépések sablonjainak megosztott zárja (review SEC4-S1).
+            app(TemplateUsage::class)->lockForActivationByUuid($locked->steps
+                ->where('type', 'send_email')
+                ->map(static fn ($step): string => (string) (((array) $step->config)['template'] ?? ''))
+                ->values()->all());
+
+            $locked->forceFill(['status' => 'active'])->save();
+
+            $audit->log('journey.activated', $locked, context: ['legacy_chain' => true]);
+
+            return null;
+        });
+
+        if ($error !== null) {
+            return back()->with('error', $error);
+        }
+
+        return back()->with('success', __('ventmail.journeys.activated'));
     }
 }

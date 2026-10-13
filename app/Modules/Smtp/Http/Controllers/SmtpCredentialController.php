@@ -9,6 +9,7 @@ use App\Modules\Sending\Enums\Channel;
 use App\Modules\Smtp\Models\SmtpCredential;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -60,6 +61,11 @@ final class SmtpCredentialController
                 ->values()->all(),
             'channels' => Channel::values(),
             'defaultRateLimit' => (int) config('smtp.rate_limit.per_credential_per_minute', 60),
+            // A beküldés PARAMÉTEREI — a fejlesztő ezt keresi elsőnek. Plaintext port nincs.
+            'submission' => [
+                'host' => (string) config('smtp.hostname'),
+                'ports' => [['port' => 587, 'tls' => 'STARTTLS'], ['port' => 465, 'tls' => 'TLS']],
+            ],
         ]);
     }
 
@@ -84,6 +90,45 @@ final class SmtpCredentialController
         $issued = SmtpCredential::issue($validated['name'], $domainId, $validated['channel']);
 
         // A JELSZÓ FLASH-BEN, egyszer — ugyanaz az érv, mint az API-kulcsnál.
+        return back()->with('secret', [
+            'kind' => 'smtp',
+            'username' => $issued['username'],
+            'password' => $issued['password'],
+        ]);
+    }
+
+    /**
+     * ROTÁCIÓ (v1.1 · 7. modul): új jelszó UGYANAZZAL a névvel, domainnel, csatornával és
+     * kerettel; a régi hitelesítő AZONNAL visszavonva — a vele már hitelesített, nyitott
+     * SMTP-munkamenet is a következő beküldésnél 421-et kap, és zárul (D190).
+     *
+     * Nincs átfedési ablak — szándékosan: a rotációt jellemzően szivárgás váltja ki, és egy
+     * relay-hitelesítőnél a „még 24 óráig él" a támadónak ad 24 óra nyílt küldést. Az
+     * ügyfél a válaszban kapott új felhasználónév/jelszó párt azonnal beírja.
+     *
+     * A régi sor `FOR UPDATE` alatt: két párhuzamos rotáció különben két élő utódot adna.
+     */
+    public function rotate(string $uuid): RedirectResponse
+    {
+        Gate::authorize('smtpCredential.manage');
+
+        $issued = DB::transaction(function () use ($uuid): array {
+            $old = SmtpCredential::query()->where('uuid', $uuid)->lockForUpdate()->firstOrFail();
+
+            $issued = SmtpCredential::issue((string) $old->name, $old->domain_id, (string) $old->channel_restriction);
+
+            $issued['credential']->forceFill([
+                'rotated_from_id' => $old->getKey(),
+                'rate_limit_per_minute' => $old->rate_limit_per_minute,
+                'require_tls' => $old->require_tls,
+            ])->save();
+
+            $old->forceFill(['revoked_at' => now()])->save();
+            $old->delete();
+
+            return $issued;
+        });
+
         return back()->with('secret', [
             'kind' => 'smtp',
             'username' => $issued['username'],

@@ -25,6 +25,10 @@ use Illuminate\Support\Facades\Route;
 Route::middleware(['auth', 'workspace'])->group(function (): void {
     Route::get('/webhooks', [WebhookUiController::class, 'index'])->name('webhooks.index');
     Route::post('/webhooks', [WebhookUiController::class, 'store'])->name('webhooks.store');
+    Route::patch('/webhooks/{uuid}', [WebhookUiController::class, 'update'])->name('webhooks.update');
     Route::delete('/webhooks/{uuid}', [WebhookUiController::class, 'destroy'])->name('webhooks.destroy');
+    // v1.1 · 7. modul: titok-rotáció (türelmi ablakkal) és teszt-esemény.
+    Route::post('/webhooks/{uuid}/rotate-secret', [WebhookUiController::class, 'rotate'])->name('webhooks.rotate');
+    Route::post('/webhooks/{uuid}/test', [WebhookUiController::class, 'test'])->name('webhooks.test');
     Route::post('/webhooks/deliveries/{uuid}/replay', [WebhookUiController::class, 'replay'])->name('webhooks.replay');
 });

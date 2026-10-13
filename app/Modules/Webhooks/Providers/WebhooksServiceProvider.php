@@ -9,6 +9,7 @@ use App\Modules\Webhooks\Console\RetryWebhooksCommand;
 use App\Modules\Webhooks\Contracts\HostResolver;
 use App\Modules\Webhooks\Services\SystemHostResolver;
 use App\Modules\Webhooks\Services\WebhookDispatcher;
+use App\Modules\Webhooks\Testing\E2eWebhookSink;
 
 /**
  * Webhooks modul — aláírt esemény-kiküldés, retry, dead-letter, replay.
@@ -38,5 +39,8 @@ final class WebhooksServiceProvider extends ModuleServiceProvider
         if ($this->app->runningInConsole()) {
             $this->commands([RetryWebhooksCommand::class]);
         }
+
+        // A böngésző-suite helyi fogadója (D191) — csak local/testing, csak ha beállították.
+        E2eWebhookSink::install();
     }
 }

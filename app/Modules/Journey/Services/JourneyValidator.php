@@ -59,7 +59,37 @@ final class JourneyValidator
             StepType::Wait => $this->validateWait($config),
             StepType::Condition => $this->validateCondition($config),
             StepType::Exit => null,
+            // v1.1 · 6. modul — a vászon lépései. A teljes (hivatkozás-szintű) ellenőrzést a
+            // publikálás előtt a `JourneyGraphValidator` végzi; itt a TÍPUS-biztonság marad: a
+            // `uuid` oszlopra menő érték UUID, a feltétel ismert.
+            StepType::Split => array_map(
+                fn ($branch) => $this->validateCondition(is_array($branch) ? (array) ($branch['condition'] ?? []) : []),
+                (array) ($config['branches'] ?? []),
+            ),
+            StepType::AbSplit => $this->validateVariants($config),
+            StepType::UpdateContact => in_array($config['operation'] ?? null, ['add_tag', 'remove_tag'], true)
+                ? $this->requireUuid($config, 'tag', 'update_contact')
+                : (($config['operation'] ?? null) === 'set_field' && trim((string) ($config['field'] ?? '')) !== ''
+                    ? null
+                    : throw new InvalidArgumentException('Az `update_contact` lépéshez kötelező a művelet és a mező / címke.')),
+            StepType::ListMembership => $this->requireUuid($config, 'list', 'list_membership'),
+            StepType::Webhook => $this->requireUuid($config, 'endpoint', 'webhook'),
+            StepType::Goal => is_array($config['goal'] ?? null) ? $this->validateCondition($config['goal']) : null,
         };
+    }
+
+    /** @param array<string, mixed> $config */
+    private function validateVariants(array $config): void
+    {
+        $total = 0;
+
+        foreach ((array) ($config['variants'] ?? []) as $variant) {
+            $total += is_array($variant) ? max(0, (int) ($variant['weight'] ?? 0)) : 0;
+        }
+
+        if ($total < 1) {
+            throw new InvalidArgumentException('Az A/B lépés ágainak súlya összesen legalább 1 kell legyen.');
+        }
     }
 
     /**
@@ -102,7 +132,9 @@ final class JourneyValidator
         // MINDEN lépésből indulva keresünk kört, a `first_step_id`-tól FÜGGETLENÜL: a lánc
         // nem feltétlenül a fejtől körkörös (egy `else` ág is visszamutathat), és a
         // szerkesztés közben a fej még nincs is beállítva — épp akkor kellene szólni.
-        $steps = $journey->steps()->get()->keyBy('id');
+        // CSAK a régi, láncolt lépések: a vászon verzióinak lépéseit a publikálás validálja
+        // (a gráf szintjén), és a régi verziók lépései itt csak zajt adnának.
+        $steps = $journey->steps()->whereNull('journey_version_id')->get()->keyBy('id');
         foreach ($steps as $start) {
             $this->walk($start, $steps);
         }
@@ -171,6 +203,14 @@ final class JourneyValidator
     /** @param array<string, mixed> $config */
     private function validateWait(array $config): void
     {
+        if (($config['mode'] ?? 'time') === 'event') {
+            if (! in_array($config['event'] ?? null, ['opened', 'clicked'], true)) {
+                throw new InvalidArgumentException('Az eseményre váró `wait` lépéshez kötelező az esemény (opened / clicked).');
+            }
+
+            $config = ['minutes' => $config['timeout_minutes'] ?? null];
+        }
+
         $minutes = $config['minutes'] ?? 60;
 
         if (! is_numeric($minutes) || (int) $minutes < 1 || (int) $minutes > JourneyEngine::MAX_WAIT_MINUTES) {
@@ -192,7 +232,7 @@ final class JourneyValidator
             'in_segment' => $this->requireUuid($config, 'segment', 'condition: in_segment'),
             'has_tag' => $this->requireUuid($config, 'tag', 'condition: has_tag'),
             'opened_email', 'clicked_email' => null,
-            'context_equals' => (string) ($config['key'] ?? '') === ''
+            'context_equals', 'field_equals' => (string) ($config['key'] ?? '') === ''
                 ? throw new InvalidArgumentException('A `context_equals` feltételhez kötelező a `key` mező.')
                 : null,
             default => throw new InvalidArgumentException(sprintf(

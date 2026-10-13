@@ -57,6 +57,11 @@ Schedule::command('inbound:verify-mx')->hourly();
 // adat kevés van a rendszerben, és az ellenőrzés után nincs jogalapunk a megőrzésére.
 Schedule::command('validation:purge')->dailyAt('03:50');
 
+// A feltöltött import-fájlok és lejárt hibariportok takarítása (v1.1): a címlista személyes adat.
+Schedule::command('audience:purge-imports')->dailyAt('04:00');
+// v1.1 · 5. modul (review RS5): a v1.1 előtti kontaktok forrásának kötegelt kitöltése — idempotens.
+Schedule::command('audience:backfill-sources')->dailyAt('04:20')->withoutOverlapping();
+
 // BLOCKLIST-FIGYELÉS: ez az a hiba, amit MI veszünk észre utoljára — az ügyfél előbb, mert
 // nála hirtelen senki nem kapja meg a levelet. Az óránkénti futás a delisting-kérelemhez
 // szükséges időt adja meg.
@@ -97,11 +102,18 @@ Schedule::command('journeys:purge-runs')->dailyAt('03:55');
 // korábbi kampány klikk-térképe kiürülne.
 Schedule::command('analytics:purge-click-map')->dailyAt('04:05');
 
+// v1.1 · 8. modul: a lejárt (7 napos) PDF-riportok fájlja törlődik, a sor `expired`-ként marad.
+Schedule::command('analytics:purge-reports')->hourly()->withoutOverlapping();
+
 // SZEGMENSBE LÉPÉS mint trigger (69. kritérium). A szegmens egy LEKÉRDEZÉS, nincs „belépés"
 // pillanata — ezért ütemezett összehasonlítás adja. A `FireJourneyEvent::segmentEntered()`
 // megvolt, a docblock erre a parancsra hivatkozott, de a parancs NEM LÉTEZETT: a
 // `segment_entered` triggerű journey élesben soha nem tüzelt.
 Schedule::command('journeys:detect-segment-entries')->everyFiveMinutes()->withoutOverlapping();
+
+// v1.1 · 6. modul — a DÁTUM / ÉVFORDULÓ trigger: naponta egyszer, reggel (a beléptetett futás
+// első lépése a következő tickben megy, nem éjszaka).
+Schedule::command('journeys:detect-dates')->dailyAt('07:00')->withoutOverlapping();
 
 // A lejárt nyers MIME-levelek törlése (golden rule 10): a levéltest a legsűrűbb PII-tárolónk.
 Schedule::command('messages:purge-raw-mime')->dailyAt('03:20');
@@ -124,3 +136,6 @@ Schedule::command('messages:purge-raw-mime')->dailyAt('03:20');
 Schedule::command('billing:close')->monthlyOn(1, '04:30')->withoutOverlapping();
 Schedule::command('billing:snapshot')->dailyAt('04:15');
 Schedule::command('billing:dunning')->dailyAt('04:45');
+
+// A TÖRÖLT workspace-ek sablon-képei publikus URL-en élnének tovább (v1.1 · SS5).
+Schedule::command('templates:purge-assets')->dailyAt('04:10');

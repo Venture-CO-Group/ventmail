@@ -1,9 +1,16 @@
 <script setup lang="ts">
 import { Link, router } from '@inertiajs/vue3';
-import { VtButton, VtCard, VtField, VtInput, VtSelect, VtTable, type VtColumn } from '@venture/ui';
+import { VtButton, VtField, VtInput, VtSelect, type VtColumn } from '@venture/ui';
+import VmTable from '../../Components/Form/VmTable.vue';
+import VmCard from '../../Components/Form/VmCard.vue';
+import VmForm from '../../Components/Form/VmForm.vue';
+import VmFormActions from '../../Components/Form/VmFormActions.vue';
+import VmFormRow from '../../Components/Form/VmFormRow.vue';
+import VmFormSection from '../../Components/Form/VmFormSection.vue';
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import AppLayout from '../../Layouts/AppLayout.vue';
+import { useCodes } from '../../composables/useCodes';
 
 /** JOURNEY-K. A futó példányok száma mondja meg, hogy a journey tényleg ÉL-e. */
 const props = defineProps<{
@@ -12,6 +19,7 @@ const props = defineProps<{
 }>();
 
 const { t } = useI18n();
+const code = useCodes();
 
 const name = ref('');
 const trigger = ref(props.triggers[0] ?? 'api_event');
@@ -29,8 +37,8 @@ const columns: VtColumn<Row>[] = [
 const rows = computed<Row[]>(() =>
     props.journeys.map((journey) => ({
         name: journey.name,
-        status: journey.status,
-        trigger: journey.trigger,
+        status: code('status', journey.status),
+        trigger: code('trigger', journey.trigger),
         steps: String(journey.steps),
         runs: String(journey.activeRuns),
     })),
@@ -55,33 +63,41 @@ function create(): void {
             {{ t('journeys.idleWarning', { count: idleActive }) }}
         </p>
 
-        <VtCard>
+        <VmCard>
             <h2>{{ t('journeys.new') }}</h2>
 
-            <VtField :label="t('journeys.name')">
-                <VtInput v-model="name" data-testid="journey-name" placeholder="Üdvözlő sorozat" />
-            </VtField>
+            <VmForm @submit.prevent="create">
+                <VmFormSection>
+                    <VmFormRow>
+                        <VtField :label="t('journeys.name')">
+                            <VtInput v-model="name" data-testid="journey-name" placeholder="Üdvözlő sorozat" />
+                        </VtField>
 
-            <VtField :label="t('journeys.trigger')" :hint="t('journeys.triggerHint')">
-                <VtSelect
-                    v-model="trigger"
-                    :options="triggers.map((value) => ({ value, label: value }))"
-                    data-testid="journey-trigger"
-                />
-            </VtField>
+                        <VtField :label="t('journeys.trigger')" :hint="t('journeys.triggerHint')">
+                            <VtSelect
+                                v-model="trigger"
+                                :options="triggers.map((value) => ({ value, label: value }))"
+                                data-testid="journey-trigger"
+                            />
+                        </VtField>
+                    </VmFormRow>
+                </VmFormSection>
 
-            <VtButton :disabled="!name.trim()" data-testid="journey-submit" @click="create">
-                {{ t('journeys.create') }}
-            </VtButton>
-        </VtCard>
+                <VmFormActions>
+                    <VtButton type="submit" :disabled="!name.trim()" data-testid="journey-submit">
+                        {{ t('journeys.create') }}
+                    </VtButton>
+                </VmFormActions>
+            </VmForm>
+        </VmCard>
 
-        <VtCard>
+        <VmCard>
             <p v-if="!rows.length" data-testid="journeys-empty">{{ t('journeys.empty') }}</p>
-            <VtTable v-else :columns="columns" :rows="rows" :caption="t('journeys.title')" data-testid="journeys-table" />
+            <VmTable v-else :columns="columns" :rows="rows" :caption="t('journeys.title')" data-testid="journeys-table" />
 
             <div v-for="journey in journeys" :key="journey.uuid" class="vm-cluster">
                 <Link :href="`/journeys/${journey.uuid}`" :data-testid="`open-${journey.uuid}`">{{ journey.name }}</Link>
             </div>
-        </VtCard>
+        </VmCard>
     </AppLayout>
 </template>

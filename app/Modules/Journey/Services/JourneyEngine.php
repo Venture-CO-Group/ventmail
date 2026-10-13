@@ -4,23 +4,31 @@ declare(strict_types=1);
 
 namespace App\Modules\Journey\Services;
 
+use App\Modules\Audience\Models\Contact;
+use App\Modules\Audience\Models\ContactList;
 use App\Modules\Audience\Models\ContactTag;
-use App\Modules\Audience\Models\Segment;
-use App\Modules\Audience\Services\SegmentEngine;
 use App\Modules\Billing\Enums\Feature;
 use App\Modules\Billing\Services\EntitlementChecker;
 use App\Modules\Consent\Models\Consent;
-use App\Modules\Events\Models\MessageEvent;
 use App\Modules\Journey\Enums\StepType;
 use App\Modules\Journey\Models\Journey;
 use App\Modules\Journey\Models\JourneyRun;
 use App\Modules\Journey\Models\JourneyRunStep;
 use App\Modules\Journey\Models\JourneyStep;
+use App\Modules\Journey\Models\JourneyVersion;
 use App\Modules\Sending\Actions\SendMessage;
 use App\Modules\Sending\Enums\Channel;
+use App\Modules\Sending\Gate\GateReason;
+use App\Modules\Sending\Models\Message;
 use App\Modules\Suppression\Models\Suppression;
 use App\Modules\Template\Models\Template;
+use App\Modules\Template\Services\MergeVariables;
 use App\Modules\Tenancy\Models\Workspace;
+use App\Modules\Tenancy\Services\WorkspaceContext;
+use App\Modules\Webhooks\Jobs\DeliverWebhook;
+use App\Modules\Webhooks\Models\WebhookDelivery;
+use App\Modules\Webhooks\Models\WebhookEndpoint;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -89,9 +97,19 @@ final class JourneyEngine
     /** A `wait` lépés felső korlátja: egy év. Lásd a `wait()` indoklását. */
     public const MAX_WAIT_MINUTES = 525600;
 
+    /**
+     * Az ESEMÉNYRE VÁRÓ `wait` BIZTONSÁGI ránézése (review REV-S3).
+     *
+     * Az ébresztés ESEMÉNY-VEZÉRELT: a nyitás / kattintás rögzítésekor a `TrackingController`
+     * a címzett várakozó futásait azonnal esedékessé teszi (`JourneyWaitWaker`). Ez a ritka
+     * ránézés csak tartalék (elveszett ébresztés, másik úton érkezett esemény) — korábban
+     * 15 percenként szkennelt minden várakozó futás a `message_events` táblán.
+     */
+    public const EVENT_POLL_MINUTES = 360;
+
     public function __construct(
-        private readonly SegmentEngine $segments,
         private readonly EntitlementChecker $checker,
+        private readonly JourneyConditions $conditions,
     ) {}
 
     /**
@@ -287,6 +305,19 @@ final class JourneyEngine
                 return false;
             }
 
+            /*
+             | A LÉPÉS A FUTÁS VERZIÓJÁHOZ TARTOZIK (v1.1, D5).
+             |
+             | Az aktív journey módosítása új verziót hoz; a bent lévő futás a SAJÁT verziója
+             | lépésein halad. Egy verzió-határon átmutató lépés (kézi adat-babrálás, hibás
+             | elágazás) nem futhat le csendben egy másik verzió levelével.
+             */
+            if ((int) $step->journey_version_id !== (int) $locked->journey_version_id) {
+                $this->finish($locked, 'failed', 'step_version_mismatch');
+
+                return false;
+            }
+
             if ((int) $locked->steps_taken >= self::MAX_STEPS_TOTAL) {
                 Log::warning('Journey-futás elérte a lépés-korlátot — valószínűleg körkörös a lánc.', [
                     'run' => (string) $locked->uuid,
@@ -296,6 +327,25 @@ final class JourneyEngine
                 $this->finish($locked, 'failed', 'step_limit');
 
                 return false;
+            }
+
+            /*
+             | A VÁSZON `wait` CSOMÓPONTJA a futást a SAJÁT csomópontján tartja (v1.1).
+             |
+             | A régi lánc a várakozás elején a KÖVETKEZŐ lépésre állt — így a csomópont-
+             | statisztikán a várakozók a várakozás UTÁNI lépésnél látszottak volna. Itt a futás
+             | a `wait`-en áll, amíg le nem telik (vagy az esemény be nem következik), és a lépés
+             | csak a továbblépéskor kerül a `journey_run_steps`-be: a „továbblépett" szám így
+             | pontos, és a várakozás alatti ellenőrzések nem égetik a lépés-korlátot.
+             */
+            $waitHandle = null;
+
+            if ($step->isGraphStep() && $step->stepType() === StepType::Wait) {
+                $waitHandle = $this->graphWait($locked, $step);
+
+                if ($waitHandle === null) {
+                    return false;
+                }
             }
 
             /*
@@ -324,9 +374,19 @@ final class JourneyEngine
                 return false;
             }
 
-            $outcome = $this->perform($locked, $step, $claim);
+            $outcome = $waitHandle !== null
+                ? $this->leaveWait($locked, $step, $claim, $waitHandle)
+                : $this->perform($locked, $step, $claim);
 
             $locked->increment('steps_taken');
+
+            // A „TOVÁBBLÉPETT" ELŐRE ÖSSZESÍTETT számlálója — a csomópont-statisztika nem
+            // számol a futás-táblán. Query-builder, nem modell: a lépés auditált, és egy
+            // végrehajtás nem admin-művelet.
+            // A HIBÁVAL záruló lépés (pl. `config_invalid`) nem „továbblépés" (review NIT).
+            if ((string) $locked->status !== 'failed') {
+                JourneyStep::query()->whereKey($step->getKey())->increment('executed_count');
+            }
 
             return $outcome;
         });
@@ -348,7 +408,360 @@ final class JourneyEngine
             StepType::AddTag, StepType::RemoveTag => $this->tag($run, $step, $config),
             // AZ EXPLICIT KILÉPÉS lezárja a futást, tehát a tick sem folytatódik.
             StepType::Exit => $this->exitStep($run),
+            StepType::Split => $this->split($run, $step, $config, $claim),
+            StepType::AbSplit => $this->abSplit($run, $step, $config, $claim),
+            StepType::UpdateContact => $this->updateContact($run, $step, $config),
+            StepType::ListMembership => $this->listMembership($run, $step, $config, $claim),
+            StepType::Webhook => $this->webhook($run, $step, $config, $claim),
+            StepType::Goal => $this->goalStep($run),
         };
+    }
+
+    /**
+     * A VÁSZON `wait` csomópontja: letelt-e (vagy bekövetkezett-e az esemény)?
+     *
+     * @return string|null a kimenet (`out` | `timeout`), vagy `null`, ha a futás még vár
+     */
+    private function graphWait(JourneyRun $run, JourneyStep $step): ?string
+    {
+        $config = (array) $step->config;
+        $event = ($config['mode'] ?? 'time') === 'event';
+        $context = (array) $run->context;
+        $marker = is_array($context['_wait'] ?? null) ? $context['_wait'] : [];
+
+        // ÉRKEZÉS a csomópontra: a jelölő rögzíti, mióta vár és meddig.
+        if ((int) ($marker['step'] ?? 0) !== (int) $step->getKey()) {
+            $minutes = min(self::MAX_WAIT_MINUTES, max(1, (int) ($event ? ($config['timeout_minutes'] ?? 0) : ($config['minutes'] ?? 60))));
+            $until = now()->addMinutes($minutes);
+
+            // Az `event` jelző az ébresztőnek szól (review 2, N1): csak az ESEMÉNYRE váró futás ébred.
+            $context['_wait'] = ['step' => (int) $step->getKey(), 'event' => $event, 'since' => now()->toIso8601String(), 'until' => $until->toIso8601String()];
+
+            $run->forceFill([
+                'context' => $context,
+                'status' => 'waiting',
+                'resume_at' => $event ? min($until, now()->addMinutes(self::EVENT_POLL_MINUTES)) : $until,
+            ])->save();
+
+            return null;
+        }
+
+        $until = CarbonImmutable::parse((string) $marker['until']);
+
+        if ($event && $this->conditions->hadEvent((string) $run->email, (string) ($config['event'] ?? ''), CarbonImmutable::parse((string) $marker['since']))) {
+            return 'out';
+        }
+
+        if (now()->greaterThanOrEqualTo($until)) {
+            return $event ? 'timeout' : 'out';
+        }
+
+        $run->forceFill([
+            'status' => 'waiting',
+            'resume_at' => $event ? min($until, now()->addMinutes(self::EVENT_POLL_MINUTES)) : $until,
+        ])->save();
+
+        return null;
+    }
+
+    private function leaveWait(JourneyRun $run, JourneyStep $step, JourneyRunStep $claim, string $handle): bool
+    {
+        $context = (array) $run->context;
+        unset($context['_wait']);
+
+        $run->forceFill(['context' => $context])->save();
+        $claim->forceFill(['outcome' => $handle])->save();
+
+        return $this->advanceTo($run, $handle === 'timeout' ? $step->else_step_id : $step->next_step_id, 'chain_end');
+    }
+
+    /**
+     * TÖBBÁGÚ ELÁGAZÁS: az első igaz feltétel ága, különben az `else`.
+     *
+     * @param  array<string, mixed>  $config
+     */
+    private function split(JourneyRun $run, JourneyStep $step, array $config, JourneyRunStep $claim): bool
+    {
+        $handle = 'else';
+
+        foreach ((array) ($config['branches'] ?? []) as $branch) {
+            if (is_array($branch) && $this->conditions->evaluate((array) ($branch['condition'] ?? []), (string) $run->email, $run->contact, (array) $run->context)) {
+                $handle = (string) ($branch['key'] ?? 'else');
+
+                break;
+            }
+        }
+
+        $claim->forceFill(['outcome' => $handle])->save();
+
+        return $this->advanceTo($run, $this->branchTarget($step, $handle), 'branch_end');
+    }
+
+    /**
+     * A/B ÁGAK arányokkal — DETERMINISZTIKUS sorsolás.
+     *
+     * A futás és a lépés azonosítójának lenyomata dönt, nem `random_int()`: egy újrapróbált
+     * tick (vagy a teszt-futtatás ugyanarra a kontaktra) UGYANAZT az ágat választja.
+     *
+     * @param  array<string, mixed>  $config
+     */
+    private function abSplit(JourneyRun $run, JourneyStep $step, array $config, JourneyRunStep $claim): bool
+    {
+        $handle = self::pickVariant((array) ($config['variants'] ?? []), (string) $run->uuid.'|'.(string) $step->uuid);
+
+        $claim->forceFill(['outcome' => $handle])->save();
+
+        return $this->advanceTo($run, $handle === null ? null : $this->branchTarget($step, $handle), 'branch_end');
+    }
+
+    /**
+     * @param  array<int, mixed>  $variants
+     */
+    public static function pickVariant(array $variants, string $seed): ?string
+    {
+        $variants = array_values(array_filter($variants, static fn ($variant): bool => is_array($variant) && (int) ($variant['weight'] ?? 0) > 0));
+        $total = array_sum(array_map(static fn (array $variant): int => (int) $variant['weight'], $variants));
+
+        if ($total < 1) {
+            return null;
+        }
+
+        $bucket = crc32($seed) % $total;
+
+        foreach ($variants as $variant) {
+            $bucket -= (int) $variant['weight'];
+
+            if ($bucket < 0) {
+                return (string) $variant['key'];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Az elágazás célja — CSAK ugyanannak a journey-nek és verziónak a lépése.
+     *
+     * A `branches` jsonb, tehát az adatbázis FK-ja és lánc-őre nem védi (a `next_step_id`
+     * és az `else_step_id` igen). A cél ezért itt, a lépés saját journey-jére és verziójára
+     * szűkítve oldódik fel — egy idegen id „nincs ilyen ág", nem átugrás.
+     */
+    private function branchTarget(JourneyStep $step, string $handle): ?int
+    {
+        $id = ((array) $step->branches)[$handle] ?? null;
+
+        if (! is_numeric($id)) {
+            return null;
+        }
+
+        $exists = JourneyStep::query()
+            ->whereKey((int) $id)
+            ->where('journey_id', $step->journey_id)
+            ->where('journey_version_id', $step->journey_version_id)
+            ->exists();
+
+        return $exists ? (int) $id : null;
+    }
+
+    /** @param array<string, mixed> $config */
+    private function updateContact(JourneyRun $run, JourneyStep $step, array $config): bool
+    {
+        $operation = (string) ($config['operation'] ?? '');
+
+        if (in_array($operation, ['add_tag', 'remove_tag'], true)) {
+            return $this->applyTag($run, $step, (string) ($config['tag'] ?? ''), $operation === 'add_tag');
+        }
+
+        $field = trim((string) ($config['field'] ?? ''));
+
+        if ($operation !== 'set_field' || $field === '') {
+            $this->finish($run, 'failed', 'config_invalid');
+
+            return false;
+        }
+
+        $contact = $run->contact;
+
+        if ($contact !== null) {
+            $value = mb_substr((string) ($config['value'] ?? ''), 0, 500);
+
+            if (in_array($field, ['first_name', 'last_name'], true)) {
+                $contact->setAttribute($field, $value);
+            } else {
+                $attributes = (array) $contact->getAttribute('attributes');
+                $attributes[$field] = $value;
+                $contact->setAttribute('attributes', $attributes);
+            }
+
+            $contact->save();
+        }
+
+        return $this->advance($run, $step);
+    }
+
+    /**
+     * LISTA-TAGSÁG — csak BESZÚRÁS, ha még nincs tagság; a meglévő tagság állapota SOSEM
+     * emelkedik (review SEC-B1 / REV-B1, a D126 mintája).
+     *
+     * - A hozzáadás NEM ad hozzájárulást: az új tagság `pending`, ha a kontaktnak nincs
+     *   használható marketing-consentje.
+     * - A MEGLÉVŐ tagság (`unsubscribed`, `pending`, `subscribed`) érintetlen. Korábban a
+     *   `syncWithoutDetaching` felülírta: a listáról leiratkozott kontakt (a workspace-consentje
+     *   még `confirmed`) újra `subscribed` lett, és a következő kampány kiküldte neki — vagy
+     *   consent nélkül `pending`-re írta, ami a leiratkozás bizonyítékát rontotta el.
+     * - A globálisan leiratkozott (`contacts.status = unsubscribed`) vagy suppressiont viselő
+     *   kontaktnál a lépés NO-OP.
+     * - Az eltávolítás NEM töröl sort (a leiratkozás bizonyítéka maradjon): `unsubscribed`.
+     *
+     * @param  array<string, mixed>  $config
+     */
+    private function listMembership(JourneyRun $run, JourneyStep $step, array $config, JourneyRunStep $claim): bool
+    {
+        $uuid = self::uuidOrNull((string) ($config['list'] ?? ''));
+        $list = $uuid === null ? null : ContactList::query()->where('uuid', $uuid)->first();
+
+        if ($list === null) {
+            $this->finish($run, 'failed', 'config_invalid');
+
+            return false;
+        }
+
+        $claim->forceFill(['outcome' => $this->applyListMembership($run, $list, ($config['operation'] ?? 'add') === 'remove')])->save();
+
+        return $this->advance($run, $step);
+    }
+
+    /** @return string a lépés kimenete a naplóba */
+    private function applyListMembership(JourneyRun $run, ContactList $list, bool $remove): string
+    {
+        $contact = $run->contact;
+
+        if ($contact === null) {
+            return 'no_contact';
+        }
+
+        // A RELÁCIÓN át (tenant-szűrt pivot), sor-zárral: két párhuzamos lépés ne írjon egymásra.
+        $member = $contact->lists()->whereKey($list->getKey())->lockForUpdate()->first();
+        $pivot = $member?->pivot;
+
+        if ($remove) {
+            if ($pivot === null || (string) $pivot->status === 'unsubscribed') {
+                return 'unchanged';
+            }
+
+            $contact->lists()->updateExistingPivot($list->getKey(), ['status' => 'unsubscribed', 'unsubscribed_at' => now()]);
+
+            return 'unsubscribed';
+        }
+
+        if ($pivot !== null) {
+            return 'unchanged';
+        }
+
+        $suppressed = Suppression::query()
+            ->where('email', (string) $run->email)
+            ->get()
+            ->contains(fn (Suppression $row) => $row->isActive());
+
+        // A `cleaned` (visszapattant / érvénytelen) cím is no-op (review 2, N3).
+        if (in_array((string) $contact->status, ['unsubscribed', 'cleaned'], true) || $suppressed) {
+            return 'skipped_unsubscribed';
+        }
+
+        $consented = Consent::query()->usable()
+            ->where('email', (string) $run->email)
+            ->where('channel', Channel::Journey->consentScope())
+            ->exists();
+
+        /*
+         | PÁRHUZAMOS BESZÚRÁS (review 2, N2): a hiányzó sort a zár nem védi, tehát egy másik
+         | journey ugyanabban a pillanatban beszúrhatja. A beszúrás SAVEPOINT-ban fut (beágyazott
+         | tranzakció): az egyedi-kulcs ütközés így csak azt görgeti vissza, és a kimenet „változatlan".
+         */
+        try {
+            DB::transaction(fn () => $contact->lists()->attach($list->getKey(), [
+                'status' => $consented ? 'subscribed' : 'pending',
+                'subscribed_at' => $consented ? now() : null,
+            ]));
+        } catch (UniqueConstraintViolationException) {
+            return 'unchanged';
+        }
+
+        return $consented ? 'added_subscribed' : 'added_pending';
+    }
+
+    /**
+     * WEBHOOK — aláírt esemény egy REGISZTRÁLT végpontra.
+     *
+     * NEM nyers HTTP-hívás: a kézbesítést a Webhooks modul `DeliverWebhook` jobja végzi a
+     * `webhooks` soron (SSRF-őr minden kísérletnél, időkorlát, HMAC-SHA256, exponenciális
+     * újrapróbálás, dead-letter, replay — golden rule 5). A journey-lépés csak a kézbesítési
+     * sort írja; egy lassú külső fogadó így nem tartja fel a tick-et és a levélküldést.
+     *
+     * @param  array<string, mixed>  $config
+     */
+    private function webhook(JourneyRun $run, JourneyStep $step, array $config, JourneyRunStep $claim): bool
+    {
+        $uuid = self::uuidOrNull((string) ($config['endpoint'] ?? ''));
+        $endpoint = $uuid === null ? null : WebhookEndpoint::query()->where('uuid', $uuid)->where('active', true)->first();
+
+        // A végpont FELIRATKOZÁSA is számít (review SEC-S2): egy csak `delivered`-re
+        // feliratkozott végpont nem kaphat journey-eseményt csak azért, mert valaki kiválasztotta.
+        if ($endpoint === null || ! $endpoint->listensTo('journey.step')) {
+            $this->finish($run, 'failed', 'config_invalid');
+
+            return false;
+        }
+
+        $delivery = WebhookDelivery::create([
+            'webhook_endpoint_id' => $endpoint->getKey(),
+            'event_type' => 'journey.step',
+            'payload' => [
+                'event' => 'journey.step',
+                'timestamp' => now()->getTimestamp(),
+                'journey' => [
+                    'id' => (string) $run->journey?->uuid,
+                    'version' => $step->version?->number,
+                    'node' => (string) $step->node_key,
+                ],
+                'run' => ['id' => (string) $run->uuid, 'iteration' => (int) $claim->iteration],
+                'contact' => ['email' => (string) $run->email],
+            ],
+            'status' => 'pending',
+            // A söprő parancs csak ennyi idő után néz rá (ugyanaz, mint a `WebhookDispatcher`-nél):
+            // addig a commit után induló job dolga.
+            'next_attempt_at' => now()->addSeconds(120),
+        ]);
+
+        DeliverWebhook::dispatch((int) $delivery->workspace_id, (string) $delivery->uuid);
+
+        $claim->forceFill(['outcome' => 'queued'])->save();
+
+        return $this->advance($run, $step);
+    }
+
+    /**
+     * ELŐRELÉPTETÉS egy adott lépésre — vagy BEFEJEZÉS, ha nincs cél.
+     */
+    private function advanceTo(JourneyRun $run, ?int $target, string $endReason): bool
+    {
+        if ($target === null) {
+            $this->finish($run, 'completed', $endReason);
+
+            return false;
+        }
+
+        $run->forceFill(['current_step_id' => $target, 'status' => 'active', 'resume_at' => null])->save();
+
+        return true;
+    }
+
+    /** A CÉL csomópont: a futás SIKERREL zárul. */
+    private function goalStep(JourneyRun $run): bool
+    {
+        $this->finish($run, 'completed', 'goal_reached');
+
+        return false;
     }
 
     private function exitStep(JourneyRun $run): bool
@@ -433,63 +846,25 @@ final class JourneyEngine
      */
     private function evaluate(JourneyRun $run, array $config): bool
     {
-        $type = (string) ($config['type'] ?? '');
-
-        return match ($type) {
-            'in_segment' => $this->inSegment($run, (string) ($config['segment'] ?? '')),
-            'opened_email', 'clicked_email' => $this->hadEvent(
-                $run,
-                $type === 'opened_email' ? 'opened' : 'clicked',
-                (int) ($config['within_hours'] ?? 168),
-            ),
-            'has_tag' => $this->hasTag($run, (string) ($config['tag'] ?? '')),
-            'context_equals' => (string) data_get((array) $run->context, (string) ($config['key'] ?? ''), '')
-                === (string) ($config['value'] ?? ''),
-            // AZ ISMERETLEN FELTÉTEL HAMIS, nem igaz.
-            //
-            // Fail-closed: egy elgépelt feltétel-típus így az `else` ágra vezet, nem a
-            // levélküldésre. A fordított alapérték azt jelentené, hogy egy hibás
-            // konfiguráció TÖBB levelet küld.
-            default => false,
-        };
+        // A KIÉRTÉKELÉS a `JourneyConditions`-ben él (v1.1): a teszt-futtatás ugyanazt a kódot
+        // hívja, tehát ugyanazt az ágat mutatja, amit a valódi futás választana. AZ ISMERETLEN
+        // FELTÉTEL továbbra is HAMIS (fail-closed).
+        return $this->conditions->evaluate($config, (string) $run->email, $run->contact, (array) $run->context);
     }
 
     private function inSegment(JourneyRun $run, string $segmentUuid): bool
     {
-        // AZ UUID FORMÁTUMA ELŐBB — lásd a `uuidOrNull()` indoklását.
-        $segment = self::uuidOrNull($segmentUuid) === null
-            ? null
-            : Segment::query()->where('uuid', $segmentUuid)->first();
-
-        if ($segment === null) {
-            return false;
-        }
-
-        return $this->segments->query((array) $segment->definition)
-            ->where('contacts.email', $run->email)
-            ->exists();
+        return $this->conditions->inSegment((string) $run->email, $segmentUuid);
     }
 
     private function hadEvent(JourneyRun $run, string $type, int $withinHours): bool
     {
-        return MessageEvent::query()
-            ->where('type', $type)
-            // KIS/NAGYBETŰ-FÜGGETLEN: a `contacts.email` a `listKey()` alakja, a
-            // `message_events.recipient` viszont a helyi részt érintetlenül hagyja.
-            ->whereRaw('lower(recipient) = ?', [(string) $run->email])
-            ->where('occurred_at', '>=', now()->subHours(max(1, $withinHours)))
-            ->exists();
+        return $this->conditions->hadEvent((string) $run->email, $type, now()->subHours(max(1, $withinHours)));
     }
 
     private function hasTag(JourneyRun $run, string $tagUuid): bool
     {
-        $contact = $run->contact;
-
-        if ($contact === null || self::uuidOrNull($tagUuid) === null) {
-            return false;
-        }
-
-        return $contact->tags()->where('contact_tags.uuid', $tagUuid)->exists();
+        return $this->conditions->hasTag($run->contact, $tagUuid);
     }
 
     /**
@@ -529,6 +904,15 @@ final class JourneyEngine
         }
 
         try {
+            /*
+             | v1.1 (S8) — a merge-tagek és a feltételes blokkok ADATA, ugyanazzal a szabállyal,
+             | mint a kampánynál (`MergeVariables`): kontakt, workspace, a sablonban hivatkozott
+             | szegmensek tagsága és egyéni mezők.
+             */
+            $contact = $run->contact_id === null ? null : Contact::query()->find($run->contact_id);
+            $variables = app(MergeVariables::class);
+            $variables->prepare([(string) $template->html], $contact === null ? [] : [(int) $contact->getKey()]);
+
             $result = app(SendMessage::class)([
                 /*
                  | A `journey` CSATORNA — a tranzakciós ÉS a kampány KÖZÖTT.
@@ -549,6 +933,8 @@ final class JourneyEngine
                 'html' => (string) $template->html,
                 'text' => (string) $template->text,
                 'tags' => ['journey:'.$run->journey_id, 'journey_step:'.$step->uuid],
+                'render_variables' => $variables->forContact($contact, app(WorkspaceContext::class)->workspace()),
+                'options' => ['studio_origin' => 'journey'],
                 /*
                  | AZ IDEMPOTENCIA-KULCS a futás, a lépés ÉS AZ ISMÉTLÉS hármasa.
                  |
@@ -567,11 +953,25 @@ final class JourneyEngine
                 'idempotency_key' => 'journey:'.$run->uuid.':'.$step->uuid.':'.$claim->iteration,
             ]);
 
+            /*
+             | IDEMPOTENCY_KEY_REUSED = visszajátszás (ugyanaz, mint a kampánynál, D53): a
+             | kulcs belső (futás + lépés + iteráció), tehát eltérő lenyomat csak a renderelési
+             | adat elcsúszásából jöhet. Az ELŐZŐ kísérlet üzenete dönt.
+             */
+            $allowed = $result->decision->allowed;
+            $messageUuid = $result->message?->uuid;
+
+            if ($result->decision->reason === GateReason::IdempotencyKeyReused->value) {
+                $existing = Message::query()->where('idempotency_key', 'journey:'.$run->uuid.':'.$step->uuid.':'.$claim->iteration)->first();
+                $allowed = $existing !== null && $existing->status !== 'rejected';
+                $messageUuid = $existing?->uuid;
+            }
+
             $claim->forceFill([
-                'message_uuid' => $result->message?->uuid,
+                'message_uuid' => $messageUuid,
                 // A KAPU DÖNTÉSE: a riportnak meg kell tudnia mondani, miért nem kapta meg
                 // valaki a journey-levelet — a `skipped` nem hiba, hanem a kapu munkája.
-                'outcome' => $result->decision->allowed ? 'sent' : 'skipped',
+                'outcome' => $allowed ? 'sent' : 'skipped',
             ])->save();
         } catch (Throwable $e) {
             // EGY LÉPÉS HIBÁJA a FUTÁST jelöli meg, nem dobja el a többit: egy hibás
@@ -589,7 +989,12 @@ final class JourneyEngine
     /** @param array<string, mixed> $config */
     private function tag(JourneyRun $run, JourneyStep $step, array $config): bool
     {
-        $uuid = self::uuidOrNull((string) ($config['tag'] ?? ''));
+        return $this->applyTag($run, $step, (string) ($config['tag'] ?? ''), $step->stepType() === StepType::AddTag);
+    }
+
+    private function applyTag(JourneyRun $run, JourneyStep $step, string $tagUuid, bool $add): bool
+    {
+        $uuid = self::uuidOrNull($tagUuid);
 
         // A NEM FELOLDHATÓ HIVATKOZÁS HANGOS HIBA, nem csendes átlépés.
         //
@@ -612,7 +1017,7 @@ final class JourneyEngine
         }
 
         if ($contact !== null) {
-            $step->stepType() === StepType::AddTag
+            $add
                 ? $contact->tags()->syncWithoutDetaching([$tag->getKey()])
                 : $contact->tags()->detach($tag->getKey());
         }
@@ -695,6 +1100,18 @@ final class JourneyEngine
                 .'hogy nem cselekszünk, nem azt, hogy megöljük.',
                 (string) $run->uuid
             ));
+        }
+
+        /*
+         | A SZÜNETELTETETT journey TART, nem léptet ki (v1.1).
+         |
+         | Korábban minden nem-aktív állapot `journey_archived`-dal lezárta a futást — a
+         | „szünet" így valójában mindenkit kidobott, miközben a felület azt ígérte, hogy a
+         | bent lévők ott maradnak, ahol vannak. A szünet alatt a futás nem lép (a tick itt
+         | megáll), a folytatáskor onnan megy tovább.
+         */
+        if ($journey->isPaused()) {
+            return true;
         }
 
         if (! $journey->isActive()) {
@@ -794,12 +1211,26 @@ final class JourneyEngine
             ->exists();
     }
 
+    /**
+     * A CÉL a FUTÁS VERZIÓJÁBÓL jön (review REV-B2): a verzión haladó futás a saját verziójának
+     * célját nézi, a v1.1 előtti, verzió nélküli futás a journey-szintű célt. Egy újabb
+     * publikálás így nem veheti el a régi verzión haladók kilépési feltételét.
+     */
     private function goalReached(Journey $journey, JourneyRun $run): bool
     {
-        return match ((string) $journey->goal_type) {
-            'in_segment' => $this->inSegment($run, (string) data_get((array) $journey->goal_config, 'segment', '')),
-            'clicked_email' => $this->hadEvent($run, 'clicked', (int) data_get((array) $journey->goal_config, 'within_hours', 720)),
-            'has_tag' => $this->hasTag($run, (string) data_get((array) $journey->goal_config, 'tag', '')),
+        if ($run->journey_version_id !== null) {
+            $version = JourneyVersion::query()->whereKey($run->journey_version_id)->first(['id', 'goal_type', 'goal_config']);
+            $type = (string) $version?->goal_type;
+            $config = (array) $version?->goal_config;
+        } else {
+            $type = (string) $journey->goal_type;
+            $config = (array) $journey->goal_config;
+        }
+
+        return match ($type) {
+            'in_segment' => $this->inSegment($run, (string) data_get($config, 'segment', '')),
+            'clicked_email' => $this->hadEvent($run, 'clicked', (int) data_get($config, 'within_hours', 720)),
+            'has_tag' => $this->hasTag($run, (string) data_get($config, 'tag', '')),
             default => false,
         };
     }

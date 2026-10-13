@@ -7,6 +7,7 @@ namespace App\Modules\Audience\Actions;
 use App\Modules\Audience\Data\FormSubmission;
 use App\Modules\Audience\Models\Contact;
 use App\Modules\Audience\Models\Form;
+use App\Modules\Audit\Services\KeyedHash;
 use App\Modules\Consent\Services\ConfirmationTokens;
 use App\Modules\Consent\Services\ConsentRecorder;
 use App\Modules\Journey\Enums\TriggerType;
@@ -17,6 +18,7 @@ use App\Modules\Sending\Services\DomainNormalizer;
 use App\Modules\Suppression\Models\Suppression;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\RateLimiter;
 
 /**
  * ŰRLAP-BEIRATKOZÁS (50., 54. kritérium) — a double opt-in első lépése.
@@ -49,6 +51,12 @@ use Illuminate\Support\Facades\Log;
  */
 final class SubmitForm
 {
+    /** Egy címre EGY workspace-ből naponta legfeljebb ennyi megerősítő levél megy (minden űrlapján át). */
+    public const DOI_PER_WORKSPACE_ADDRESS_PER_DAY = 3;
+
+    /** Egy címre naponta legfeljebb ennyi megerősítő levél megy ÖSSZESEN (minden tenanton át). */
+    public const DOI_PER_ADDRESS_PER_DAY = 10;
+
     public function __construct(
         private readonly ConsentRecorder $consent,
         private readonly ConfirmationTokens $tokens,
@@ -111,24 +119,41 @@ final class SubmitForm
         DB::transaction(function () use ($form, $submission, $email): void {
             $contact = Contact::query()->firstOrNew(['email' => $email]);
 
-            $contact->fill(array_filter([
-                'first_name' => $submission->firstName,
-                'last_name' => $submission->lastName,
-            ], fn ($value) => $value !== null && $value !== ''));
+            // v1.1 · a FORRÁS csak új kontaktnál íródik: egy importált cím későbbi űrlap-
+            // beküldése nem írja át, honnan érkezett eredetileg.
+            if (! $contact->exists) {
+                $contact->source = 'form';
+            }
 
-            // Az attribútumok ÖSSZEFÉSÜLNEK, nem felülírnak: egy „város" űrlap nem törli a
-            // korábbi „csomag" attribútumot.
-            $contact->attributes = array_merge((array) $contact->attributes, $submission->attributes);
+            // LÉTEZŐ KONTAKTNÁL CSAK AZ ÜRES MEZŐK töltődnek (review S4). A nyilvános űrlapot BÁRKI
+            // beküldheti bármely címmel: ha felülírhatná a nevet és az attribútumokat, egy idegen
+            // átírhatná egy megerősített feliratkozó adatait (hamis perszonalizáció, szegmens-
+            // manipuláció). A saját adat módosítása a preference center tokenes útja.
+            foreach (['first_name' => $submission->firstName, 'last_name' => $submission->lastName] as $field => $value) {
+                if ($value !== null && $value !== '' && ($contact->{$field} === null || $contact->{$field} === '')) {
+                    $contact->{$field} = $value;
+                }
+            }
 
-            // A `pending` csak ÚJ kontaktnál: aki már `subscribed`, azt egy újabb beküldés
-            // nem rontja vissza megerősítetlenre.
-            $contact->status = $contact->exists && $contact->status === 'subscribed' ? 'subscribed' : 'pending';
+            // Az attribútumok közül csak a HIÁNYZÓ kulcsok kerülnek be: a meglévő érték marad.
+            $existing = (array) $contact->attributes;
+            $contact->attributes = $existing + array_filter(
+                $submission->attributes,
+                static fn ($value): bool => $value !== null && $value !== '',
+            );
+
+            // A `pending` CSAK ÚJ kontaktnál (review N-c): a létező kontakt állapotát — legyen az
+            // `subscribed`, `unsubscribed` vagy `bounced` — egy idegen beküldése nem írja át. A
+            // feliratkozás megerősítése a levélben lévő linkből történik, nem az űrlapból.
+            if (! $contact->exists) {
+                $contact->status = 'pending';
+            }
             $contact->save();
 
-            if ($form->contact_list_id !== null) {
-                $contact->lists()->syncWithoutDetaching([
-                    $form->contact_list_id => ['status' => 'pending', 'subscribed_at' => null],
-                ]);
+            // A LISTATAGSÁG csak ha még nincs: a meglévő (akár megerősített) tagságot egy idegen
+            // beküldése nem írja vissza `pending`-re (ezzel a marketing a címzettnek leállna).
+            if ($form->contact_list_id !== null && ! $contact->lists()->whereKey($form->contact_list_id)->exists()) {
+                $contact->lists()->attach($form->contact_list_id, ['status' => 'pending', 'subscribed_at' => null]);
             }
 
             $consent = $this->consent->request(
@@ -199,23 +224,77 @@ final class SubmitForm
             return;
         }
 
-        app(SendMessage::class)([
-            'channel' => 'transactional',
-            'from_email' => $from,
-            'from_name' => $list?->from_name,
-            'to' => [$email],
-            'subject' => (string) config('consent.confirmation.subject'),
-            'text' => "Kérjük, erősítsd meg a feliratkozásod ezen a linken:\n\n".$url
-                ."\n\nHa nem te kérted, egyszerűen hagyd figyelmen kívül ezt a levelet — "
-                .'megerősítés nélkül nem küldünk semmit.',
-            'html' => '<p>Kérjük, erősítsd meg a feliratkozásod:</p>'
-                .'<p><a href="'.e($url).'">Feliratkozás megerősítése</a></p>'
-                .'<p>Ha nem te kérted, egyszerűen hagyd figyelmen kívül ezt a levelet — '
-                .'megerősítés nélkül nem küldünk semmit.</p>',
-            // A megerősítő levél EGYSZER menjen ki beküldésenként: a kulcs a címből és az
-            // űrlapból származik, tehát a dupla beküldés nem küld két levelet.
-            'idempotency_key' => 'optin:'.hash('sha256', $form->uuid.'|'.$email.'|'.now()->format('YmdH')),
-        ]);
+        // CÍMENKÉNTI PLAFON a megerősítő LEVÉLRE (review S1 → SN1 → r3 S1/N2).
+        //
+        // CSAK A LEVÉL marad ki, a beiratkozás nem: a kontakt és a `pending` consent fent már
+        // létrejött. Korábban a plafon az egész beküldést eldobta — egy idegen cím napi három
+        // beküldésével bárki blokkolhatta az áldozat valódi feliratkozását MINDEN tenantnál.
+        //
+        // Két kulcs (a cím kulcsolt hash-ével, a cím maga nem kerül a kulcsba):
+        //  - (workspace, cím) — napi 3: egy tenant űrlapjai ennyit küldhetnek egy címre;
+        //  - cím — napi 10, minden tenanton át: a sok tenanton át szervezett bombázás plafonja.
+        //
+        // ATOMIKUS FOGLALÁS: előbb NÖVELÜNK, és a visszaadott értéket nézzük. A korábbi
+        // „ellenőrzés, küldés, növelés" sorrendben a párhuzamos beküldések (több IP-ről) mind
+        // ugyanazt a régi értéket látták, és együtt túlléphették a plafont. Ha nem ment ki levél
+        // (plafon, kapu-elutasítás, idempotens visszajátszás, kivétel), a foglalás visszacsökken.
+        //
+        // N3 (dokumentálva): a globális kulcs tenantokon átívelő, ezért a plafonon „elnyelt" levél
+        // gyenge időzítési / viselkedési jelet ad arról, hogy a címet máshol is beíratták. A
+        // kulcs HMAC (nincs benne cím), a válasz mindig ugyanaz — a maradék kockázatot vállaljuk.
+        $hash = KeyedHash::of('email', $email);
+        $workspaceKey = 'doi-mail:ws:'.(int) $contact->workspace_id.':'.$hash;
+        $globalKey = 'doi-mail:'.$hash;
+
+        $workspaceHits = RateLimiter::increment($workspaceKey, 86400);
+        $globalHits = RateLimiter::increment($globalKey, 86400);
+        // A FELSZABADÍTÁS csak élő (pozitív) számlálón csökkent (review N-b): a közben lejárt kulcs
+        // a `decrement`-tel -1-ről indulna újra, és a következő napi keretet csendben megnövelné.
+        $release = static function () use ($workspaceKey, $globalKey): void {
+            foreach ([$workspaceKey, $globalKey] as $key) {
+                if (RateLimiter::attempts($key) > 0) {
+                    RateLimiter::decrement($key, 86400);
+                }
+            }
+        };
+
+        if ($workspaceHits > self::DOI_PER_WORKSPACE_ADDRESS_PER_DAY || $globalHits > self::DOI_PER_ADDRESS_PER_DAY) {
+            $release();
+            Log::info('Megerősítő levél címenkénti plafonon — a beiratkozás pending, levél nélkül.', ['form' => $form->uuid]);
+
+            return;
+        }
+
+        try {
+            $result = app(SendMessage::class)([
+                'channel' => 'transactional',
+                'from_email' => $from,
+                'from_name' => $list?->from_name,
+                'to' => [$email],
+                'subject' => (string) config('consent.confirmation.subject'),
+                'text' => "Kérjük, erősítsd meg a feliratkozásod ezen a linken:\n\n".$url
+                    ."\n\nHa nem te kérted, egyszerűen hagyd figyelmen kívül ezt a levelet — "
+                    .'megerősítés nélkül nem küldünk semmit.',
+                'html' => '<p>Kérjük, erősítsd meg a feliratkozásod:</p>'
+                    .'<p><a href="'.e($url).'">Feliratkozás megerősítése</a></p>'
+                    .'<p>Ha nem te kérted, egyszerűen hagyd figyelmen kívül ezt a levelet — '
+                    .'megerősítés nélkül nem küldünk semmit.</p>',
+                // A megerősítő levél EGYSZER menjen ki beküldésenként: a kulcs a címből és az
+                // űrlapból származik, tehát a dupla beküldés nem küld két levelet.
+                'idempotency_key' => 'optin:'.hash('sha256', $form->uuid.'|'.$email.'|'.now()->format('YmdH')),
+            ]);
+        } catch (\Throwable $e) {
+            // Kivételnél sem ment ki levél: a foglalás felszabadul.
+            $release();
+
+            throw $e;
+        }
+
+        // A KAPU ÁLTAL ELUTASÍTOTT levél (pl. hitelesítetlen feladó-domain) és az idempotens
+        // VISSZAJÁTSZÁS (review N2: új levél nem keletkezett) nem fogyasztja a keretet.
+        if (! $result->decision->allowed || $result->replayed) {
+            $release();
+        }
     }
 
     private function isSuppressed(string $email): bool

@@ -1,0 +1,829 @@
+/*
+ | A JOURNEY VÁSZON (v1.1 · 6. modul) — kizárólag @venture/design tokenekből.
+ |
+ | Elrendezés: felső sáv (név, állapot, teszt-futtatás, validálás, mentés, publikálás) ·
+ | bal paletta · vászon (Vue Flow: pontrács, minimap, zoom) · jobb konfigurációs panel.
+ | Kompakt nézetben (a `useCompactNav` küszöbe alatt) egy oszlop: a paletta vízszintesen
+ | görgethető sáv, a vászon fix magasságú, a panel alatta.
+ |
+ | A Vue Flow SAJÁT témáját (`theme-default.css`) NEM töltjük be — a csomópont, az él, a
+ | minimap és a rács színe itt, tokenből jön. Csak a szerkezeti `style.css` kell.
+ |
+ | JELENTÉS a @venture/ui felé: folyamat-vászon, csomópont-kártya, minimap- és zoom-vezérlő —
+ | itt lokális `vm-j*` elemek.
+ */
+
+.vm-jc {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    min-inline-size: 0;
+    block-size: calc(100dvh - var(--vt-space-16));
+    min-block-size: calc(var(--vt-space-32) * 4);
+    background: var(--vt-bg);
+}
+
+/* ------------------------------------------------------------------ felső sáv */
+
+.vm-jc-top {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--vt-space-3);
+    padding: var(--vt-space-3) var(--vt-space-4);
+    border-block-end: thin solid var(--vt-border);
+    background: var(--vt-surface);
+}
+
+.vm-jc-top__name {
+    display: flex;
+    flex: 1 1 calc(var(--vt-space-32) * 2);
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--vt-space-2);
+    min-inline-size: 0;
+}
+
+.vm-jc-top__name input {
+    flex: 1 1 calc(var(--vt-space-32) * 1.5);
+    min-inline-size: 0;
+    padding: var(--vt-space-1) var(--vt-space-2);
+    border: thin solid transparent;
+    border-radius: var(--vt-radius-sm);
+    background: transparent;
+    color: var(--vt-text);
+    font-family: var(--vt-font-display);
+    font-size: var(--vt-fs-h5);
+    font-weight: var(--vt-weight-semibold);
+}
+
+.vm-jc-top__name input:hover,
+.vm-jc-top__name input:focus-visible {
+    border-color: var(--vt-border-strong);
+    outline: none;
+}
+
+.vm-jc-top__hint {
+    color: var(--vt-color-warning);
+    font-size: var(--vt-fs-caption);
+}
+
+.vm-jc-top__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--vt-space-2);
+    min-inline-size: 0;
+}
+
+.vm-jc-top__test {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: var(--vt-space-2);
+    min-inline-size: 0;
+}
+
+.vm-jc-top__test .vt-input {
+    flex: 1 1 calc(var(--vt-space-32) * 1.75);
+    inline-size: calc(var(--vt-space-32) * 1.75);
+    min-inline-size: 0;
+}
+
+.vm-jc-top__test .vt-btn {
+    flex: none;
+}
+
+.vm-jc-top__notice {
+    flex: 1 1 100%;
+    margin: 0;
+    cursor: pointer;
+}
+
+/* ------------------------------------------------------------------ törzs */
+
+.vm-jc-body {
+    display: grid;
+    grid-template-columns: calc(var(--vt-space-32) * 1.75) minmax(0, 1fr) calc(var(--vt-space-32) * 2.5);
+    min-block-size: 0;
+}
+
+.vm-jc-palette,
+.vm-jc-panel {
+    min-block-size: 0;
+    overflow-y: auto;
+    background: var(--vt-surface);
+}
+
+.vm-jc-palette {
+    border-inline-end: thin solid var(--vt-border);
+}
+
+.vm-jc-panel {
+    border-inline-start: thin solid var(--vt-border);
+    padding: var(--vt-space-4);
+}
+
+.vm-jc-panel__empty {
+    display: flex;
+    flex-direction: column;
+    gap: var(--vt-space-3);
+    color: var(--vt-text-muted);
+    font-size: var(--vt-fs-body-sm);
+}
+
+.vm-jc-versions {
+    display: flex;
+    flex-direction: column;
+    gap: var(--vt-space-1);
+    margin: 0;
+}
+
+.vm-jc-versions dt {
+    color: var(--vt-text-subtle);
+    font-size: var(--vt-fs-caption);
+    text-transform: uppercase;
+    letter-spacing: var(--vt-tracking-wide);
+}
+
+.vm-jc-versions dd {
+    margin: 0;
+    font-family: var(--vt-font-mono);
+    font-size: var(--vt-fs-caption);
+}
+
+.vm-jc-stage {
+    position: relative;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    min-inline-size: 0;
+    min-block-size: 0;
+}
+
+/* ------------------------------------------------------------------ paletta */
+
+.vm-jpal {
+    display: flex;
+    flex-direction: column;
+    gap: var(--vt-space-1);
+    padding: var(--vt-space-3);
+}
+
+.vm-jpal__group {
+    margin: var(--vt-space-3) 0 var(--vt-space-1);
+    color: var(--vt-text-subtle);
+    font-size: var(--vt-fs-caption);
+    letter-spacing: var(--vt-tracking-wider);
+    text-transform: uppercase;
+}
+
+.vm-jpal__item {
+    display: flex;
+    align-items: center;
+    gap: var(--vt-space-2);
+    padding: var(--vt-space-2);
+    border: thin solid transparent;
+    border-radius: var(--vt-radius-md);
+    background: transparent;
+    color: var(--vt-text);
+    font: inherit;
+    font-size: var(--vt-fs-body-sm);
+    text-align: start;
+    cursor: grab;
+}
+
+.vm-jpal__item:hover:not(:disabled),
+.vm-jpal__item:focus-visible {
+    border-color: var(--vt-border-strong);
+    background: var(--vt-surface-2);
+    outline: none;
+}
+
+.vm-jpal__item:disabled {
+    color: var(--vt-text-subtle);
+    cursor: not-allowed;
+}
+
+.vm-jpal__text {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--vt-space-1);
+    min-inline-size: 0;
+}
+
+.vm-jpal__soon {
+    padding: 0 var(--vt-space-2);
+    border-radius: var(--vt-radius-full);
+    background: var(--vt-surface-2);
+    color: var(--vt-text-muted);
+    font-size: var(--vt-fs-caption);
+    white-space: nowrap;
+}
+
+.vm-jpal__icon {
+    display: inline-grid;
+    flex: none;
+    place-items: center;
+    inline-size: var(--vt-space-8);
+    block-size: var(--vt-space-8);
+    border-radius: var(--vt-radius-sm);
+    background: var(--vt-surface-2);
+    color: var(--vt-accent);
+}
+
+.vm-jpal__icon--end {
+    color: var(--vt-color-warning);
+}
+
+.vm-jpal__label {
+    min-inline-size: 0;
+    /* Szóhatáron tördel; szó közepén csak akkor, ha egyetlen szó sem fér el (`break-word`). */
+    overflow-wrap: break-word;
+}
+
+/* ------------------------------------------------------------------ hibák sávja */
+
+.vm-jc-issues {
+    padding: var(--vt-space-2) var(--vt-space-3);
+    border-block-end: thin solid var(--vt-border);
+    background: var(--vt-surface);
+}
+
+.vm-jc-issues__toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--vt-space-2);
+    padding: var(--vt-space-1) var(--vt-space-2);
+    border: thin solid var(--vt-border-strong);
+    border-radius: var(--vt-radius-md);
+    background: transparent;
+    color: var(--vt-color-success);
+    font: inherit;
+    font-size: var(--vt-fs-body-sm);
+    cursor: pointer;
+}
+
+.vm-jc-issues--bad .vm-jc-issues__toggle {
+    color: var(--vt-color-warning);
+}
+
+.vm-jc-issues__list {
+    max-block-size: calc(var(--vt-space-24) * 1.25);
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: var(--vt-space-1);
+    margin: var(--vt-space-2) 0 0;
+    padding: 0;
+    list-style: none;
+    font-size: var(--vt-fs-body-sm);
+}
+
+.vm-jc-issues__list li {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--vt-space-2);
+    color: var(--vt-text-muted);
+}
+
+.vm-jc-issues__list button {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--vt-accent);
+    font: inherit;
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+.vm-jc-issues__item--error {
+    border-inline-start: thin solid var(--vt-color-danger);
+    padding-inline-start: var(--vt-space-2);
+}
+
+.vm-jc-issues__item--warning {
+    border-inline-start: thin solid var(--vt-color-warning);
+    padding-inline-start: var(--vt-space-2);
+}
+
+/* ------------------------------------------------------------------ vászon */
+
+.vm-jc-flow {
+    position: relative;
+    min-block-size: 0;
+    overflow: hidden;
+    background: var(--vt-bg);
+}
+
+.vm-jc-flow .vue-flow {
+    inline-size: 100%;
+    block-size: 100%;
+}
+
+.vm-jc-bg {
+    color: var(--vt-border-strong);
+}
+
+.vm-jc-bg .vue-flow__background-pattern circle,
+.vm-jc-flow .vue-flow__background circle {
+    fill: var(--vt-border-strong);
+}
+
+.vm-jc-flow .vue-flow__edge-path {
+    stroke: var(--vt-border-strong);
+    stroke-width: 2;
+}
+
+.vm-jc-flow .vue-flow__edge.selected .vue-flow__edge-path,
+.vm-jc-flow .vue-flow__edge:focus .vue-flow__edge-path {
+    stroke: var(--vt-accent);
+}
+
+.vm-jc-flow .vue-flow__connection-path {
+    stroke: var(--vt-accent);
+    stroke-width: 2;
+}
+
+.vm-jc-minimap {
+    border: thin solid var(--vt-border-strong);
+    border-radius: var(--vt-radius-md);
+    background: var(--vt-surface);
+}
+
+.vm-jc-minimap .vue-flow__minimap-node,
+.vm-jc-minimap__node {
+    fill: var(--vt-border-strong);
+}
+
+.vm-jc-minimap svg {
+    inline-size: calc(var(--vt-space-32) * 1.25);
+    block-size: calc(var(--vt-space-20));
+}
+
+.vm-jc-minimap .vue-flow__minimap-mask {
+    fill: var(--vt-glass-thin-fill);
+}
+
+.vm-jc-zoom {
+    position: absolute;
+    inset-block-end: var(--vt-space-4);
+    inset-inline-start: var(--vt-space-4);
+    z-index: var(--vt-z-sticky);
+    display: flex;
+    flex-direction: column;
+    border: thin solid var(--vt-border-strong);
+    border-radius: var(--vt-radius-md);
+    background: var(--vt-surface);
+    overflow: hidden;
+}
+
+.vm-jc-zoom button {
+    display: grid;
+    place-items: center;
+    inline-size: var(--vt-space-8);
+    block-size: var(--vt-space-8);
+    border: 0;
+    background: transparent;
+    color: var(--vt-text-muted);
+    cursor: pointer;
+}
+
+.vm-jc-zoom button:hover,
+.vm-jc-zoom button:focus-visible {
+    background: var(--vt-surface-2);
+    color: var(--vt-text);
+    outline: none;
+}
+
+.vm-jc-zoom__minus {
+    inline-size: var(--vt-space-3);
+    border-block-start: medium solid currentColor;
+}
+
+/* ------------------------------------------------------------------ csomópont */
+
+.vm-jn {
+    inline-size: calc(var(--vt-space-32) * 1.75);
+    border: thin solid var(--vt-border-strong);
+    border-radius: var(--vt-radius-md);
+    background: var(--vt-surface);
+    color: var(--vt-text);
+    font-size: var(--vt-fs-caption);
+    box-shadow: var(--vt-shadow-sm);
+}
+
+.vm-jn.is-selected {
+    border-color: var(--vt-accent);
+    box-shadow: 0 0 0 var(--vt-space-1) var(--vt-ring);
+}
+
+.vm-jn.is-on-path {
+    border-color: var(--vt-color-success);
+}
+
+.vm-jn.has-error {
+    border-color: var(--vt-color-danger);
+}
+
+.vm-jn.has-warning:not(.is-selected) {
+    border-color: var(--vt-color-warning);
+}
+
+.vm-jn__head {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--vt-space-2);
+    padding: var(--vt-space-2);
+}
+
+.vm-jn__icon {
+    display: inline-grid;
+    flex: none;
+    place-items: center;
+    inline-size: var(--vt-space-6);
+    block-size: var(--vt-space-6);
+    border-radius: var(--vt-radius-sm);
+    background: var(--vt-surface-2);
+    color: var(--vt-accent);
+}
+
+.vm-jn--trigger .vm-jn__icon {
+    color: var(--vt-color-success);
+}
+
+.vm-jn__text {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-inline-size: 0;
+}
+
+.vm-jn__title {
+    overflow: hidden;
+    font-weight: var(--vt-weight-semibold);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.vm-jn__summary {
+    overflow: hidden;
+    color: var(--vt-text-muted);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.vm-jn__flag {
+    flex: none;
+    color: var(--vt-color-warning);
+}
+
+.vm-jn.has-error .vm-jn__flag {
+    color: var(--vt-color-danger);
+}
+
+.vm-jn__outputs {
+    margin: 0;
+    padding: 0 0 var(--vt-space-1);
+    list-style: none;
+}
+
+.vm-jn__output {
+    position: relative;
+    display: flex;
+    justify-content: flex-end;
+    min-block-size: var(--vt-space-5);
+    padding-inline: var(--vt-space-2) var(--vt-space-3);
+    color: var(--vt-text-muted);
+}
+
+.vm-jn__output-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.vm-jn__stats {
+    display: flex;
+    gap: var(--vt-space-3);
+    padding: var(--vt-space-1) var(--vt-space-2);
+    border-block-start: thin solid var(--vt-border);
+    color: var(--vt-text-muted);
+    font-family: var(--vt-font-mono);
+}
+
+.vm-jn__stats span {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--vt-space-1);
+}
+
+.vm-jn__stat--waiting {
+    color: var(--vt-color-warning);
+}
+
+.vm-jn__stat--moved {
+    color: var(--vt-color-success);
+}
+
+.vm-jn__handle.vue-flow__handle {
+    inline-size: var(--vt-space-3);
+    block-size: var(--vt-space-3);
+    border: medium solid var(--vt-accent);
+    border-radius: var(--vt-radius-full);
+    background: var(--vt-bg);
+}
+
+/*
+ | A FOGANTYÚ a csomópont HATÁRÁN BELÜL ül (a Vue Flow alapból félig kilógatja): a kilógó
+ | rész a csomópont vízszintes túlcsordulása lenne, amit az átfedés-kapu jogosan jelez.
+ */
+.vm-jn__handle--out.vue-flow__handle-right,
+.vm-jn__handle--in.vue-flow__handle-left {
+    transform: translate(0, -50%);
+}
+
+/* ------------------------------------------------------------------ konfigurációs panel */
+
+.vm-jcfg {
+    display: flex;
+    flex-direction: column;
+    gap: var(--vt-space-4);
+}
+
+.vm-jcfg__head {
+    display: flex;
+    align-items: center;
+    gap: var(--vt-space-3);
+}
+
+.vm-jcfg__icon {
+    display: inline-grid;
+    flex: none;
+    place-items: center;
+    inline-size: var(--vt-space-10);
+    block-size: var(--vt-space-10);
+    border-radius: var(--vt-radius-md);
+    background: var(--vt-surface-2);
+    color: var(--vt-accent);
+}
+
+.vm-jcfg__titles {
+    display: flex;
+    flex-direction: column;
+    min-inline-size: 0;
+}
+
+.vm-jcfg__kind {
+    color: var(--vt-text-subtle);
+    font-size: var(--vt-fs-caption);
+    letter-spacing: var(--vt-tracking-wider);
+    text-transform: uppercase;
+}
+
+.vm-jcfg__name {
+    font-family: var(--vt-font-display);
+    font-size: var(--vt-fs-h5);
+    overflow-wrap: anywhere;
+}
+
+.vm-jcfg__stats {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--vt-space-2);
+    margin: 0;
+}
+
+.vm-jcfg__stats div {
+    padding: var(--vt-space-2) var(--vt-space-3);
+    border: thin solid var(--vt-border);
+    border-radius: var(--vt-radius-md);
+    min-inline-size: 0;
+}
+
+.vm-jcfg__stats dt {
+    color: var(--vt-text-muted);
+    font-size: var(--vt-fs-caption);
+    overflow-wrap: anywhere;
+}
+
+.vm-jcfg__stats dd {
+    margin: 0;
+    font-family: var(--vt-font-display);
+    font-size: var(--vt-fs-h4);
+}
+
+.vm-jcfg__stat--waiting dd {
+    color: var(--vt-color-warning);
+}
+
+.vm-jcfg__stat--moved dd {
+    color: var(--vt-color-success);
+}
+
+.vm-jcfg__issues {
+    display: flex;
+    flex-direction: column;
+    gap: var(--vt-space-1);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: var(--vt-fs-body-sm);
+}
+
+.vm-jcfg__issues li {
+    display: flex;
+    gap: var(--vt-space-2);
+    align-items: flex-start;
+}
+
+.vm-jcfg__issue--error {
+    color: var(--vt-color-danger);
+}
+
+.vm-jcfg__issue--warning {
+    color: var(--vt-color-warning);
+}
+
+.vm-jcfg__group,
+.vm-jcfg__outputs {
+    display: flex;
+    flex-direction: column;
+    gap: var(--vt-space-3);
+}
+
+.vm-jcfg__section {
+    margin: 0;
+    color: var(--vt-text-subtle);
+    font-size: var(--vt-fs-caption);
+    letter-spacing: var(--vt-tracking-wider);
+    text-transform: uppercase;
+}
+
+.vm-jcfg__row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: var(--vt-space-2);
+}
+
+.vm-jcfg__row > * {
+    flex: 1 1 calc(var(--vt-space-24));
+    min-inline-size: 0;
+}
+
+.vm-jcfg__row > .vt-btn {
+    flex: none;
+}
+
+.vm-jcfg__box {
+    display: flex;
+    flex-direction: column;
+    gap: var(--vt-space-3);
+    padding: var(--vt-space-3);
+    border: thin solid var(--vt-border);
+    border-radius: var(--vt-radius-md);
+}
+
+.vm-jcfg__note {
+    margin: 0;
+    color: var(--vt-text-muted);
+    font-size: var(--vt-fs-body-sm);
+}
+
+.vm-jcfg__note--bad {
+    color: var(--vt-color-danger);
+}
+
+.vm-jcfg__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--vt-space-2);
+    padding-block-start: var(--vt-space-3);
+    border-block-start: thin solid var(--vt-border);
+}
+
+/* ------------------------------------------------------------------ teszt-futtatás */
+
+.vm-jtest {
+    display: flex;
+    flex-direction: column;
+    gap: var(--vt-space-3);
+}
+
+.vm-jtest__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--vt-space-2);
+}
+
+.vm-jtest__note,
+.vm-jtest__summary {
+    margin: 0;
+    color: var(--vt-text-muted);
+    font-size: var(--vt-fs-body-sm);
+    overflow-wrap: anywhere;
+}
+
+.vm-jtest__steps {
+    display: flex;
+    flex-direction: column;
+    gap: var(--vt-space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-family: var(--vt-font-mono);
+    font-size: var(--vt-fs-caption);
+}
+
+.vm-jtest__step {
+    display: flex;
+    flex-direction: column;
+    gap: var(--vt-space-1);
+    padding: var(--vt-space-2);
+    border-inline-start: medium solid var(--vt-color-success);
+    background: var(--vt-surface-2);
+    border-radius: var(--vt-radius-sm);
+}
+
+.vm-jtest__step--blocked,
+.vm-jtest__step--condition_false,
+.vm-jtest__step--event_timeout {
+    border-inline-start-color: var(--vt-color-warning);
+}
+
+.vm-jtest__node {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--vt-text);
+    font: inherit;
+    font-weight: var(--vt-weight-semibold);
+    text-align: start;
+    cursor: pointer;
+    overflow-wrap: anywhere;
+}
+
+.vm-jtest__outcome,
+.vm-jtest__time {
+    color: var(--vt-text-muted);
+    overflow-wrap: anywhere;
+}
+
+/* ------------------------------------------------------------------ kompakt (mobil) */
+
+.vm-jc--compact {
+    block-size: auto;
+}
+
+.vm-jc--compact .vm-jc-body {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+/* D292: mobilon a minitérkép nem takarhat csomópontot — a kis vásznon úgyis a teljes gráf látszik. */
+.vm-jc--compact .vm-jc-minimap {
+    display: none;
+}
+
+/* A journey neve kompakt fejlécben a teljes sort kapja (nem vágódik „Üdvözlő sorozat ("-ra). */
+.vm-jc--compact .vm-jc-top__name input {
+    flex-basis: 100%;
+}
+
+.vm-jc--compact .vm-jc-palette {
+    overflow-x: auto;
+    overflow-y: hidden;
+    border-inline-end: 0;
+    border-block-end: thin solid var(--vt-border);
+}
+
+.vm-jc--compact .vm-jpal {
+    flex-direction: row;
+    align-items: center;
+    inline-size: max-content;
+}
+
+.vm-jc--compact .vm-jpal__group {
+    margin: 0 var(--vt-space-2);
+    white-space: nowrap;
+}
+
+.vm-jc--compact .vm-jpal__label {
+    white-space: nowrap;
+}
+
+.vm-jc--compact .vm-jpal__text {
+    flex-direction: row;
+    align-items: center;
+}
+
+.vm-jc--compact .vm-jc-stage {
+    block-size: calc(var(--vt-space-32) * 3.5);
+}
+
+.vm-jc--compact .vm-jc-panel {
+    border-inline-start: 0;
+    border-block-start: thin solid var(--vt-border);
+}

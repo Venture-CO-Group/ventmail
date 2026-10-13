@@ -48,6 +48,44 @@ return [
     'audience' => [
         'listCreated' => 'List created.',
         'listUpdated' => 'List updated.',
+        'import' => [
+            'reason' => [
+                'invalid_email' => 'Invalid e-mail address.',
+                'missing_email' => 'The e-mail address is missing.',
+                'invalid_field' => 'The value of the “:field” field does not match its type.',
+                'duplicate' => 'Duplicate: the address already appeared on line :line.',
+                'suppressed' => 'The address is on a suppression list.',
+                'erased' => 'The address was erased on a GDPR request and cannot be imported.',
+                'revoked_consent' => 'The address has withdrawn its consent.',
+                'deleted_contact' => 'The contact is deleted and will not be revived.',
+                'role_address' => 'Role-based address (e.g. info@), skipped.',
+                'disposable_domain' => 'Disposable e-mail domain, skipped.',
+                'existing_contact' => 'The contact already exists, the existing data is untouched.',
+            ],
+            'limit' => [
+                'encoding' => 'The file encoding is not supported (UTF-16 or NUL bytes) — save it as a UTF-8 or Windows-1250 CSV.',
+                'timeout' => 'Inspecting the file exceeded the time budget — upload a smaller file.',
+                'line' => 'A line in the file is too long.',
+                'size' => 'The file is too large.',
+                'rows' => 'The file has more rows than allowed.',
+                'columns' => 'The file has more columns than allowed.',
+                'zip' => 'The XLSX file exceeds the decompression limit.',
+                'resources' => 'Processing the file exceeded the resource limit (memory) — upload a smaller or simpler file.',
+                'format' => 'The file content does not match its extension.',
+                'sheet' => 'Unknown worksheet.',
+                'mapping' => 'The e-mail column is not mapped.',
+            ],
+            'inspectBusy' => 'Another file is already being inspected in this workspace — try again in a few seconds.',
+            'concurrency' => 'Enough imports are already running in this workspace — wait for one to finish.',
+            'fieldLimit' => 'You have reached the limit of custom fields.',
+            'pasteEmpty' => 'Paste at least one e-mail address.',
+            'mappingUnknown' => 'Unknown target in the column mapping.',
+            'mappingDuplicate' => 'Only one column can be mapped to a field.',
+            'mappingNoEmail' => 'Map exactly one column to the e-mail address.',
+            'listUnknown' => 'Unknown list.',
+            'fieldExists' => 'A field with this key already exists.',
+            'fieldCreated' => 'The custom field was created.',
+        ],
     ],
     'templates' => [
         'saved' => 'Template saved.',
@@ -106,6 +144,12 @@ return [
     'journeys' => [
         'activated' => 'Journey is active.',
         'paused' => 'Journey paused.',
+        'publishInvalid' => 'The journey graph has errors — fix the highlighted nodes and try again.',
+        'published' => 'Published: version :version.',
+        'notActive' => 'The journey is not active.',
+        'testRunTooExpensive' => 'The test run became too expensive — simplify the conditions and try again.',
+        'webhookForbidden' => 'Only users who can manage webhooks may choose a webhook endpoint.',
+        'triggerUnavailable' => 'This trigger is not wired yet (coming soon) — the journey would never start, so it cannot be activated.',
     ],
     'gate' => [
         'domain_unverified' => 'The sending domain is not verified.',
@@ -171,5 +215,72 @@ return [
     ],
     'auth' => [
         'retry' => 'Sign-in did not succeed. Please try again.',
+    ],
+    'workspaces' => [
+        'created' => 'Workspace ":name" created.',
+        'limit' => 'You have reached the limit of :max workspaces you own.',
+    ],
+    'profile' => [
+        'saved' => 'Your preferences have been saved.',
+    ],
+    'editor' => [
+        'inUse' => 'The template is used by a running campaign or an active journey: :names. Pause or finish it first.',
+        'nameTaken' => 'A template with this name already exists.',
+        'deleted' => 'The template was deleted.',
+        'blocksFull' => 'You can keep at most :max saved blocks — delete one first.',
+        'blockDeleted' => 'The saved block was deleted.',
+        'assets' => [
+            'tooLarge' => 'The image is too large (max :max MB).',
+            'badType' => 'Only JPG, PNG, GIF or WebP images can be uploaded.',
+            'badDimensions' => 'The image must be at most :max × :max pixels.',
+            'busy' => 'Another upload is in progress in this workspace — try again in a moment.',
+            'quota' => 'The workspace image storage is full (max :max MB).',
+            'processing' => 'Image processing is not available — the upload was refused.',
+        ],
+        'compliance' => [
+            'missing' => 'A campaign-ready template must include a footer with: :items.',
+            'items' => [
+                'postal_address' => 'postal address',
+                'unsubscribe' => 'unsubscribe link',
+                'preferences' => 'preferences link',
+            ],
+        ],
+        'testSend' => [
+            'subjectPrefix' => '[TEST]',
+            'notAllowed' => 'Test emails can only go to workspace members or seed addresses.',
+            'unverifiedDomain' => 'The sender address must use a verified domain of this workspace.',
+            'empty' => 'Save the template before sending a test.',
+        ],
+    ],
+    // v1.1 · 7. modul (Platform)
+    'plat' => [
+        'dkimRotated' => 'New DKIM key generated — add the new record to DNS.',
+        'invalidAllowlist' => 'The IP allowlist may only contain valid IP addresses or CIDR ranges (max 50).',
+        'webhookUpdated' => 'Endpoint saved.',
+        'webhookTestQueued' => 'Test event queued — see the delivery log for the result.',
+        'webhookTestThrottled' => 'Too many test events; try again in a minute.',
+        'exportThrottled' => 'Too many exports; try again in a minute.',
+        'webhookInactive' => 'The endpoint is disabled — test events can only be sent to an active endpoint.',
+    ],
+    // v1.1 · 8. modul — analitika (PDF-riport) és workspace-branding.
+    'analytics' => [
+        'report' => [
+            'invalidPeriod' => 'The period can be at most :days days long and cannot end after today.',
+        ],
+    ],
+    'branding' => [
+        'saved' => 'Branding saved.',
+        'logoSaved' => 'Logo uploaded.',
+        'logoRemoved' => 'Logo removed.',
+        'validation' => [
+            'color' => 'The colour must be a #RRGGBB hex code.',
+            'contrast' => 'Neither white nor dark cover text is readable on this colour (WCAG 4.5 : 1) — pick a darker or lighter shade.',
+            'control' => 'The text cannot contain control characters.',
+            'logoType' => 'The logo must be a PNG, JPEG or WebP image (not SVG).',
+            'logoSize' => 'The logo can be at most :max MB.',
+            'logoDimensions' => 'The logo must be between :min and :max pixels.',
+            'logoRatio' => 'The logo aspect ratio can be at most :ratio : 1.',
+            'processing' => 'The image could not be processed — try another file.',
+        ],
     ],
 ];

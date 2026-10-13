@@ -187,8 +187,9 @@ it('az űrlap-beiratkozás double opt-innal MEGERŐSÍTETT consentet ad — de c
         ->issue((int) $this->workspace->getKey(), 'anna@pelda.hu', 'marketing', $list->uuid);
 
     // A GET megerősítő oldalt ad, az ÍRÁS a POST — a link-előtöltés így nem teremt jogalapot.
-    $this->get('/c/'.$token)->assertOk()->assertSee('megerősítése', false);
-    $this->post('/c/'.$token)->assertOk()->assertSee('megerősítve', false);
+    // v1.1 · a hosztolt oldalak a böngésző nyelvén szólnak (Accept-Language) — itt magyarul.
+    $this->withHeader('Accept-Language', 'hu')->get('/c/'.$token)->assertOk()->assertSee('megerősítése', false);
+    $this->withHeader('Accept-Language', 'hu')->post('/c/'.$token)->assertOk()->assertSee('megerősítve', false);
 
     app(WorkspaceContext::class)->set($this->workspace);
 
@@ -407,9 +408,9 @@ it('a publikus űrlap-végpont NÉVTELENÜL is működik, és MINDIG ugyanazt v�
 
     app(WorkspaceContext::class)->forget();
 
-    $ok = $this->post('/f/'.$form->slug, ['email' => 'anna@pelda.hu', '_elapsed' => 12]);
-    $bot = $this->post('/f/'.$form->slug, ['email' => 'bot@example.test', $form->honeypot_field => 'x', '_elapsed' => 12]);
-    $unknown = $this->post('/f/nem-letezik', ['email' => 'anna@pelda.hu', '_elapsed' => 12]);
+    $ok = $this->post('/f/'.$form->slug, ['email' => 'anna@pelda.hu', 'consent' => '1', '_elapsed' => 12]);
+    $bot = $this->post('/f/'.$form->slug, ['email' => 'bot@example.test', 'consent' => '1', $form->honeypot_field => 'x', '_elapsed' => 12]);
+    $unknown = $this->post('/f/nem-letezik', ['email' => 'anna@pelda.hu', 'consent' => '1', '_elapsed' => 12]);
 
     $ok->assertOk();
     expect($bot->getContent())->toBe($ok->getContent());
@@ -838,11 +839,11 @@ it('a REDIRECT-es űrlap nem ad 500-at, és csak VERIFIKÁLT domainre visz', fun
 
     app(WorkspaceContext::class)->forget();
 
-    $this->post('/f/'.$ok->slug, ['email' => 'a@pelda.hu', '_elapsed' => 12])
+    $this->post('/f/'.$ok->slug, ['email' => 'a@pelda.hu', 'consent' => '1', '_elapsed' => 12])
         ->assertRedirect('https://pelda.hu/koszonjuk');
 
     // A NEM verifikált domainre nem irányítunk: a köszönő oldalt adjuk.
-    $this->post('/f/'.$idegen->slug, ['email' => 'b@pelda.hu', '_elapsed' => 12])
+    $this->withHeader('Accept-Language', 'hu')->post('/f/'.$idegen->slug, ['email' => 'b@pelda.hu', 'consent' => '1', '_elapsed' => 12])
         ->assertOk()
         ->assertSee('Köszönjük', false);
 });
@@ -1082,6 +1083,7 @@ it('a NÉVTELEN űrlap-beküldés nem ír PII-t a törölhetetlen audit-naplóba
         'last_name' => 'Kovács',
         'telefon' => '+36301234567',
         'cim' => 'Budapest, Fő utca 12.',
+        'consent' => '1',
         '_elapsed' => 12,
     ])->assertOk();
 
@@ -1114,6 +1116,7 @@ it('a publikus végpontok nem adnak 500-at szemét bemenetre', function () {
         'email' => 'anna@pelda.hu',
         'first_name' => str_repeat('A', 1000),
         'jegyzet' => str_repeat('B', 200_000),
+        'consent' => '1',
         '_elapsed' => 12,
     ])->assertOk();
 

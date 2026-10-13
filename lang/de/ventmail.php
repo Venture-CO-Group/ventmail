@@ -37,6 +37,44 @@ return [
     'audience' => [
         'listCreated' => 'Liste angelegt.',
         'listUpdated' => 'Liste aktualisiert.',
+        'import' => [
+            'reason' => [
+                'invalid_email' => 'Ungültige E-Mail-Adresse.',
+                'missing_email' => 'Die E-Mail-Adresse fehlt.',
+                'invalid_field' => 'Der Wert des Felds „:field“ passt nicht zum Typ.',
+                'duplicate' => 'Duplikat: Die Adresse stand bereits in Zeile :line.',
+                'suppressed' => 'Die Adresse steht auf einer Sperrliste.',
+                'erased' => 'Die Adresse wurde auf DSGVO-Anfrage gelöscht und kann nicht importiert werden.',
+                'revoked_consent' => 'Die Adresse hat ihre Einwilligung widerrufen.',
+                'deleted_contact' => 'Der Kontakt ist gelöscht und wird nicht wiederbelebt.',
+                'role_address' => 'Funktionsadresse (z. B. info@), übersprungen.',
+                'disposable_domain' => 'Wegwerf-E-Mail-Domain, übersprungen.',
+                'existing_contact' => 'Der Kontakt existiert bereits, die vorhandenen Daten bleiben unverändert.',
+            ],
+            'limit' => [
+                'encoding' => 'Die Dateikodierung wird nicht unterstützt (UTF-16 oder NUL-Bytes) — speichere sie als UTF-8- oder Windows-1250-CSV.',
+                'timeout' => 'Die Prüfung der Datei hat das Zeitbudget überschritten — lade eine kleinere Datei hoch.',
+                'line' => 'Eine Zeile in der Datei ist zu lang.',
+                'size' => 'Die Datei ist zu groß.',
+                'rows' => 'Die Datei hat mehr Zeilen als erlaubt.',
+                'columns' => 'Die Datei hat mehr Spalten als erlaubt.',
+                'zip' => 'Die XLSX-Datei überschreitet das Entpackungslimit.',
+                'resources' => 'Die Verarbeitung der Datei hat das Ressourcenlimit (Speicher) überschritten — lade eine kleinere oder einfachere Datei hoch.',
+                'format' => 'Der Dateiinhalt passt nicht zur Dateiendung.',
+                'sheet' => 'Unbekanntes Tabellenblatt.',
+                'mapping' => 'Die E-Mail-Spalte ist nicht zugeordnet.',
+            ],
+            'inspectBusy' => 'In diesem Workspace wird bereits eine andere Datei geprüft — versuche es in ein paar Sekunden erneut.',
+            'concurrency' => 'In diesem Workspace laufen bereits genug Importe — warte, bis einer fertig ist.',
+            'fieldLimit' => 'Du hast die Obergrenze für benutzerdefinierte Felder erreicht.',
+            'pasteEmpty' => 'Füge mindestens eine E-Mail-Adresse ein.',
+            'mappingUnknown' => 'Unbekanntes Ziel in der Spaltenzuordnung.',
+            'mappingDuplicate' => 'Einem Feld kann nur eine Spalte zugeordnet werden.',
+            'mappingNoEmail' => 'Ordne genau eine Spalte der E-Mail-Adresse zu.',
+            'listUnknown' => 'Unbekannte Liste.',
+            'fieldExists' => 'Ein Feld mit diesem Schlüssel existiert bereits.',
+            'fieldCreated' => 'Das benutzerdefinierte Feld wurde angelegt.',
+        ],
     ],
     'templates' => [
         'saved' => 'Vorlage gespeichert.',
@@ -95,6 +133,12 @@ return [
     'journeys' => [
         'activated' => 'Journey ist aktiv.',
         'paused' => 'Journey pausiert.',
+        'publishInvalid' => 'Der Journey-Graph enthält Fehler – korrigiere die markierten Knoten und versuche es erneut.',
+        'published' => 'Veröffentlicht: Version :version.',
+        'notActive' => 'Die Journey ist nicht aktiv.',
+        'testRunTooExpensive' => 'Der Testlauf wurde zu aufwendig – vereinfache die Bedingungen und versuche es erneut.',
+        'webhookForbidden' => 'Nur Nutzer mit Webhook-Verwaltungsrecht dürfen einen Webhook-Endpunkt wählen.',
+        'triggerUnavailable' => 'Dieser Auslöser ist noch nicht angebunden (bald) – die Journey würde nie starten und kann daher nicht aktiviert werden.',
     ],
     'gate' => [
         'domain_unverified' => 'Die Absenderdomain ist nicht verifiziert.',
@@ -155,5 +199,72 @@ return [
     ],
     'auth' => [
         'retry' => 'Die Anmeldung ist fehlgeschlagen. Bitte versuche es erneut.',
+    ],
+    'workspaces' => [
+        'created' => 'Workspace „:name“ wurde erstellt.',
+        'limit' => 'Du hast die Grenze von :max eigenen Workspaces erreicht.',
+    ],
+    'profile' => [
+        'saved' => 'Deine Einstellungen wurden gespeichert.',
+    ],
+    'editor' => [
+        'inUse' => 'Die Vorlage wird von einer laufenden Kampagne oder einer aktiven Journey verwendet: :names. Pausieren oder beenden Sie sie zuerst.',
+        'nameTaken' => 'Eine Vorlage mit diesem Namen existiert bereits.',
+        'deleted' => 'Die Vorlage wurde gelöscht.',
+        'blocksFull' => 'Sie können höchstens :max gespeicherte Blöcke haben — löschen Sie zuerst einen.',
+        'blockDeleted' => 'Der gespeicherte Block wurde gelöscht.',
+        'assets' => [
+            'tooLarge' => 'Das Bild ist zu groß (max. :max MB).',
+            'badType' => 'Nur JPG-, PNG-, GIF- oder WebP-Bilder können hochgeladen werden.',
+            'badDimensions' => 'Das Bild darf höchstens :max × :max Pixel groß sein.',
+            'busy' => 'In diesem Workspace läuft gerade ein anderer Upload — versuchen Sie es gleich noch einmal.',
+            'quota' => 'Der Bildspeicher des Workspaces ist voll (max. :max MB).',
+            'processing' => 'Die Bildverarbeitung ist nicht verfügbar — der Upload wurde abgelehnt.',
+        ],
+        'compliance' => [
+            'missing' => 'Eine kampagnenfähige Vorlage braucht eine Fußzeile mit: :items.',
+            'items' => [
+                'postal_address' => 'Postanschrift',
+                'unsubscribe' => 'Abmeldelink',
+                'preferences' => 'Link zu den Einstellungen',
+            ],
+        ],
+        'testSend' => [
+            'subjectPrefix' => '[TEST]',
+            'notAllowed' => 'Test-E-Mails gehen nur an Workspace-Mitglieder oder Seed-Adressen.',
+            'unverifiedDomain' => 'Die Absenderadresse muss eine verifizierte Domain dieses Workspaces verwenden.',
+            'empty' => 'Speichern Sie die Vorlage vor dem Testversand.',
+        ],
+    ],
+    // v1.1 · 7. modul (Platform)
+    'plat' => [
+        'dkimRotated' => 'Neuer DKIM-Schlüssel erzeugt — lege den neuen Eintrag im DNS an.',
+        'invalidAllowlist' => 'Die IP-Allowlist darf nur gültige IP-Adressen oder CIDR-Bereiche enthalten (max. 50).',
+        'webhookUpdated' => 'Endpunkt gespeichert.',
+        'webhookTestQueued' => 'Testereignis eingereiht — das Ergebnis steht im Zustellprotokoll.',
+        'webhookTestThrottled' => 'Zu viele Testereignisse; versuche es in einer Minute erneut.',
+        'exportThrottled' => 'Zu viele Exporte; versuche es in einer Minute erneut.',
+        'webhookInactive' => 'Der Endpunkt ist deaktiviert — Testereignisse nur an aktive Endpunkte.',
+    ],
+    // v1.1 · 8. modul — analitika (PDF-riport) és workspace-branding.
+    'analytics' => [
+        'report' => [
+            'invalidPeriod' => 'Der Zeitraum darf höchstens :days Tage umfassen und nicht nach heute enden.',
+        ],
+    ],
+    'branding' => [
+        'saved' => 'Branding gespeichert.',
+        'logoSaved' => 'Logo hochgeladen.',
+        'logoRemoved' => 'Logo entfernt.',
+        'validation' => [
+            'color' => 'Die Farbe muss ein Hex-Code im Format #RRGGBB sein.',
+            'contrast' => 'Auf dieser Farbe ist weder weißer noch dunkler Deckblatttext lesbar (WCAG 4,5 : 1) — wähle einen dunkleren oder helleren Ton.',
+            'control' => 'Der Text darf keine Steuerzeichen enthalten.',
+            'logoType' => 'Das Logo muss ein PNG-, JPEG- oder WebP-Bild sein (kein SVG).',
+            'logoSize' => 'Das Logo darf höchstens :max MB groß sein.',
+            'logoDimensions' => 'Das Logo muss zwischen :min und :max Pixel groß sein.',
+            'logoRatio' => 'Das Seitenverhältnis des Logos darf höchstens :ratio : 1 betragen.',
+            'processing' => 'Das Bild konnte nicht verarbeitet werden — versuche eine andere Datei.',
+        ],
     ],
 ];

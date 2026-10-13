@@ -76,6 +76,9 @@ final class JourneyTrigger
             : null;
 
         $journeys = Journey::query()
+            // A jogosultság-ellenőrzés a workspace-et olvassa: több illeszkedő journey-nél a
+            // lusta betöltés N+1 (és tesztben LazyLoadingViolation) lenne.
+            ->with('workspace')
             ->where('status', 'active')
             ->where('trigger_type', $type->value)
             ->when($target !== null, fn ($query) => $query->where('uuid', $target))
@@ -209,6 +212,9 @@ final class JourneyTrigger
                 'journey_id' => $journey->getKey(),
                 'contact_id' => $contact?->getKey(),
                 'current_step_id' => $journey->first_step_id,
+                // A FUTÁS VERZIÓJA (v1.1, D5): a belépéskori aktuális verzió — egy későbbi
+                // publikálás ezt a futást nem érinti.
+                'journey_version_id' => $journey->current_version_id,
                 'email' => $email,
                 'status' => 'active',
                 'context' => $payload,
@@ -257,6 +263,11 @@ final class JourneyTrigger
             TriggerType::ApiEvent => $this->matchesKey($config, $payload, 'event'),
             // Melyik INBOUND ROUTE-ra érkezett levél indítja?
             TriggerType::InboundEmail => $this->matchesKey($config, $payload, 'route'),
+            TriggerType::ListSubscribe => $this->matchesKey($config, $payload, 'list'),
+            TriggerType::TagRemoved => $this->matchesKey($config, $payload, 'tag'),
+            TriggerType::FieldChanged, TriggerType::DateAnniversary => $this->matchesKey($config, $payload, 'field'),
+            TriggerType::CampaignInteraction => $this->matchesKey($config, $payload, 'campaign')
+                && $this->matchesKey($config, $payload, 'interaction'),
         };
     }
 

@@ -541,7 +541,15 @@ final class SmtpSession implements SmtpConnection
             return [new SmtpReply(530, 'Authentication required', '5.7.0')];
         }
 
-        return [$this->sink->accept($principal, $envelope, $raw)];
+        $reply = $this->sink->accept($principal, $envelope, $raw);
+
+        // A 421 a KAPCSOLAT végét jelenti (RFC 5321 §3.8): pl. munkamenet közben visszavont
+        // hitelesítő (D190) — utána ezen a kapcsolaton semmi nem mehet tovább.
+        if ($reply->code === 421) {
+            return $this->closing($reply->code, $reply->text, (string) $reply->enhanced);
+        }
+
+        return [$reply];
     }
 
     /** @return list<SmtpReply> */

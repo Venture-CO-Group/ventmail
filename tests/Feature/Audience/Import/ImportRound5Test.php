@@ -1,0 +1,451 @@
+<?php
+
+declare(strict_types=1);
+
+use App\Models\User;
+use App\Modules\Audience\Jobs\InspectContactImport;
+use App\Modules\Audience\Models\ContactImport;
+use App\Modules\Audience\Services\Import\ContactImportProcessor;
+use App\Modules\Audience\Services\Import\ImportFileInspector;
+use App\Modules\Audience\Services\Import\ImportLimitExceeded;
+use App\Modules\Audience\Services\Import\ImportMappingBuilder;
+use App\Modules\Audience\Services\Import\ImportUploads;
+use App\Modules\Audience\Services\Import\InspectGate;
+use App\Modules\Tenancy\Models\Workspace;
+use App\Modules\Tenancy\Services\WorkspaceContext;
+use App\Support\RedactingFailedJobProvider;
+use App\Support\RedactingHorizonJobRepository;
+use Illuminate\Database\QueryException;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Queue\Failed\FailedJobProviderInterface;
+use Illuminate\Support\Facades\Storage;
+use Laravel\Horizon\Contracts\JobRepository;
+
+uses(RefreshDatabase::class);
+
+/* v1.1 · 6. közönség-import — 5. kör (m3-review5.md): bájt-nehéz sharedStrings (OOM), temp, redakció. */
+
+function r5Zip(array $entries): string
+{
+    $path = sys_get_temp_dir().'/vm-r5-'.uniqid().'.xlsx';
+    // A TAKARÍTÁSHOZ (review N4): az `afterEach` törli a teszt által írt fájlokat.
+    r5Files($path);
+    $zip = new ZipArchive;
+    $zip->open($path, ZipArchive::CREATE);
+
+    foreach ($entries as $name => $content) {
+        $zip->addFromString($name, $content);
+    }
+
+    $zip->close();
+
+    return $path;
+}
+
+/** @return list<string> a teszt által írt ideiglenes fájlok (hozzáadás `$path`-szal, ürítés `null`-lal) */
+function r5Files(?string $path = null, bool $reset = false): array
+{
+    static $files = [];
+
+    if ($reset) {
+        $files = [];
+    } elseif ($path !== null) {
+        $files[] = $path;
+    }
+
+    return $files;
+}
+
+/**
+ * Munkafüzet, amelynek a `workbook.xml.rels`-e VALÓBAN hivatkozza a sharedStrings-et (review r8 S1: a
+ * plafont a feloldott szerep választja — a nem hivatkozott, csak „sharedStrings" nevű bejegyzést az
+ * openspout nem is olvassa, az a szigorúbb meta-plafont kapja).
+ */
+function r5WithShared(string $sst): array
+{
+    return array_merge(r5Base([]), [
+        'xl/_rels/workbook.xml.rels' => '<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings" Target="sharedStrings.xml"/></Relationships>',
+        'xl/sharedStrings.xml' => $sst,
+    ]);
+}
+
+function r5Base(array $extra): array
+{
+    return [
+        '[Content_Types].xml' => '<Types/>',
+        'xl/workbook.xml' => '<workbook xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="S" sheetId="1" r:id="rId1"/></sheets></workbook>',
+        'xl/_rels/workbook.xml.rels' => '<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/></Relationships>',
+        'xl/worksheets/sheet1.xml' => '<worksheet><sheetData><row r="1"><c r="A1"><v>1</v></c></row></sheetData></worksheet>',
+    ] + $extra;
+}
+
+beforeEach(function () {
+    r5Files(reset: true);
+    Storage::fake('local');
+    $this->ws = Workspace::factory()->create();
+    $this->user = User::create([
+        'sso_issuer' => 'https://sso.teszt.invalid', 'sso_subject' => 'r5-'.uniqid(), 'name' => 'Szabó Bence',
+        'email' => 'r5-'.uniqid().'@pelda.hu', 'locale' => 'hu',
+    ]);
+    $this->ws->members()->create(['user_id' => $this->user->getKey(), 'roles' => ['owner']]);
+});
+
+afterEach(function () {
+    foreach (r5Files() as $path) {
+        @unlink($path);
+    }
+
+    r5Files(reset: true);
+});
+
+/* ---------------------------------------------------------------- B4 (a) bájt-plafon */
+
+it('a bájt-nehéz, kevés `<`-t tartalmazó sharedStrings a bájt-plafonon elbukik (alacsony konfigurált plafonnal)', function () {
+    config()->set('audience.import.xlsx_max_shared_strings_bytes', 100_000);
+
+    // 3 csomópont, de 300 KB szöveg — a csomópont-plafon nem fogná meg.
+    $path = r5Zip(r5WithShared('<sst><si><t>'.str_repeat('a ', 150_000).'</t></si></sst>'));
+
+    expect(fn () => app(ImportFileInspector::class)->guard($path, 'xlsx'))->toThrow(ImportLimitExceeded::class);
+});
+
+it('a többi nem-munkalap bejegyzésnek kisebb bájt-plafonja van', function () {
+    config()->set('audience.import.xlsx_max_meta_bytes', 50_000);
+
+    $path = r5Zip(r5Base(['xl/media/x.bin' => str_repeat('x', 200_000)]));
+
+    expect(fn () => app(ImportFileInspector::class)->guard($path, 'xlsx'))->toThrow(ImportLimitExceeded::class);
+});
+
+it('a leghosszabb `<`-mentes szakasz (szövegcsomópont) 4 × a cella-hossz plafon', function () {
+    config()->set('audience.import.max_cell_length', 100);
+
+    $path = r5Zip(r5WithShared('<sst><si><t>'.str_repeat('b', 5000).'</t></si></sst>'));
+
+    expect(fn () => app(ImportFileInspector::class)->guard($path, 'xlsx'))->toThrow(ImportLimitExceeded::class);
+});
+
+it('a hosszú szövegcsomópont a chunkhatáron átnyúlva is megfogott', function () {
+    config()->set('audience.import.max_cell_length', 10_000);
+
+    // 100 KB-nyi `<`-mentes szöveg: több 64 KB-os chunkon át.
+    $path = r5Zip(r5WithShared('<sst><si><t>'.str_repeat('c', 100_000).'</t></si></sst>'));
+
+    expect(fn () => app(ImportFileInspector::class)->guard($path, 'xlsx'))->toThrow(ImportLimitExceeded::class);
+});
+
+it('a szokásos XLSX átmegy az új plafonokon', function () {
+    $path = r5Zip(r5Base(['xl/sharedStrings.xml' => '<sst><si><t>Anna</t></si><si><t>Béla</t></si></sst>']));
+
+    app(ImportFileInspector::class)->guard($path, 'xlsx');
+
+    expect(true)->toBeTrue();
+});
+
+/* ---------------------------------------------------------------- B4 (b) temp könyvtár */
+
+it('az openspout ideiglenes könyvtára köteg-szintű, a job végén törlődik', function () {
+    $uploads = app(ImportUploads::class);
+    $dir = $uploads->tempDir('abc');
+
+    expect($dir)->toContain('import-tmp/abc')->and(is_dir($dir))->toBeTrue();
+
+    file_put_contents($dir.'/x', 'x');
+    $uploads->cleanTemp('abc');
+
+    expect(is_dir($dir))->toBeFalse();
+});
+
+it('a felmérő job lefutása után nem marad ideiglenes könyvtár', function () {
+    $this->actingAs($this->user)->withSession(['workspace_uuid' => $this->ws->uuid])
+        ->post('/audience/import', ['mode' => 'file', 'file' => UploadedFile::fake()->createWithContent('f.csv', "email\na@pelda.hu\n")])->assertRedirect();
+
+    expect(Storage::disk('local')->directories('import-tmp'))->toBe([]);
+});
+
+it('a purge az 1 óránál régebbi import-tmp könyvtárat söpri, a frisset nem', function () {
+    $uploads = app(ImportUploads::class);
+    $old = $uploads->tempDir('regi');
+    $uploads->tempDir('uj');
+    file_put_contents($old.'/f', 'x');
+    touch($old.'/f', now()->subHours(3)->timestamp);
+    touch($old, now()->subHours(3)->timestamp);
+
+    $this->artisan('audience:purge-imports')->assertSuccessful();
+
+    expect(Storage::disk('local')->exists('import-tmp/regi'))->toBeFalse()
+        ->and(Storage::disk('local')->directories('import-tmp'))->toContain('import-tmp/uj');
+});
+
+/* ---------------------------------------------------------------- SHOULD-5 release */
+
+it('a kapu-hely törölt workspace-nél is szabadul (failed és handle)', function () {
+    $gate = app(InspectGate::class);
+    expect($gate->acquire(9999, 55))->toBeTrue();
+
+    (new InspectContactImport(9999, 'nincs-ilyen', null, 55))->failed(new RuntimeException('x'));
+
+    expect($gate->acquire(9999, 55))->toBeTrue();
+
+    $gate->release(9999, 55);
+    expect($gate->acquire(9999, 55))->toBeTrue();
+    $gate->release(9999, 55);
+
+    $job = new InspectContactImport(9999, 'nincs-ilyen', null, 56);
+    $gate->acquire(9999, 56);
+    $job->handle(
+        app(WorkspaceContext::class),
+        app(ImportFileInspector::class),
+        app(ImportUploads::class),
+        app(ImportMappingBuilder::class),
+        app(ContactImportProcessor::class),
+        $gate,
+    );
+
+    expect($gate->acquire(9999, 56))->toBeTrue();
+});
+
+/* ---------------------------------------------------------------- SHOULD-2 failed-job dekorátor */
+
+it('a failed_jobs provider redaktálja a QueryException-t, a többit érintetlenül hagyja', function () {
+    $captured = null;
+    $inner = new class($captured) implements FailedJobProviderInterface
+    {
+        public function __construct(public &$captured) {}
+
+        public function log($connection, $queue, $payload, $exception)
+        {
+            $this->captured = $exception;
+        }
+
+        public function ids($queue = null)
+        {
+            return [];
+        }
+
+        public function all()
+        {
+            return [];
+        }
+
+        public function find($id)
+        {
+            return null;
+        }
+
+        public function forget($id)
+        {
+            return true;
+        }
+
+        public function flush($hours = null) {}
+    };
+
+    $provider = new RedactingFailedJobProvider($inner);
+
+    $provider->log('redis', 'imports', '{}', new QueryException('pgsql', 'insert', ['carol@example.hu'], new PDOException("ERROR: invalid input: \"carol@example.hu\"\nDETAIL: carol@example.hu")));
+
+    expect((string) $captured)->not->toContain('carol@');
+
+    $plain = new RuntimeException('semmi személyes');
+    $provider->log('redis', 'imports', '{}', $plain);
+
+    expect($captured)->toBe($plain);
+});
+
+it('a failer és a Horizon job-tároló a redaktáló változat', function () {
+    expect(app('queue.failer'))->toBeInstanceOf(RedactingFailedJobProvider::class)
+        ->and(app(JobRepository::class))->toBeInstanceOf(RedactingHorizonJobRepository::class);
+});
+
+/* ---------------------------------------------------------------- S3 UI-oldali állapot */
+
+it('a köteg állapota tartalmazza az updatedAt-et (az elakadt felmérés üzenetéhez)', function () {
+    $import = app(WorkspaceContext::class)->runFor($this->ws, fn () => ContactImport::create(['source_type' => 'csv', 'status' => 'inspecting', 'profile' => []]));
+
+    $this->actingAs($this->user)->withSession(['workspace_uuid' => $this->ws->uuid])
+        ->get("/audience/import/{$import->uuid}")
+        ->assertInertia(fn ($page) => $page->where('import.status', 'inspecting')->has('import.updatedAt'));
+});
+
+/* ---------------------------------------------------------------- 6. kör: N2, N3, N4 */
+
+it('N2 · DOCTYPE vagy ENTITY deklaráció bármely bejegyzésben formátum-hiba (mélységi védelem)', function (string $entry, string $xml) {
+    // `array_merge`, nem `+`: a munkalap-bejegyzést FELÜL kell írni (az `r5Base` uniója megtartaná az alapot).
+    $path = r5Zip(array_merge(r5Base([]), [$entry => $xml]));
+
+    expect(fn () => app(ImportFileInspector::class)->guard($path, 'xlsx'))
+        ->toThrow(fn (ImportLimitExceeded $e) => expect($e->reason)->toBe('format'));
+})->with([
+    'munkalap DOCTYPE' => ['xl/worksheets/sheet1.xml', '<?xml version="1.0"?><!DOCTYPE x [<!ENTITY a "b">]><worksheet><sheetData/></worksheet>'],
+    'sharedStrings ENTITY' => ['xl/sharedStrings.xml', '<sst><!ENTITY a SYSTEM "file:///etc/passwd"><si><t>x</t></si></sst>'],
+    'kisbetűs doctype' => ['xl/styles.xml', '<!doctype styleSheet><styleSheet/>'],
+]);
+
+it('N2 · a chunkhatáron kettévágott DOCTYPE is megfogott', function () {
+    // A 65 536 bájtos olvasási egység határán: `<!DOC` az első, `TYPE` a második chunkban.
+    $padding = '<x>'.str_repeat('a', 65536 - 3 - 5).'</x>';
+    $xml = substr($padding, 0, 65536 - 5).'<!DOCTYPE z><styleSheet/>';
+
+    expect(substr($xml, 65536 - 5, 5))->toBe('<!DOC');
+
+    $path = r5Zip(r5Base(['xl/styles.xml' => $xml]));
+
+    expect(fn () => app(ImportFileInspector::class)->guard($path, 'xlsx'))->toThrow(ImportLimitExceeded::class);
+});
+
+it('N3 · a purge a FUTÓ (processing / inspecting / previewing) import ideiglenes könyvtárát nem söpri, akkor sem, ha régi', function () {
+    $uploads = app(ImportUploads::class);
+    $context = app(WorkspaceContext::class);
+
+    $running = $context->runFor($this->ws, fn () => ContactImport::create(['source_type' => 'xlsx', 'status' => 'processing', 'profile' => []]));
+    $done = $context->runFor($this->ws, fn () => ContactImport::create(['source_type' => 'xlsx', 'status' => 'completed', 'profile' => []]));
+
+    foreach ([(string) $running->uuid, (string) $done->uuid, 'arva'] as $uuid) {
+        $dir = $uploads->tempDir($uuid);
+        file_put_contents($dir.'/f', 'x');
+        touch($dir.'/f', now()->subHours(3)->timestamp);
+        touch($dir, now()->subHours(3)->timestamp);
+    }
+
+    $this->artisan('audience:purge-imports')->assertSuccessful();
+
+    expect(Storage::disk('local')->exists('import-tmp/'.$running->uuid))->toBeTrue()
+        ->and(Storage::disk('local')->exists('import-tmp/'.$done->uuid))->toBeFalse()
+        ->and(Storage::disk('local')->exists('import-tmp/arva'))->toBeFalse();
+});
+
+it('N4 · a teszt-zipek az afterEach-ben törlődnek', function () {
+    $path = r5Zip(r5Base([]));
+
+    expect(is_file($path))->toBeTrue()
+        ->and(r5Files())->toContain($path);
+});
+
+it('N-a · UTF-16 kódolású (BOM-os vagy NUL-os) XML-rész formátum-hiba — az ASCII DTD-szűrő ott vak lenne', function (string $bytes) {
+    $path = r5Zip(array_merge(r5Base([]), ['xl/styles.xml' => $bytes]));
+
+    expect(fn () => app(ImportFileInspector::class)->guard($path, 'xlsx'))
+        ->toThrow(fn (ImportLimitExceeded $e) => expect($e->reason)->toBe('format'));
+})->with([
+    'UTF-16LE BOM' => ["\xFF\xFE".mb_convert_encoding('<!DOCTYPE x><styleSheet/>', 'UTF-16LE', 'UTF-8')],
+    'UTF-16BE BOM' => ["\xFE\xFF".mb_convert_encoding('<!DOCTYPE x><styleSheet/>', 'UTF-16BE', 'UTF-8')],
+    'BOM nélküli UTF-16LE' => [mb_convert_encoding('<?xml version="1.0" encoding="UTF-16"?><styleSheet/>', 'UTF-16LE', 'UTF-8')],
+]);
+
+it('N5(r5) · az XML-rész kódolása csak UTF-8 (vagy deklaráció nélküli) lehet', function (string $declaration, bool $ok) {
+    $path = r5Zip(array_merge(r5Base([]), ['xl/styles.xml' => $declaration.'<styleSheet/>']));
+
+    $guard = fn () => app(ImportFileInspector::class)->guard($path, 'xlsx');
+
+    $ok ? expect($guard)->not->toThrow(ImportLimitExceeded::class)
+        : expect($guard)->toThrow(fn (ImportLimitExceeded $e) => expect($e->reason)->toBe('format'));
+})->with([
+    'deklaráció nélkül' => ['', true],
+    'UTF-8' => ['<?xml version="1.0" encoding="UTF-8" standalone="yes"?>', true],
+    'utf-8 kisbetűvel, aposztróffal' => ["<?xml version='1.0' encoding='utf-8'?>", true],
+    'encoding nélküli deklaráció' => ['<?xml version="1.0"?>', true],
+    'ISO-8859-1' => ['<?xml version="1.0" encoding="ISO-8859-1"?>', false],
+    'UTF-7' => ['<?xml version="1.0" encoding="UTF-7"?>', false],
+]);
+
+/* ---------------------------------------------------------------- 6. kör: B1, S4 */
+
+/** Zip, amelyben egy bejegyzés központi jegyzékbeli méretét `$forged`-ra hamisítjuk („hazug fejléc"). */
+function r6Forged(array $entries, string $name, int $forged): string
+{
+    $path = r5Zip($entries);
+    $real = strlen($entries[$name]);
+    $raw = (string) file_get_contents($path);
+    $offset = 0;
+
+    while (($at = strpos($raw, "PK\x01\x02", $offset)) !== false) {
+        if (unpack('V', substr($raw, $at + 24, 4))[1] === $real) {
+            $raw = substr_replace($raw, pack('V', $forged), $at + 24, 4);
+        }
+
+        $offset = $at + 4;
+    }
+
+    file_put_contents($path, $raw);
+
+    return $path;
+}
+
+it('B1(r6) · XML-deklarációs részen is érvényes a hazug fejléc elleni védelem (hirdetett 100 KB, valós 2 MB → zip)', function () {
+    // Kevés `<` (a csomópont-plafon nem foghatja meg előbb), a meta bájt-plafon (16 MB) alatt.
+    $xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet x="'.str_repeat('a', 2 * 1024 * 1024).'"/>';
+    $path = r6Forged(array_merge(r5Base([]), ['xl/styles.xml' => $xml]), 'xl/styles.xml', 100 * 1024);
+
+    $zip = new ZipArchive;
+    $zip->open($path);
+    expect($zip->statName('xl/styles.xml')['size'])->toBe(100 * 1024);
+    $zip->close();
+
+    expect(fn () => app(ImportFileInspector::class)->guard($path, 'xlsx'))
+        ->toThrow(fn (ImportLimitExceeded $e) => expect($e->reason)->toBe('zip'));
+});
+
+it('S4(r6) · az XML-részben a BOM / szóköz utáni első bájt kötelezően `<` (EBCDIC és más kódolás kizárva)', function (string $bytes, bool $ok) {
+    $path = r5Zip(array_merge(r5Base([]), ['xl/styles.xml' => $bytes]));
+    $guard = fn () => app(ImportFileInspector::class)->guard($path, 'xlsx');
+
+    $ok ? expect($guard)->not->toThrow(ImportLimitExceeded::class)
+        : expect($guard)->toThrow(fn (ImportLimitExceeded $e) => expect($e->reason)->toBe('format'));
+})->with([
+    'EBCDIC (IBM037) <?xml' => ["\x4C\x6F\xA7\x94\x93\x40\xA5\x85\x99\xA2\x89\x96\x95\x7E\x7F\xF1\x4B\xF0\x7F\x6F\x6E", false],
+    'szöveg előtte' => ['abc<styleSheet/>', false],
+    'UTF-8 BOM + <' => ["\xEF\xBB\xBF<styleSheet/>", true],
+    'szóköz + <' => ["\n  <styleSheet/>", true],
+]);
+
+it('S4(r6) · a nem `.xml` nevű, de XML-ként olvasott rész (pl. `.bin` munkalap) is a szöveg-ellenőrzésen megy át', function () {
+    $entries = array_merge(r5Base([]), [
+        'xl/_rels/workbook.xml.rels' => '<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.bin"/></Relationships>',
+        'xl/worksheets/sheet1.bin' => "\xFF\xFE".mb_convert_encoding('<worksheet><sheetData/></worksheet>', 'UTF-16LE', 'UTF-8'),
+    ]);
+    unset($entries['xl/worksheets/sheet1.xml']);
+
+    expect(fn () => app(ImportFileInspector::class)->guard(r5Zip($entries), 'xlsx'))
+        ->toThrow(fn (ImportLimitExceeded $e) => expect($e->reason)->toBe('format'));
+});
+
+it('S4(r6) · a valódi bináris részek (nyomtatóbeállítás, kép) átmennek; de a munkafüzet nem hivatkozhat beléjük', function () {
+    $printer = mb_convert_encoding('HP LaserJet', 'UTF-16LE', 'UTF-8').str_repeat("\0", 64);
+    $legit = r5Zip(array_merge(r5Base([]), [
+        'xl/printerSettings/printerSettings1.bin' => $printer,
+        'xl/media/image1.png' => "\x89PNG\r\n\x1a\n".str_repeat("\0", 32),
+    ]));
+
+    expect(fn () => app(ImportFileInspector::class)->guard($legit, 'xlsx'))->not->toThrow(ImportLimitExceeded::class);
+
+    // A sharedStrings a nyomtatóbeállítás „bináris" helyére mutat → a szöveg-ellenőrzés megkerülhető lenne.
+    $smuggled = r5Zip(array_merge(r5Base([]), [
+        'xl/_rels/workbook.xml.rels' => '<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings" Target="printerSettings/ss.bin"/></Relationships>',
+        'xl/printerSettings/ss.bin' => "\x4C\x6F\xA7\x94\x93",
+    ]));
+
+    expect(fn () => app(ImportFileInspector::class)->guard($smuggled, 'xlsx'))
+        ->toThrow(fn (ImportLimitExceeded $e) => expect($e->reason)->toBe('format'));
+});
+
+/* ---------------------------------------------------------------- r10 (D220): izolált olvasó a valódi job-úton */
+
+it('D220 · a `<row spans>` fájl a felmérő JOBBAN elegánsan elutasul (resources) — nincs 500, fájl és temp takarítva', function () {
+    $path = r5Zip(array_merge(r5Base([]), [
+        'xl/worksheets/sheet1.xml' => '<worksheet><sheetData><row r="1" spans="1:30000000"><c r="A1" t="inlineStr"><is><t>email</t></is></c></row></sheetData></worksheet>',
+    ]));
+
+    $this->actingAs($this->user)->withSession(['workspace_uuid' => $this->ws->uuid])
+        ->post('/audience/import', ['mode' => 'file', 'file' => new UploadedFile($path, 'spans.xlsx', null, null, true)])
+        ->assertRedirect();
+
+    $import = app(WorkspaceContext::class)->runFor($this->ws, fn () => ContactImport::query()->firstOrFail());
+
+    expect($import->status)->toBe(ContactImport::STATUS_FAILED)
+        ->and($import->failure_reason)->toBe('resources')
+        ->and($import->storage_path)->toBeNull()
+        ->and(Storage::disk('local')->allFiles('imports'))->toBe([])
+        ->and(Storage::disk('local')->directories('import-tmp'))->toBe([]);
+});

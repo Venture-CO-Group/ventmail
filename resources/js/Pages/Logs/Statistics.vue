@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { router } from '@inertiajs/vue3';
-import { VtButton, VtCard, VtGlowLine, VtTable, type VtColumn } from '@venture/ui';
+import { VtButton, VtGlowLine, type VtColumn } from '@venture/ui';
+import VmTable from '../../Components/Form/VmTable.vue';
+import VmCard from '../../Components/Form/VmCard.vue';
 import AppLayout from '../../Layouts/AppLayout.vue';
+import { useI18n } from 'vue-i18n';
 
 /**
  * TAG-SZINTŰ STATISZTIKA (A3 · 26. kritérium).
@@ -26,6 +29,8 @@ interface TagRow {
 
 const props = defineProps<{ days: number; channel: string | null; rows: TagRow[] }>();
 
+const { t } = useI18n({ useScope: 'global' });
+
 type Row = {
     tag: string;
     delivered: string;
@@ -34,12 +39,12 @@ type Row = {
     bounced: string;
 };
 
-const columns: VtColumn<Row>[] = [
-    { key: 'tag', label: 'Tag' },
-    { key: 'delivered', label: 'Kézbesítve' },
-    { key: 'opened', label: 'Nyitás' },
-    { key: 'clicked', label: 'Kattintás' },
-    { key: 'bounced', label: 'Visszapattant' },
+const columns = (): VtColumn<Row>[] => [
+    { key: 'tag', label: t('logs.tag') },
+    { key: 'delivered', label: t('stats.delivered') },
+    { key: 'opened', label: t('stats.opened') },
+    { key: 'clicked', label: t('stats.clicked') },
+    { key: 'bounced', label: t('stats.bounced') },
 ];
 
 const rows = (): Row[] =>
@@ -58,20 +63,20 @@ const setRange = (days: number): void => {
 
 <template>
     <AppLayout>
-        <VtCard>
-            <h1>Tag-statisztika</h1>
+        <VmCard>
+            <h1>{{ t('stats.title') }}</h1>
             <VtGlowLine />
 
-            <p data-testid="stats-range">Az elmúlt {{ props.days }} nap.</p>
+            <p data-testid="stats-range">{{ t('stats.range', { days: props.days }) }}</p>
 
-            <VtButton data-testid="stats-7" @click="setRange(7)">7 nap</VtButton>
-            <VtButton data-testid="stats-30" @click="setRange(30)">30 nap</VtButton>
-            <VtButton data-testid="stats-90" @click="setRange(90)">90 nap</VtButton>
+            <VtButton data-testid="stats-7" @click="setRange(7)">{{ t('stats.days', { days: 7 }) }}</VtButton>
+            <VtButton data-testid="stats-30" @click="setRange(30)">{{ t('stats.days', { days: 30 }) }}</VtButton>
+            <VtButton data-testid="stats-90" @click="setRange(90)">{{ t('stats.days', { days: 90 }) }}</VtButton>
 
-            <VtTable :columns="columns" :rows="rows()" data-testid="stats-table" />
+            <VmTable :columns="columns()" :rows="rows()" data-testid="stats-table" />
 
             <p v-if="props.rows.length === 0" data-testid="stats-empty">
-                Ebben az időszakban nincs tag-hez rendelt esemény.
+                {{ t('stats.empty') }}
             </p>
 
             <!--
@@ -80,9 +85,8 @@ const setRange = (days: number): void => {
                 kampány-döntés különben hamis számra épülne.
             -->
             <p data-testid="stats-mpp">
-                A nyitási arány felfelé torzít: egyes levélkliensek (pl. Apple Mail adatvédelmi
-                funkciója) a címzett helyett töltik be a képeket. A kattintás méri az emberi szándékot.
+                {{ t('stats.mpp') }}
             </p>
-        </VtCard>
+        </VmCard>
     </AppLayout>
 </template>

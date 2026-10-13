@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Template\Services;
 
+use App\Modules\StoredTemplates\Services\ConditionalContent;
 use DOMDocument;
 use DOMElement;
 use DOMNode;
@@ -41,8 +42,33 @@ final class MjmlCompiler
     /** A levél szélessége. 600 px az e-mail-világ de facto szabványa. */
     private const WIDTH = 600;
 
+    private const FONT = 'Helvetica,Arial,sans-serif';
+
+    private const BODY_BACKGROUND = '#f5f7fa';
+
+    /*
+     | A GLOBÁLIS stílus (v1.1) a `compile()` idejére. Az alapértékek a v1.1 előtti kimenetet
+     | adják bitre azonosan — a stílus csak akkor hat, ha az író kimondta (`mj-vm-styles`,
+     | `mj-body` attribútumok).
+     */
+    private int $width = self::WIDTH;
+
+    private string $font = self::FONT;
+
+    private string $bodyBackground = self::BODY_BACKGROUND;
+
+    private ?string $linkColour = null;
+
+    private bool $usesHideMobile = false;
+
     public function compile(string $mjml): string
     {
+        $this->width = self::WIDTH;
+        $this->font = self::FONT;
+        $this->bodyBackground = self::BODY_BACKGROUND;
+        $this->linkColour = null;
+        $this->usesHideMobile = false;
+
         $document = new DOMDocument('1.0', 'UTF-8');
 
         $previous = libxml_use_internal_errors(true);
@@ -104,10 +130,18 @@ final class MjmlCompiler
                     if ($head->nodeName === 'mj-preview') {
                         $preview = (string) $head->textContent;
                     }
+
+                    if ($head instanceof DOMElement && $head->nodeName === 'mj-vm-styles') {
+                        $this->readStyles($head);
+                    }
                 }
             }
 
             if ($node->nodeName === 'mj-body') {
+                if ($node instanceof DOMElement) {
+                    $this->readBody($node);
+                }
+
                 foreach ($this->children($node) as $section) {
                     $rows = $this->section($section);
 
@@ -137,6 +171,69 @@ final class MjmlCompiler
         return MergeTag::restore($this->document($bands, $preview));
     }
 
+    /** A globális betű és link-szín (az író csak ismert, megtisztított értéket ír ide). */
+    private function readStyles(DOMElement $styles): void
+    {
+        $font = $styles->getAttribute('font-family');
+
+        if ($font !== '' && preg_match('/^[A-Za-z0-9 ,\'-]{1,120}$/', $font) === 1) {
+            $this->font = $font;
+        }
+
+        $link = $styles->getAttribute('link-color');
+
+        if (preg_match('/^#[0-9a-fA-F]{3,8}$/', $link) === 1) {
+            $this->linkColour = $link;
+        }
+    }
+
+    private function readBody(DOMElement $body): void
+    {
+        $width = (int) $body->getAttribute('width');
+
+        if ($width >= 320 && $width <= 1000) {
+            $this->width = $width;
+        }
+
+        $background = $body->getAttribute('background-color');
+
+        if (preg_match('/^#[0-9a-fA-F]{3,8}$/', $background) === 1) {
+            $this->bodyBackground = $background;
+        }
+    }
+
+    /**
+     * A FELTÉTEL és a mobil-rejtés burka egy kimenet-darab körül.
+     *
+     * A feltétel HTML-komment-jelölő (`ConditionalContent`): a renderer címzettenként
+     * értékeli ki. A mobil-rejtés egy osztály, amit a `@media` szabály kapcsol ki.
+     */
+    private function decorate(DOMElement $node, string $html, string $wrapper): string
+    {
+        if ($html === '') {
+            return '';
+        }
+
+        if (str_contains(' '.$node->getAttribute('css-class').' ', ' vm-hide-mobile ')) {
+            $this->usesHideMobile = true;
+
+            $html = $wrapper === 'tr'
+                ? (string) preg_replace('/^<tr>/', '<tr class="vm-hide-mobile">', $html)
+                : '<div class="vm-hide-mobile">'.$html.'</div>';
+        }
+
+        $condition = $node->getAttribute('vm-if');
+
+        if ($condition !== '') {
+            $open = ConditionalContent::openEncoded($condition);
+
+            // A SÉRÜLT feltétel ELREJT: a tartalom nem kerülhet mindenkihez.
+            return $open === '' ? '' : $open.$html.ConditionalContent::END;
+        }
+
+        return $html;
+    }
+
     /** @param list<array{full: bool, rows: string}> $bands */
     private function document(array $bands, string $preview): string
     {
@@ -157,15 +254,16 @@ final class MjmlCompiler
             // A `@media` az EGYETLEN dolog, ami inline nem fejezhető ki: a hasábok mobilon
             // egymás alá csúsznak. Ha egy kliens eldobja, a táblázat-alap marad — az
             // egyhasábos nézet minden kliensben működik.
-            .'<style>@media only screen and (max-width:620px){'
+            .'<style>@media only screen and (max-width:'.($this->width + 20).'px){'
             .'.vm-col{display:block !important;width:100% !important;max-width:100% !important}'
             .'.vm-wrap{width:100% !important}'
+            .($this->usesHideMobile ? '.vm-hide-mobile{display:none !important;max-height:0 !important;overflow:hidden !important}' : '')
             .'}</style>'
             .'</head>'
-            .'<body style="margin:0;padding:0;background-color:#f5f7fa;">'
+            .'<body style="margin:0;padding:0;background-color:'.$this->bodyBackground.';">'
             .$hidden
             .'<table role="presentation" class="vm-wrap" width="100%" cellpadding="0" cellspacing="0" border="0" '
-            .'style="background-color:#f5f7fa;">'
+            .'style="background-color:'.$this->bodyBackground.';">'
             .$this->bands($bands)
             .'</table>'
             .'</body></html>';
@@ -197,8 +295,8 @@ final class MjmlCompiler
             }
 
             $html .= '<tr><td align="center" style="padding:0;">'
-                .'<table role="presentation" class="vm-wrap" width="'.self::WIDTH.'" cellpadding="0" cellspacing="0" '
-                .'border="0" style="width:'.self::WIDTH.'px;max-width:'.self::WIDTH.'px;">'
+                .'<table role="presentation" class="vm-wrap" width="'.$this->width.'" cellpadding="0" cellspacing="0" '
+                .'border="0" style="width:'.$this->width.'px;max-width:'.$this->width.'px;">'
                 .$band['rows']
                 .'</table>'
                 .'</td></tr>';
@@ -249,14 +347,14 @@ final class MjmlCompiler
             );
         }
 
-        return sprintf(
+        return $this->decorate($section, sprintf(
             '<tr><td style="padding:%s;%s">'
             .'<table role="presentation" width="100%%" cellpadding="0" cellspacing="0" border="0"><tr>%s</tr></table>'
             .'</td></tr>',
             htmlspecialchars($padding, ENT_QUOTES),
             $background === '' ? '' : 'background-color:'.htmlspecialchars($background, ENT_QUOTES).';',
             $cells
-        );
+        ), 'tr');
     }
 
     private function content(DOMNode $node): string
@@ -281,14 +379,18 @@ final class MjmlCompiler
             // A `mj-raw` tartalma CDATA-ban jött (lásd `MjmlWriter`): a `textContent` adja
             // vissza nyersen, a `saveHTML` a CDATA-jelölést is kiírná.
             'mj-raw' => (string) $node->textContent,
+            'mj-vm-group' => $this->decorate($node, implode('', array_map(
+                fn (DOMNode $child): string => $this->content($child),
+                $this->children($node)
+            )), 'div'),
             default => '',
         };
     }
 
     private function textBlock(DOMElement $node): string
     {
-        $style = 'margin:0;padding:8px 0;'
-            .'font-family:Helvetica,Arial,sans-serif;'
+        $style = 'margin:0;padding:'.($node->getAttribute('padding') ?: '8px 0').';'
+            .'font-family:'.$this->font.';'
             .'font-size:'.($node->getAttribute('font-size') ?: '16px').';'
             .'line-height:'.($node->getAttribute('line-height') ?: '1.5').';'
             .'color:'.($node->getAttribute('color') ?: '#1f2933').';'
@@ -296,6 +398,15 @@ final class MjmlCompiler
 
         if ($node->getAttribute('font-weight') !== '') {
             $style .= 'font-weight:'.$node->getAttribute('font-weight').';';
+        }
+
+        // A GLOBÁLIS link-szín (v1.1): csak a saját stílus nélküli linkekre.
+        if ($this->linkColour !== null) {
+            foreach ($node->getElementsByTagName('a') as $anchor) {
+                if ($anchor instanceof DOMElement && $anchor->getAttribute('style') === '') {
+                    $anchor->setAttribute('style', 'color:'.$this->linkColour.';');
+                }
+            }
         }
 
         return '<div style="'.htmlspecialchars($style, ENT_QUOTES).'">'.$this->inner($node).'</div>';
@@ -332,7 +443,7 @@ final class MjmlCompiler
             '<div style="padding:8px 0;text-align:%s;">'
             .'<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="display:inline-table;">'
             .'<tr><td align="center" bgcolor="%s" style="background-color:%s;border-radius:%s;padding:%s;">'
-            .'<a href="%s" style="display:inline-block;font-family:Helvetica,Arial,sans-serif;font-size:16px;'
+            .'<a href="%s" style="display:inline-block;font-family:%s;font-size:16px;'
             .'font-weight:700;color:%s;text-decoration:none;">%s</a>'
             .'</td></tr></table></div>',
             htmlspecialchars($node->getAttribute('align') ?: 'center', ENT_QUOTES),
@@ -341,6 +452,7 @@ final class MjmlCompiler
             htmlspecialchars($node->getAttribute('border-radius') ?: '6px', ENT_QUOTES),
             htmlspecialchars($node->getAttribute('padding') ?: '16px 24px', ENT_QUOTES),
             htmlspecialchars($node->getAttribute('href'), ENT_QUOTES),
+            htmlspecialchars($this->font, ENT_QUOTES),
             htmlspecialchars($node->getAttribute('color') ?: '#ffffff', ENT_QUOTES),
             $this->inner($node)
         );
@@ -366,9 +478,10 @@ final class MjmlCompiler
             }
 
             $cells .= sprintf(
-                '<td style="padding:0 6px;"><a href="%s" style="font-family:Helvetica,Arial,sans-serif;'
+                '<td style="padding:0 6px;"><a href="%s" style="font-family:%s;'
                 .'font-size:13px;color:#52606d;text-decoration:none;">%s</a></td>',
                 htmlspecialchars($element->getAttribute('href'), ENT_QUOTES),
+                htmlspecialchars($this->font, ENT_QUOTES),
                 htmlspecialchars(ucfirst($element->getAttribute('name')), ENT_QUOTES)
             );
         }

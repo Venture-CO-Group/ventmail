@@ -63,6 +63,7 @@ final class Campaign extends Model
             'exclude_segments' => 'array',
             'scheduled_at' => 'datetime',
             'estimated_at' => 'datetime',
+            'materialized_at' => 'datetime',
             'started_at' => 'datetime',
             'finished_at' => 'datetime',
         ];
@@ -138,5 +139,19 @@ final class Campaign extends Model
     public function hasVariants(): bool
     {
         return $this->variants()->count() > 1;
+    }
+
+    /**
+     * A kampány és a változatai által hivatkozott sablon-id-k — a küldésre élesítés ezeket zárolja
+     * (`TemplateUsage::lockForActivation`, review SEC4-S1).
+     *
+     * @return list<int>
+     */
+    public function templateIds(): array
+    {
+        return array_values(array_filter([
+            $this->template_id === null ? null : (int) $this->template_id,
+            ...$this->variants()->pluck('template_id')->map(static fn ($id) => $id === null ? null : (int) $id)->all(),
+        ]));
     }
 }

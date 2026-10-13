@@ -103,8 +103,35 @@
     Wasabi Object Lock csak ha be van állítva (HUMAN-QUEUE: backup-cél). Restore-teszt mindkettőre.
 11. **Rate limit kezdetben**: domain-csoportonként a `SENDING_THROTTLE_*` (Gmail 100, Microsoft 60,
     Yahoo 60, egyéb 60/perc); a tx IP napi kerete 500, a mk-é 0 (`ventmail:ip-pools:sync`).
-12. **Resource limitek**: Postgres 6g · app 2g · worker 2g · Redis 1.25g · MariaDB 2g ·
-    Postal worker 1.5g/pool · Postal web/smtp 768m · edge 256m — egy elszálló worker nem viheti el az MTA-t.
+12. **Resource limitek**: Postgres 6g · app 2g · worker 2g · **worker-imports 3g** · scheduler 512m ·
+    web 256m · Redis 1.25g · MariaDB 2g · Postal worker 1.5g/pool · Postal web/smtp 768m · edge 256m —
+    egy elszálló worker nem viheti el az MTA-t.
+    **Memória-költségvetés (frissítve 2026-10-13, v1.1 import-izoláció után):**
+    - Egy szín (`compose.prod.yml`): app 2g + worker 2g + worker-imports 3g + scheduler 0.5g + web 0.25g
+      = **7.75g**. A blue/green váltás alatt a régi és az új szín együtt fut: **+7.75g** a váltás idejére
+      (a review „+6g” becslése a scheduler/web nélkül számolt). A migrációhoz egyszer futó `ops` +1g.
+    - Közös (színfüggetlen): Postgres 6g, Redis 1.25g, MariaDB 2g, Postal worker 2 × 1.5g, Postal
+      web/smtp, edge 0.25g, **Gotenberg 1g (v1.1 modul 8, 17. pont)**.
+    - **worker-imports (3g) belső költségvetése (D224 → D259, modul 5 r10–r11):** 4 worker-folyamat
+      (imports 2 + imports-inspect 2; mindegyik `memory_limit` 256 MB a php.ini-ből), plusz a Horizon
+      master (`-d memory_limit=512M`, a valóságban ~50 MB) és a 2 supervisor (~50 MB-onként). Minden
+      workernek legfeljebb EGY izolált XLSX-olvasó gyereke fut (D220): címtér-limit **448 MB**
+      (`AUDIENCE_IMPORT_XLSX_CHILD_AS_MB`, Linuxon `ulimit -v`; a libxml memóriája is ebbe számít),
+      `memory_limit` 256 MiB, CPU-idő `ulimit -t` (a keret + 10 mp). Legrosszabb eset: 4 × 256 MiB +
+      ~150 MiB (BECSLÉS: master + 2 supervisor) + 4 × 448 MiB = **2966 MiB ≈ 2,90 GiB < 3 GiB (3072 MiB,
+      a compose `mem_limit: 3g`)**. A `DeployArtifactsTest` a `memory_limit`-et a `docker/php/php.ini`-ből,
+      a `mem_limit`-et a `deploy/compose.prod.yml`-ből olvassa. A mért gyerek-csúcs (~495 MB, review r11) így a
+      GYEREKET állítja meg (`resources` elutasítás), nem a konténert — a cgroup OOM-killer nem viheti
+      el a supervisorokat. Az image buildje igazolja, hogy a `ulimit -v` elfogadott ÉS érvényesül
+      (Dockerfile, D222/D260). A gyerek minimális környezetet kap (titok nélkül) és a szülő fd-ijét
+      nem örökli (D255–D256).
+    - A box (mail-ovh-01): **31 GB RAM, ~28 GB szabad — mérve 2026-10-13.** A limitek PLAFONOK, nem
+      foglalás: a tényleges csúcs a váltás alatt jóval a limitösszeg alatt van, de a limitösszeg a
+      váltás pillanatában megközelíti a box méretét — új szolgáltatás vagy limitemelés előtt ezt a
+      költségvetést újra kell számolni.
+    - A Horizon-környezetek (review B5): a `worker` (`production`) csak sending + background +
+      campaign-start, a `worker-imports` (`imports`) csak imports + imports-inspect supervisort indít —
+      a `config/horizon.php` `defaults`-a ezért üres (a Horizon minden környezetbe beolvasztaná).
 13. **Merge**: a CLAUDE.md „PR-only, auto-merge soha” és a hook a `main`-re pusht tilt; a prompt
     kifejezetten merge-et kér. Megoldás: PR → teljes CI zöld → `gh pr merge --merge` (merge-commit,
     = `--no-ff`) a tulajdonos promptbeli utasítására; nincs GitHub auto-merge és nincs direkt push.
@@ -121,6 +148,87 @@
     **Tudatosan nem változott:** `deploy` NOPASSWD sudo (trust-box paritás, kulcs-only SSH,
     admin-IP-re szűkítve); tag-alapú pull (a tagot csak a CI építi); kimenő 465/587 a
     konténerekből nincs tiltva (a pool-reputációt csak a 25 érinti).
+
+16. **Megosztott fájltár (v1.1 modul 8, D227 / D242).** A `compose.prod.yml` minden PHP-szerepe (app,
+    worker, worker-imports, scheduler, ops) ugyanazt a `storage/app`-ot látja két KÜLSŐ, nevesített
+    volume-on: `ventmail-storage` → `/app/storage/app` (privát: import-feltöltés, riport-PDF, logó) és
+    `ventmail-storage-public` → `/app/storage/app/public` (sablon-képek, D10). A `web` CSAK a public
+    volume-ot kapja, csak olvasva; a Caddy `/storage/*`-ot sima fájlként szolgálja ki (PHP nélkül,
+    `Cross-Origin-Resource-Policy: cross-origin`, mert a képeket a levelezőkliensek más originről töltik).
+    Két volume egy helyett: így a web a privát fájlokat (importok, riportok) a fájlrendszerében sem látja.
+    A `deploy.sh` 2. lépése `docker volume create`-tel hozza létre (idempotens), semmi nem törli; mindkét
+    szín ugyanazt csatolja (a váltás fájlt nem veszít). Az üres volume-ot a Docker az image tartalmával
+    tölti fel (10001-es tulajdonos); rossz tulajdonosnál az entrypoint `ensure_storage` megállítja a
+    konténert. **Ideiglenes fájlok:** az import openspout-temp (`import-tmp/<uuid>`) és az izolált
+    XLSX-gyerek (D220/D222) temp-je a `local` diszken, tehát a megosztott volume-on van — szándékosan:
+    ugyanaz a worker írja és olvassa, a purge (1 óránál régebbi) a volume-on takarít; a konténer-lokális
+    `/tmp`-n egy OOM-maradék a konténer élettartamáig foglalna. A `storage/framework` (cache, view)
+    konténer-lokális marad.
+    **Átállás (D254; a 2. biztonsági kör után D277–D281):** a D227 előtti színek a sablon-képeket és a
+    privát fájlokat a SAJÁT konténer-rétegükben tartják. A `deploy.sh` 7. lépése ezért: drain →
+    a régi szín **`stop`**-ja (a workerei és a schedulere nem futnak tovább — nincs dupla ütemezett
+    job, nincs új queue-felvétel; a leállított konténer rétege megmarad, a `docker cp` olvassa) →
+    egyszeri másolás → ellenőrzés → `down`. A másolás:
+    - a forrás szigorúan keresett: hibás `docker ps` vagy „van konténer, de nincs `app`" → hiba;
+    - **szabadhely-ellenőrzés** a staging előtt: a volume-on legalább 2× a forrás + 64 MB
+      (`D227_MIN_FREE_FACTOR`, `D227_MIN_FREE_MARGIN_KB`); különben semmi nem íródik;
+    - a már ott lévő (az új szín által írt) fájlok listája (`.d227-preexisting`) CSAK az első kísérletben
+      készül, a stagingen kívül, és újrapróbáláskor nem számolódik újra;
+    - minden fájl **atomian, felülírás nélkül** másolódik (`<név>.d227-part`, majd `ln` a végleges
+      névre — ha az már létezik, az ütközés-ágba megy), az újrapróbálás előbb törli a SAJÁT maradék
+      `.d227-part`-jait — csonka fájl soha nem kerül a végleges névre;
+    - ütközésnél (más tartalom ugyanazon az úton) az új szín változata marad, a régi a
+      `.d227-conflicts/` alá kerül (naplózva); a kihagyott szimlinkek száma naplózva;
+    - az ellenőrzés a migrált fájlokat **bájtra** (`cmp`) veti össze; maradék `*.d227-part` = hiba;
+      csak ezután íródik a `.d227-migrated` jelölő (`migrated=… files=… bytes=…`), és csak ezután `down`.
+    - Hibánál a staging azonnal törlődik, a régi szín **leállítva, de nem eltávolítva** marad
+      (a fájljai egyetlen példánya), a `.d227-pending` minden deployt tilt; javítás után
+      `./deploy.sh --migrate-storage` fejezi be. Ha közben a régi színt ideiglenesen vissza kell
+      indítani (pl. kiszolgálásra): `VENTMAIL_TAG=<a szín tagje> VENTMAIL_COLOR=<szín> docker compose -p ventmail-<szín> -f compose.prod.yml start` a
+      `/srv/apps/ventmail`-ből — a `--migrate-storage` ilyenkor is működik (előtte újra leállítja).
+    - **Megszakítás (SIGHUP, ssh-szakadás, reboot; D285–D286):** a `.d227-pending` a 7. lépés ELEJÉN,
+      a drain ELŐTT íródik (atomian), és csak a sikeres `down` után törlődik — egy megszakított váltás
+      után minden deploy tilt, amíg a `--migrate-storage` le nem fut. Második védővonal: a 6. lépés
+      (`up`) előtt, ha nincs `.d227-migrated` jelölő és a cél-szín projektjének van (akár leállított)
+      konténere, a deploy megáll — `up -d --remove-orphans` nem semmisítheti meg a régi réteget. A
+      `--migrate-storage` a kiszolgáló színt soha nem állítja le (D290).
+    - **Már volume-os szín (round 4, D293–D295):** egy szín, amelynek `app` konténere a volume-ot
+      csatolja, a migrációnál nem másolódik, de a GLOBÁLIS jelölőt sem írja (a másik szín még lehet
+      D227 előtti); a guard az ilyen cél-színt újra létrehozhatja (nincs mentendő réteg), és csak
+      D227 előtti színnél áll meg — csak azt szabad a `.d227-pending`-be írni. A friss-box jelölő csak
+      akkor íródik, ha egyik szín-projektnek sincs (leállított) konténere sem.
+    - **Friss box (D288, D295):** az első deploy (nincs korábbi szín, és egyik szín-projektnek sincs
+      konténere) a jelölőt másolás nélkül írja. Egy már volume-os szín nem másolódik önmagára, és
+      jelölőt SEM ír (D293) — lásd fent.
+    - **Két egyidejű D227 előtti szín (D298):** a jelölő globális, ezért csak akkor íródik, ha a MÁSIK
+      színnek sincs D227 előtti `app` konténere; addig az egyik szín migrálása után a jelölő vár, és a
+      másik szín kivezetésekor az ő rétege is átmásolódik.
+    - **Megszakítás a jelölő és a takarítás között (D300):** a jelölő atomian íródik; a következő
+      futás a jelölő mellett megmaradt stagingot és `.d227-preexisting`-et eltakarítja.
+    - **Részlegesen elindult, egészségtelen szín (D299):** a hibaüzenet a biztonságos parancsot adja
+      (`VENTMAIL_TAG=<tag> VENTMAIL_COLOR=<szín> docker compose -p ventmail-<szín> -f compose.prod.yml
+      down --remove-orphans`) — az a szín már a volume-on fut, nincs mentendő rétege.
+    - **Ellenőrzés (D287, D289):** a forrás tar-stream bejegyzés-száma (`tar -t`) és a staging egyezik
+      (egy fejléc-határon csonkult stream nem mehet át); a no-clobber `ln`-nel (nincs ellenőrzés–mozgatás
+      verseny); csak a SAJÁT `.d227-part` maradékok törlődnek; az ütközés-másolat is atomi és `cmp`-elt.
+    - Élesítés előtt: `docker exec <app> du -s /app/storage/app` és `df` a docker-gyökéren.
+    Ellenőrzés: `docker run --rm -v ventmail-storage:/d alpine cat /d/.d227-migrated`.
+    **Rollback:** egy D227 előtti tagre visszalépéskor is a mostani (D227-es) `compose.prod.yml`,
+    `compose.data.yml`, `compose.render.yml` maradjon a boxon (a volume-ok és a render-háló nélkül a
+    régi kiadás fájljai újra konténer-lokálisak lennének). **Renderer-env:** egy elgépelt vagy élesben
+    `fake` `ANALYTICS_PDF_RENDERER` az alkalmazás indulását állítja meg (D263) — minden szerepkörét;
+    a deploy preflightja (`config:cache`) ezt a váltás ELŐTT kiszűri.
+
+17. **PDF-renderer sidecar (v1.1 modul 8, D238).** `deploy/compose.render.yml` (projekt `ventmail-render`,
+    színfüggetlen, a `deploy.sh` 2. lépése indítja és health-re vár): Gotenberg `8.37.0-chromium`, tag ÉS
+    digest szerint pinelve. Csak a `ventmail-render` (`internal: true`) hálón — nincs host-port, nincs
+    kimenő forgalom; csak az `app` és a `worker` csatlakozik. Chromium csak `file:///tmp/*`-t tölthet,
+    `downloadFrom`/webhook/metrika kikapcsolva, a böngésző-állapot konverziónként törlődik. Read-only root,
+    tmpfs `/tmp` + `/home/gotenberg` (enélkül a Chromium nem indul read-only rooton — mérve), `cap_drop: ALL`,
+    `no-new-privileges`, `mem_limit 1g`, `cpus 1.0`, `pids_limit 512`. Az image GPL-es segédeszközöket is
+    tartalmaz (pl. pdftk) — külön konténerben, HTTP-n át használjuk, a ventMail kódjával nem linkelődik.
+    **Memória:** a 12. pont költségvetése +1 GB (Gotenberg, színfüggetlen, a váltáskor nem duplázódik);
+    a worker `reports` supervisora (1 folyamat, 256 MB) a worker 2g-s keretén belül fut.
 
 ## PLAN (sorrend)
 

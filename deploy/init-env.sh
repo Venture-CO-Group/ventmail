@@ -115,6 +115,11 @@ POSTAL_MK_ENDPOINT=http://postal-mk-web:5000
 POSTAL_MK_API_KEY=
 POSTAL_MK_WEBHOOK_PUBLIC_KEY=
 
+# --- PDF reports (v1.1 module 8): the Gotenberg sidecar on the internal ventmail-render network
+ANALYTICS_PDF_RENDERER=gotenberg
+GOTENBERG_URL=http://gotenberg:3000
+ANALYTICS_PDF_TIMEOUT=60
+
 # --- database (internal mail-db network only)
 DB_SSLMODE=disable
 ENV

@@ -58,11 +58,28 @@ it('ismeretlen ok és hatókör elutasítva', function () {
         ->toThrow(InvalidArgumentException::class);
 });
 
-it('a globális tiltás nem írható felül tenantból', function () {
+/*
+ | D187 (v1.1 · 7. modul review): a globális címre tett tenant-felvétel NEM dob — különben a
+ | válasz különbsége elárulná a platform-tiltás létezését. A tenant SAJÁT sora jön létre, a
+ | globális sor érintetlen marad (és a kapuban továbbra is blokkol).
+ */
+it('a globális tiltást a tenant-felvétel nem írja felül, és nem is árulja el', function () {
     Suppression::onPlatform(fn () => Suppression::create(['email' => 'globalis@example.test', 'reason' => 'policy']));
 
-    expect(fn () => app(SuppressionStore::class)->add($this->key, 'globalis@example.test', 'bounce'))
-        ->toThrow(AuthorizationException::class);
+    $own = app(SuppressionStore::class)->add($this->key, 'globalis@example.test', 'bounce');
+
+    expect($own->workspace_id)->not->toBeNull()
+        ->and($own->reason)->toBe('bounce')
+        ->and(Suppression::onPlatform(fn () => Suppression::query()->whereNull('workspace_id')->where('email', 'globalis@example.test')->value('reason')))->toBe('policy');
+});
+
+it('a visszavonhatatlan ok ragadós: leiratkozásból bounce/policy után sem lesz törölhető (D186)', function () {
+    app(SuppressionStore::class)->add($this->key, 'r@example.test', 'unsubscribe');
+    app(SuppressionStore::class)->add($this->key, 'r@example.test', 'bounce');
+    app(SuppressionStore::class)->add($this->key, 'r@example.test', 'policy');
+
+    expect(Suppression::first()->reason)->toBe('unsubscribe')
+        ->and(fn () => app(SuppressionStore::class)->remove($this->key, 'r@example.test'))->toThrow(AuthorizationException::class);
 });
 
 it('panasz és leiratkozás API-ból nem törölhető', function () {

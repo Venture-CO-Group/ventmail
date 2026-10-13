@@ -5,9 +5,12 @@ declare(strict_types=1);
 namespace App\Modules\Template\Services;
 
 use DOMAttr;
+use DOMCdataSection;
+use DOMComment;
 use DOMDocument;
 use DOMElement;
 use DOMNode;
+use DOMProcessingInstruction;
 
 /**
  * ALLOWLIST-ALAPÚ HTML-tisztítás — a nyers HTML blokkhoz és a formázott szöveghez.
@@ -36,6 +39,15 @@ final class HtmlSanitizer
 {
     /** Formázás, ami egy levélkliensben mindenhol működik. */
     private const INLINE_TAGS = ['a', 'b', 'strong', 'i', 'em', 'u', 's', 'span', 'br'];
+
+    /**
+     * A FORMÁZOTT SZÖVEG (v1.1 inline szerkesztő) többlete: bekezdés, lista. Az igazítás
+     * és a betűszín a `style` attribútumon jön (`text-align`, `color`), ami a `*`-on
+     * engedett és a `style()` szűrőn megy át.
+     *
+     * @var list<string>
+     */
+    private const RICH_TAGS = ['p', 'div', 'ul', 'ol', 'li'];
 
     /** @var list<string> */
     private const BLOCK_TAGS = [
@@ -84,6 +96,12 @@ final class HtmlSanitizer
     public function inline(string $html): string
     {
         return $this->clean($html, self::INLINE_TAGS);
+    }
+
+    /** A `text` blokk tartalma (v1.1): inline + bekezdés és lista. */
+    public function rich(string $html): string
+    {
+        return $this->clean($html, array_merge(self::INLINE_TAGS, self::RICH_TAGS));
     }
 
     public function block(string $html): string
@@ -160,6 +178,20 @@ final class HtmlSanitizer
     {
         for ($i = $node->childNodes->length - 1; $i >= 0; $i--) {
             $child = $node->childNodes->item($i);
+
+            /*
+             | KOMMENT és PROCESSING INSTRUCTION: MIND eltűnik (SS3). Mérve mindhárom rés élt:
+             | `<!--[if mso]>…<![endif]-->` az Outlookban szűretlen HTML-t futtat (a tartalma a
+             | DOM-ban csak szöveg, a sanitizer nem látja), egy beírt `<!--vm:endif-->`
+             | hamisítja a feltételes blokk határát (a „csak VIP" tartalom mindenkihez kerül),
+             | a `<!-->` alak pedig régebbi libxml-en mXSS. A levél tartalmának kommentre
+             | nincs szüksége.
+             */
+            if ($child instanceof DOMComment || $child instanceof DOMProcessingInstruction || $child instanceof DOMCdataSection) {
+                $node->removeChild($child);
+
+                continue;
+            }
 
             if (! $child instanceof DOMElement) {
                 continue;

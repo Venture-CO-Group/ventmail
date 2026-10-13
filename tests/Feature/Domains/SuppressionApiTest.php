@@ -39,7 +39,15 @@ it('scope nélkül nem lehet', function () {
         ->toThrow(AuthorizationException::class);
 });
 
-it('a lista a saját ÉS a globális bejegyzéseket adja', function () {
+/*
+ | v1.1 · 7. modul review (RB1/S2, D187) — TUDATOS VÁLTOZÁS: a lista CSAK a saját sorokat adja.
+ |
+ | Az eredeti kritérium (#26) a globális sorokat is listáztatta. A `/v1/suppressions`
+ | megjelenésével ez a lista nyilvános, kereshető szerződés lett: a platform-szintű tiltás
+ | (spamcsapda, jogi tiltás) kiadása tenantnak orákulum és adatszivárgás. A globális tiltás
+ | továbbra is BLOKKOL (PreSendGate 2. kapu) — csak nem LÁTSZIK.
+ */
+it('a lista CSAK a saját bejegyzéseket adja, a globálisat nem', function () {
     ['model' => $key] = ApiKey::issue('CI', ['suppressions:read', 'suppressions:write']);
 
     app(SuppressionStore::class)->add($key, 'sajat@example.test', 'bounce');
@@ -47,7 +55,7 @@ it('a lista a saját ÉS a globális bejegyzéseket adja', function () {
 
     $lista = app(SuppressionStore::class)->list($key);
 
-    expect($lista->pluck('email')->all())->toEqualCanonicalizing(['sajat@example.test', 'globalis@example.test']);
+    expect($lista->pluck('email')->all())->toEqualCanonicalizing(['sajat@example.test']);
 });
 
 it('a másik tenant bejegyzése nem látszik', function () {

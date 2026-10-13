@@ -11,6 +11,7 @@ use App\Modules\Sending\Enums\Channel;
 use App\Modules\Sending\Services\UnsubscribeHeaderPolicy;
 use App\Modules\Suppression\Services\UnsubscribeBaseUrl;
 use App\Modules\Suppression\Services\UnsubscribeTokens;
+use App\Modules\Template\Services\WebVersionTokens;
 use App\Modules\Tenancy\Concerns\BelongsToWorkspace;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
@@ -295,8 +296,31 @@ final class Message extends Model
                 $recipient,
             ),
             'preferences_url' => $this->preferenceCenterUrl($recipient),
-        ];
+        ] + ($this->isStudioOrigin() ? [
+            // v1.1 — a „megnyitás böngészőben" link (`{{ browser_url }}`) CSAK Studio-eredetű
+            // törzsre (kampány, journey, sablon-teszt). Egy `/v1` hívó saját `browser_url`
+            // változója így érintetlen marad, és egy API-n küldött (pl. jelszó-visszaállító)
+            // törzs sem kerül link mögé. A token lejár (`exp`).
+            'browser_url' => app(UnsubscribeBaseUrl::class)->for($this->domain).'/w/'.app(WebVersionTokens::class)->issue(
+                (int) $this->workspace_id,
+                (string) $this->uuid,
+            ),
+        ] : []);
     }
+
+    /** Studio-eredetű-e a törzs (a szerkesztő sablonjából, belső hívótól)? */
+    public function isStudioOrigin(): bool
+    {
+        return in_array($this->options['studio_origin'] ?? null, self::STUDIO_ORIGINS, true);
+    }
+
+    /**
+     * A belső (Studio) küldő utak jelölése az `options.studio_origin`-ben. A `/v1` és az
+     * SMTP út ezt nem tudja beállítani (a `MailgunPayload` opció-allowlistje zárt).
+     *
+     * @var list<string>
+     */
+    public const STUDIO_ORIGINS = ['campaign', 'journey', 'template_test'];
 
     /** @return array<string, string> */
     private function unsubscribePair(string $recipient): array

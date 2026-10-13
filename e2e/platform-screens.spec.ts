@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { clickNav } from './support/shell';
 
 /*
  * M4-1 · A PLATFORM ÜZEMELTETŐI KÉPERNYŐI a böngészőben.
@@ -27,7 +28,7 @@ test('a menüből minden platform-képernyő elérhető', async ({ page }) => {
         ['nav-deliverability', '/deliverability'],
         ['nav-billing', '/billing'],
     ] as const) {
-        await page.getByTestId(testid).click();
+        await clickNav(page, 'platform', testid);
         await expect(page).toHaveURL(new RegExp(`${url}$`));
         // A héj minden képernyőn ott van: enélkül a felhasználó zsákutcába kerülne.
         await expect(page.getByTestId('app-nav')).toBeVisible();
@@ -37,6 +38,8 @@ test('a menüből minden platform-képernyő elérhető', async ({ page }) => {
 test('az API-kulcs kiállításkor EGYSZER látszik', async ({ page }) => {
     await page.goto('/api-keys');
 
+    // v1.1: a kiállító űrlap modalban nyílik (a mockup szerint az oldalfej gombjáról).
+    await page.getByTestId('key-new').click();
     await page.getByTestId('key-name').fill('E2E kulcs');
     // A `VtCheckbox` belső `<input>`-ja vizuálisan rejtett (a pipát a `span` rajzolja),
     // ezért a CÍMKÉRE kattintunk — ahogy a felhasználó is tenné.
@@ -58,20 +61,27 @@ test('az API-kulcs kiállításkor EGYSZER látszik', async ({ page }) => {
 test('a tiltólista felvesz, és a PANASZT nem engedi feloldani', async ({ page }) => {
     await page.goto('/suppressions');
 
+    // v1.1: a felvétel modalban; a felvett cím a SAJÁT listáján (kézi tiltások) jelenik meg.
+    await page.getByTestId('suppression-new').click();
     await page.getByTestId('suppression-email').fill('e2e-tiltott@pelda.hu');
     await page.getByTestId('suppression-submit').click();
 
+    await expect(page).toHaveURL(/list=manual/);
     await expect(page.getByTestId('suppressions-table')).toContainText('e2e-tiltott@pelda.hu');
 
-    // A kézi tiltás feloldható…
+    // A kézi tiltás feloldható — de csak INDOKLÁSSAL (auditált).
     await expect(page.getByTestId('remove-e2e-tiltott@pelda.hu')).toBeVisible();
     await page.getByTestId('remove-e2e-tiltott@pelda.hu').click();
+    await expect(page.getByTestId('suppression-delete-confirm')).toBeDisabled();
+    await page.getByTestId('suppression-justification').fill('E2E: tévesen felvett cím');
+    await page.getByTestId('suppression-delete-confirm').click();
     await expect(page.getByTestId('flash-success')).toBeVisible();
 });
 
 test('a webhook-végpont SSRF-es címre nem jön létre', async ({ page }) => {
     await page.goto('/webhooks');
 
+    await page.getByTestId('endpoint-new').click();
     await page.getByTestId('endpoint-name').fill('Belső');
     await page.getByTestId('endpoint-url').fill('http://169.254.169.254/latest/meta-data/');
     await page.getByTestId('endpoint-submit').click();

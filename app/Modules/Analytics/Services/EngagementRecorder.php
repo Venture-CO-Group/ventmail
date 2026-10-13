@@ -86,6 +86,10 @@ final class EngagementRecorder
                     $column => 1,
                     'first_opened_at' => $column === 'opens' ? $at : null,
                     'first_clicked_at' => $column === 'clicks' ? $at : null,
+                    // v1.1 · a LEGUTOLSÓ reakció: a „megnyitotta az elmúlt N napban" szegmens
+                    // és a közönség engagement-szintjei ebből dolgoznak.
+                    'last_opened_at' => $column === 'opens' ? $at : null,
+                    'last_clicked_at' => $column === 'clicks' ? $at : null,
                     'last_event_at' => $at,
                     'created_at' => now(),
                     'updated_at' => now(),
@@ -99,6 +103,10 @@ final class EngagementRecorder
                     'first_opened_at' => DB::raw('least(campaign_engagement.first_opened_at, excluded.first_opened_at)'),
                     'first_clicked_at' => DB::raw('least(campaign_engagement.first_clicked_at, excluded.first_clicked_at)'),
                     'last_event_at' => DB::raw('greatest(campaign_engagement.last_event_at, excluded.last_event_at)'),
+                    // A `greatest` a NULL-t figyelmen kívül hagyja: egy kézbesítés nem törli a
+                    // korábbi nyitás idejét.
+                    'last_opened_at' => DB::raw('greatest(campaign_engagement.last_opened_at, excluded.last_opened_at)'),
+                    'last_clicked_at' => DB::raw('greatest(campaign_engagement.last_clicked_at, excluded.last_clicked_at)'),
                     'updated_at' => now(),
                 ]
             );

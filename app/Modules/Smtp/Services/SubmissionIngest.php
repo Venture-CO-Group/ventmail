@@ -43,6 +43,20 @@ final class SubmissionIngest implements SubmissionSink
 
     public function accept(SubmissionPrincipal $principal, SmtpEnvelope $envelope, string $rawMime): SmtpReply
     {
+        /*
+         | A HITELESÍTŐ ÉLETBEN VAN-E MÉG (v1.1 · 7. modul review S3, D190)?
+         |
+         | A hitelesítés a munkamenet ELEJÉN történt; egy hosszú kapcsolat alatt a hitelesítőt
+         | rotálhatták vagy visszavonhatták. Enélkül a visszavont jelszóval nyitott kapcsolat a
+         | korlátlan ideig küldhetne tovább (és a perces kerete is az alapértelmezésre esne
+         | vissza). 421: a kliens zárja a kapcsolatot, és újra hitelesít — az új jelszóval.
+         */
+        $credential = SmtpCredential::findByUuid($principal->credentialUuid);
+
+        if ($credential === null || ! $credential->isUsable()) {
+            return new SmtpReply(421, 'Credential revoked, closing connection', '4.7.0');
+        }
+
         $workspace = Workspace::query()->whereKey($principal->workspaceId)->first();
 
         if ($workspace === null) {

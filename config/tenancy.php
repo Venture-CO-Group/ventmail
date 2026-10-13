@@ -27,4 +27,12 @@ return [
         'ttl_days' => (int) env('TENANCY_INVITATION_TTL_DAYS', 14),
         'retention_days' => (int) env('TENANCY_INVITATION_RETENTION_DAYS', 90),
     ],
+
+    /*
+     | WORKSPACE-ek a váltóból. A plafon a felhasználó által TULAJDONOLT workspace-ekre
+     | vonatkozik (nem a tagságokra): a meghívás nem fogyaszt belőle.
+     */
+    'workspaces' => [
+        'max_owned' => (int) env('TENANCY_WORKSPACE_MAX_OWNED', 20),
+    ],
 ];

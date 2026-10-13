@@ -1,0 +1,122 @@
+/*
+ | KÖZÖS ELRENDEZÉSI SZABÁLYOK — hosszú szöveg, tábla, tartalom-szélesség.
+ |
+ | Kizárólag @venture/design tokenekből. A cél egy mondatban: SEMMI nem csúszhat ki a
+ | tartójából és nem fedhet át más elemet — a hosszú érték vagy tördelődik, vagy vágódik
+ | (és a teljes érték a `title`-ben marad). Az e2e `layout-overlap.spec.ts` őrzi.
+ */
+
+/* A flex/grid gyerek alapból `min-width: auto` — egy hosszú szó így kitágítja a szülőt. */
+.vm-shell__main > * {
+    min-width: 0;
+}
+
+.vm-shell__main :where(h1, h2, h3, h4, p, li, dd, dt, label, legend, caption) {
+    overflow-wrap: anywhere;
+}
+
+/* D292 · KÖZÖS LINK */
+/*
+ | A felület linkjei TOKENES színt kapnak, nem a böngésző natív (sötét háttéren olvashatatlan) kékjét.
+ | Nulla specificitás (`:where`): bármely komponens-osztály felülírja (gombként, kártyaként stílusolt
+ | linkek). A sablonszerkesztő vászna KIVÉTEL: ott a LEVÉL linkjei látszanak, a levél saját színével.
+ | A kontrasztot (≥ 4,5 : 1 a sötét téma minden felületén) a `tests/js/design/link-contrast.test.ts` őrzi.
+ */
+:where(.vm-shell__main) :where(a:not(.vm-ed-canvas a)) {
+    color: var(--vt-color-accent-300);
+    text-decoration-line: underline;
+    text-decoration-thickness: from-font;
+    text-underline-offset: calc(var(--vt-space-1) / 2);
+}
+
+:where(.vm-shell__main) :where(a:not(.vm-ed-canvas a)):hover {
+    color: var(--vt-color-accent-200);
+}
+
+:where(.vm-shell__main) :where(a:not(.vm-ed-canvas a)):focus-visible {
+    outline: thin solid var(--vt-color-accent-300);
+    outline-offset: calc(var(--vt-space-1) / 2);
+    border-radius: var(--vt-radius-sm);
+}
+
+/*
+ | D292 · FÜL- ÉS SZEGMENSSÁVOK keskeny képernyőn TÖRDELNEK (nem lógnak ki, és nem rejtik el a
+ | levágott fület egy görgethető sávban). A @venture/ui `VtSegmented` / `VtTabs` alapból egysoros;
+ | az elem-típus a specificitást a komponens saját (azonos súlyú) szabálya fölé emeli.
+ | Az e2e `layout-overlap` „clipped-bar" mérése őrzi (390 px).
+ */
+.vm-shell__main div.vt-segmented {
+    flex-wrap: wrap;
+    max-inline-size: 100%;
+}
+
+.vm-shell__main div.vt-tabs__list {
+    flex-wrap: wrap;
+    overflow-x: visible;
+}
+
+/* TÖRDELÉS: azonosítók, e-mailek, domainek, URL-ek, ahol a teljes értéket látni kell. */
+.vm-wrap {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    min-width: 0;
+}
+
+/* VÁGÁS: egy sor, `…`, a teljes érték a `title`-ben. A határ a spacing-skálából jön. */
+.vm-truncate {
+    display: block;
+    max-inline-size: calc(var(--vt-space-32) * 3);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Vágás a rendelkezésre álló teljes szélességig (flex-sorban, kártya-fejlécben). */
+.vm-truncate--fill {
+    max-inline-size: 100%;
+    min-width: 0;
+}
+
+/* A TÁBLA a saját görgetési tartománya: kicsúszás helyett vízszintesen görgethető. */
+div.vt-table.vm-table {
+    overflow-x: auto;
+    max-inline-size: 100%;
+}
+
+/* Kód / előnézet-blokk: a hosszú sor a blokkon belül görget, nem tágítja a kártyát. */
+.vm-pre {
+    overflow-x: auto;
+    max-inline-size: 100%;
+    white-space: pre;
+}
+
+/* Sor: elemei törnek, és a hosszú elem összezsugorodhat. */
+.vm-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--vt-space-2) var(--vt-space-3);
+    min-width: 0;
+}
+
+.vm-row > * {
+    min-width: 0;
+}
+
+.vm-cluster > *,
+.vm-stack > * {
+    min-width: 0;
+}
+
+.vm-cluster > :where(strong, span, p, a, code) {
+    overflow-wrap: anywhere;
+}
+
+/* Jobbra/középre igazított oszlopban a (korlátozott szélességű) blokk is oda üljön. */
+.vm-truncate--end {
+    margin-inline-start: auto;
+}
+
+.vm-truncate--center {
+    margin-inline: auto;
+}

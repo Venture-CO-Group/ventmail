@@ -16,6 +16,11 @@ case "$(cat /tmp/ventmail-role 2>/dev/null || echo unknown)" in
     worker)
         php artisan horizon:status | grep -qi running
         ;;
+    worker-imports)
+        # `horizon:status` is app-wide (any master counts), so it would stay green with this
+        # container's master dead; check the process itself.
+        pgrep -f 'artisan horizon' >/dev/null
+        ;;
     scheduler)
         pgrep -f 'schedule:work' >/dev/null
         ;;

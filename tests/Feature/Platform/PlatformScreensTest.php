@@ -210,7 +210,7 @@ it('a tiltólista felvesz, keres és felold — de a PANASZT nem oldja fel', fun
     $this->actingAs($user)->withSession(['workspace_uuid' => $workspace->uuid])
         ->from('/suppressions')
         ->post('/suppressions', ['email' => 'kezi@pelda.hu', 'reason' => 'manual', 'appliesTo' => 'all'])
-        ->assertRedirect('/suppressions');
+        ->assertRedirect('/suppressions?list=manual');
 
     // A PANASZ az ÉRINTETT akarata: a tenant nem törölheti, hogy újra küldhessen.
     app(WorkspaceContext::class)->runFor($workspace, fn () => Suppression::create([
@@ -221,7 +221,7 @@ it('a tiltólista felvesz, keres és felold — de a PANASZT nem oldja fel', fun
     ]));
 
     $this->actingAs($user)->withSession(['workspace_uuid' => $workspace->uuid])
-        ->get('/suppressions?search=panaszos')
+        ->get('/suppressions?list=complaints&search=panaszos')
         ->assertInertia(fn ($page) => $page
             ->component('Suppression/Index')
             ->has('suppressions.items', 1)
@@ -232,7 +232,7 @@ it('a tiltólista felvesz, keres és felold — de a PANASZT nem oldja fel', fun
 
     $this->actingAs($user)->withSession(['workspace_uuid' => $workspace->uuid])
         ->from('/suppressions')
-        ->delete('/suppressions', ['email' => 'panaszos@pelda.hu'])
+        ->delete('/suppressions', ['email' => 'panaszos@pelda.hu', 'justification' => 'Az ügyfél kérte (jegy #1)'])
         ->assertSessionHas('error');
 
     expect(app(WorkspaceContext::class)->runFor(
@@ -243,7 +243,7 @@ it('a tiltólista felvesz, keres és felold — de a PANASZT nem oldja fel', fun
     // A KÉZI tiltás viszont feloldható.
     $this->actingAs($user)->withSession(['workspace_uuid' => $workspace->uuid])
         ->from('/suppressions')
-        ->delete('/suppressions', ['email' => 'kezi@pelda.hu'])
+        ->delete('/suppressions', ['email' => 'kezi@pelda.hu', 'justification' => 'Tévesen felvett cím'])
         ->assertSessionHas('success');
 });
 

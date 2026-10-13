@@ -8,6 +8,7 @@ use App\Modules\Sending\Models\Message;
 use App\Modules\Sending\Services\DomainNormalizer;
 use Illuminate\Contracts\Pagination\CursorPaginator;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Str;
 
 /**
  * A kereshető napló (22. kritérium).
@@ -32,8 +33,29 @@ final class MessageLogQuery
     /** @param array<string, mixed> $filters */
     public function paginate(array $filters, int $perPage = 50, ?string $cursor = null): CursorPaginator
     {
+        return $this->query($filters)
+            ->orderByDesc('id')
+            ->cursorPaginate($perPage, ['*'], 'cursor', $cursor);
+    }
+
+    /**
+     * A szűrt lekérdezés — a lapozott lista ÉS az export közös forrása (v1.1 · 7. modul), hogy
+     * a letöltött CSV pontosan azt tartalmazza, amit a képernyő mutat.
+     *
+     * @param  array<string, mixed>  $filters
+     * @return Builder<Message>
+     */
+    public function query(array $filters): Builder
+    {
+        $messageId = self::messageUuid((string) ($filters['message_id'] ?? ''));
+
         return Message::query()
             ->with('domain')
+            // A Message-ID szűrő: az üzenet azonosítója (uuid), akár `<uuid@host>` fejléc-alakban
+            // is beillesztve. Érvénytelen alakra SEMMI (nem 500: a `uuid` oszlop típusos).
+            ->when(($filters['message_id'] ?? '') !== '', fn (Builder $query) => $messageId === null
+                ? $query->whereRaw('false')
+                : $query->where('uuid', $messageId))
             ->when(($filters['recipient'] ?? '') !== '', fn (Builder $query) => $query
                 ->whereJsonContains('recipients', $this->normalizer->email(trim((string) $filters['recipient']))))
             ->when(($filters['tag'] ?? '') !== '', fn (Builder $query) => $query
@@ -47,8 +69,15 @@ final class MessageLogQuery
             ->when(($filters['since'] ?? '') !== '', fn (Builder $query) => $query
                 ->where('created_at', '>=', $filters['since']))
             ->when(($filters['until'] ?? '') !== '', fn (Builder $query) => $query
-                ->where('created_at', '<=', $filters['until']))
-            ->orderByDesc('id')
-            ->cursorPaginate($perPage, ['*'], 'cursor', $cursor);
+                ->where('created_at', '<=', $filters['until']));
+    }
+
+    /** `uuid`, `<uuid>` vagy `<uuid@host>` → uuid; más alak → null. */
+    public static function messageUuid(string $raw): ?string
+    {
+        $value = trim($raw, " \t<>");
+        $value = explode('@', $value, 2)[0];
+
+        return Str::isUuid($value) ? strtolower($value) : null;
     }
 }

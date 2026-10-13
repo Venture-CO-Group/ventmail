@@ -11,6 +11,13 @@ use App\Modules\Campaign\Models\CampaignVariant;
 use App\Modules\Campaign\Services\CampaignLifecycle;
 use App\Modules\Sending\Actions\SendMessage;
 use App\Modules\Sending\Gate\GateReason;
+use App\Modules\Sending\Models\Message;
+use App\Modules\StoredTemplates\Services\TemplateRenderer;
+use App\Modules\Template\Models\Template;
+use App\Modules\Template\Services\MergeVariables;
+use App\Modules\Template\Services\MjmlCompiler;
+use App\Modules\Template\Services\MjmlWriter;
+use App\Modules\Template\Services\PlainTextWriter;
 use App\Modules\Tenancy\Models\Workspace;
 use App\Modules\Tenancy\Services\WorkspaceContext;
 use Illuminate\Bus\Batchable;
@@ -55,6 +62,12 @@ final class SendCampaignChunk implements ShouldQueue
     private const OUTCOME_RETRY = 'retry';
 
     /**
+     * A címzettet KÖZBEN egy másik köteg már lezárta (review SEC4-S2): nem számolódik, mert a
+     * számlálót az a köteg növelte, amelyik a `pending → végállapot` átmenetet ténylegesen végrehajtotta.
+     */
+    private const OUTCOME_ALREADY = 'already';
+
+    /**
      * AZ ÁTMENETI elutasítások — ezek nem zárják ki a címzettet a kampányból.
      *
      * A `RATE_LIMITED` a másodperces/percenkénti limit, a `GATE_ERROR` pedig egy kapu
@@ -66,6 +79,23 @@ final class SendCampaignChunk implements ShouldQueue
 
     /** A visszaengedés késleltetése — a limit-ablaknál hosszabb, hogy ne pörögjön. */
     private const RETRY_DELAY = 60;
+
+    /**
+     * Egy címzett ÁTMENETI elutasításainak felső száma (S4). Utána a sor `failed`
+     * (`transient_exhausted:<ok>`) — egy tartósan kimerült kvóta ne pörgesse a köteget
+     * végtelenül.
+     */
+    public const MAX_TRANSIENT_ATTEMPTS = 10;
+
+    /**
+     * A JOB próbálkozásainak száma — a worker `tries` beállítása FÖLÖTT (S4).
+     *
+     * A Horizon supervisorok `tries => 1`-gyel futnak: a `release()` után a második
+     * felvételkor a job `MaxAttemptsExceededException`-nel elbukna, és az átmeneti
+     * elutasítás utáni újrapróbálás élesben SOHA nem történne meg. A job saját `$tries`-a
+     * elsőbbséget élvez; a címzettenkénti plafon fölé +2 (az első futás és egy tartalék).
+     */
+    public int $tries = self::MAX_TRANSIENT_ATTEMPTS + 2;
 
     /** @param list<int> $recipientIds */
     public function __construct(
@@ -110,8 +140,23 @@ final class SendCampaignChunk implements ShouldQueue
             $variantSent = [];
             $release = false;
 
-            foreach ($this->recipients($campaign) as $recipient) {
-                $outcome = $this->sendTo($campaign, $recipient, $send);
+            $recipients = $this->recipients($campaign);
+
+            // v1.1 — a MERGE-VÁLTOZÓK (kontakt, workspace, a sablonban hivatkozott
+            // szegmensek tagsága) kötegenként EGYSZER készülnek elő.
+            $variables = app(MergeVariables::class);
+            $variables->prepare(
+                $recipients->map(fn (CampaignRecipient $r) => (string) (($r->variant?->template ?? $campaign->template)?->html ?? ''))
+                    ->unique()->values()->all(),
+                $recipients->pluck('contact_id')->filter()->map(fn ($id) => (int) $id)->values()->all(),
+            );
+
+            foreach ($recipients as $recipient) {
+                $outcome = $this->sendTo($campaign, $recipient, $send, $variables->forContact($recipient->contact, $workspace));
+
+                if ($outcome === self::OUTCOME_ALREADY) {
+                    continue;
+                }
 
                 if ($outcome === self::OUTCOME_RETRY) {
                     // ÁTMENETI ELUTASÍTÁS: a sor `pending` marad, és a job VISSZAMEGY a
@@ -150,6 +195,91 @@ final class SendCampaignChunk implements ShouldQueue
         }
     }
 
+    /**
+     * A címzett VÉGÁLLAPOTA — feltételes átmenettel (review SEC4-S2).
+     *
+     * Két köteg (pl. egy pause + resume a köteg-építés ablakában, vagy egy újrakiadott job)
+     * ugyanazt a `pending` sort is beolvashatja. A levél ilyenkor sem megy ki kétszer (az
+     * idempotencia-kulcs visszajátszik — `SendResult::$replayed`), de a számlálók (`sent_count`,
+     * variáns-számláló → A/B győztes) duplán nőttek volna. Ezért a sor CSAK `pending`-ből vált,
+     * és a számláló csak annál a kötegnél nő, amelyik ezt az átmenetet ténylegesen végrehajtotta.
+     *
+     * Szándékosan NEM „visszajátszás = nem számol": egy job, amely kiküldte a levelet, de a
+     * számlálás előtt meghalt, az újrapróbáláskor visszajátszást kap — a sor viszont még `pending`,
+     * tehát a számlálás egyszer, helyesen megtörténik.
+     *
+     * @param  array<string, mixed>  $attributes
+     */
+    private function finalize(CampaignRecipient $recipient, array $attributes, string $outcome): string
+    {
+        $updated = CampaignRecipient::query()
+            ->whereKey($recipient->getKey())
+            ->where('status', 'pending')
+            ->update($attributes + ['updated_at' => now()]);
+
+        if ($updated === 0) {
+            return self::OUTCOME_ALREADY;
+        }
+
+        $recipient->forceFill($attributes)->syncOriginal();
+
+        return $outcome;
+    }
+
+    /** @var array<int, array{html: string, text: string}> sablon-id → a kampány-preheaderrel fordított törzs */
+    private array $bodies = [];
+
+    /**
+     * v1.1 · A TÁRGY merge-tagjei címzettenként (`{{ contact.first_name || … }}`).
+     *
+     * Ugyanaz a renderelő és ugyanazok a változók, mint a törzsé, de ESCAPE NÉLKÜL (a tárgy
+     * nem HTML), és a sortörés szóközzé válik — egy változó-értékből nem lehet fejléc-
+     * injekció. Merge-tag nélküli tárgyhoz nem nyúlunk.
+     *
+     * @param  array<string, mixed>  $variables
+     */
+    private function subjectFor(string $subject, array $variables): string
+    {
+        if (str_contains($subject, '{{')) {
+            $subject = app(TemplateRenderer::class)->render($subject, $variables, escape: false);
+        }
+
+        // MINDEN vezérlőkarakter szóköz (review RS2/N5) — nem csak a CR/LF: a NUL, a BEL és
+        // a többi C0/DEL egy kontakt-mezőből a fejlécbe nem kerülhet. A `messages.subject`
+        // `varchar(255)`: a tárgy 255 karakterre vágódik (a hosszú név nem 500-as hiba).
+        // A C1 vezérlőkarakterek (U+0080–U+009F, köztük a NEL) és a sor-/bekezdés-elválasztó
+        // (U+2028/2029) is ki (review NIT): egyes kliensek sortörésként jelenítik meg őket.
+        $clean = trim((string) preg_replace('/[\x00-\x1F\x7F\x{0080}-\x{009F}\x{2028}\x{2029}]+/u', ' ', $subject));
+
+        return mb_substr((string) preg_replace('/ {2,}/', ' ', $clean), 0, 255);
+    }
+
+    /**
+     * v1.1 · A KAMPÁNY PREHEADERE felülírja a sablonét (a checklist „Tárgy és preheader"
+     * szakasza). A törzs sablononként EGYSZER fordul újra a kötegben — a forrás továbbra is
+     * a sablon blokk-fája, tehát a lábléc és a leiratkozó link érintetlen.
+     *
+     * @return array{html: string, text: string}
+     */
+    private function bodyFor(Campaign $campaign, Template $template): array
+    {
+        $preheader = trim((string) $campaign->preheader);
+
+        if ($preheader === '' || $preheader === trim((string) $template->preheader)) {
+            return ['html' => (string) $template->html, 'text' => (string) $template->text];
+        }
+
+        return $this->bodies[(int) $template->getKey()] ??= (function () use ($template, $preheader): array {
+            $blocks = (array) $template->blocks;
+            $styles = is_array($template->styles) ? $template->styles : null;
+
+            return [
+                'html' => app(MjmlCompiler::class)->compile(app(MjmlWriter::class)->write($blocks, $preheader, $styles)),
+                'text' => app(PlainTextWriter::class)->write($blocks, $preheader),
+            ];
+        })();
+    }
+
     /** @return Collection<int, CampaignRecipient> */
     private function recipients(Campaign $campaign): Collection
     {
@@ -158,7 +288,7 @@ final class SendCampaignChunk implements ShouldQueue
             // (`preventLazyLoading`), tehát a `$recipient->variant` KIVÉTELT dob. És jó
             // okkal: 250 címzettnél a soronkénti variáns- és sablon-lekérdezés 500 extra
             // körutazás lenne EGY kötegben.
-            ->with(['variant.template'])
+            ->with(['variant.template', 'contact'])
             ->whereIn('id', $this->recipientIds)
             // CSAK a `pending` sorok: egy újrapróbált job nem küld másodszor. Ez az
             // idempotencia gyakorlati alapja — a `sent` sort nem nyúlja meg.
@@ -187,28 +317,44 @@ final class SendCampaignChunk implements ShouldQueue
      *
      * @return self::OUTCOME_* mi történt a címzettel
      */
-    private function sendTo(Campaign $campaign, CampaignRecipient $recipient, SendMessage $send): string
+    /** @param array<string, mixed> $renderVariables */
+    private function sendTo(Campaign $campaign, CampaignRecipient $recipient, SendMessage $send, array $renderVariables = []): string
     {
         $variant = $recipient->variant;
         $template = $variant?->template ?? $campaign->template;
 
         if ($template === null) {
-            $recipient->forceFill(['status' => 'failed', 'skip_reason' => 'no_template'])->save();
-
-            return self::OUTCOME_FAILED;
+            return $this->finalize($recipient, ['status' => 'failed', 'skip_reason' => 'no_template'], self::OUTCOME_FAILED);
         }
+
+        /*
+         | AZ IDEMPOTENCIA-KULCS a kampány és a címzett párosa — ÁTMENETI elutasítás után
+         | (S11) új kísérlet-sorszámmal. A `RATE_LIMITED` / `GATE_ERROR` levél a kapun nem
+         | ment át, tehát ki sem ment; ugyanazzal a kulccsal viszont a `SendMessage` mindig a
+         | régi elutasítást tükrözte vissza, és a címzett SOHA nem kapta meg a levelet. A
+         | sorszám a sor `skip_reason`-jében (`retry:N`) él, amíg a címzett `pending`.
+         */
+        $attempt = str_starts_with((string) $recipient->skip_reason, 'retry:') ? (int) substr((string) $recipient->skip_reason, 6) : 0;
+        $key = 'campaign:'.$campaign->uuid.':'.$recipient->email_hash.($attempt > 0 ? ':r'.$attempt : '');
 
         try {
             $result = $send([
                 // A `campaign` csatorna: legalacsonyabb sor-prioritás, de a
                 // consent-követelmény ugyanaz (`Channel::requiresConsent()`).
                 'channel' => 'campaign',
-                'from_email' => (string) $campaign->from_email,
-                'from_name' => $campaign->from_name,
+                // v1.1 · FELADÓ-variáns (A/B): a variáns feladója, ha van — különben a kampányé.
+                // A feladó-domain hitelesítését a PreSendGate 1. kapuja itt is ellenőrzi.
+                'from_email' => (string) ($variant?->from_email ?: $campaign->from_email),
+                'from_name' => $variant?->from_email ? ($variant->from_name ?: $campaign->from_name) : $campaign->from_name,
                 'to' => [(string) $recipient->email],
-                'subject' => (string) ($variant?->subject ?? $campaign->subject),
-                'html' => (string) $template->html,
-                'text' => (string) $template->text,
+                'subject' => $this->subjectFor((string) ($variant?->subject ?: $campaign->subject), $renderVariables),
+                'html' => $this->bodyFor($campaign, $template)['html'],
+                'text' => $this->bodyFor($campaign, $template)['text'],
+                // v1.1 — a merge-tagek és a feltételes blokkok adata (titkosítva tárolódik,
+                // a kézbesítés után törlődik; az esemény-naplóba nem kerül).
+                'render_variables' => $renderVariables,
+                // STUDIO-EREDET: a feltételes blokk és a `browser_url` csak ilyen törzsön él.
+                'options' => ['studio_origin' => 'campaign'],
                 // A KAMPÁNY-CÍMKE: a tag-szintű statisztika (A3) és a marketing analitika
                 // (B4) ebből dolgozik — ugyanabból az esemény-forrásból, mint a
                 // platform-napló.
@@ -219,28 +365,52 @@ final class SendCampaignChunk implements ShouldQueue
                 // AZ IDEMPOTENCIA-KULCS a kampány és a címzett párosa: egy újrapróbált
                 // köteg ugyanazt a kulcsot adja, tehát a levél nem megy ki kétszer — a
                 // védelem így nem csak a `pending` szűrőn múlik.
-                'idempotency_key' => 'campaign:'.$campaign->uuid.':'.$recipient->email_hash,
+                'idempotency_key' => $key,
             ]);
 
             if ($result->decision->allowed) {
-                $recipient->forceFill([
+                return $this->finalize($recipient, [
                     'status' => 'sent',
                     'skip_reason' => null,
                     'message_uuid' => $result->message?->uuid,
                     'sent_at' => now(),
-                ])->save();
-
-                return self::OUTCOME_SENT;
+                ], self::OUTCOME_SENT);
             }
 
             $reason = (string) $result->decision->reason;
 
+            /*
+             | B1 · UGYANAZ a kulcs MÁS lenyomattal: ugyanannak a címzettnek UGYANAZ a kampány-
+             | levele, csak a renderelési adat (név, szegmens-tagság) változott két kísérlet
+             | között. Ez NEM másik levél — az ELŐZŐ kísérlet üzenete dönt: ha átment a
+             | kapun, a címzett megkapta (`sent`); ha elutasult, annak az oka számít.
+             */
+            if ($reason === GateReason::IdempotencyKeyReused->value) {
+                $existing = Message::query()->where('idempotency_key', $key)->first();
+
+                if ($existing !== null && $existing->status !== 'rejected') {
+                    return $this->finalize($recipient, ['status' => 'sent', 'skip_reason' => null, 'message_uuid' => $existing->uuid, 'sent_at' => now()], self::OUTCOME_SENT);
+                }
+
+                $reason = (string) ($existing?->reason ?? $reason);
+            }
+
             if (in_array($reason, self::TRANSIENT_REASONS, true)) {
-                // A SOR ÉRINTETLEN marad `pending`-ben — a köteg újrafutása felveszi.
+                if ($attempt + 1 >= self::MAX_TRANSIENT_ATTEMPTS) {
+                    return $this->finalize($recipient, [
+                        'status' => 'failed',
+                        'skip_reason' => 'transient_exhausted:'.$reason,
+                        'message_uuid' => $result->message?->uuid,
+                    ], self::OUTCOME_FAILED);
+                }
+
+                // A SOR `pending` marad — a köteg újrafutása ÚJ kísérlet-kulccsal veszi fel.
+                $recipient->forceFill(['skip_reason' => 'retry:'.($attempt + 1)])->save();
+
                 return self::OUTCOME_RETRY;
             }
 
-            $recipient->forceFill([
+            return $this->finalize($recipient, [
                 'status' => 'skipped',
                 // A KAPU DÖNTÉSE a `skip_reason`: a riportnak meg kell tudnia mondani, hogy
                 // MIÉRT nem kapta meg valaki — „nincs consent" és „suppression-listán van"
@@ -248,9 +418,7 @@ final class SendCampaignChunk implements ShouldQueue
                 'skip_reason' => $reason === '' ? 'rejected' : $reason,
                 'message_uuid' => $result->message?->uuid,
                 'sent_at' => null,
-            ])->save();
-
-            return self::OUTCOME_FAILED;
+            ], self::OUTCOME_FAILED);
         } catch (Throwable $e) {
             // EGY CÍMZETT HIBÁJA a SORÁT jelöli meg, nem dobja el a köteget: 250 közül egy
             // hibás miatt 249 nem maradhat levél nélkül.
@@ -265,12 +433,10 @@ final class SendCampaignChunk implements ShouldQueue
                 'exception' => $e::class,
             ]);
 
-            $recipient->forceFill([
+            return $this->finalize($recipient, [
                 'status' => 'failed',
                 'skip_reason' => 'error:'.class_basename($e),
-            ])->save();
-
-            return self::OUTCOME_FAILED;
+            ], self::OUTCOME_FAILED);
         }
     }
 
@@ -291,16 +457,33 @@ final class SendCampaignChunk implements ShouldQueue
             }
         }
 
-        if ($update !== []) {
-            Campaign::query()->whereKey($campaign->getKey())->update([...$update, 'updated_at' => now()]);
+        if ($update === []) {
+            return;
         }
 
-        foreach ($variantSent as $variantId => $count) {
-            CampaignVariant::query()->whereKey($variantId)->update([
-                'sent_count' => DB::raw('sent_count + '.$count),
-                'updated_at' => now(),
-            ]);
-        }
+        // EGY TRANZAKCIÓ, és a lezárt (`sent`) kampányra NEM ír (review r6 S1): a `complete()` a
+        // lezáráskor a címzett-sorokból egyeztet — ebben a köteg már commitolt sorai benne vannak. Egy
+        // utána érkező relatív `+n` dupla számlálás lenne. A feltételt a Postgres (READ COMMITTED) a
+        // sorzár megszerzése után ÚJRAÉRTÉKELI, tehát egy közben lezárt kampányon 0 sor íródik.
+        // A visszavont kampány továbbra is kap (a `cancel()` nem egyeztet). A variáns csak akkor nő, ha a
+        // kampány-sor is nőtt.
+        DB::transaction(function () use ($campaign, $update, $variantSent): void {
+            $written = Campaign::query()
+                ->whereKey($campaign->getKey())
+                ->where('status', '!=', 'sent')
+                ->update([...$update, 'updated_at' => now()]);
+
+            if ($written === 0) {
+                return;
+            }
+
+            foreach ($variantSent as $variantId => $count) {
+                CampaignVariant::query()->whereKey($variantId)->update([
+                    'sent_count' => DB::raw('sent_count + '.$count),
+                    'updated_at' => now(),
+                ]);
+            }
+        });
     }
 
     /**
@@ -332,7 +515,8 @@ final class SendCampaignChunk implements ShouldQueue
         // de az a batch elkészítésekor rögzül — egy folytatás (`resume`) új batchet indít,
         // és a régi callback már nem hívódna meg.
         if ($pending === 0 && (string) $campaign->status === 'sending') {
-            app(CampaignLifecycle::class)->complete($campaign);
+            // A közben szüneteltetett kampány nem hiba (review R4 NIT): csendes no-op.
+            app(CampaignLifecycle::class)->completeIfSending($campaign);
 
             $campaign = $campaign->fresh() ?? $campaign;
         }

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Modules\Campaign\Actions;
 
+use App\Modules\Audit\Services\AuditLogger;
+use App\Modules\Campaign\Enums\CampaignStatus;
 use App\Modules\Campaign\Models\Campaign;
 use App\Modules\Campaign\Models\CampaignRecipient;
 use App\Modules\Campaign\Services\AudienceResolver;
@@ -57,6 +59,19 @@ final class StartCampaign
         // materializálódik.
         $campaign = $this->lifecycle->start($campaign);
 
+        return $this->materialize($campaign);
+    }
+
+    /**
+     * A CÍMZETTEK MATERIALIZÁLÁSA és a kötegek indítása — a már LEFOGLALT (`sending`) kampányon.
+     *
+     * v1.1 (review RB1/S4): a felület és az ütemező a kérésben csak lefoglal, ez a lépés a
+     * `StartCampaignJob`-ban fut a `campaign` soron — egy 300k-s célzás nem egy webkérés
+     * idejében materializálódik. Ismételhető: a beszúrás `insertOrIgnore`, a kötegek a
+     * `pending` sorokra indulnak.
+     */
+    public function materialize(Campaign $campaign): Campaign
+    {
         // A TENANT-HATÁR: a kötegelt beszúrás megkerüli az Eloquent `creating` hookját,
         // tehát a `BelongsToWorkspace::assertOwnWorkspace` sem fut le rajta. Ezért a
         // szabályt ITT mondjuk ki újra. Nem elméleti: az `insertOrIgnore` bármilyen
@@ -82,7 +97,15 @@ final class StartCampaign
         // kontaktnál +193 MB-ot vitt, és a konténer 128M-jével `Allowed memory size …
         // exhausted`-del elhalt — a memória-fatal pedig nem `Throwable`, tehát az ütemező
         // `catch`-e sem fogta meg (lásd az `AudienceResolver` docblockját).
-        $this->audience->each($campaign, self::MATERIALIZE_CHUNK, function (array $chunk, int $offset) use ($campaign, $workspaceId, $plan, &$inserted): void {
+        //
+        // MINDEN köteg előtt FRISS állapot-ellenőrzés (review BN1): egy percekig tartó felírás
+        // alatt a felhasználó szüneteltethet vagy visszavonhat. Ilyenkor a felírás megáll — a
+        // visszavont kampányhoz nem jön új `pending` sor, és nem indul köteg.
+        $this->audience->each($campaign, self::MATERIALIZE_CHUNK, function (array $chunk, int $offset) use ($campaign, $workspaceId, $plan, &$inserted): bool {
+            if (! $this->stillSending($campaign)) {
+                return false;
+            }
+
             $rows = [];
 
             foreach ($chunk as $index => $recipient) {
@@ -107,15 +130,62 @@ final class StartCampaign
             // A DEDUPLIKÁCIÓ az egyedi kulcsra épül (`campaign_id` + `email`): az
             // `insertOrIgnore` egy újrapróbált indítást is elnyel, duplikálás nélkül.
             $inserted += CampaignRecipient::query()->insertOrIgnore($rows);
+
+            return true;
         });
 
-        $campaign->forceFill([
-            'recipient_count' => $campaign->recipients()->count(),
-            'estimated_recipients' => $total,
-            'estimated_at' => now(),
-        ])->save();
+        // A TELJES felírás rögzítése — FELTÉTELES UPDATE, csak `sending` állapotban (BN1/SN2). Ha
+        // közben szüneteltették, a `materialized_at` NULL marad: a folytatás újra materializál
+        // (nem a csonka közönségre küld); ha visszavonták, a köztes `pending` sorok `skipped`-ek.
+        $claimed = Campaign::query()
+            ->whereKey($campaign->getKey())
+            ->where('status', CampaignStatus::Sending->value)
+            ->update([
+                'recipient_count' => $campaign->recipients()->count(),
+                'estimated_recipients' => $total,
+                'estimated_at' => now(),
+                'materialized_at' => now(),
+                'updated_at' => now(),
+            ]);
 
-        return $this->dispatchBatch($campaign->fresh());
+        if ($claimed === 0) {
+            return $this->abandon($campaign);
+        }
+
+        // AUDIT (review S3): a feltételes UPDATE megkerüli az Auditable hookot. A háttérben futó
+        // felírás aktora a `system`; a szám a TÉNYLEGESEN felírt címzetteké.
+        $fresh = $campaign->fresh();
+        app(AuditLogger::class)->log('campaign.materialized', $fresh, context: [
+            'actor' => 'system',
+            'recipients' => (int) $fresh->recipient_count,
+        ]);
+
+        return $this->dispatchBatch($fresh);
+    }
+
+    /** A kampány MOST (az adatbázisban) is `sending`? — a modell-példány állapota elavult lehet. */
+    private function stillSending(Campaign $campaign): bool
+    {
+        return Campaign::query()->whereKey($campaign->getKey())->value('status') === CampaignStatus::Sending->value;
+    }
+
+    /**
+     * A FÉLBEHAGYOTT felírás lezárása: köteg nem indul. A visszavont kampány közben beírt
+     * `pending` sorai `skipped` állapotba kerülnek (a `cancel()` a saját pillanatában ugyanezt tette).
+     */
+    private function abandon(Campaign $campaign): Campaign
+    {
+        $fresh = $campaign->fresh();
+
+        if ($fresh->statusEnum() === CampaignStatus::Canceled) {
+            $fresh->recipients()->where('status', 'pending')->update([
+                'status' => 'skipped',
+                'skip_reason' => 'campaign_canceled',
+                'updated_at' => now(),
+            ]);
+        }
+
+        return $fresh;
     }
 
     /**

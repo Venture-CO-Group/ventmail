@@ -31,6 +31,8 @@ function shellUser(Workspace $workspace, string $role = 'owner'): User
         'name' => 'Teszt Felhasználó',
         'email' => 'shell-'.uniqid().'@pelda.hu',
         'locale' => 'hu',
+        // Tudatos választás (D11): forrás nélkül az Accept-Language előzi meg a táblát.
+        'locale_source' => 'user',
     ]);
 
     $workspace->members()->create(['user_id' => $user->getKey(), 'roles' => [$role]]);

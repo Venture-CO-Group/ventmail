@@ -21,7 +21,8 @@ export default defineConfig({
     workers: 1,
     forbidOnly: !!process.env.CI,
     retries: process.env.CI ? 2 : 0,
-    reporter: process.env.CI ? 'github' : 'list',
+    // CI-ban a HTML-riport is elkészül: a bukáskor feltöltött `playwright-report/` artefaktum eddig üres volt.
+    reporter: process.env.CI ? [['github'], ['html', { open: 'never' }]] : 'list',
     use: {
         baseURL: process.env.APP_URL ?? 'http://127.0.0.1:8000',
         trace: 'on-first-retry',
@@ -39,6 +40,8 @@ export default defineConfig({
             name: 'chromium',
             use: { ...devices['Desktop Chrome'], storageState: 'e2e/.auth/state.json' },
             dependencies: ['setup'],
+            // A képernyőkép-generálás (leadandó, nem kapu) csak kérésre fut: `npm run screenshots`.
+            testIgnore: process.env.SCREENSHOTS ? undefined : /screenshots\.spec\.ts/,
         },
     ],
 
@@ -58,12 +61,37 @@ export default defineConfig({
                |  - workerek nélkül a beépített szerver EGYETLEN folyamat, tehát bármelyik
                |    lassú (vagy önmagára hivatkozó) kérés megállítja az összes többit.
                |
+               | A KONTAKT-IMPORT háttérfeladata (`AUDIENCE_IMPORT_QUEUE_CONNECTION=database`) a
+               | `database` sorra megy, és az `audience-import.spec.ts` saját `queue:work`
+               | folyamatot indít rá — a 300 000 soros import így a böngészőtől függetlenül,
+               | valódi queue-n fut. Minden más job továbbra is szinkron.
+               |
+               | A `PHP_INI_SCAN_DIR` (kezdő `:` = az alap ini-könyvtár MARAD) a feltöltési
+               | plafont emeli (`e2e/php.d/e2e.ini`): a CLI-szerver alapból 8 MB-os POST-ot
+               | enged, a 300 000 soros CSV ~13 MB.
+               |
+               | A `SENDING_LIVE=false SENDING_MARKETING_ENABLED=false` (CI, PR #42): a suite a ZÁRT küldési
+               | módot méri (a kampány-checklist a kapu okkódját — CHANNEL_DISABLED / SENDING_RESTRICTED —
+               | várja). A CI a `.env.example`-ből indul, ahol a minta élő módot ír; a parancs ezért
+               | kifejezetten rögzíti, nem a környezeti fájlra bízza.
+               |
+               | A `e2e/php.d` az opcache JIT-et is kikapcsolja a CLI-ben (mint élesben): a GitHub-runner
+               | setup-php-ja bekapcsolja, és a `php -S` workerek alatt végtelen ciklusba futott.
+               |
+               | A `SEND_ALLOWLIST=@example.test` (D284): a seed-mód (SENDING_LIVE=false) csak allowlistes
+               | címzettnek enged levelet. A dev-seed demó-levele (`demo@example.test`, fenntartott teszt-
+               | TLD, fake driver) enélkül TISZTA adatbázison elutasítva jönne létre, és a napló-/trace-flow
+               | „delivered" lépése hiányozna — régi adatbázison csak egy korábbi sor takarta el.
+               |
+               | A `WEBHOOKS_E2E_SINK` (D191): a webhook teszt-esemény kézbesítése a helyi
+               | HTTP-fake-re fut, nem harmadik félhez (csak local/testing környezetben hat).
+               |
                | Mérve: CI-ban egy bukás után a suite maradéka mind `ERR_CONNECTION_REFUSED`
                | lett — a szerver eltűnt, miközben az alkalmazás-naplóban EGYETLEN hiba sem
                | volt. A `--no-reload` a workerek előfeltétele is (az `artisan serve`
                | különben figyelmeztet, és egy folyamattal indul).
                */
-              command: 'SESSION_DRIVER=file CACHE_STORE=array QUEUE_CONNECTION=sync PHP_CLI_SERVER_WORKERS=4 php artisan serve --port=8000 --no-reload',
+              command: 'PHP_INI_SCAN_DIR=":$PWD/e2e/php.d" SENDING_LIVE=false SENDING_MARKETING_ENABLED=false SEND_ALLOWLIST=@example.test WEBHOOKS_E2E_SINK=https://93.184.216.34/e2e/ SESSION_DRIVER=file CACHE_STORE=array QUEUE_CONNECTION=sync AUDIENCE_IMPORT_QUEUE_CONNECTION=database AUDIENCE_IMPORT_INSPECT_QUEUE_CONNECTION=database TEMPLATE_ASSET_DRIVER=local ANALYTICS_PDF_RENDERER=fake TENANCY_WORKSPACE_MAX_OWNED=1000 PHP_CLI_SERVER_WORKERS=4 php artisan serve --port=8000 --no-reload',
               url: 'http://127.0.0.1:8000/up',
               reuseExistingServer: !process.env.CI,
               timeout: 60_000,

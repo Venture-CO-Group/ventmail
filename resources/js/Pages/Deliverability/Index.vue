@@ -1,8 +1,12 @@
 <script setup lang="ts">
-import { VtCard, VtTable, type VtColumn } from '@venture/ui';
+import { type VtColumn } from '@venture/ui';
+import VmTable from '../../Components/Form/VmTable.vue';
+import VmCard from '../../Components/Form/VmCard.vue';
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import AppLayout from '../../Layouts/AppLayout.vue';
+import { useFormat } from '../../composables/useFormat';
+import { useCodes } from '../../composables/useCodes';
 
 /**
  * KÉZBESÍTHETŐSÉG — a három jel, ami elárulja, hogy baj lesz, mielőtt az ügyfél telefonál.
@@ -18,6 +22,8 @@ const props = defineProps<{
 }>();
 
 const { t } = useI18n();
+const code = useCodes();
+const format = useFormat();
 
 const unverified = computed(() => props.domains.filter((domain) => domain.status !== 'verified'));
 
@@ -35,7 +41,7 @@ const blocklistRows = computed<BlocklistRow[]>(() =>
         address: item.address,
         zone: item.zone,
         listed: item.listed ? t('deliverability.yes') : t('deliverability.no'),
-        checked: item.checkedAt ? new Date(item.checkedAt).toLocaleString() : '—',
+        checked: item.checkedAt ? format.dateTime(item.checkedAt) : '—',
     })),
 );
 
@@ -74,44 +80,44 @@ const dmarcRows = computed<DmarcRow[]>(() =>
             {{ t('deliverability.unverified', { count: unverified.length }) }}
         </p>
 
-        <VtCard>
+        <VmCard>
             <h2>{{ t('deliverability.blocklist') }}</h2>
             <p v-if="!blocklistRows.length" data-testid="blocklist-empty">{{ t('deliverability.noChecks') }}</p>
-            <VtTable
+            <VmTable
                 v-else
                 :columns="blocklistColumns"
                 :rows="blocklistRows"
                 :caption="t('deliverability.blocklist')"
                 data-testid="blocklist-table"
             />
-        </VtCard>
+        </VmCard>
 
-        <VtCard>
+        <VmCard>
             <h2>{{ t('deliverability.dmarc') }}</h2>
             <p>{{ t('deliverability.dmarcHint') }}</p>
             <p v-if="!dmarcRows.length" data-testid="dmarc-empty">{{ t('deliverability.noDmarc') }}</p>
-            <VtTable
+            <VmTable
                 v-else
                 :columns="dmarcColumns"
                 :rows="dmarcRows"
                 :caption="t('deliverability.dmarc')"
                 data-testid="dmarc-table"
             />
-        </VtCard>
+        </VmCard>
 
-        <VtCard>
+        <VmCard>
             <h2>{{ t('deliverability.seed') }}</h2>
             <p v-if="!seedTests.length" data-testid="seed-empty">{{ t('deliverability.noSeed') }}</p>
 
             <div v-for="test in seedTests" :key="test.name" class="vm-cluster" :data-testid="`seed-${test.name}`">
                 <strong>{{ test.name }}</strong>
-                <span>{{ test.status }}</span>
+                <span :data-status="test.status">{{ code('status', test.status) }}</span>
                 <!-- A HIÁNYZÓ is számít: a nevezőben benne van, különben a legrosszabb eset
                      kimaradna a statisztikából. -->
                 <span>{{ t('deliverability.inbox') }}: {{ test.inboxRate }}%</span>
                 <span>{{ t('deliverability.spam') }}: {{ test.spamRate }}%</span>
                 <span>{{ t('deliverability.missing') }}: {{ test.missing }}</span>
             </div>
-        </VtCard>
+        </VmCard>
     </AppLayout>
 </template>

@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
+use Symfony\Component\HttpFoundation\IpUtils;
 
 /**
  * API-kulcs (spec 24.). A nyers kulcs SOHA nem kerül tárolásra — csak hash, plusz egy
@@ -21,7 +22,17 @@ final class ApiKey extends Model
 {
     use Auditable, BelongsToWorkspace, HasUuids, SoftDeletes;
 
-    protected $fillable = ['name', 'prefix', 'key_hash', 'scopes', 'channels', 'testmode', 'expires_at', 'last_used_at'];
+    protected $fillable = ['name', 'prefix', 'key_hash', 'scopes', 'channels', 'testmode', 'expires_at', 'last_used_at', 'ip_allowlist'];
+
+    /**
+     * Régi scope-nevek → a mai `/v1` kapu neve (D14).
+     *
+     * A felület korábban `validate`-et adott ki, a route viszont `validate:run`-t vár: az így
+     * kiállított kulcsok sosem érték el a címellenőrzést. A régi kulcsot NEM írjuk át (a hash
+     * mellett a scope-lista is az ügyfél szerződése), hanem a régi nevet a kapu alias-ként
+     * elfogadja.
+     */
+    private const SCOPE_ALIASES = ['validate:run' => ['validate']];
 
     protected $hidden = ['key_hash'];
 
@@ -38,6 +49,7 @@ final class ApiKey extends Model
             'testmode' => 'boolean',
             'expires_at' => 'datetime',
             'last_used_at' => 'datetime',
+            'ip_allowlist' => 'array',
         ];
     }
 
@@ -48,7 +60,7 @@ final class ApiKey extends Model
      * @param  list<string>  $scopes
      * @return array{model: self, plain: string}
      */
-    public static function issue(string $name, array $scopes = [], bool $testmode = false, ?array $channels = null): array
+    public static function issue(string $name, array $scopes = [], bool $testmode = false, ?array $channels = null, ?array $ipAllowlist = null): array
     {
         $plain = ($testmode ? 'vm_test_' : 'vm_live_').Str::random(48);
 
@@ -59,6 +71,7 @@ final class ApiKey extends Model
             'scopes' => $scopes,
             'channels' => $channels,
             'testmode' => $testmode,
+            'ip_allowlist' => $ipAllowlist === [] ? null : $ipAllowlist,
         ]);
 
         return ['model' => $model, 'plain' => $plain];
@@ -103,7 +116,45 @@ final class ApiKey extends Model
 
     public function hasScope(string $scope): bool
     {
-        return in_array($scope, (array) $this->scopes, true);
+        $granted = (array) $this->scopes;
+
+        if (in_array($scope, $granted, true)) {
+            return true;
+        }
+
+        foreach (self::SCOPE_ALIASES[$scope] ?? [] as $legacy) {
+            if (in_array($legacy, $granted, true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Hívhat-e a kulccsal ez a forrás-cím (IP-allowlist, D14)?
+     *
+     * Üres / hiányzó lista = bármely cím (a meglévő kulcsok viselkedése nem változik). A
+     * címet a hívó a `ClientAddress`-ből adja — a valódi TCP-partnert vagy a megbízható
+     * edge által továbbítottat, nem a kérő által beírt `X-Forwarded-For`-t.
+     */
+    public function allowsAddress(string $ip): bool
+    {
+        $allowlist = array_values(array_filter(array_map(strval(...), (array) $this->ip_allowlist)));
+
+        if ($allowlist === []) {
+            return true;
+        }
+
+        // IPv4-mapped IPv6 (`::ffff:1.2.3.4`) → a beágyazott IPv4 (N3): dual-stack figyelőn a
+        // kliens így is látszhat, és egy IPv4-es allowlist különben sosem illeszkedne.
+        $binary = @inet_pton($ip);
+
+        if ($binary !== false && strlen($binary) === 16 && str_starts_with($binary, str_repeat("\0", 10)."\xff\xff")) {
+            $ip = (string) inet_ntop(substr($binary, 12));
+        }
+
+        return IpUtils::checkIp($ip, $allowlist);
     }
 
     /**

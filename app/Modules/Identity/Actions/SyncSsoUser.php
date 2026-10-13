@@ -45,13 +45,46 @@ final class SyncSsoUser
 
         $user->name = (string) ($claims['name'] ?? $claims['preferred_username'] ?? $subject);
         $user->email = $email;
-        $user->locale = $this->supportedLocale($claims['locale'] ?? null);
+        $this->applyLocale($user, $claims['locale'] ?? null);
         $user->email_verified_at = $verified ? ($user->email_verified_at ?? now()) : null;
         $user->last_login_at = now();
 
         $user->save();
 
         return $user;
+    }
+
+    /**
+     * A NYELV FORRÁSA (D11): amíg a felhasználó nem választott (`locale_source` null vagy
+     * `sso`), a ventSSO `locale` claimje dönt; a saját választás (`user`) erősebb, és a
+     * bejelentkezés többé nem írja felül.
+     *
+     * Támogatott claim nélkül nem jelöljük `sso`-nak a nyelvet: az alapnyelv nem „a
+     * ventSSO döntése", és a `SetLocale` ilyenkor az `Accept-Language`-re eshet vissza.
+     */
+    private function applyLocale(User $user, mixed $claim): void
+    {
+        if ($user->raw('locale_source') === 'user') {
+            return;
+        }
+
+        $supported = (array) config('app.supported_locales', []);
+        $locale = $this->supportedLocale($claim);
+
+        $user->locale = $locale;
+        $user->locale_source = $this->isSupportedClaim($claim, $supported) ? 'sso' : null;
+    }
+
+    /** @param array<int, mixed> $supported */
+    private function isSupportedClaim(mixed $claim, array $supported): bool
+    {
+        if (! is_string($claim)) {
+            return false;
+        }
+
+        $base = explode('-', str_replace('_', '-', strtolower(trim($claim))))[0];
+
+        return in_array($base, $supported, true);
     }
 
     /**
@@ -67,7 +100,7 @@ final class SyncSsoUser
     private function supportedLocale(mixed $claim): string
     {
         $supported = (array) config('app.supported_locales', []);
-        $candidate = strtolower(trim((string) $claim));
+        $candidate = is_string($claim) ? strtolower(trim($claim)) : '';
         $base = str_replace('_', '-', $candidate);
         $base = explode('-', $base)[0];
 

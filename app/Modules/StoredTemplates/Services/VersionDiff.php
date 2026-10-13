@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Modules\StoredTemplates\Services;
 
+use Closure;
+
 /**
  * KÉT SABLON-VERZIÓ SORALAPÚ ÖSSZEHASONLÍTÁSA.
  *
@@ -82,6 +84,15 @@ final class VersionDiff
 
     /** Abszolút felső korlát a BEMENET sorszámára (oldalanként). */
     public const MAX_INPUT_LINES = 60000;
+
+    /**
+     * D297 · MEMÓRIA-SZONDA (opcionális): a foglalt memória bájtban. Alapból a valódi
+     * `memory_get_usage(true)`; injektálva a korlátszámítás determinisztikus (a teszt egyszer
+     * rögzíti, így a kód és az állítás ugyanazzal a korláttal számol — a határ pontos).
+     *
+     * @param  (Closure(): int)|null  $memoryUsage
+     */
+    public function __construct(private readonly ?Closure $memoryUsage = null) {}
 
     /**
      * @return array{truncated: bool, identical: bool, limit: int, lines: list<array{type: string, left: ?int, right: ?int, text: string, skipped?: int, from?: ?int, to?: ?int}>}
@@ -199,7 +210,7 @@ final class VersionDiff
             return self::MAX_INPUT_LINES;
         }
 
-        $available = max(0, $limit - memory_get_usage(true));
+        $available = max(0, $limit - $this->memoryUsage());
         $lines = (int) floor($available * self::MEMORY_BUDGET / (2 * self::INPUT_BYTES_PER_LINE));
 
         return max(0, min(self::MAX_INPUT_LINES, $lines));
@@ -237,13 +248,18 @@ final class VersionDiff
             return self::MAX_REGION_LINES;
         }
 
-        $available = max(0, $limit - memory_get_usage(true));
+        $available = max(0, $limit - $this->memoryUsage());
         $cells = (int) floor($available * self::MEMORY_BUDGET / self::BYTES_PER_CELL);
 
         // A tábla NÉGYZETES: n sor n×n cellát kér.
         $lines = (int) floor(sqrt(max(0, $cells)));
 
         return max(0, min(self::MAX_REGION_LINES, $lines));
+    }
+
+    private function memoryUsage(): int
+    {
+        return $this->memoryUsage !== null ? (int) ($this->memoryUsage)() : memory_get_usage(true);
     }
 
     private function memoryLimitBytes(): int

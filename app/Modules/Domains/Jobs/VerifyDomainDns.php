@@ -50,6 +50,17 @@ final class VerifyDomainDns
         $spf = $this->matcher->spfMatches($this->lookup($records['spf']));
         $dmarc = $this->matcher->dmarcMatches($this->lookup($records['dmarc']));
         $tracking = $this->matcher->cnameMatches($this->lookup($records['tracking']), $records['tracking']['value']);
+        // A RETURN-PATH (v1.1 · D169): a bounce-ok visszavezetése és a DMARC SPF-igazítás
+        // poolonként. A `verified`-hez NEM tartozik hozzá (opcionális, mint a tracking) —
+        // de a felület élőben mutatja, mert a hiánya a bounce-feldolgozást vakítja meg.
+        $returnPath = $this->matcher->cnameMatches(
+            $this->lookup($records['return_path_transactional']),
+            $records['return_path_transactional']['value'],
+        );
+        $returnPathMarketing = $this->matcher->cnameMatches(
+            $this->lookup($records['return_path_marketing']),
+            $records['return_path_marketing']['value'],
+        );
 
         [$dkimStatus, $dkimAuthenticated] = $this->checkDkim($domain, $records);
 
@@ -62,6 +73,8 @@ final class VerifyDomainDns
             'dkim_status' => $dkimStatus,
             'dmarc_status' => $dmarc ? 'verified' : 'failed',
             'tracking_status' => $tracking ? 'verified' : 'pending',
+            'return_path_status' => $returnPath ? 'verified' : 'pending',
+            'return_path_marketing_status' => $returnPathMarketing ? 'verified' : 'pending',
             'status' => $authenticated ? 'verified' : 'failed',
             // A `verified_at` BIZONYÍTÉK: mikortól küldhetett a tenant erről a domainről.
             // A visszaesés ezt nem törli — külön mező rögzíti, mikor veszett el.

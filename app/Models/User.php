@@ -54,6 +54,7 @@ class User extends Model implements AuthenticatableContract, HasLocalePreference
         'name',
         'email',
         'locale',
+        'locale_source',
         'last_login_at',
     ];
 
@@ -92,6 +93,7 @@ class User extends Model implements AuthenticatableContract, HasLocalePreference
              | bejelentkezésnél újraszámolva.
              */
             'platform_admin' => 'boolean',
+            'notification_prefs' => 'array',
             'email_verified_at' => 'datetime',
             'last_login_at' => 'datetime',
         ];
@@ -122,6 +124,33 @@ class User extends Model implements AuthenticatableContract, HasLocalePreference
         // akkor `(bool) 'f' === true` — vagyis a fail-closed olvasó fail-openné válna, épp
         // a rendszer legerősebb jogosultságánál.
         return $raw === true || $raw === 1 || $raw === '1' || $raw === 't';
+    }
+
+    /**
+     * Nyers attribútum-olvasás: a szigorú mód (`preventAccessingMissingAttributes`) csonka
+     * példánynál (nem minden oszlop töltődött) kivételt dobna — az opcionális profil-
+     * beállításoknál a hiány egyszerűen „nincs beállítva".
+     */
+    public function raw(string $key): mixed
+    {
+        return $this->getAttributes()[$key] ?? null;
+    }
+
+    /**
+     * A értesítési beállítások DEKÓDOLT alakja (a nyers attribútum JSON-string). Csonka
+     * példánynál (strict mód) és hiányzó értéknél null.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function notificationPrefs(): ?array
+    {
+        $raw = $this->raw('notification_prefs');
+
+        if (is_string($raw)) {
+            $raw = json_decode($raw, true);
+        }
+
+        return is_array($raw) ? $raw : null;
     }
 
     /**

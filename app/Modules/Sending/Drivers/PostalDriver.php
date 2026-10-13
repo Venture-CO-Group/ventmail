@@ -19,6 +19,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
+use Symfony\Component\Mime\Address;
 
 /**
  * Éles MTA-driver (self-hosted Postal). SZÁNDÉKOSAN INAKTÍV: a `SENDING_DRIVER=postal`
@@ -139,9 +140,11 @@ final class PostalDriver implements SendingDriver
 
             $response = $this->request($key)->post($endpoint.'/api/v1/send/message', [
                 'to' => [$recipient],
+                // A NÉV RFC 5322 szerint idézve / kódolva (review N6): egy vesszős vagy idézőjeles
+                // név a nyers `név <cím>` alakban két címzettnek vagy hibás fejlécnek látszott.
                 'from' => $message->from_name === null
                     ? $message->from_email
-                    : $message->from_name.' <'.$message->from_email.'>',
+                    : (new Address((string) $message->from_email, (string) $message->from_name))->toString(),
                 'subject' => $message->subject,
                 'html_body' => $bodies['html'],
                 'plain_body' => $bodies['text'],

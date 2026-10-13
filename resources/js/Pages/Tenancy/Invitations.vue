@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { router } from '@inertiajs/vue3';
-import { VtButton, VtCard } from '@venture/ui';
+import { VtButton } from '@venture/ui';
+import VmCard from '../../Components/Form/VmCard.vue';
 import { useI18n } from 'vue-i18n';
+import { useFormat } from '../../composables/useFormat';
 
 /**
  * A MEGHÍVOTT SAJÁT képernyője.
@@ -19,6 +21,7 @@ defineProps<{
 }>();
 
 const { t } = useI18n();
+const format = useFormat();
 
 function accept(uuid: string): void {
     router.post(`/invitations/${uuid}/accept`);
@@ -41,13 +44,13 @@ function decline(uuid: string): void {
             {{ t('invitations.unverified') }}
         </p>
 
-        <VtCard v-for="invitation in invitations" :key="invitation.uuid" :data-testid="`invitation-${invitation.uuid}`">
+        <VmCard v-for="invitation in invitations" :key="invitation.uuid" :data-testid="`invitation-${invitation.uuid}`">
             <h2>{{ invitation.workspace }}</h2>
 
             <p>{{ t('invitations.roles', { roles: invitation.roles.join(', ') }) }}</p>
 
             <p v-if="invitation.expiresAt">
-                {{ t('invitations.expires', { date: new Date(invitation.expiresAt).toLocaleDateString() }) }}
+                {{ t('invitations.expires', { date: format.date(invitation.expiresAt) }) }}
             </p>
 
             <div class="vm-cluster">
@@ -59,7 +62,7 @@ function decline(uuid: string): void {
                     {{ t('invitations.decline') }}
                 </VtButton>
             </div>
-        </VtCard>
+        </VmCard>
 
         <p v-if="!invitations.length && !unverified" data-testid="invitations-empty">{{ t('invitations.empty') }}</p>
     </main>

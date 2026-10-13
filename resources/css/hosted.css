@@ -1,0 +1,174 @@
+/*
+ | v1.1 · 5. modul — a HOSZTOLT, névtelen oldalak (űrlap, köszönő oldal, megerősítés,
+ | preference center) stílusa. Csak @venture/design tokenek; szkript nincs (a CSP tiltja),
+ | töréspont nélküli, folyékony elrendezés (a media query nem olvas `var()`-t).
+ */
+@import '@venture/design/styles.css';
+
+html,
+body {
+    margin: 0;
+    background: var(--vt-bg);
+    color: var(--vt-text);
+    font-family: var(--vt-font-body);
+    line-height: var(--vt-leading-normal);
+}
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+.hp {
+    display: grid;
+    min-height: 100vh;
+    place-items: center;
+    padding: var(--vt-space-6) var(--vt-space-4);
+}
+
+.hp-card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--vt-space-5);
+    inline-size: min(100%, calc(var(--vt-space-32) * 4.5));
+    padding: var(--vt-space-8) var(--vt-space-6);
+    border: thin solid var(--vt-glass-base-stroke);
+    border-radius: var(--vt-radius-panel);
+    background: var(--vt-glass-base-fill);
+    box-shadow: var(--vt-shadow-lg);
+}
+
+.hp-brand {
+    margin: 0;
+    color: var(--vt-text-muted);
+    font-size: var(--vt-fs-caption);
+    font-weight: var(--vt-weight-semibold);
+    letter-spacing: var(--vt-tracking-wider);
+    text-transform: uppercase;
+}
+
+.hp h1 {
+    margin: 0;
+    font-family: var(--vt-font-display);
+    font-size: var(--vt-fs-h3);
+    line-height: var(--vt-leading-tight);
+}
+
+.hp p {
+    margin: 0;
+}
+
+.hp-muted {
+    color: var(--vt-text-muted);
+    font-size: var(--vt-fs-body-sm);
+}
+
+.hp-form,
+.hp-fields {
+    display: flex;
+    flex-direction: column;
+    gap: var(--vt-space-4);
+    margin: 0;
+}
+
+.hp-field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--vt-space-2);
+}
+
+.hp-field label,
+.hp-legend {
+    font-size: var(--vt-fs-body-sm);
+    font-weight: var(--vt-weight-medium);
+}
+
+.hp-field input[type='text'],
+.hp-field input[type='email'],
+.hp-field input[type='number'],
+.hp-field input[type='date'] {
+    inline-size: 100%;
+    min-block-size: var(--vt-control-height);
+    padding: var(--vt-space-2) var(--vt-space-3);
+    border: thin solid var(--vt-border-strong);
+    border-radius: var(--vt-radius-md);
+    background: var(--vt-surface);
+    color: var(--vt-text);
+    font: inherit;
+}
+
+.hp-field input:focus-visible,
+.hp-check input:focus-visible,
+.hp-button:focus-visible {
+    outline: none;
+    box-shadow: var(--vt-ring);
+}
+
+.hp-check {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--vt-space-3);
+    font-size: var(--vt-fs-body-sm);
+}
+
+.hp-check input {
+    margin: 0;
+    margin-block-start: var(--vt-space-1);
+    accent-color: var(--vt-accent);
+}
+
+.hp-trap {
+    position: absolute;
+    inset-inline-start: calc(var(--vt-space-32) * -40);
+    inline-size: var(--vt-space-1);
+    overflow: hidden;
+}
+
+.hp-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--vt-space-3);
+}
+
+.hp-button {
+    min-block-size: var(--vt-control-height);
+    padding: var(--vt-space-2) var(--vt-space-5);
+    border: thin solid transparent;
+    border-radius: var(--vt-radius-md);
+    background: var(--vt-accent);
+    color: var(--vt-on-accent);
+    font: inherit;
+    font-weight: var(--vt-weight-semibold);
+    cursor: pointer;
+}
+
+.hp-button--ghost {
+    border-color: var(--vt-border-strong);
+    background: transparent;
+    color: var(--vt-text);
+}
+
+.hp-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--vt-space-3);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.hp-section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--vt-space-4);
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+.hp-divider {
+    margin: 0;
+    border: 0;
+    border-block-start: thin solid var(--vt-border);
+}

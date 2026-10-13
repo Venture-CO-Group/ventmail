@@ -1,6 +1,12 @@
 <script setup lang="ts">
-import { VtCard, VtGlowLine, VtTable, type VtColumn } from '@venture/ui';
+import { VtGlowLine, type VtColumn } from '@venture/ui';
+import VmTable from '../../Components/Form/VmTable.vue';
+import VmCard from '../../Components/Form/VmCard.vue';
 import AppLayout from '../../Layouts/AppLayout.vue';
+import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { useCodes } from '../../composables/useCodes';
+import { useFormat } from '../../composables/useFormat';
 
 /**
  * BEJÖVŐ ROUTE-SZABÁLYOK ÉS LEVELEK (A4 · 30. kritérium).
@@ -39,6 +45,10 @@ interface InboundMessage {
 }
 
 const props = defineProps<{ routes: InboundRoute[]; messages: InboundMessage[] }>();
+const format = useFormat();
+// D297: minden felirat i18n-ből (hét nyelv), az állapot a közös kódcímkéből.
+const { t } = useI18n({ useScope: 'global' });
+const code = useCodes();
 
 type RouteRow = {
     priority: string;
@@ -48,13 +58,13 @@ type RouteRow = {
     last_matched_at: string;
 };
 
-const routeColumns: VtColumn<RouteRow>[] = [
+const routeColumns = computed<VtColumn<RouteRow>[]>(() => [
     { key: 'priority', label: '#' },
-    { key: 'match', label: 'Illesztés', mono: true },
-    { key: 'actions', label: 'Akciók' },
-    { key: 'active', label: 'Aktív' },
-    { key: 'last_matched_at', label: 'Utolsó találat' },
-];
+    { key: 'match', label: t('inboundRoutes.match'), mono: true },
+    { key: 'actions', label: t('inboundRoutes.actions') },
+    { key: 'active', label: t('inboundRoutes.active') },
+    { key: 'last_matched_at', label: t('inboundRoutes.lastMatched') },
+]);
 
 const describeMatch = (route: InboundRoute): string => {
     if (route.match_type === 'catch_all') return 'catch_all()';
@@ -73,55 +83,50 @@ const routeRows = (): RouteRow[] =>
         priority: String(route.priority),
         match: describeMatch(route),
         actions: describeActions(route),
-        active: route.active ? 'igen' : 'nem',
-        last_matched_at: route.last_matched_at ? new Date(route.last_matched_at).toLocaleString('hu-HU') : '—',
+        active: route.active ? t('inboundRoutes.yes') : t('inboundRoutes.no'),
+        last_matched_at: route.last_matched_at ? format.dateTime(route.last_matched_at) : '—',
     }));
 
 type MessageRow = { received_at: string; sender: string; recipient: string; subject: string; status: string };
 
-const messageColumns: VtColumn<MessageRow>[] = [
-    { key: 'received_at', label: 'Érkezett' },
-    { key: 'sender', label: 'Feladó', mono: true },
-    { key: 'recipient', label: 'Címzett', mono: true },
-    { key: 'subject', label: 'Tárgy' },
-    { key: 'status', label: 'Állapot' },
-];
+const messageColumns = computed<VtColumn<MessageRow>[]>(() => [
+    { key: 'received_at', label: t('inboundRoutes.received') },
+    { key: 'sender', label: t('inboundRoutes.sender'), mono: true },
+    { key: 'recipient', label: t('inboundRoutes.recipient'), mono: true },
+    { key: 'subject', label: t('inboundRoutes.subject') },
+    { key: 'status', label: t('inboundRoutes.status') },
+]);
 
 const messageRows = (): MessageRow[] =>
     props.messages.map((message) => ({
-        received_at: message.received_at ? new Date(message.received_at).toLocaleString('hu-HU') : '—',
+        received_at: message.received_at ? format.dateTime(message.received_at) : '—',
         // A null-sender NEM hiányzó adat: a bounce-ok így érkeznek (RFC 5321).
-        sender: message.sender ?? '(bounce)',
+        sender: message.sender ?? t('inboundRoutes.nullSender'),
         recipient: message.recipient,
         subject: message.subject ?? '—',
-        status: message.status,
+        status: code('status', message.status),
     }));
 </script>
 
 <template>
     <AppLayout>
-        <VtCard>
-            <h1>Bejövő szabályok</h1>
+        <VmCard>
+            <h1>{{ t('inboundRoutes.title') }}</h1>
             <VtGlowLine />
 
-            <p data-testid="inbound-order">
-                A szabályok ebben a sorrendben értékelődnek ki. Az első <code>stop()</code> lezárja a láncot.
-            </p>
+            <i18n-t keypath="inboundRoutes.order" tag="p" scope="global" data-testid="inbound-order">
+                <template #stop><code>stop()</code></template>
+            </i18n-t>
 
-            <VtTable :columns="routeColumns" :rows="routeRows()" data-testid="inbound-routes" />
+            <VmTable :columns="routeColumns" :rows="routeRows()" data-testid="inbound-routes" />
 
-            <p v-if="props.routes.length === 0" data-testid="inbound-routes-empty">
-                Még nincs szabály. Szabály nélkül a beérkező levél eltárolódik, és a retenció lejártakor törlődik.
-            </p>
+            <p v-if="props.routes.length === 0" data-testid="inbound-routes-empty">{{ t('inboundRoutes.empty') }}</p>
 
-            <h2>Utolsó beérkezett levelek</h2>
+            <h2>{{ t('inboundRoutes.recent') }}</h2>
 
-            <VtTable :columns="messageColumns" :rows="messageRows()" data-testid="inbound-messages" />
+            <VmTable :columns="messageColumns" :rows="messageRows()" data-testid="inbound-messages" />
 
-            <p data-testid="inbound-retention">
-                A beérkezett levél idegen tartalom: rövid retencióval tároljuk, majd a nyers levél és a
-                csatolmányok is törlődnek.
-            </p>
-        </VtCard>
+            <p data-testid="inbound-retention">{{ t('inboundRoutes.retention') }}</p>
+        </VmCard>
     </AppLayout>
 </template>

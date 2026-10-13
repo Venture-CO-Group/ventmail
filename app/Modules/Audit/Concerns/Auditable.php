@@ -21,6 +21,13 @@ trait Auditable
         });
 
         static::updated(function ($model): void {
+            // Egy modell a GYAKORI, saját tömör audit-sorral naplózott írásnál (pl. a
+            // sablonszerkesztő autosave-je: `template.autosaved`) kérheti a teljes diff
+            // kihagyását — a tényt ilyenkor a hívó naplózza, nem marad nyom nélkül.
+            if (method_exists($model, 'skipsUpdateAudit') && $model->skipsUpdateAudit()) {
+                return;
+            }
+
             $changes = $model->getChanges();
             $before = array_intersect_key($model->getOriginal(), $changes);
 

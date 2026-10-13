@@ -30,6 +30,13 @@ final class FakeContactIndex implements ContactSearchIndex
         ];
     }
 
+    public function indexMany(iterable $contacts): void
+    {
+        foreach ($contacts as $contact) {
+            $this->index($contact);
+        }
+    }
+
     public function remove(Contact $contact): void
     {
         unset($this->documents[(string) $contact->uuid]);

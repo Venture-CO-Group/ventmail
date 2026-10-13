@@ -30,6 +30,9 @@
         <exclude>
             <group>smtp-socket</group>
             <group>timescale</group>
+            <group>heavy</group>
+            <!-- v1.1 · 8. modul: a valódi Gotenberg-sidecart igénylő kontraktus-teszt (CI: gotenberg-contract job). -->
+            <group>gotenberg</group>
         </exclude>
     </groups>
     <source>
@@ -76,6 +79,7 @@
         <env force="true" name="SEND_ALLOWLIST_ENFORCED" value="false"/>
         <!-- A proxy-bizalom determinisztikus: senkinek (EdgeProxyTest méri az edge-et). -->
         <env force="true" name="TRUSTED_PROXIES" value=""/>
+        <env name="TEMPLATE_ASSET_DRIVER" value="local"/>
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>

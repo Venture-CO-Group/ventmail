@@ -21,7 +21,8 @@
         "laravel/scout": "^10.11",
         "laravel/tinker": "^2.10.1",
         "league/oauth2-client": "^2.7",
-        "meilisearch/meilisearch-php": "^1.11"
+        "meilisearch/meilisearch-php": "^1.11",
+        "openspout/openspout": "^5.3"
     },
     "require-dev": {
         "fakerphp/faker": "^1.23",
@@ -93,6 +94,7 @@
         },
         "optimize-autoloader": true,
         "preferred-install": "dist",
+        "process-timeout": 900,
         "sort-packages": true,
         "allow-plugins": {
             "pestphp/pest-plugin": true,

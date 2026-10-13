@@ -38,14 +38,27 @@ final class SetLocale
     {
         $supported = array_map('strval', (array) config('app.supported_locales', []));
 
-        $locale = $this->fromUser($request, $supported)
-            ?? $this->fromHeader($request, $supported);
+        $locale = $this->fromUser($request, $supported);
+        $viaHeader = false;
+
+        if ($locale === null) {
+            $locale = $this->fromHeader($request, $supported);
+            $viaHeader = $locale !== null;
+            $locale ??= $this->fromStored($request, $supported);
+        }
 
         if ($locale !== null) {
             app()->setLocale($locale);
         }
 
-        return $next($request);
+        $response = $next($request);
+
+        // Ha a nyelv a fejlécből jött, a válasz attól függ: a gyorsítótár/edge ne keverje.
+        if ($viaHeader) {
+            $response->headers->set('Vary', 'Accept-Language', false);
+        }
+
+        return $response;
     }
 
     /** @param list<string> $supported */
@@ -62,13 +75,24 @@ final class SetLocale
          |
          | Itt az a kérdés, hogy a felhasználó VÁLASZTOTT-e nyelvet — nem az, hogy mi
          | legyen, ha nem. A `preferredLocale()` az alapot adná vissza, az pedig mindig
-         | „nyerne" az `Accept-Language` ellen: aki sosem választott nyelvet, annak a
-         | böngészője hiába kér németet.
+         | „nyerne" az `Accept-Language` ellen.
+         |
+         | A `users.locale` alapértéke `hu`, tehát a tárolt érték ÖNMAGÁBAN nem bizonyíték
+         | arra, hogy valaki döntött: a `locale_source` mondja meg (D11). `user` = saját
+         | választás, `sso` = a ventSSO claimje; forrás nélkül (null) az `Accept-Language`
+         | előzi meg a táblát — a tárolt érték csak a fejléc hiányában számít
+         | (`fromStored`).
          |
          | A `getAttributes()` a szigorú mód (`preventAccessingMissingAttributes`) mellett
          | sem dob: csonka példánynál egyszerűen nincs kulcs.
          */
-        $locale = strtolower(trim((string) ($user->getAttributes()['locale'] ?? '')));
+        $attributes = $user->getAttributes();
+
+        if (! in_array($attributes['locale_source'] ?? null, ['user', 'sso'], true)) {
+            return null;
+        }
+
+        $locale = strtolower(trim((string) ($attributes['locale'] ?? '')));
 
         return in_array($locale, $supported, true) ? $locale : null;
     }
@@ -86,14 +110,40 @@ final class SetLocale
             return null;
         }
 
-        $preferred = $request->getPreferredLanguage($supported);
+        /*
+         | A Symfony `getPreferredLanguage($supported)` NEM jó erre: támogatott egyezés
+         | híján a lista ELSŐ elemét adja vissza, tehát egy kínai böngésző magyar felületet
+         | kapna. A `getLanguages()` a fejlécet q-érték szerint rendezve adja, és az első
+         | TÁMOGATOTT alapnyelvet választjuk — ha nincs, null, és a lánc a tárolt nyelvre esik.
+         */
+        foreach ($request->getLanguages() as $language) {
+            $base = strtolower(explode('-', str_replace('_', '-', $language))[0]);
 
-        if ($preferred === null) {
+            if (in_array($base, $supported, true)) {
+                return $base;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * UTOLSÓ lépcső: a tárolt nyelv, ha a felhasználónak nincs forrás-jelölt döntése ÉS a
+     * kérés nem hirdet nyelvet. Így a gépi kliens/háttér-kérés a felhasználó utoljára ismert
+     * nyelvén kap szöveget, nem az alapon.
+     *
+     * @param  list<string>  $supported
+     */
+    private function fromStored(Request $request, array $supported): ?string
+    {
+        $user = $request->user();
+
+        if ($user === null) {
             return null;
         }
 
-        $base = strtolower(explode('-', str_replace('_', '-', $preferred))[0]);
+        $locale = strtolower(trim((string) ($user->getAttributes()['locale'] ?? '')));
 
-        return in_array($base, $supported, true) ? $base : null;
+        return in_array($locale, $supported, true) ? $locale : null;
     }
 }

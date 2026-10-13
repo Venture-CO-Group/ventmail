@@ -62,11 +62,17 @@ test('a sorból megnyílik a trace, és a TELJES lánc látszik', async ({ page 
 
     // A lánc minden szeme: gate-döntés → SMTP-párbeszéd → kísérletek → események.
     await expect(page.getByTestId('trace-summary')).toContainText('demo@example.test');
-    await expect(page.getByTestId('trace-gates')).toContainText('suppression');
+    // D292: a kapu- és eseménynevek FORDÍTVA jelennek meg (a gépi kód a data-attribútumokban marad).
+    await expect(page.getByTestId('trace-gates')).toContainText('tiltólista');
+    await expect(page.getByTestId('trace-gates')).not.toContainText('sending_mode');
+    await expect(page.getByTestId('trace-status').locator('[data-status]')).toHaveAttribute('data-status', /.+/);
     await expect(page.getByTestId('trace-smtp')).toContainText('250');
-    await expect(page.getByTestId('trace-events')).toContainText('delivered');
-    await expect(page.getByTestId('trace-events')).toContainText('opened');
-    await expect(page.getByTestId('trace-events')).toContainText('clicked');
+    await expect(page.getByTestId('trace-events')).toContainText('kézbesítve');
+    await expect(page.getByTestId('trace-events')).toContainText('megnyitva');
+    await expect(page.getByTestId('trace-events')).toContainText('kattintva');
+    for (const kind of ['delivered', 'opened', 'clicked']) {
+        await expect(page.getByTestId('trace-timeline').locator(`[data-kind="${kind}"]`).first()).toBeVisible();
+    }
 });
 
 test('a tag-statisztika megmutatja a per-tag arányokat', async ({ page }) => {

@@ -142,6 +142,13 @@ it('egyetlen modul-route sem hitelesítetlen', function () {
          | `/internal/*` útvonalat, és rate-limit van rajta.
          */
         'internal/mta/postal/{pool}',
+        /*
+         | v1.1 · „MEGNYITÁS BÖNGÉSZŐBEN" (`{{ browser_url }}`). A levél OLVASÓJA nyitja meg,
+         | session nélkül. A hozzáférést a titkosított, cél-elválasztott token adja (a
+         | tenant-kontextus is belőle jön); a nézet NEM személyre szabott (a kanonikus törzs,
+         | merge-tag alapértékekkel), `default-src 'none'` CSP-vel és rate-limittel megy.
+         */
+        'w/{token}',
     ];
 
     $offenders = [];

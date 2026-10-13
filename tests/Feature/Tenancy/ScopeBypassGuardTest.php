@@ -149,6 +149,14 @@ it('a Tenancy modulon kívül senki nem kerüli meg a global scope-ot', function
             'Sending/Models/PostalMessageRef.php',
             'Smtp/Models/SmtpCredential.php',
             'IpPools/Console/UpdateIpReputationCommand.php',
+            // v1.1 · Az `ANALYZE contacts/consents` KARBANTARTÁSI nyelv, nem tenant-lekérdezés:
+            // az import közben frissíti a tervező statisztikáját (különben az `email IN (…)`
+            // keresés a workspace összes kontaktján végigmegy). Adatot nem olvas és nem ír.
+            'Audience/Services/Import/ImportTableStats.php',
+            // v1.1 · Az `UPDATE contacts … FROM (VALUES …) WHERE deleted_at IS NULL RETURNING email`
+            // upsert helyett (az `ON CONFLICT DO UPDATE` a soft-delete-elt sort is átírná). A
+            // workspace-szűrő KÖTÖTT paraméter a kontextusból; a sorrendet teszt őrzi.
+            'Audience/Services/Import/ImportWriter.php',
         ];
 
         if (str_starts_with($relative, 'Tenancy/') || in_array($relative, $exceptions, true)) {

@@ -6,14 +6,29 @@ namespace App\Modules\Campaign\Http\Controllers;
 
 use App\Modules\Audience\Models\ContactList;
 use App\Modules\Audience\Models\Segment;
+use App\Modules\Audit\Services\AuditLogger;
+use App\Modules\Campaign\Jobs\StartCampaignJob;
 use App\Modules\Campaign\Models\Campaign;
-use App\Modules\Campaign\Services\AudienceResolver;
+use App\Modules\Campaign\Models\CampaignRecipient;
+use App\Modules\Campaign\Services\CampaignChecklist;
 use App\Modules\Campaign\Services\CampaignLifecycle;
+use App\Modules\Campaign\Services\CampaignRowStats;
+use App\Modules\Campaign\Services\CampaignStateChanged;
+use App\Modules\Domains\Models\Domain;
+use App\Modules\Template\Data\EditorCatalog;
 use App\Modules\Template\Models\Template;
+use App\Modules\Template\Services\TemplateUsage;
+use App\Modules\Tenancy\Services\WorkspaceContext;
+use App\Support\Paged;
+use App\Support\WorkspaceTimezone;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\Unique;
 use Inertia\Inertia;
 use Inertia\Response;
 use RuntimeException;
@@ -35,38 +50,97 @@ use RuntimeException;
  */
 final class CampaignUiController
 {
-    public function index(): Response
+    /** A lista oldalmérete. */
+    private const PER_PAGE = 25;
+
+    /** A lista szűrhető állapotai — a `failed` SZÁRMAZTATOTT (lásd `displayStatus()`). */
+    private const FILTERS = ['all', 'draft', 'scheduled', 'sending', 'paused', 'sent', 'canceled', 'failed'];
+
+    /**
+     * KAMPÁNYLISTA (v1.1 · 5. modul): állapot-jelvények, szűrők, keresés, sor-statisztika.
+     *
+     * A statisztika (küldött, nyitás, kattintás) a meglévő analitikából jön: a `sent_count`
+     * a kampány-sorból, az egyedi nyitók/kattintók és a kézbesítettek a `campaign_engagement`
+     * ténytáblából — EGY csoportosított lekérdezéssel a lap összes kampányára.
+     */
+    public function index(Request $request): Response
     {
         Gate::authorize('campaign.create');
 
+        $status = in_array($request->string('status')->toString(), self::FILTERS, true) ? $request->string('status')->toString() : 'all';
+        $search = mb_substr(trim($request->string('search')->toString()), 0, 120);
+
+        $page = Campaign::query()
+            ->with(['template:id,uuid,name'])
+            ->withCount('variants')
+            ->when($search !== '', fn (Builder $query) => $query->where('name', 'ilike', '%'.addcslashes($search, '%_\\').'%'))
+            ->when($status === 'failed', fn (Builder $query) => $this->failedScope($query))
+            ->when($status === 'sent', fn (Builder $query) => $query->where('status', 'sent')->whereNot(fn (Builder $inner) => $this->failedScope($inner)))
+            ->when(! in_array($status, ['all', 'failed', 'sent'], true), fn (Builder $query) => $query->where('status', $status))
+            ->orderByDesc('id')
+            ->paginate(self::PER_PAGE)
+            ->withQueryString();
+
+        $rowStats = app(CampaignRowStats::class);
+        $stats = $rowStats->engagement(collect($page->items()));
+
         return Inertia::render('Campaign/Index', [
-            'campaigns' => Campaign::query()
-                ->with('template')
-                ->orderByDesc('id')
-                ->get()
-                ->map(fn (Campaign $campaign) => [
+            'filters' => ['status' => $status, 'search' => $search],
+            'campaigns' => collect($page->items())->map(function (Campaign $campaign) use ($stats, $rowStats) {
+
+                return [
                     'uuid' => (string) $campaign->uuid,
                     'name' => (string) $campaign->name,
                     'subject' => (string) $campaign->subject,
                     'status' => (string) $campaign->status,
+                    'displayStatus' => $this->displayStatus($campaign),
                     'template' => $campaign->template?->name,
                     'scheduledAt' => $campaign->scheduled_at?->toIso8601String(),
+                    'startedAt' => $campaign->started_at?->toIso8601String(),
                     'timezone' => $campaign->timezone,
                     // A SZERKESZTHETŐSÉG az állapotgépből jön: a felület nem találgat.
                     'editable' => $campaign->statusEnum()->isEditable(),
-                    'variants' => $campaign->variants()->count(),
-                ])->values()->all(),
-            'templates' => Template::query()->orderBy('name')->get(['uuid', 'name'])
-                ->map(fn (Template $template) => ['uuid' => (string) $template->uuid, 'name' => (string) $template->name])
-                ->values()->all(),
+                    'variants' => (int) $campaign->variants_count,
+                    'recipients' => (int) $campaign->recipient_count,
+                    'sent' => (int) $campaign->sent_count,
+                    ...$rowStats->rates($stats[(string) $campaign->uuid] ?? null),
+                    'progress' => $campaign->recipient_count > 0
+                        ? (int) round(($campaign->sent_count + $campaign->failed_count) / $campaign->recipient_count * 100)
+                        : 0,
+                ];
+            })->values()->all(),
+            'pagination' => [
+                'current' => $page->currentPage(),
+                'last' => $page->lastPage(),
+                'total' => $page->total(),
+                'prev' => $page->previousPageUrl(),
+                'next' => $page->nextPageUrl(),
+            ],
         ]);
     }
 
-    public function show(string $uuid, AudienceResolver $resolver): Response
+    /** @param Builder<Campaign> $query */
+    private function failedScope(Builder $query): Builder
+    {
+        return $query->where('status', 'sent')->where('recipient_count', '>', 0)->where('sent_count', 0);
+    }
+
+    private function displayStatus(Campaign $campaign): string
+    {
+        return app(CampaignRowStats::class)->displayStatus($campaign);
+    }
+
+    /**
+     * KAMPÁNY-LÉTREHOZÓ CHECKLIST (v1.1 · 5. modul).
+     *
+     * A szakaszok állapota és a szerver-ellenőrzések a `CampaignChecklist`-ből jönnek; a
+     * küldés gombja ugyanazon a listán áll, amit a `transition()` az indításnál újra kérdez.
+     */
+    public function show(Request $request, string $uuid, CampaignChecklist $checklist, WorkspaceContext $context): Response
     {
         Gate::authorize('campaign.create');
 
-        $campaign = Campaign::query()->with(['template', 'variants'])->where('uuid', $uuid)->firstOrFail();
+        $campaign = Campaign::query()->with(['template', 'variants.template'])->where('uuid', $uuid)->firstOrFail();
 
         return Inertia::render('Campaign/Edit', [
             'campaign' => [
@@ -77,6 +151,7 @@ final class CampaignUiController
                 'fromEmail' => $campaign->from_email,
                 'fromName' => $campaign->from_name,
                 'status' => (string) $campaign->status,
+                'displayStatus' => $this->displayStatus($campaign),
                 'editable' => $campaign->statusEnum()->isEditable(),
                 'templateUuid' => $campaign->template?->uuid,
                 'targetLists' => array_values((array) $campaign->target_lists),
@@ -84,79 +159,162 @@ final class CampaignUiController
                 'excludeLists' => array_values((array) $campaign->exclude_lists),
                 'excludeSegments' => array_values((array) $campaign->exclude_segments),
                 'scheduledAt' => $campaign->scheduled_at?->toIso8601String(),
+                'scheduledLocal' => $campaign->scheduled_local ?? $campaign->scheduledLocal()?->format('Y-m-d H:i'),
+                'sendMode' => $campaign->send_mode,
                 'timezone' => $campaign->timezone,
+                'winnerCriterion' => $campaign->winner_criterion,
+                'winnerAfterMinutes' => (int) $campaign->winner_after_minutes,
+                'recipientCount' => (int) $campaign->recipient_count,
+                'sentCount' => (int) $campaign->sent_count,
+                'failedCount' => (int) $campaign->failed_count,
                 // AZ ÖSSZEG a felületen: az indítás 100-at követel, és egy 90-es összeget
                 // nem szabad az indítás hibaüzenetéből megtudni.
                 'variantWeightTotal' => (int) $campaign->variants->sum('weight'),
                 'variants' => $campaign->variants->map(fn ($variant) => [
                     'uuid' => (string) $variant->uuid,
                     'label' => (string) $variant->label,
-                    'subject' => (string) $variant->subject,
-                    // A SÚLY SZÁZALÉK, és az összegüknek PONTOSAN 100-nak kell lennie:
-                    // ezt a `CampaignLifecycle::assertReady()` kényszeríti ki az
-                    // indításnál. A felület ezért az ÖSSZEGET is kiírja — enélkül a
-                    // felhasználó az indítás pillanatában szembesülne vele.
+                    'subject' => $variant->subject,
+                    'fromEmail' => $variant->from_email,
+                    'fromName' => $variant->from_name,
+                    'template' => $variant->template?->name,
+                    // A SÚLY SZÁZALÉK, és az összegüknek PONTOSAN 100-nak kell lennie.
                     'weight' => (int) $variant->weight,
-                    // AZ OSZLOP NEVE `is_winner`. A korábbi `winner` (és `share`) egyik
-                    // sem létezett: a szerkesztő képernyő ezért MINDEN olyan kampányon
-                    // 500-zal esett el, aminek volt változata — vagyis pont az A/B
-                    // teszten. Strict módban a nem létező attribútum kivétel, nem null.
                     'winner' => (bool) $variant->is_winner,
-                    // AZ EREDMÉNY a variáns mellett: e nélkül a felhasználó felvenné a
-                    // változatokat, és a nyertest máshol keresné.
                     'sent' => (int) $variant->sent_count,
                     'opened' => (int) $variant->opened_count,
                     'clicked' => (int) $variant->clicked_count,
                 ])->values()->all(),
             ],
-            'templates' => Template::query()->orderBy('name')->get(['uuid', 'name'])
+            'checklist' => $state = $checklist->evaluate($campaign),
+            // A KIMENET címzett-állapot + ok szerint: „miért nem ment ki?" — a PreSendGate
+            // elutasításának kódjával (pl. NO_CONSENT, SENDING_RESTRICTED).
+            'outcomes' => CampaignRecipient::query()
+                ->where('campaign_id', $campaign->getKey())
+                ->selectRaw("status, coalesce(skip_reason, '') as reason, count(*) as n")
+                ->groupBy('status', 'skip_reason')
+                ->orderByDesc('n')
+                ->limit(20)
+                ->get()
+                ->map(fn ($row) => ['status' => (string) $row->status, 'reason' => (string) $row->reason, 'count' => (int) $row->n])
+                ->values()->all(),
+            'templates' => Template::query()->where('marketing', true)->orderBy('name')->get(['uuid', 'name'])
                 ->map(fn (Template $template) => ['uuid' => (string) $template->uuid, 'name' => (string) $template->name])
                 ->values()->all(),
-            'lists' => ContactList::query()->orderBy('name')->get(['uuid', 'name'])
-                ->map(fn (ContactList $list) => ['uuid' => (string) $list->uuid, 'name' => (string) $list->name])
-                ->values()->all(),
-            'segments' => Segment::query()->orderBy('name')->get(['uuid', 'name'])
-                ->map(fn (Segment $segment) => ['uuid' => (string) $segment->uuid, 'name' => (string) $segment->name])
-                ->values()->all(),
-            // A „KINEK MEGY KI?" kérdésre az indítás ELŐTT kell válaszolni.
-            'estimate' => $resolver->estimate($campaign),
+            // v1.1 · D284: a választó a listákat/szegmenseket a `targets()` végpontról kéri
+            // (keresve, lapozva); itt csak a KIVÁLASZTOTTAK neve jön — azok mindig látszanak.
+            'selectedTargets' => $this->selectedTargets($campaign),
+            'targetCounts' => ['lists' => ContactList::query()->count(), 'segments' => Segment::query()->count()],
+            // A FELADÓ csak HITELESÍTETT domainről választható (golden rule 8).
+            'domains' => Domain::query()->where('status', 'verified')->orderBy('name')->pluck('name')->map(fn ($name) => (string) $name)->values()->all(),
+            'mergeTags' => array_values(array_filter(EditorCatalog::mergeTags(), static fn (array $tag) => ! ($tag['link'] ?? false))),
+            'defaultTimezone' => WorkspaceTimezone::for($context->workspace(), $request->user()),
+            // A „KINEK MEGY KI?" kérdésre az indítás ELŐTT kell válaszolni — a checklist
+            // ugyanazon feloldásából (review RS4: egy számlálás, nem kettő).
+            // `null` = a keretezett becslés nem készült el (review SN3): „becslés nem elérhető".
+            'estimate' => $state['sections'][0]['estimate'] ?? null,
         ]);
     }
 
-    public function store(Request $request): RedirectResponse
+    /**
+     * CÍMZETT-VÁLASZTÓ (v1.1 · D284): listák vagy szegmensek, keresve és lapozva (JSON). A lista
+     * mellett a FELIRATKOZOTT tagok száma, a szegmens mellett a legutóbbi becsült méret.
+     */
+    public function targets(Request $request, string $kind): JsonResponse
+    {
+        Gate::authorize('campaign.create');
+
+        return response()->json($kind === 'lists'
+            ? Paged::names(
+                $request,
+                ContactList::query()->withCount(['contacts' => fn ($query) => $query->where('contact_list_memberships.status', 'subscribed')]),
+                'targets',
+                fn (ContactList $list) => ['uuid' => (string) $list->uuid, 'name' => (string) $list->name, 'contacts' => (int) $list->contacts_count],
+            )
+            : Paged::names(
+                $request,
+                Segment::query(),
+                'targets',
+                fn (Segment $segment) => ['uuid' => (string) $segment->uuid, 'name' => (string) $segment->name, 'contacts' => $segment->estimated_size === null ? null : (int) $segment->estimated_size],
+            ));
+    }
+
+    /**
+     * A kampány célzott ÉS kizárt listáinak / szegmenseinek neve (a választó ezekből mutatja a
+     * kiválasztottakat, lapozástól függetlenül). Az idegen / törölt uuid egyszerűen kimarad.
+     *
+     * @return array{lists: list<array{uuid: string, name: string, contacts: int}>, segments: list<array{uuid: string, name: string, contacts: int|null}>}
+     */
+    private function selectedTargets(Campaign $campaign): array
+    {
+        $uuids = static fn (mixed ...$sets): array => array_values(array_unique(array_filter(array_merge(...array_map(static fn ($set) => array_values((array) $set), $sets)), 'is_string')));
+
+        return [
+            'lists' => ContactList::query()
+                ->whereIn('uuid', $uuids($campaign->target_lists, $campaign->exclude_lists))
+                ->withCount(['contacts' => fn ($query) => $query->where('contact_list_memberships.status', 'subscribed')])
+                ->get(['id', 'uuid', 'name'])
+                ->map(fn (ContactList $list) => ['uuid' => (string) $list->uuid, 'name' => (string) $list->name, 'contacts' => (int) $list->contacts_count])
+                ->values()->all(),
+            'segments' => Segment::query()
+                ->whereIn('uuid', $uuids($campaign->target_segments, $campaign->exclude_segments))
+                ->get(['uuid', 'name', 'estimated_size'])
+                ->map(fn (Segment $segment) => ['uuid' => (string) $segment->uuid, 'name' => (string) $segment->name, 'contacts' => $segment->estimated_size === null ? null : (int) $segment->estimated_size])
+                ->values()->all(),
+        ];
+    }
+
+    public function store(Request $request, WorkspaceContext $context): RedirectResponse
     {
         Gate::authorize('campaign.create');
 
         $validated = $request->validate([
-            'name' => ['required', 'string', 'max:120'],
-            'subject' => ['required', 'string', 'max:255'],
+            'name' => ['required', 'string', 'max:120', $this->uniqueName(null)],
+            'subject' => ['nullable', 'string', 'max:255'],
         ]);
 
         $campaign = Campaign::create([
             'name' => $validated['name'],
-            'subject' => $validated['subject'],
+            'subject' => $validated['subject'] ?? '',
+            // v1.1 · az ütemezés alapértelmezett zónája a workspace-é (lásd `WorkspaceTimezone`).
+            'timezone' => WorkspaceTimezone::for($context->workspace(), $request->user()),
         ]);
 
         return redirect()->route('campaigns.show', ['uuid' => $campaign->uuid]);
     }
 
-    public function update(Request $request, string $uuid): RedirectResponse
+    /**
+     * A CHECKLIST mentése — a teljes kampány-állapot egy kérésben.
+     *
+     * A szakaszok külön-külön menthetők a felületen, de mindig a TELJES űrlapot küldik: két
+     * részleges mentés versenye így nem írhat felül egy másik szakaszt félig.
+     */
+    public function update(Request $request, string $uuid, CampaignChecklist $checklist, CampaignLifecycle $lifecycle): RedirectResponse
     {
         Gate::authorize('campaign.create');
 
         $campaign = Campaign::query()->where('uuid', $uuid)->firstOrFail();
 
         $validated = $request->validate([
-            'name' => ['required', 'string', 'max:120'],
-            'subject' => ['required', 'string', 'max:255'],
+            'name' => ['required', 'string', 'max:120', $this->uniqueName($campaign)],
+            'subject' => ['nullable', 'string', 'max:255'],
             'preheader' => ['nullable', 'string', 'max:255'],
             'fromEmail' => ['nullable', 'string', 'email', 'max:320'],
             'fromName' => ['nullable', 'string', 'max:120'],
             'templateUuid' => ['nullable', 'string'],
-            'targetLists' => ['array'],
-            'targetSegments' => ['array'],
-            'excludeLists' => ['array'],
-            'excludeSegments' => ['array'],
+            'targetLists' => ['array', 'max:50'],
+            'targetLists.*' => ['string', 'uuid'],
+            'targetSegments' => ['array', 'max:50'],
+            'targetSegments.*' => ['string', 'uuid'],
+            'excludeLists' => ['array', 'max:50'],
+            'excludeLists.*' => ['string', 'uuid'],
+            'excludeSegments' => ['array', 'max:50'],
+            'excludeSegments.*' => ['string', 'uuid'],
+            // v1.1 · ütemezés (most / később) a választott időzónában, és az A/B győztes-szabály.
+            'sendMode' => ['nullable', Rule::in(['now', 'later'])],
+            'scheduledLocal' => ['nullable', 'required_if:sendMode,later', 'date_format:Y-m-d H:i'],
+            'timezone' => ['nullable', 'string', Rule::in(timezone_identifiers_list())],
+            'winnerCriterion' => ['nullable', Rule::in(['open_rate', 'click_rate'])],
+            'winnerAfterMinutes' => ['nullable', 'integer', 'min:30', 'max:10080'],
         ]);
 
         $templateId = null;
@@ -167,26 +325,77 @@ final class CampaignUiController
             $templateId = Template::query()->where('uuid', $validated['templateUuid'])->firstOrFail()->getKey();
         }
 
-        try {
-            $campaign->update([
-                'name' => $validated['name'],
-                'subject' => $validated['subject'],
-                'preheader' => $validated['preheader'] ?? null,
-                'from_email' => $validated['fromEmail'] ?? null,
-                'from_name' => $validated['fromName'] ?? null,
-                'template_id' => $templateId,
-                'target_lists' => array_values($validated['targetLists'] ?? []),
-                'target_segments' => array_values($validated['targetSegments'] ?? []),
-                'exclude_lists' => array_values($validated['excludeLists'] ?? []),
-                'exclude_segments' => array_values($validated['excludeSegments'] ?? []),
-            ]);
-        } catch (RuntimeException $e) {
-            // A NEM SZERKESZTHETŐ állapotot a MODELL tiltja (küldés közben a célzás
-            // átírása fél kampányt küldene máshova). A felület a szabály OKÁT mondja el.
-            return back()->with('error', $e->getMessage());
-        }
+        // SOR-ZÁR a mentés és az ütemezett ág idejére (review NIT): az ütemező (amelyik szintén
+        // zárol) és egy másik szerkesztés nem futhat közé — egy közben `sending`-re váltott
+        // kampányt a már beolvasott állapot alapján nem írunk át, és nem ütemezünk újra.
+        return DB::transaction(function () use ($campaign, $validated, $templateId, $checklist, $lifecycle): RedirectResponse {
+            $campaign = Campaign::query()->whereKey($campaign->getKey())->lockForUpdate()->firstOrFail();
 
-        return back()->with('success', __('ventmail.campaigns.saved'));
+            try {
+                $campaign->fill([
+                    'name' => $validated['name'],
+                    'subject' => $validated['subject'] ?? '',
+                    'preheader' => $validated['preheader'] ?? null,
+                    'from_email' => $validated['fromEmail'] ?? null,
+                    'from_name' => $validated['fromName'] ?? null,
+                    'template_id' => $templateId,
+                    'target_lists' => array_values($validated['targetLists'] ?? []),
+                    'target_segments' => array_values($validated['targetSegments'] ?? []),
+                    'exclude_lists' => array_values($validated['excludeLists'] ?? []),
+                    'exclude_segments' => array_values($validated['excludeSegments'] ?? []),
+                    'winner_criterion' => $validated['winnerCriterion'] ?? null,
+                    'winner_after_minutes' => (int) ($validated['winnerAfterMinutes'] ?? $campaign->winner_after_minutes ?? 240),
+                ]);
+
+                $campaign->forceFill([
+                    'send_mode' => $validated['sendMode'] ?? null,
+                    'scheduled_local' => ($validated['sendMode'] ?? null) === 'later' ? ($validated['scheduledLocal'] ?? null) : null,
+                    'timezone' => $validated['timezone'] ?? $campaign->timezone,
+                ])->save();
+            } catch (RuntimeException $e) {
+                // A NEM SZERKESZTHETŐ állapotot a MODELL tiltja (küldés közben a célzás
+                // átírása fél kampányt küldene máshova). A felület a szabály OKÁT mondja el.
+                return back()->with('error', $e->getMessage());
+            }
+
+            if ($campaign->status !== 'scheduled') {
+                return back()->with('success', __('ventmail.campaigns.saved'));
+            }
+
+            // AZ ÜTEMEZÉS a `campaign.publish` képesség (review BN2): a szerző (`author`) írhat
+            // kampányt, de nem ütemezhet. Egy ütemezett kampány szerkesztése a jóváhagyott
+            // tartalmat és időpontot írja át — publikálási jog nélkül ezért VÁZLATBA kerül
+            // (a tartalom megmarad), auditálva; egy publikáló ütemezheti újra.
+            if (Gate::denies('campaign.publish')) {
+                $lifecycle->unschedule($campaign);
+                app(AuditLogger::class)->log('campaign.unscheduled_by_edit', $campaign, context: ['reason' => 'missing_publish_ability']);
+
+                return back()->with('error', __('studio.checklist.unscheduledNoPublish'));
+            }
+
+            // AZ ÜTEMEZETT kampány szerkesztése (review RS1): az időpont és a tartalom a checklisttel
+            // újra érvényesül. Ha minden kész, ÚJRAÜTEMEZ (az új helyi idő az új UTC-pillanat), ha
+            // nem, VISSZAVESZI vázlatba — egy hiányossá szerkesztett kampány nem indulhat el az
+            // eredeti időpontban.
+            $fresh = $campaign->fresh();
+
+            // Az ÚJRAÜTEMEZÉS is élesítés: a sablon-sorok megosztott zárja (SEC4-S1).
+            app(TemplateUsage::class)->lockForActivation($fresh->templateIds());
+
+            try {
+                if (! $checklist->evaluate($fresh)['ready'] || $fresh->send_mode !== 'later') {
+                    throw new RuntimeException(__('studio.checklist.unscheduled'));
+                }
+
+                $lifecycle->schedule($fresh, (string) $fresh->scheduled_local, (string) $fresh->timezone);
+            } catch (\Throwable) {
+                $lifecycle->unschedule($campaign->fresh());
+
+                return back()->with('error', __('studio.checklist.unscheduled'));
+            }
+
+            return back()->with('success', __('ventmail.campaigns.saved'));
+        });
     }
 
     /**
@@ -211,17 +420,29 @@ final class CampaignUiController
 
         $validated = $request->validate([
             'label' => ['required', 'string', 'max:40'],
-            'subject' => ['required', 'string', 'max:255'],
+            // v1.1 · a variáns TÁRGY-, TARTALOM- vagy FELADÓ-változat (vagy ezek keveréke);
+            // legalább egy dimenzióban el kell térnie — egy azonos variáns nem A/B teszt.
+            'subject' => ['nullable', 'required_without_all:templateUuid,fromEmail', 'string', 'max:255'],
+            'templateUuid' => ['nullable', 'string', 'uuid'],
+            'fromEmail' => ['nullable', 'string', 'email', 'max:320'],
+            'fromName' => ['nullable', 'string', 'max:120'],
             // A SÚLY SZÁZALÉK. A nulla nem engedett: egy 0%-os változat sosem kapna
-            // címzettet, viszont beleszámítana a „legalább két variáns" feltételbe — a
-            // felhasználó A/B tesztet hinne ott, ahol egyetlen tárgysor megy ki.
+            // címzettet, viszont beleszámítana a „legalább két variáns" feltételbe.
             'weight' => ['required', 'integer', 'min:1', 'max:100'],
         ]);
+
+        // A SABLON a global scope-on át: idegen workspace sablonja 404.
+        $templateId = empty($validated['templateUuid'])
+            ? null
+            : Template::query()->where('uuid', $validated['templateUuid'])->firstOrFail()->getKey();
 
         try {
             $campaign->variants()->create([
                 'label' => $validated['label'],
-                'subject' => $validated['subject'],
+                'subject' => ($validated['subject'] ?? '') === '' ? null : $validated['subject'],
+                'template_id' => $templateId,
+                'from_email' => $validated['fromEmail'] ?? null,
+                'from_name' => $validated['fromName'] ?? null,
                 'weight' => (int) $validated['weight'],
             ]);
         } catch (RuntimeException $e) {
@@ -262,8 +483,24 @@ final class CampaignUiController
         return back()->with('success', __('ventmail.campaigns.variantRemoved'));
     }
 
-    public function transition(Request $request, string $uuid, CampaignLifecycle $lifecycle): RedirectResponse
-    {
+    /**
+     * ÁLLAPOTVÁLTÁS — a v1.1 `send` a checklist „Küldés / Ütemezés" gombja.
+     *
+     * Az INDÍTÁS és az ÜTEMEZÉS előtt a SZERVER újra lefuttatja a checklistet: a felületi
+     * gomb letiltása kényelem, ez a határ (szigorú TemplateCompliance, hitelesített domain,
+     * megerősített consent). A küldés pillanatában pedig a PreSendGate dönt címzettenként.
+     *
+     * A `start` (és a `send` „most" ága) a kérésben csak LEFOGLAL, és a `StartCampaignJob`
+     * MATERIALIZÁL a `campaign` soron (review RB1/S4): egy 300k-s célzás nem egy webkérés
+     * idejében íródik fel. (A v1.1 előtt a felület a puszta `CampaignLifecycle::start()`-ot
+     * hívta: a kampány `sending`-re váltott, de egyetlen címzett sem jött létre.)
+     */
+    public function transition(
+        Request $request,
+        string $uuid,
+        CampaignLifecycle $lifecycle,
+        CampaignChecklist $checklist,
+    ): RedirectResponse {
         // AZ INDÍTÁS ÉS AZ ÜTEMEZÉS külön képesség: a `author` szerep írhat kampányt, de
         // nem küldheti ki.
         Gate::authorize('campaign.publish');
@@ -271,19 +508,69 @@ final class CampaignUiController
         $campaign = Campaign::query()->where('uuid', $uuid)->firstOrFail();
 
         $validated = $request->validate([
-            'action' => ['required', 'string', Rule::in(['schedule', 'unschedule', 'start', 'pause', 'resume'])],
+            'action' => ['required', 'string', Rule::in(['send', 'schedule', 'unschedule', 'start', 'pause', 'resume', 'cancel'])],
             'localTime' => ['required_if:action,schedule', 'nullable', 'string'],
             'timezone' => ['required_if:action,schedule', 'nullable', 'string'],
         ]);
 
+        $action = $validated['action'];
+
+        if ($action === 'send') {
+            $action = $campaign->send_mode === 'later' ? 'schedule' : 'start';
+            $validated['localTime'] = $campaign->scheduled_local;
+            $validated['timezone'] = $campaign->timezone;
+        }
+
+        // AZ INDÍTÁS ÉS AZ ÜTEMEZÉS SOR-ZÁR ALATT (review S2): a checklist a ZÁROLT, friss soron
+        // fut, és ugyanabban a tranzakcióban vált az állapot. A szerkesztés (`update()`) ugyanezt a
+        // sort zárolja — így egy közben mentett, ellenőrizetlen tartalom nem ütemeződhet be a
+        // korábbi checklist alapján. (A szüneteltetés / folytatás / visszavonás NEM itt zárol: a
+        // `CampaignLifecycle` állapotváltásai maguk zárolnak és összehasonlítanak, a folytatás
+        // kötegei pedig csak a commit után indulhatnak.)
         try {
-            match ($validated['action']) {
-                'schedule' => $lifecycle->schedule($campaign, (string) $validated['localTime'], (string) $validated['timezone']),
-                'unschedule' => $lifecycle->unschedule($campaign),
-                'start' => $lifecycle->start($campaign),
-                'pause' => $lifecycle->pause($campaign),
-                'resume' => $lifecycle->resume($campaign),
-            };
+            if (in_array($action, ['start', 'schedule'], true)) {
+                $blocked = DB::transaction(function () use ($campaign, $action, $validated, $checklist, $lifecycle): ?RedirectResponse {
+                    $locked = Campaign::query()->whereKey($campaign->getKey())->lockForUpdate()->firstOrFail();
+
+                    if ((string) $locked->status !== (string) $campaign->status) {
+                        throw new CampaignStateChanged((string) $campaign->status, (string) $locked->status);
+                    }
+
+                    // A HIVATKOZOTT SABLONOK megosztott zárja (review SEC4-S1): a szerkesztő mentése
+                    // (FOR UPDATE) ezalatt vár, a checklist így a véglegesen kiküldendő tartalmat látja,
+                    // és a commit után a mentés már az aktív használatot (publikálási kaput) látja.
+                    app(TemplateUsage::class)->lockForActivation($locked->templateIds());
+
+                    $state = $checklist->evaluate($locked);
+
+                    if (! $state['ready']) {
+                        return back()->with('error', __('studio.checklist.notReady', ['blockers' => implode(', ', $state['blockers'])]));
+                    }
+
+                    match ($action) {
+                        'schedule' => $lifecycle->schedule($locked, (string) $validated['localTime'], (string) $validated['timezone']),
+                        // LEFOGLALÁS a kérésben, materializálás + kötegek a `campaign-start` soron (RB1/S4);
+                        // a job a commit UTÁN kerül a sorba (`afterCommit`).
+                        'start' => StartCampaignJob::dispatch((string) $lifecycle->start($locked)->uuid, (int) $locked->workspace_id),
+                    };
+
+                    return null;
+                });
+
+                if ($blocked !== null) {
+                    return $blocked;
+                }
+            } else {
+                match ($action) {
+                    'unschedule' => $lifecycle->unschedule($campaign),
+                    'pause' => $lifecycle->pause($campaign),
+                    'resume' => $lifecycle->resume($campaign),
+                    'cancel' => $lifecycle->cancel($campaign),
+                };
+            }
+        } catch (CampaignStateChanged) {
+            // VERSENYHELYZET (review R4-S2): a felhasználó nyelvén, belső állapotnevek nélkül.
+            return back()->with('error', __('studio.checklist.changed'));
         } catch (\Throwable $e) {
             // Az állapotgép és a kapuk (hitelesített domain, consent, leiratkozó blokk)
             // hibáit UGYANÚGY jelezzük: a marketinges számára mindkettő ugyanaz a kérdés —
@@ -291,6 +578,15 @@ final class CampaignUiController
             return back()->with('error', $e->getMessage());
         }
 
-        return back()->with('success', __('ventmail.campaigns.'.$validated['action']));
+        return back()->with('success', __($action === 'cancel' ? 'studio.checklist.canceled' : 'ventmail.campaigns.'.$action));
+    }
+
+    /** A kampány neve tenantonként egyedi (a részleges unique index szerint). */
+    private function uniqueName(?Campaign $campaign): Unique
+    {
+        return Rule::unique('campaigns', 'name')
+            ->where('workspace_id', app(WorkspaceContext::class)->workspaceId())
+            ->whereNull('deleted_at')
+            ->ignore($campaign?->getKey());
     }
 }

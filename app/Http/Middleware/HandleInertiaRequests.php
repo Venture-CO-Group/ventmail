@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Middleware;
 
 use App\Models\User;
+use App\Modules\Identity\Services\ProfileSettings;
 use App\Modules\SuperAdmin\Services\Impersonation;
 use App\Modules\Tenancy\Models\WorkspaceMember;
 use App\Modules\Tenancy\Policies\AbilityMap;
@@ -12,6 +13,7 @@ use App\Modules\Tenancy\Services\WorkspaceContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Middleware;
+use Symfony\Component\HttpFoundation\Response;
 
 /**
  * Minden oldalnak átadott megosztott adat — a felület KÖZÖS ÁLLAPOTA.
@@ -36,6 +38,22 @@ final class HandleInertiaRequests extends Middleware
     /**
      * @return array<string, mixed>
      */
+    /**
+     * Az Inertia a `Vary`-t `X-Inertia`-ra CSERÉLI, ezért a nyelv-függést (SetLocale) itt,
+     * a szülő UTÁN fűzzük hozzá: nem hitelesített válasznál a nyelv az `Accept-Language`-től
+     * függ, és a gyorsítótár/edge nem keverheti a nyelveket.
+     */
+    public function handle(Request $request, \Closure $next): Response
+    {
+        $response = parent::handle($request, $next);
+
+        if ($request->user() === null && $request->headers->has('Accept-Language')) {
+            $response->headers->set('Vary', 'Accept-Language', false);
+        }
+
+        return $response;
+    }
+
     public function share(Request $request): array
     {
         /*
@@ -55,14 +73,36 @@ final class HandleInertiaRequests extends Middleware
             'appName' => config('app.name'),
             'app' => ['version' => (string) config('app.version')],
 
+            // A ventSSO fiókoldala: a profil és az avatar-menü ide LINKEL (nincs duplikálás).
+            'ssoAccountUrl' => (string) config('identity.sso_account_url'),
+
             'auth' => fn (): array => [
                 'user' => ($user = $request->user()) instanceof User ? [
                     'name' => $user->name,
                     'email' => $user->email,
                     'locale' => $user->preferredLocale(),
                     'platformAdmin' => $user->isPlatformAdmin(),
+                    'timezone' => $user->raw('timezone'),
+                    'dateFormat' => $user->raw('date_format'),
+                    'numberFormat' => $user->raw('number_format'),
                 ] : null,
             ],
+
+            /*
+             | A FORMÁZÁS (D11 / D284): a profil EFFEKTÍV szám- és dátumformátuma + időzónája. A felület
+             | minden kiírása ebből formáz (`useFormat`), nem a böngésző locale-jából — a szótár és az
+             | alapértékek a `ProfileSettings`-é, hogy a profiloldal és a formázó ugyanazt mondja.
+             */
+            'format' => function () use ($request): array {
+                $user = $request->user();
+                $raw = static fn (string $key): mixed => $user instanceof User ? $user->raw($key) : null;
+
+                return [
+                    'timezone' => is_string($tz = $raw('timezone')) && in_array($tz, timezone_identifiers_list(), true) ? $tz : (string) config('app.timezone'),
+                    'dateFormat' => in_array($raw('date_format'), ProfileSettings::DATE_FORMATS, true) ? $raw('date_format') : ProfileSettings::DEFAULT_DATE_FORMAT,
+                    'numberFormat' => in_array($raw('number_format'), ProfileSettings::NUMBER_FORMATS, true) ? $raw('number_format') : ProfileSettings::DEFAULT_NUMBER_FORMAT,
+                ];
+            },
 
             'workspace' => function (): ?array {
                 $context = app(WorkspaceContext::class);

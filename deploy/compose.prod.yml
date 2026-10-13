@@ -9,6 +9,17 @@
 #   postal-api  the two Postal instances (internal): the app/worker call their
 #               HTTP API, and they deliver signed webhooks to `ventmail-web`
 #   data        Redis (this app's own)
+#   render      the Gotenberg PDF sidecar (compose.render.yml, internal, no egress): only `app`
+#               and `worker` call it (the report job runs on the worker's `reports` queue)
+#
+# Shared storage (D227): every PHP role (app, worker, worker-imports, scheduler,
+# ops) sees ONE storage/app: an import upload written by `app` is read by
+# `worker-imports`, a PDF report rendered by `worker` is downloaded through `app`.
+# Two external, named volumes that deploy.sh creates (never removes):
+#   ventmail-storage         -> /app/storage/app          (private: imports, reports, logos)
+#   ventmail-storage-public  -> /app/storage/app/public   (template images, D10)
+# `web` mounts only the public one, read-only, and serves it under /storage/*.
+# Both colours mount the same volumes: a colour switch loses no file.
 # Nothing here publishes a host port - Docker would bypass ufw for it - and no
 # service here may send SMTP itself (the box's DOCKER-USER guard resets it).
 
@@ -22,8 +33,11 @@ services:
   app:
     <<: *php
     command: ["app"]
+    networks: [default, data, mail-db, postal-api, render]
     volumes:
       - fpm:/run/php
+      - storage:/app/storage/app
+      - storage-public:/app/storage/app/public
     stop_signal: SIGQUIT
     stop_grace_period: 30s
     mem_limit: 2g
@@ -33,14 +47,35 @@ services:
   worker:
     <<: *php
     command: ["worker"]
+    networks: [default, data, mail-db, postal-api, render]
+    volumes:
+      - storage:/app/storage/app
+      - storage-public:/app/storage/app/public
     stop_signal: SIGTERM
     stop_grace_period: 60s
     mem_limit: 2g
     cpus: 2.0
 
+  # The contact-import queues (imports, imports-inspect), isolated from the send queue: a
+  # byte-heavy upload can exhaust memory, and in a shared cgroup that would OOM-kill the
+  # sending Horizon too. Own limits, own container; `artisan horizon --environment=imports`.
+  worker-imports:
+    <<: *php
+    command: ["worker-imports"]
+    volumes:
+      - storage:/app/storage/app
+      - storage-public:/app/storage/app/public
+    stop_signal: SIGTERM
+    stop_grace_period: 60s
+    mem_limit: 3g
+    cpus: 2.0
+
   scheduler:
     <<: *php
     command: ["scheduler"]
+    volumes:
+      - storage:/app/storage/app
+      - storage-public:/app/storage/app/public
     mem_limit: 512m
     cpus: 0.5
 
@@ -52,6 +87,9 @@ services:
       TRUSTED_PROXIES: ${TRUSTED_PROXIES:?TRUSTED_PROXIES missing from .env}
     volumes:
       - fpm:/run/php
+      # Only the public files (template images), read-only; Caddy serves them as
+      # plain files under /storage/* (Caddyfile.web), never through PHP.
+      - storage-public:/app/storage/app/public:ro
     restart: unless-stopped
     depends_on:
       app:
@@ -73,6 +111,9 @@ services:
     env_file: .env
     entrypoint: ["php"]
     command: ["artisan", "list"]
+    volumes:
+      - storage:/app/storage/app
+      - storage-public:/app/storage/app/public
     networks: [default, data, mail-db, postal-api]
     mem_limit: 1g
     cpus: 1.0
@@ -91,6 +132,15 @@ networks:
   edge:
     name: edge
     external: true
+  render:
+    name: ventmail-render
+    external: true
 
 volumes:
   fpm: {}
+  storage:
+    name: ventmail-storage
+    external: true
+  storage-public:
+    name: ventmail-storage-public
+    external: true

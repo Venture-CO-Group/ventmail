@@ -36,11 +36,19 @@ WORKDIR /app
 
 ARG PHP_EXTENSION_INSTALLER=2.12.0
 ADD --chmod=0755 --checksum=sha256:3f49c71fa66c79b8b2b96bc0ce92885dafd7946f3b5a46f545b390d6f1617e2c https://github.com/mlocati/docker-php-extension-installer/releases/download/${PHP_EXTENSION_INSTALLER}/install-php-extensions /usr/local/bin/
-RUN install-php-extensions pdo_pgsql pcntl opcache redis intl zip bcmath sockets \
+RUN install-php-extensions pdo_pgsql pcntl opcache redis intl zip gd bcmath sockets \
     && apk add --no-cache fcgi \
     && addgroup -g 10001 -S ventmail \
     && adduser -u 10001 -S -D -H -G ventmail ventmail \
     && rm -f /usr/local/etc/php-fpm.d/zz-docker.conf.dist
+
+# D222/D260: az izolált XLSX-olvasó (IsolatedXlsxRowReader) a busybox `sh` `ulimit -v` beépítettjével korlátozza a
+# gyerekfolyamat CÍMTERÉT (a libxml memóriája is ebbe számít). A build bukjon, ha ez ebben az image-ben nem működik:
+# (1) a limit ELFOGADOTT (a PHP elindul alatta), (2) a limit ÉRVÉNYESÜL: 200 MB foglalás 128 MB címtérben
+# MEMÓRIA-hibával bukik (a kimenetben „Out of memory" / „Allowed memory size" — nem bármilyen más hiba).
+RUN sh -c 'ulimit -v 262144 && exec php -d opcache.enable_cli=0 -r "exit(0);"' \
+    && sh -c 'ulimit -v 131072 && exec php -d opcache.enable_cli=0 -d memory_limit=-1 -d display_errors=stderr -r "str_repeat(\"x\", 200<<20);"' 2>&1 \
+        | grep -qE 'Out of memory|Allowed memory size'
 
 COPY --from=caddy /usr/bin/caddy /usr/local/bin/caddy
 COPY docker/php/php.ini /usr/local/etc/php/conf.d/zz-ventmail.ini
@@ -55,6 +63,8 @@ COPY --from=vendor --chown=10001:10001 /app/vendor ./vendor
 
 RUN test -f public/build/manifest.json \
         || { echo 'public/build is missing: build the frontend first (CI frontend job).' >&2; exit 1; } \
+    && test -f public/build/report/report.js && test -f public/build/report/report.css \
+        || { echo 'public/build/report is missing: the PDF report bundle (vite.report.config.ts) is part of npm run build.' >&2; exit 1; } \
     && rm -f public/hot .env \
     && mkdir -p storage/framework/cache storage/framework/sessions storage/framework/views storage/logs storage/app/private storage/app/public bootstrap/cache \
     && chown -R 10001:10001 storage bootstrap/cache \

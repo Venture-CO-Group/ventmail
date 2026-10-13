@@ -39,6 +39,14 @@ info:
       építjük címzettenként.
     - Ugyanaz az `Idempotency-Key` MÁS kérés-tartalommal `409 IDEMPOTENCY_KEY_REUSED`
       (korábban csendben eldobta a második levelet).
+    - **Fenntartott `Idempotency-Key` előtagok** (`campaign:`, `journey:`, `template-test:`,
+      `invite:`, `optin:`, `smtp:`, `inbound-fwd-`, `dev-seed-`): a belső küldő utak kulcsai.
+      Ilyen kulccsal a kérés `400 IDEMPOTENCY_KEY_RESERVED` — különben egy API-hívó előre
+      „lefoglalhatna" egy belső kulcsot, és a valódi levél replay-ként elmaradna.
+    - **`<!--vm:…-->` kommentek a törzsben** (v1.1): ezek a Studio szerkesztő feltételes
+      blokkjainak belső jelölői. A `/v1` és az SMTP úton beküldött `html`/`text` törzsből a
+      jelölő-kommentek kimaradnak, a TARTALOM érintetlen. A szerkesztőből tárolt sablonná
+      publikált sablonból a feltételes blokkok a publikáláskor kiesnek.
 
 servers:
   - url: https://api.ventmail.app/v1
@@ -55,6 +63,8 @@ tags:
     description: Küldés (strukturált és nyers MIME)
   - name: templates
     description: Tárolt sablonok verziózással
+  - name: suppressions
+    description: Tiltólista (bounce, panasz, leiratkozás, kézi)
 
 paths:
   /messages:
@@ -453,6 +463,101 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
+
+  /suppressions:
+    get:
+      tags: [suppressions]
+      summary: Tiltólista lekérdezése (külön listák, kurzoros lapozással)
+      description: |
+        A `list` a felület négy listája: `bounces` (bounce + fogadó-oldali tiltás),
+        `complaints`, `unsubscribes`, `manual` (kézi + platform-szabály). A platform-szintű
+        tiltások nem jelennek meg (a létezésük sem derül ki).
+      operationId: listSuppressions
+      security: [{ bearerAuth: [] }, { basicAuth: [] }]
+      parameters:
+        - { name: list, in: query, schema: { type: string, enum: [bounces, complaints, unsubscribes, manual] } }
+        - { name: search, in: query, schema: { type: string, maxLength: 320 }, description: 'címrészlet' }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 1000, default: 100 } }
+        - { name: cursor, in: query, schema: { type: string }, description: 'az előző válasz `paging.next` értéke' }
+      responses:
+        '200':
+          description: Tiltások
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: { type: array, items: { $ref: '#/components/schemas/Suppression' } }
+                  paging:
+                    type: object
+                    properties:
+                      next: { type: [string, 'null'] }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [suppressions]
+      summary: Cím felvétele a tiltólistára
+      description: |
+        Monoton: a szélesebb hatókör marad meg, és a panasz/leiratkozás RAGADÓS — más ok nem
+        írja felül (különben törölhetővé válna). Egyébként a súlyosabb ok marad. A válasz
+        minden címre ugyanaz (201): a platform-szintű tiltás létezése nem derül ki.
+      operationId: addSuppression
+      security: [{ bearerAuth: [] }, { basicAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, format: email, maxLength: 320 }
+                reason: { type: string, enum: [manual, bounce, blocked, unsubscribe, complaint], default: manual }
+                applies_to: { type: string, enum: [all, marketing], default: all }
+      responses:
+        '201':
+          description: Felvéve (vagy a meglévő tiltás szigorítva)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Suppression' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /suppressions/{email}:
+    delete:
+      tags: [suppressions]
+      summary: Tiltás törlése indoklással
+      description: |
+        Az INDOKLÁS (`reason`) kötelező — JSON-törzsben vagy query-paraméterként —, és a
+        törlés auditált. A PANASZ és a LEIRATKOZÁS nem törölhető (`403
+        SUPPRESSION_IRREVOCABLE`): az az érintett akarata. Csak a workspace saját sora
+        törölhető; a nem létező (vagy platform-szintű) címre `404 UNKNOWN_SUPPRESSION`.
+      operationId: deleteSuppression
+      security: [{ bearerAuth: [] }, { basicAuth: [] }]
+      parameters:
+        - { name: email, in: path, required: true, schema: { type: string } }
+        - { name: reason, in: query, required: false, schema: { type: string, minLength: 3, maxLength: 500 }, description: 'a törzs `reason` mezőjének alternatívája' }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string, minLength: 3, maxLength: 500, description: 'a törlés indoklása (auditálva)' }
+      responses:
+        '204': { description: Törölve }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: Hiányzó scope, vagy nem törölhető tiltás (`SUPPRESSION_IRREVOCABLE`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '404': { $ref: '#/components/responses/NotFound' }
 
   /validate:
     post:
@@ -942,6 +1047,18 @@ components:
           schema: { $ref: '#/components/schemas/Error' }
 
   schemas:
+    Suppression:
+      type: object
+      properties:
+        id: { type: string }
+        email: { type: string }
+        reason: { type: string, enum: [manual, unsubscribe, bounce, blocked, complaint, policy] }
+        applies_to: { type: string, enum: [all, marketing] }
+        source: { type: string }
+        detail: { type: [string, 'null'], description: 'kiegészítő ok, pl. bounce-nál `hard` / `soft`' }
+        deletable: { type: boolean, description: 'a panasz és a leiratkozás nem törölhető' }
+        expires_at: { type: [string, 'null'], format: date-time }
+        created_at: { type: string, format: date-time }
     CampaignReportCounts:
       type: object
       description: |
@@ -1397,3 +1514,6 @@ components:
         - INVALID_WEBHOOK_URL
         - UNRESOLVABLE_WEBHOOK_URL
         - IN_PROGRESS
+        # v1.1 · 7. modul: tiltólista.
+        - SUPPRESSION_IRREVOCABLE
+        - UNKNOWN_SUPPRESSION

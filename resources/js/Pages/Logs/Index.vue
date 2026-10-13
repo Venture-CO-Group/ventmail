@@ -1,19 +1,30 @@
 <script setup lang="ts">
-import { router } from '@inertiajs/vue3';
-import { VtButton, VtCard, VtField, VtGlowLine, VtInput, VtTable, type VtColumn } from '@venture/ui';
-import { reactive } from 'vue';
+import { router, usePage } from '@inertiajs/vue3';
+import { VtButton, VtCheckbox, VtField, VtInput, VtSelect, type VtColumn } from '@venture/ui';
+import { computed, reactive, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
+import VmCard from '../../Components/Form/VmCard.vue';
+import VmForm from '../../Components/Form/VmForm.vue';
+import VmFormActions from '../../Components/Form/VmFormActions.vue';
+import VmFormRow from '../../Components/Form/VmFormRow.vue';
+import VmFormSection from '../../Components/Form/VmFormSection.vue';
+import VmTable from '../../Components/Form/VmTable.vue';
+import VmStateBadge from '../../Components/Platform/VmStateBadge.vue';
+import VmPageHeader from '../../Components/Studio/VmPageHeader.vue';
 import AppLayout from '../../Layouts/AppLayout.vue';
+import { useFormat } from '../../composables/useFormat';
+import { useCodes } from '../../composables/useCodes';
 
 /**
- * Kereshető napló (A3 · 22. kritérium).
+ * ESEMÉNYNAPLÓ (A3 · 22. kritérium, v1.1 · 7. modul).
  *
- * Kizárólag @venture/ui komponensekből épül: nincs lokális gomb, kártya vagy táblázat, és
- * nincs beégetett szín/spacing/font — a design forrása a @venture/design token-készlet.
+ * Kereshető és szűrhető: címzett, Message-ID, állapot, domain, tag, csatorna, időablak. A
+ * szűrés a SZERVEREN történik; az export ugyanazt a szűrt halmazt adja CSV-ben (streamelve,
+ * korlátosan, alapból maszkolt címzettel).
  *
  * A lapozás KURZOROS, mert a napló folyamatosan nő: offset-lapozásnál a második oldalon
  * elcsúsznának a sorok, és a support azt látná, hogy „az előbb még itt volt".
  */
-
 interface LogRow {
     uuid: string;
     status: string;
@@ -29,17 +40,37 @@ interface LogRow {
 const props = defineProps<{
     filters: Record<string, string | null>;
     messages: { items: LogRow[]; next_cursor: string | null };
+    domains: string[];
+    statuses: string[];
+    retentionDays: number;
+    exportMaxRows: number;
 }>();
+
+const { t, te } = useI18n({ useScope: 'global' });
+const code = useCodes();
+const format = useFormat();
+
+const dateOnly = (value: string | null | undefined): string => (value ? value.slice(0, 10) : '');
 
 const filters = reactive({
     recipient: props.filters.recipient ?? '',
+    message_id: props.filters.message_id ?? '',
     tag: props.filters.tag ?? '',
     channel: props.filters.channel ?? '',
     status: props.filters.status ?? '',
     domain: props.filters.domain ?? '',
-    since: props.filters.since ?? '',
-    until: props.filters.until ?? '',
+    since: dateOnly(props.filters.since),
+    until: dateOnly(props.filters.until),
 });
+
+const pii = ref(false);
+
+const statusOptions = computed(() => [{ value: '', label: t('plat.logs.anyStatus') }, ...props.statuses.map((status) => ({ value: status, label: te(`plat.state.${status}`) ? t(`plat.state.${status}`) : status }))]);
+const domainOptions = computed(() => [{ value: '', label: t('plat.logs.anyDomain') }, ...props.domains.map((domain) => ({ value: domain, label: domain }))]);
+const channelOptions = computed(() => [
+    { value: '', label: t('plat.logs.anyChannel') },
+    ...['transactional', 'marketing', 'campaign', 'journey'].map((channel) => ({ value: channel, label: channel })),
+]);
 
 type Row = {
     uuid: string;
@@ -52,21 +83,20 @@ type Row = {
     created_at: string;
 };
 
-const columns: VtColumn<Row>[] = [
-    { key: 'created_at', label: 'Időpont' },
-    { key: 'recipient', label: 'Címzett', mono: true },
-    { key: 'subject', label: 'Tárgy' },
-    { key: 'status', label: 'Állapot' },
-    { key: 'channel', label: 'Csatorna' },
-    { key: 'tags', label: 'Tagek' },
-    // A trace-hez vezető gomb SAJÁT oszlop. A `VtTable` nem emit sor-kattintást (ma nincs
-    // ilyen a @venture/ui-ban), a sorra akasztott kattintás pedig némán nem működne — a
-    // support azt hinné, hogy a trace nem létezik. A hiányt JELENTJÜK, nem gyártunk helyi
-    // táblázatot: a cella-slot + VtButton a design-rendszeren belüli megoldás.
+const columns = computed<VtColumn<Row>[]>(() => [
+    { key: 'created_at', label: t('logs.time'), mono: true },
+    { key: 'recipient', label: t('logs.recipient'), mono: true },
+    { key: 'subject', label: t('logs.subject') },
+    { key: 'status', label: t('logs.status') },
+    { key: 'tags', label: t('logs.tags') },
+    { key: 'uuid', label: 'Message-ID', mono: true },
+    // A trace-hez vezető gomb SAJÁT oszlop (a `VtTable` nem emit sor-kattintást).
     { key: 'trace', label: '' },
-];
+]);
 
-const rows = (): Row[] =>
+const reasons = computed(() => new Map(props.messages.items.map((message) => [message.uuid, message.reason])));
+
+const rows = computed<Row[]>(() =>
     props.messages.items.map((message) => ({
         uuid: message.uuid,
         // A batch egyetlen sorban ezer címzettet tárolhat: a listában az elsőt mutatjuk,
@@ -76,79 +106,197 @@ const rows = (): Row[] =>
                 ? `${message.recipients[0]} +${message.recipients.length - 1}`
                 : (message.recipients[0] ?? '—'),
         subject: message.subject ?? '—',
-        // Az elutasítás OKA a listában is látszik: enélkül minden sorra be kellene lépni.
-        status: message.reason ? `${message.status} (${message.reason})` : message.status,
-        channel: message.channel,
+        status: message.status,
+        channel: code('channel', message.channel),
         tags: message.tags.join(', ') || '—',
-        created_at: message.created_at ? new Date(message.created_at).toLocaleString('hu-HU') : '—',
-        trace: 'Trace',
-    }));
+        created_at: message.created_at ? format.dateTime(message.created_at) : '—',
+        trace: t('logs.trace'),
+    })),
+);
 
-const search = (): void => {
-    router.get('/logs', { ...filters }, { preserveState: true, replace: true });
-};
+function query(): Record<string, string> {
+    return Object.fromEntries(Object.entries(filters).filter(([, value]) => value !== '')) as Record<string, string>;
+}
 
-const loadMore = (): void => {
+const page = usePage<{ abilities: string[] }>();
+const canExportPii = computed(() => (page.props.abilities ?? []).includes('logs.export_pii'));
+const exporting = ref(false);
+const exportError = ref<string | null>(null);
+
+/*
+ | AZ EXPORT POST + CSRF (N2): auditált, fékezett mellékhatás, ezért nem GET-link. A
+ | `XSRF-TOKEN` sütit fejlécbe tesszük (ugyanúgy, mint az Inertia/axios), a választ blobként
+ | töltjük le — az oldal marad, ahol volt.
+ */
+async function downloadExport(): Promise<void> {
+    exporting.value = true;
+    exportError.value = null;
+
+    try {
+        const raw = document.cookie.split('; ').find((cookie) => cookie.startsWith('XSRF-TOKEN='));
+        const token = raw ? decodeURIComponent(raw.slice('XSRF-TOKEN='.length)) : '';
+
+        const response = await fetch('/logs/export', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json', Accept: 'text/csv, application/json', 'X-XSRF-TOKEN': token },
+            body: JSON.stringify({ ...query(), pii: pii.value && canExportPii.value }),
+        });
+
+        if (!response.ok) {
+            exportError.value = response.status === 429 ? t('plat.logs.exportThrottled') : t('plat.logs.exportFailed');
+
+            return;
+        }
+
+        const disposition = response.headers.get('Content-Disposition') ?? '';
+        const name = /filename="?([^";]+)"?/.exec(disposition)?.[1] ?? 'ventmail-log.csv';
+        const url = URL.createObjectURL(await response.blob());
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = name;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+    } finally {
+        exporting.value = false;
+    }
+}
+
+function search(): void {
+    router.get('/logs', query(), { preserveState: true, replace: true });
+}
+
+function preset(days: number): void {
+    const since = new Date(Date.now() - days * 86_400_000);
+    filters.since = since.toISOString().slice(0, 10);
+    filters.until = '';
+    search();
+}
+
+function loadMore(): void {
     if (!props.messages.next_cursor) return;
 
-    // `replace: false` (alapértelmezés): a lapozás a böngésző-előzménybe kerül, tehát a
-    // VISSZA gomb tényleg visszavisz az előző oldalra. Kurzoros lapozásnál nincs „előző"
-    // kurzor, így az előzmény az egyetlen visszaút — enélkül a 2. oldalról nem lehetne
-    // visszajutni az elsőre.
-    router.get('/logs', { ...filters, cursor: props.messages.next_cursor }, { preserveState: false });
-};
+    // A lapozás a böngésző-előzménybe kerül: kurzoros lapozásnál ez az egyetlen visszaút.
+    router.get('/logs', { ...query(), cursor: props.messages.next_cursor }, { preserveState: false });
+}
 
-const openTrace = (row: Row): void => {
+function openTrace(row: Row): void {
     router.visit(`/logs/${row.uuid}`);
-};
+}
 </script>
 
 <template>
     <AppLayout>
-        <VtCard>
-            <h1>Napló</h1>
-            <VtGlowLine />
+        <VmPageHeader :eyebrow="t('plat.eyebrow.logs')" :title="t('logs.title')" :lead="t('plat.logs.lead')">
+            <div class="vm-export">
+                <VtCheckbox v-if="canExportPii" v-model="pii" data-testid="export-pii">{{ t('plat.logs.includePii') }}</VtCheckbox>
+                <VtButton variant="glass" data-testid="log-export" :disabled="exporting" @click="downloadExport">{{ t('plat.logs.export') }}</VtButton>
+            </div>
+        </VmPageHeader>
 
-            <form data-testid="log-filters" @submit.prevent="search">
-                <VtField label="Címzett">
-                    <VtInput v-model="filters.recipient" data-testid="filter-recipient" placeholder="cimzett@example.test" />
-                </VtField>
-                <VtField label="Tag">
-                    <VtInput v-model="filters.tag" data-testid="filter-tag" placeholder="szamla" />
-                </VtField>
-                <VtField label="Csatorna">
-                    <VtInput v-model="filters.channel" data-testid="filter-channel" placeholder="transactional" />
-                </VtField>
-                <VtField label="Állapot">
-                    <VtInput v-model="filters.status" data-testid="filter-status" placeholder="delivered" />
-                </VtField>
-                <VtField label="Domain">
-                    <VtInput v-model="filters.domain" data-testid="filter-domain" placeholder="pelda.hu" />
-                </VtField>
-                <!-- Az időablak a backendben eddig is megvolt, az űrlapról hiányzott: a support
-                     leggyakoribb kérdése épp az, hogy „mi ment ki tegnap délután". -->
-                <VtField label="Ettől">
-                    <VtInput v-model="filters.since" data-testid="filter-since" type="date" />
-                </VtField>
-                <VtField label="Eddig">
-                    <VtInput v-model="filters.until" data-testid="filter-until" type="date" />
-                </VtField>
+        <p v-if="exportError" class="vm-banner vm-banner--danger" role="alert" data-testid="export-error">{{ exportError }}</p>
 
-                <VtButton type="submit" data-testid="log-search">Keresés</VtButton>
-            </form>
+        <VmCard>
+            <VmForm data-testid="log-filters" @submit.prevent="search">
+                <VmFormSection>
+                    <VmFormRow>
+                        <VtField :label="t('logs.recipient')">
+                            <VtInput v-model="filters.recipient" data-testid="filter-recipient" placeholder="cimzett@example.test" />
+                        </VtField>
+                        <VtField label="Message-ID" :hint="t('plat.logs.messageIdHint')">
+                            <VtInput v-model="filters.message_id" data-testid="filter-message-id" placeholder="&lt;uuid@…&gt;" />
+                        </VtField>
+                        <VtField :label="t('logs.status')">
+                            <VtSelect v-model="filters.status" :options="statusOptions" data-testid="filter-status" />
+                        </VtField>
+                        <VtField :label="t('logs.domain')">
+                            <VtSelect v-model="filters.domain" :options="domainOptions" data-testid="filter-domain" />
+                        </VtField>
+                    </VmFormRow>
+                    <VmFormRow>
+                        <VtField :label="t('logs.tag')">
+                            <VtInput v-model="filters.tag" data-testid="filter-tag" placeholder="szamla" />
+                        </VtField>
+                        <VtField :label="t('logs.channel')">
+                            <VtSelect v-model="filters.channel" :options="channelOptions" data-testid="filter-channel" />
+                        </VtField>
+                        <VtField :label="t('logs.since')">
+                            <VtInput v-model="filters.since" data-testid="filter-since" type="date" />
+                        </VtField>
+                        <VtField :label="t('logs.until')">
+                            <VtInput v-model="filters.until" data-testid="filter-until" type="date" />
+                        </VtField>
+                    </VmFormRow>
+                </VmFormSection>
 
-            <VtTable :columns="columns" :rows="rows()" data-testid="log-table">
+                <VmFormActions>
+                    <VtButton variant="ghost" size="sm" data-testid="preset-1" @click="preset(1)">{{ t('plat.logs.last24h') }}</VtButton>
+                    <VtButton variant="ghost" size="sm" data-testid="preset-7" @click="preset(7)">{{ t('plat.logs.lastDays', { days: 7 }) }}</VtButton>
+                    <VtButton variant="ghost" size="sm" data-testid="preset-30" @click="preset(30)">{{ t('plat.logs.lastDays', { days: 30 }) }}</VtButton>
+                    <VtButton type="submit" data-testid="log-search">{{ t('logs.search') }}</VtButton>
+                </VmFormActions>
+            </VmForm>
+        </VmCard>
+
+        <VmCard>
+            <VmTable :columns="columns" :rows="rows" :caption="t('logs.title')" data-testid="log-table">
                 <template #cell="{ row, column, value }">
-                    <VtButton v-if="column.key === 'trace'" data-testid="log-trace" @click="openTrace(row)">
-                        Trace
+                    <VtButton v-if="column.key === 'trace'" variant="ghost" size="sm" data-testid="log-trace" @click="openTrace(row)">
+                        {{ t('logs.trace') }}
                     </VtButton>
-                    <template v-else>{{ value }}</template>
+                    <span v-else-if="column.key === 'status'" class="vm-status-cell" :title="reasons.get(row.uuid) ?? ''">
+                        <VmStateBadge :state="String(value)" />
+                    </span>
+                    <span v-else-if="column.key === 'uuid'" class="vt-text-mono" :title="String(value)" :data-message-id="value">{{ String(value).slice(0, 8) }}…</span>
+                    <span v-else-if="column.key === 'subject' || column.key === 'tags'" class="vm-truncate vm-subject" :title="String(value ?? '')">{{ value }}</span>
+                    <span v-else class="vm-truncate" :title="String(value ?? '')">{{ value }}</span>
                 </template>
-            </VtTable>
+            </VmTable>
 
-            <VtButton v-if="props.messages.next_cursor" data-testid="log-more" @click="loadMore">
-                További találatok
-            </VtButton>
-        </VtCard>
+            <div class="vm-foot">
+                <span class="vm-muted" data-testid="log-retention">
+                    {{ t('plat.logs.footer', { count: messages.items.length, days: retentionDays }) }}
+                </span>
+                <VtButton v-if="props.messages.next_cursor" variant="glass" data-testid="log-more" @click="loadMore">
+                    {{ t('logs.more') }}
+                </VtButton>
+            </div>
+        </VmCard>
     </AppLayout>
 </template>
+
+<style scoped>
+.vm-export {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--vt-space-3);
+}
+
+.vm-status-cell {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--vt-space-2);
+    min-width: 0;
+}
+
+.vm-subject {
+    display: inline-block;
+    max-width: calc(var(--vt-space-32) * 2);
+}
+
+.vm-muted {
+    color: var(--vt-text-muted);
+    font-size: var(--vt-fs-body-sm);
+}
+
+.vm-foot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--vt-space-3);
+}
+</style>

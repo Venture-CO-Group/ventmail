@@ -12,4 +12,5 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('/smtp-credentials', [SmtpCredentialController::class, 'index'])->name('smtp.index');
 Route::post('/smtp-credentials', [SmtpCredentialController::class, 'store'])->name('smtp.store');
+Route::post('/smtp-credentials/{uuid}/rotate', [SmtpCredentialController::class, 'rotate'])->name('smtp.rotate');
 Route::delete('/smtp-credentials/{uuid}', [SmtpCredentialController::class, 'destroy'])->name('smtp.destroy');

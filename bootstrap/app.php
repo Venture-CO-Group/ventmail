@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Http\Middleware\LimitRequestBody;
 use App\Http\Middleware\RestrictLandingHost;
 use App\Http\Middleware\TrustConfiguredHosts;
 use App\Http\Middleware\TrustEdgeProxies;
@@ -15,6 +16,7 @@ use App\Modules\Identity\Exceptions\SsoAccessDenied;
 use App\Modules\Identity\Http\Middleware\SetLocale;
 use App\Modules\SuperAdmin\Http\Middleware\EnforceImpersonation;
 use App\Modules\Tenancy\Http\Middleware\ResolveWorkspace;
+use App\Support\RedactQueryException;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Application;
@@ -39,6 +41,9 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // A törzs-plafon a LEGELSŐ: a törzs feldolgozása (és bármi más) előtt dönt.
+        $middleware->prepend(LimitRequestBody::class);
+
         $middleware->web(append: [
             HandleInertiaRequests::class,
             AddLinkHeadersForPreloadedAssets::class,
@@ -110,12 +115,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // INSERT így a titkosított DKIM privát kulcsot a naplóba írná. A log bizalmi
         // szintje alacsonyabb, mint az adatbázisé: ciphertext + APP_KEY szivárgás =
         // kulcskompromittálás.
-        $exceptions->map(fn (QueryException $e) => new QueryException(
-            $e->getConnectionName(),
-            $e->getSql(),
-            array_fill(0, count($e->getBindings()), '?'),
-            $e->getPrevious() ?? $e
-        ));
+        $exceptions->map(fn (QueryException $e) => (new RedactQueryException)($e));
 
         // A `/v1` egységes hibaformátuma a VALIDÁCIÓRA is érvényes: a Laravel alap
         // `{message, errors}` alakja nem az `Error` séma, és egy generált kliens az

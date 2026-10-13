@@ -119,6 +119,7 @@ final class DeliverWebhook implements ShouldQueue
         // dead-letter lenne — egy elgépelt URL-től megkülönböztethetetlenül.
         try {
             $secret = $endpoint->signingSecret();
+            $previous = $endpoint->previousSigningSecret();
         } catch (DecryptException) {
             Log::error('A webhook-titok nem fejthető meg — APP_KEY-eltérés?', [
                 'workspace_id' => $this->workspaceId,
@@ -148,14 +149,29 @@ final class DeliverWebhook implements ShouldQueue
 
         $attempt = (int) $delivery->attempt + 1;
 
+        $headers = [
+            'Content-Type' => 'application/json',
+            'X-VentMail-Timestamp' => (string) $timestamp,
+            'X-VentMail-Signature' => $signer->sign($secret, $payload, $timestamp),
+            'X-VentMail-Event' => $delivery->event_type,
+            'X-VentMail-Delivery' => $delivery->uuid,
+        ];
+
+        // ROTÁCIÓS TÜRELMI ABLAK (D171): a régi titokkal készült aláírás KÜLÖN fejlécben.
+        // Az elsődleges fejléc szerződése változatlan (mindig az aktuális titok), tehát
+        // egy már frissített fogadó semmit nem vesz észre.
+        if ($previous !== null) {
+            $headers['X-VentMail-Signature-Previous'] = $signer->sign($previous, $payload, $timestamp);
+        }
+
+        if ((bool) $delivery->is_test) {
+            $headers['X-VentMail-Test'] = '1';
+        }
+
+        $started = hrtime(true);
+
         try {
-            $response = Http::withHeaders([
-                'Content-Type' => 'application/json',
-                'X-VentMail-Timestamp' => (string) $timestamp,
-                'X-VentMail-Signature' => $signer->sign($secret, $payload, $timestamp),
-                'X-VentMail-Event' => $delivery->event_type,
-                'X-VentMail-Delivery' => $delivery->uuid,
-            ])
+            $response = Http::withHeaders($headers)
                 // NINCS átirányítás-követés: egy 302 a belső hálózatra megkerülné a
                 // fenti ellenőrzést.
                 ->withOptions([
@@ -181,8 +197,11 @@ final class DeliverWebhook implements ShouldQueue
             $excerpt = 'Hálózati hiba: '.$e::class;
         }
 
+        $duration = (int) min(4_000_000_000, intdiv(hrtime(true) - $started, 1_000_000));
+
         if ($successful) {
             $delivery->forceFill([
+                'duration_ms' => $duration,
                 'status' => 'delivered',
                 'attempt' => $attempt,
                 'response_code' => $code,
@@ -200,6 +219,7 @@ final class DeliverWebhook implements ShouldQueue
         $dead = $attempt >= self::MAX_ATTEMPTS;
 
         $delivery->forceFill([
+            'duration_ms' => $duration,
             'status' => $dead ? 'dead_letter' : 'failed',
             'attempt' => $attempt,
             'response_code' => $code,

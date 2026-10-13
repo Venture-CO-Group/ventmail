@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { chooseLocale, openNavGroup } from './support/shell';
 
 /*
  * M4-0 · AZ APP-HÉJ a böngészőben.
@@ -22,7 +23,7 @@ test.describe.configure({ mode: 'serial' });
 
 test.afterEach(async ({ page }) => {
     await page.goto('/dashboard');
-    await page.getByTestId('locale-switch').locator('select').selectOption('hu');
+    await chooseLocale(page, 'hu');
 });
 
 test('a nyitóképernyő a KÜLDÉST MEGÁLLÍTÓ számokat mutatja', async ({ page }) => {
@@ -34,8 +35,10 @@ test('a nyitóképernyő a KÜLDÉST MEGÁLLÍTÓ számokat mutatja', async ({ p
     await expect(page.getByTestId('metric-suppressions')).toBeVisible();
 
     // A menü a KÉPESSÉGEKET követi: a dev-belépő `owner`, tehát látja a platform-csoportot.
-    // A `testid` szándékos: a feliratok nyelvfüggők, a menü megléte nem.
+    // A `testid` szándékos: a feliratok nyelvfüggők, a menü megléte nem. A csoport panelje
+    // zárva indul — megnyitás után látszanak a pontjai.
     await expect(page.getByTestId('nav-platform')).toBeVisible();
+    await openNavGroup(page, 'platform');
     await expect(page.getByTestId('nav-logs')).toBeVisible();
     await expect(page.getByTestId('nav-domains')).toBeVisible();
 });
@@ -48,12 +51,11 @@ test('a NYELVVÁLTÁS a szerveren dől el, és a felület követi', async ({ pag
      | tesztek között: ha egy korábbi futás németre váltott, egy „alapból magyar"
      | feltételezés hamis lenne. A teszt ezért maga állítja be a kiindulást.
      */
-    await page.getByTestId('locale-switch').locator('select').selectOption('hu');
+    await chooseLocale(page, 'hu');
     await expect(page.getByRole('heading', { name: 'Áttekintés' })).toBeVisible();
 
-    // A `data-testid` a VtSelect GYÖKÉR elemén ül (a komponens úgy adja tovább), a
-    // választás viszont a belső `select`-en történik.
-    await page.getByTestId('locale-switch').locator('select').selectOption('de');
+    // A váltás a nyelvválasztó MENÜN át történik (gomb → menüpont), a felhasználó útján.
+    await chooseLocale(page, 'de');
 
     // A váltás POST-ol, a szerver írja a felhasználó sorát, és az új oldal MÁR németül jön.
     await expect(page.getByRole('heading', { name: 'Übersicht' })).toBeVisible();
@@ -65,23 +67,30 @@ test('a NYELVVÁLTÁS a szerveren dől el, és a felület követi', async ({ pag
 
     // Vissza magyarra, hogy egy elbukó futás se hagyjon idegen nyelvű állapotot a
     // következő tesztnek (a `finally` a lényeg: bukáskor is lefut).
-    await page.getByTestId('locale-switch').locator('select').selectOption('hu');
+    await chooseLocale(page, 'hu');
     await expect(page.getByRole('heading', { name: 'Áttekintés' })).toBeVisible();
 });
 
 test('a workspace-váltó CSAK a saját tagságokat kínálja', async ({ page }) => {
     await page.goto('/dashboard');
 
-    const options = page.getByTestId('workspace-switch').locator('select option');
+    // A váltó gombja a JELENLEGI workspace-t mutatja; a lista a saját tagságokból áll.
+    await expect(page.getByTestId('workspace-current')).toHaveText('Dev workspace');
 
-    await expect(options).toHaveCount(1);
-    await expect(options.first()).toHaveText('Dev workspace');
+    await page.getByTestId('workspace-switch').click();
+
+    const options = page.getByTestId('workspace-list').locator('button');
+
+    await expect(options.filter({ hasText: 'Dev workspace' })).toHaveCount(1);
+    await expect(options.filter({ hasText: 'Dev workspace' })).toHaveAttribute('aria-current', 'true');
 });
 
 test('a héjban ott a kijelentkezés (RP-initiated logout a ventSSO felé)', async ({ page }) => {
     await page.goto('/dashboard');
 
     // A gombot csak látjuk — megnyomni nem itt kell: a sorosan futó suite egyetlen
-    // dev-munkamenetet használ, a valódi kilépést az éles ellenőrzés méri (e2e-prod).
+    // dev-munkamenetet használ, a valódi kilépést a `shell-nav.spec.ts` külön
+    // böngésző-környezetben méri. A gomb az avatar-menüben él.
+    await page.getByTestId('user-menu').click();
     await expect(page.getByTestId('logout')).toBeVisible();
 });

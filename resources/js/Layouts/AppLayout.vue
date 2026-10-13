@@ -1,232 +1,213 @@
 <script setup lang="ts">
-import { Link, router, usePage } from '@inertiajs/vue3';
-import { VtButton, VtSelect } from '@venture/ui';
-import { computed } from 'vue';
+import { Link, usePage } from '@inertiajs/vue3';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import BrandLogo from '../Components/BrandLogo.vue';
-import { loadLocaleMessages } from '../i18n';
+import VmDropdown from '../Components/Shell/VmDropdown.vue';
+import VmIcon from '../Components/Shell/VmIcon.vue';
+import VmLocalePicker from '../Components/Shell/VmLocalePicker.vue';
+import VmNavPanel from '../Components/Shell/VmNavPanel.vue';
+import VmUserMenu from '../Components/Shell/VmUserMenu.vue';
+import VmWorkspaceSwitcher from '../Components/Shell/VmWorkspaceSwitcher.vue';
+import { useCompactNav } from '../composables/useCompactNav';
+import { useLocaleSync } from '../composables/useLocaleSync';
+import { useNavigation, type NavGroupId } from '../composables/useNavigation';
+import { readStoredList, writeStoredList } from '../composables/useStoredState';
+import { useFormat } from '../composables/useFormat';
 
 /**
- * AZ APP-HÉJ: navigáció, workspace-váltó, nyelvválasztó, támogatói-nézet sáv.
+ * AZ APP-HÉJ: FELSŐ NAVIGÁCIÓ (az oldalsáv megszűnt, hogy a szerkesztőknek legyen hely).
  *
- * A MENÜ A KÉPESSÉGEKET KÖVETI, nem a szerepeket: a szerver küldi a feloldott
- * `abilities` listát, és ami nincs benne, az meg sem jelenik. Ez KÉNYELEM, nem védelem —
- * a kaput minden kontroller `Gate::authorize()`-zal húzza meg, mert egy elrejtett
- * menüpont URL-jét bárki beírhatja.
+ * Balról jobbra: logó · workspace-váltó · Overview · Studio ▾ · Platform ▾ · Settings ▾
+ * (· Console ▾ platform-adminnak) — jobbra a nyelvválasztó és az avatar-menü.
+ *
+ * - DESKTOP: a csoport ráhúzásra vagy kattintásra nyílik, panelben az alpontok + egysoros
+ *   leírás (`VmNavPanel`).
+ * - TABLET ALATT: hamburger, harmonikaszerű csoportokkal; az utoljára kinyitott csoportok
+ *   a `localStorage`-ban maradnak (try/catch-csel).
+ * - SZERKESZTŐ MÓD (`editorMode`): kompakt, egysoros sáv, a csoportmenük ikonként — a
+ *   sablonszerkesztő és a journey-vászon kér ilyet, hogy a vászon maximális helyet kapjon.
+ *
+ * A menü a KÉPESSÉGEKET követi (lásd `useNavigation`): KÉNYELEM, nem védelem.
  */
 interface SharedProps {
     [key: string]: unknown;
-    auth: { user: { name: string; email: string; platformAdmin: boolean } | null };
-    workspace: { uuid: string; name: string } | null;
-    workspaces: Array<{ uuid: string; name: string }>;
-    abilities: string[];
+    editorMode?: boolean;
     impersonation: { active: boolean; workspace: string; expiresAt: string } | null;
-    locale: string;
-    supportedLocales: string[];
     flash: { success: string | null; error: string | null };
 }
 
+const props = withDefaults(defineProps<{ editorMode?: boolean }>(), { editorMode: false });
+
 const page = usePage<SharedProps>();
-const { t, locale, setLocaleMessage } = useI18n({ useScope: 'global' });
+// A kompakt sávot az oldal két módon kérheti: `<AppLayout editor-mode>` vagy az Inertia
+// `editorMode: true` prop-ja (a kontroller dönt) — a kettő vagy-kapcsolata számít.
+const isEditor = computed(() => props.editorMode || page.props.editorMode === true);
+const { t } = useI18n({ useScope: 'global' });
+const format = useFormat();
+const { groups, activeHref, isOverviewActive } = useNavigation();
+const compact = useCompactNav();
 
-const abilities = computed(() => page.props.abilities ?? []);
-const can = (ability: string): boolean => abilities.value.includes(ability);
+// A szerver a nyelv igazsága: ha a prop eltér a kliens nyelvétől (pl. a profil mentése után), követjük.
+useLocaleSync();
 
-/*
- | A MENÜPONTOK `testid`-t is kapnak. Nem kényelmi okból: a felirat NYELVFÜGGŐ, tehát egy
- | szövegre illesztő böngésző-teszt a nyelvváltás után elbukna — és pont a nyelvváltást
- | akarjuk mérni.
- */
-const platform = computed(() =>
-    [
-        { href: '/domains', id: 'nav-domains', label: t('nav.domains'), show: can('domain.manage') },
-        { href: '/api-keys', id: 'nav-api-keys', label: t('nav.apiKeys'), show: can('apiKey.manage') },
-        { href: '/smtp-credentials', id: 'nav-smtp', label: t('nav.smtp'), show: can('smtpCredential.manage') },
-        { href: '/suppressions', id: 'nav-suppressions', label: t('nav.suppressions'), show: can('suppression.manage') },
-        { href: '/webhooks', id: 'nav-webhooks', label: t('nav.webhooks'), show: can('webhook.manage') },
-        {
-            href: '/stored-templates',
-            id: 'nav-stored-templates',
-            label: t('nav.storedTemplates'),
-            show: can('storedTemplate.manage'),
-        },
-        { href: '/ip-pools', id: 'nav-ip-pools', label: t('nav.ipPools'), show: can('ipPool.manage') },
-        { href: '/validation', id: 'nav-validation', label: t('nav.validation'), show: can('validation.run') },
-        { href: '/deliverability', id: 'nav-deliverability', label: t('nav.deliverability'), show: can('analytics.view') },
-        { href: '/logs', id: 'nav-logs', label: t('nav.logs'), show: can('logs.view') },
-        { href: '/logs/statistics', id: 'nav-statistics', label: t('nav.statistics'), show: can('logs.view') },
-        { href: '/inbound', id: 'nav-inbound', label: t('nav.inbound'), show: can('domain.manage') },
-        { href: '/billing', id: 'nav-billing', label: t('nav.billing'), show: can('billing.manage') },
-    ].filter((item) => item.show),
-);
+const STORAGE_KEY = 'vm.nav.expanded';
 
-/*
- | A STUDIO külön menü-csoport: a Mailchimp-oldal más munkakör (marketinges), mint a
- | platform-oldal (fejlesztő, üzemeltető). Egy közös listában a kettő elfedné egymást.
- */
-const studio = computed(() =>
-    [
-        { href: '/audience', id: 'nav-audience', label: t('nav.audience'), show: can('audience.manage') },
-        { href: '/forms', id: 'nav-forms', label: t('nav.forms'), show: can('audience.manage') },
-        { href: '/templates', id: 'nav-templates', label: t('nav.templates'), show: can('template.create') },
-        { href: '/campaigns', id: 'nav-campaigns', label: t('nav.campaigns'), show: can('campaign.create') },
-        { href: '/journeys', id: 'nav-journeys', label: t('nav.journeys'), show: can('campaign.create') },
-        { href: '/analytics', id: 'nav-analytics', label: t('nav.analytics'), show: can('analytics.view') },
-    ].filter((item) => item.show),
-);
+const mobileOpen = ref(false);
+const expanded = ref<string[]>([]);
 
-/*
- | BEÁLLÍTÁSOK: ami a WORKSPACE-ről szól, nem a küldésről.
- |
- | Külön csoport, mert más a kérdés: a platform- és a studio-menüpont azt mondja meg, MIT
- | csinálsz, ez pedig azt, KI CSINÁLHATJA. Egy közös listában a tagkezelés a huszonegyedik
- | menüpont lenne, és ott senki nem keresi.
- */
-const settings = computed(() =>
-    [{ href: '/members', id: 'nav-members', label: t('nav.members'), show: can('member.manage') }].filter(
-        (item) => item.show,
-    ),
-);
+onMounted(() => {
+    expanded.value = readStoredList(STORAGE_KEY);
+});
 
-const workspaceOptions = computed(() =>
-    (page.props.workspaces ?? []).map((workspace) => ({ value: workspace.uuid, label: workspace.name })),
-);
-
-const localeOptions = computed(() =>
-    (page.props.supportedLocales ?? []).map((code) => ({ value: code, label: code.toUpperCase() })),
-);
-
-function switchWorkspace(uuid: string): void {
-    if (!uuid || uuid === page.props.workspace?.uuid) return;
-
-    router.post('/workspace/switch', { workspace: uuid }, { preserveScroll: true });
+function toggleGroup(id: NavGroupId): void {
+    expanded.value = expanded.value.includes(id) ? expanded.value.filter((item) => item !== id) : [...expanded.value, id];
+    writeStoredList(STORAGE_KEY, expanded.value);
 }
 
-async function switchLocale(code: string): Promise<void> {
-    if (!code || code === page.props.locale) return;
+// A hamburger-panel a navigáció (és a nézet-váltás) után zárul.
+watch(
+    () => page.url,
+    () => {
+        mobileOpen.value = false;
+    },
+);
+watch(compact, (value) => {
+    if (!value) mobileOpen.value = false;
+});
 
-    /*
-     | ELŐBB A SZÓTÁR, aztán a váltás.
-     |
-     | A bundle-ök lusták (nyelvenként külön chunk), tehát a kiválasztott nyelv szótára a
-     | boot óta NINCS a memóriában. Ha csak a `locale`-t állítanánk át, a felület a
-     | fallback nyelvre esne vissza — mérve: magyarról németre váltva ANGOL felirat jött,
-     | és a felhasználó azt hinné, elromlott a nyelvváltó.
-     */
-    setLocaleMessage(code, (await loadLocaleMessages(code)) as never);
-    locale.value = code;
+const iconOnly = computed(() => isEditor.value && !compact.value);
 
-    // A NYELV a felhasználó sorára megy (nem session-be), ezért szerver-hívás is kell: a
-    // szerver-oldali szövegek (gate-üzenetek, flash) különben a következő kérésnél megint
-    // a régi nyelven jönnének.
-    router.post('/locale', { locale: code }, { preserveScroll: true });
+function groupActive(id: NavGroupId): boolean {
+    return groups.value.find((group) => group.id === id)?.items.some((item) => item.href === activeHref.value) ?? false;
+}
+
+function onMobileKeydown(event: KeyboardEvent): void {
+    if (event.key === 'Escape' && mobileOpen.value) {
+        mobileOpen.value = false;
+        document.getElementById('nav-hamburger')?.focus();
+    }
 }
 </script>
 
 <template>
-    <div class="vm-shell">
+    <div
+        class="vm-shell"
+        :class="{ 'vm-shell--editor': isEditor, 'vm-shell--compact': compact }"
+        :data-editor-mode="isEditor ? 'true' : undefined"
+    >
         <a class="vm-visually-hidden" href="#main">{{ t('shell.skipToContent') }}</a>
 
-        <nav class="vm-shell__nav" data-testid="app-nav" :aria-label="t('nav.platform')">
-            <div class="vm-glow-hairline vm-shell__brand">
-                <BrandLogo href="/dashboard" />
+        <header
+            class="vm-topbar vt-glass"
+            :class="{ 'vm-topbar--compact': compact, 'vm-topbar--editor': isEditor }"
+            data-testid="app-nav"
+            @keydown="onMobileKeydown"
+        >
+            <div class="vm-topbar__row">
+                <div class="vm-topbar__brand">
+                    <BrandLogo href="/dashboard" />
+                </div>
+
+                <VmWorkspaceSwitcher :compact="isEditor" />
+
+                <nav v-if="!compact" class="vm-topbar__nav" :aria-label="t('nav.main')">
+                    <Link
+                        class="vm-toplink"
+                        :class="{ 'vm-toplink--icon': iconOnly }"
+                        href="/dashboard"
+                        data-testid="nav-overview"
+                        :aria-label="iconOnly ? t('nav.dashboard') : undefined"
+                        :title="iconOnly ? t('nav.dashboard') : undefined"
+                        :aria-current="isOverviewActive ? 'page' : undefined"
+                    >
+                        <VmIcon name="home" />
+                        <span v-if="!iconOnly">{{ t('nav.dashboard') }}</span>
+                    </Link>
+
+                    <div v-for="group in groups" :key="group.id" class="vm-topbar__group" :data-testid="`nav-${group.id}`">
+                        <VmDropdown
+                            :id="`group-${group.id}`"
+                            hover
+                            :testid="`nav-group-${group.id}`"
+                            :label="iconOnly ? group.label : undefined"
+                            :title="iconOnly ? group.label : undefined"
+                            trigger-class="vm-toplink"
+                            :panel-class="`vm-navmenu vm-navmenu--${group.id}`"
+                        >
+                            <template #trigger="{ open }">
+                                <span class="vm-toplink__inner" :data-active="groupActive(group.id) ? 'true' : undefined">
+                                    <VmIcon :name="group.icon" />
+                                    <span v-if="!iconOnly">{{ group.label }}</span>
+                                    <VmIcon name="chevron" class="vm-toplink__chevron" :class="{ 'vm-toplink__chevron--open': open }" />
+                                </span>
+                            </template>
+
+                            <VmNavPanel :items="group.items" :active-href="activeHref" />
+                        </VmDropdown>
+                    </div>
+                </nav>
+
+                <div class="vm-topbar__tools">
+                    <VmLocalePicker v-if="!compact" />
+                    <VmUserMenu />
+
+                    <button
+                        v-if="compact"
+                        id="nav-hamburger"
+                        type="button"
+                        class="vm-tool vm-tool--square"
+                        data-testid="nav-hamburger"
+                        :aria-label="mobileOpen ? t('nav.closeMenu') : t('nav.openMenu')"
+                        :aria-expanded="mobileOpen"
+                        aria-controls="nav-mobile"
+                        @click="mobileOpen = !mobileOpen"
+                    >
+                        <VmIcon :name="mobileOpen ? 'close' : 'menu'" />
+                    </button>
+                </div>
             </div>
 
-            <div class="vm-nav-group">
-                <Link class="vm-nav-link vm-glow-indicator" href="/dashboard" :aria-current="$page.url.startsWith('/dashboard') ? 'page' : undefined">
+            <!-- HAMBURGER-PANEL: harmonikaszerű csoportok (tablet-töréspont alatt). -->
+            <nav
+                v-if="compact && mobileOpen"
+                id="nav-mobile"
+                class="vm-mobilenav"
+                data-testid="nav-mobile"
+                :aria-label="t('nav.main')"
+            >
+                <Link
+                    class="vm-mobilenav__top"
+                    href="/dashboard"
+                    data-testid="nav-overview"
+                    :aria-current="isOverviewActive ? 'page' : undefined"
+                >
+                    <VmIcon name="home" />
                     {{ t('nav.dashboard') }}
                 </Link>
-            </div>
 
-            <div v-if="platform.length" class="vm-nav-group" data-testid="nav-platform">
-                <span class="vm-nav-group__title vt-eyebrow">{{ t('nav.platform') }}</span>
-                <Link
-                    v-for="item in platform"
-                    :key="item.href"
-                    class="vm-nav-link vm-glow-indicator"
-                    :href="item.href"
-                    :data-testid="item.id"
-                    :aria-current="$page.url.startsWith(item.href) ? 'page' : undefined"
-                >
-                    {{ item.label }}
-                </Link>
-            </div>
+                <div v-for="group in groups" :key="group.id" class="vm-mobilenav__group" :data-testid="`nav-${group.id}`">
+                    <button
+                        type="button"
+                        class="vm-mobilenav__head"
+                        :data-testid="`nav-group-${group.id}`"
+                        :aria-expanded="expanded.includes(group.id)"
+                        :aria-controls="`nav-mobile-${group.id}`"
+                        @click="toggleGroup(group.id)"
+                    >
+                        <VmIcon :name="group.icon" />
+                        <span class="vm-mobilenav__label">{{ group.label }}</span>
+                        <VmIcon name="chevron" class="vm-toplink__chevron" :class="{ 'vm-toplink__chevron--open': expanded.includes(group.id) }" />
+                    </button>
 
-            <div v-if="studio.length" class="vm-nav-group" data-testid="nav-studio">
-                <span class="vm-nav-group__title vt-eyebrow">{{ t('nav.studio') }}</span>
-                <Link
-                    v-for="item in studio"
-                    :key="item.href"
-                    class="vm-nav-link vm-glow-indicator"
-                    :href="item.href"
-                    :data-testid="item.id"
-                    :aria-current="$page.url.startsWith(item.href) ? 'page' : undefined"
-                >
-                    {{ item.label }}
-                </Link>
-            </div>
+                    <div v-show="expanded.includes(group.id)" :id="`nav-mobile-${group.id}`" class="vm-mobilenav__panel">
+                        <VmNavPanel :items="group.items" :active-href="activeHref" />
+                    </div>
+                </div>
 
-            <div v-if="settings.length" class="vm-nav-group" data-testid="nav-settings">
-                <span class="vm-nav-group__title vt-eyebrow">{{ t('nav.settings') }}</span>
-                <Link
-                    v-for="item in settings"
-                    :key="item.href"
-                    class="vm-nav-link vm-glow-indicator"
-                    :href="item.href"
-                    :data-testid="item.id"
-                    :aria-current="$page.url.startsWith(item.href) ? 'page' : undefined"
-                >
-                    {{ item.label }}
-                </Link>
-            </div>
-
-            <!-- A PLATFORM-KONZOL csak platform-adminnak látszik. Ez KÉNYELEM, nem védelem:
-                 a kaput a `platform.admin` képesség adja, minden művelet előtt. -->
-            <div v-if="page.props.auth.user?.platformAdmin" class="vm-nav-group" data-testid="nav-console">
-                <span class="vm-nav-group__title vt-eyebrow">{{ t('nav.console') }}</span>
-                <Link
-                    class="vm-nav-link vm-glow-indicator"
-                    href="/platform"
-                    data-testid="nav-platform-console"
-                    :aria-current="$page.url === '/platform' ? 'page' : undefined"
-                >
-                    {{ t('platform.title') }}
-                </Link>
-                <Link
-                    class="vm-nav-link vm-glow-indicator"
-                    href="/platform/audit"
-                    data-testid="nav-platform-audit"
-                    :aria-current="$page.url.startsWith('/platform/audit') ? 'page' : undefined"
-                >
-                    {{ t('platform.auditSearch') }}
-                </Link>
-            </div>
-
-            <div class="vm-stack">
-                <label class="vm-nav-group__title vt-eyebrow" for="workspace-switch">{{ t('shell.workspace') }}</label>
-                <VtSelect
-                    id="workspace-switch"
-                    data-testid="workspace-switch"
-                    :model-value="page.props.workspace?.uuid ?? ''"
-                    :options="workspaceOptions"
-                    @update:model-value="switchWorkspace(String($event))"
-                />
-
-                <label class="vm-nav-group__title vt-eyebrow" for="locale-switch">{{ t('shell.language') }}</label>
-                <VtSelect
-                    id="locale-switch"
-                    data-testid="locale-switch"
-                    :model-value="page.props.locale"
-                    :options="localeOptions"
-                    @update:model-value="void switchLocale(String($event))"
-                />
-
-                <!-- RP-initiated logout: a ventSSO munkamenete is záródik (LogoutController). -->
-                <VtButton variant="ghost" data-testid="logout" @click="router.post('/auth/logout')">
-                    {{ t('shell.logout') }}
-                </VtButton>
-            </div>
-        </nav>
+                <VmLocalePicker variant="inline" />
+            </nav>
+        </header>
 
         <main id="main" class="vm-shell__main">
             <!--
@@ -241,7 +222,7 @@ async function switchLocale(code: string): Promise<void> {
             >
                 {{ t('shell.impersonation', {
                     workspace: page.props.impersonation.workspace,
-                    expires: new Date(page.props.impersonation.expiresAt).toLocaleTimeString(),
+                    expires: format.time(page.props.impersonation.expiresAt),
                 }) }}
             </p>
 

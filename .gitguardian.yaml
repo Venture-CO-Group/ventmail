@@ -1,0 +1,26 @@
+# GitGuardian (ggshield / GitHub-app) konfiguráció.
+#
+# KIZÁRÓLAG konkrét, TÖRTÉNETI ál-titkok kivétele, SHA-256 kivonattal — nincs `ignored_paths`:
+# ugyanabban a fájlban egy ÚJ jelszó-alakú érték el KELL, hogy bukjon. Ugyanaz az elv, mint a
+# `.gitleaks.toml` C2-bejegyzésénél: a jelenlegi tartalom már nem hordoz titok-alakot, a már
+# létező történet átírása egy kitalált teszt-értékért aránytalan.
+version: 2
+
+secret:
+  ignored_matches:
+    # PR #42 · commit dd76a6359a312448bc3b83c5b108dcc6abce7ae1 —
+    # tests/Feature/Audience/Import/ImportIsolatedReaderTest.php (S1 r11).
+    # A teszt a SZÜLŐ folyamat környezetébe tett egy kitalált `DB_PASSWORD`-öt, hogy bizonyítsa: az
+    # izolált XLSX-olvasó gyerekfolyamata NEM örökli (minimális környezet). Nem valódi hitelesítő,
+    # semmilyen adatbázishoz nem tartozik, nincs mit visszavonni. A jelenlegi teszt az értéket
+    # futásidőben generálja (`bin2hex(random_bytes(8))`), és érték szerint (SHA-256) is keresi.
+    - name: "ImportIsolatedReaderTest — kitalált DB_PASSWORD (titok-a-szuloben), dd76a635"
+      match: 9507544b1b34d73af2a9a4c4d0c1737b8255f6f4f65a286c16b2d21d32885159
+    # Ugyanaz a teszt, ugyanabban a commitban: kitalált `APP_KEY` (`base64:titok` — nem érvényes
+    # 32 bájtos kulcs, semmit nem titkosít). A jelenlegi teszt futásidőben generált kulcsot használ.
+    - name: "ImportIsolatedReaderTest — kitalált APP_KEY (base64:titok), dd76a635"
+      match: 462a665ee2006fd81f5a57a364d1dd69821ee507d1cd7b80af21b2d469f9611f
+    # Ha a detektor a `base64:` előtag NÉLKÜLI részt jelöli meg (`titok` — magyarul „titok"),
+    # ugyanaz az indoklás; ez a kivétel csak erre az egyetlen, ötbetűs szóra szól.
+    - name: "ImportIsolatedReaderTest — kitalált APP_KEY érték előtag nélkül (titok), dd76a635"
+      match: 5be2bcf5718118eaeab4fe7ae57543262082a8fce89420a5fc4799d99af2f161

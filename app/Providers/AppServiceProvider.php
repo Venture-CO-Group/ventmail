@@ -9,20 +9,35 @@ use App\Modules\Consent\Services\ConfirmationTokens;
 use App\Modules\Consent\Services\PreferenceTokens;
 use App\Modules\Events\Services\TrackingTokens;
 use App\Modules\Suppression\Services\UnsubscribeTokens;
+use App\Modules\Template\Services\WebVersionTokens;
 use App\Support\ClientAddress;
+use App\Support\RedactingFailedJobProvider;
+use App\Support\RedactingHorizonJobRepository;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Contracts\Redis\Factory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
+use Laravel\Horizon\Contracts\JobRepository;
+use Laravel\Horizon\Repositories\RedisJobRepository;
 use RuntimeException;
 
 class AppServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        //
+        // A failed-job tárolók REDAKCIÓJA: a QueryException szövege (kötések, értékek) sem a
+        // `failed_jobs`-ba, sem a Horizon Redis-tárolójába nem kerülhet nyersen.
+        $this->app->extend('queue.failer', fn ($provider) => new RedactingFailedJobProvider($provider));
+
+        if (class_exists(RedisJobRepository::class)) {
+            $this->app->extend(
+                JobRepository::class,
+                fn ($repository, $app) => new RedactingHorizonJobRepository($app->make(Factory::class)),
+            );
+        }
     }
 
     public function boot(): void
@@ -48,7 +63,7 @@ class AppServiceProvider extends ServiceProvider
      *
      * @var list<string>
      */
-    private const DEVELOPMENT_ROUTES = ['auth.dev-login', 'dev.seed-logs'];
+    private const DEVELOPMENT_ROUTES = ['auth.dev-login', 'dev.seed-logs', 'dev.seed-analytics'];
 
     /**
      * Deploy-idejű őr: élesben a fejlesztői belépés route-ja nem is LÉTEZHET.
@@ -268,17 +283,133 @@ class AppServiceProvider extends ServiceProvider
          | mert a reputációt és a számlát a workspace viseli.
          */
         RateLimiter::for('member-invites', fn (Request $request) => [
-            Limit::perMinute(10)->by('ws:'.self::workspaceKey($request)),
-            Limit::perDay(100)->by('ws:'.self::workspaceKey($request)),
+            Limit::perMinute(10)->by('ws-min:'.self::workspaceKey($request)),
+            Limit::perDay(100)->by('ws-day:'.self::workspaceKey($request)),
         ]);
 
         RateLimiter::for('member-roles', fn (Request $request) => [
-            Limit::perMinute(30)->by('ws:'.self::workspaceKey($request)),
+            Limit::perMinute(30)->by('ws-min:'.self::workspaceKey($request)),
         ]);
 
+        // ÚJ WORKSPACE: a kulcs a FELHASZNÁLÓ (nincs még tenant, amit védeni lehetne).
+        RateLimiter::for('workspace-create', fn (Request $request) => [
+            Limit::perMinute(5)->by('user-min:'.($request->user()?->getAuthIdentifier() ?? self::peer($request))),
+            Limit::perDay(30)->by('user-day:'.($request->user()?->getAuthIdentifier() ?? self::peer($request))),
+        ]);
+
+        /*
+         | KONTAKT-IMPORT FELTÖLTÉS (v1.1): a legdrágább kérés (akár 100 MB, háromszori felmérés).
+         |
+         | A kulcs a WORKSPACE: az import a workspace címlistáját írja, és a hitelesített, de
+         | rosszindulatú (vagy hibás ciklusban futó) tag ne tudja a közös lemezt és a CPU-t
+         | megtölteni. Valódi használat (percenként néhány feltöltés) nem éri el a plafont.
+         */
+        // KÜLÖN KULCS ablakonként: két `Limit` ugyanazzal a kulccsal EGY vödörbe esik (a
+        // vödör kulcsa a limiter neve + a `by()` érték), és a szigorúbb/tágabb ablak közül
+        // az utolsó felülírná az elsőt — az óránkénti plafon hatástalan maradt.
+        RateLimiter::for('audience-import', fn (Request $request) => [
+            Limit::perMinute(20)->by('ws-min:'.self::workspaceKey($request)),
+            Limit::perHour(200)->by('ws-hour:'.self::workspaceKey($request)),
+        ]);
+
+        // A VARÁZSLÓ többi lépése (munkalap-váltás, leképezés, beállítások, indítás, egyéni mező):
+        // olcsóbbak, mint a feltöltés, de a munkalap-váltás újra felmér, a beállítások pedig
+        // háttérfeladatot indít — korlát nélkül egy tag az FPM-workereket foglalná le.
+        // A MUNKALAP-VÁLTÁS újra felmér (zip-menet): ezért a többi lépésnél jóval szigorúbb.
+        /*
+         | v1.1 · 5. modul — STUDIO aggregátumok és tömeges műveletek.
+         |
+         | A szegmens-ELŐNÉZET és a dashboard-aggregátum minden hívása egy teljes közönség-
+         | lekérdezés (300k kontakt): a szerkesztő debounce-szal kéri, a plafon a hurokba
+         | szaladt klienst és a terhelő tagot fogja. A TÖMEGES tag-művelet egyetlen
+         | halmaz-utasítás, de akár százezres sort ír — ezért szigorúbb.
+         */
+        RateLimiter::for('segment-preview', fn (Request $request) => [
+            Limit::perMinute(60)->by('ws-min:'.self::workspaceKey($request)),
+        ]);
+
+        RateLimiter::for('audience-insights', fn (Request $request) => [
+            Limit::perMinute(30)->by('ws-min:'.self::workspaceKey($request)),
+        ]);
+
+        RateLimiter::for('audience-bulk', fn (Request $request) => [
+            Limit::perMinute(20)->by('ws-min:'.self::workspaceKey($request)),
+            Limit::perHour(200)->by('ws-hour:'.self::workspaceKey($request)),
+        ]);
+
+        // A HOSZTOLT űrlap-oldal (GET) névtelen, mint a beküldés: partnerenként plafon.
+        RateLimiter::for('hosted-form', fn (Request $request) => [
+            Limit::perMinute(60)->by('peer:'.self::peer($request)),
+            Limit::perMinute(600)->by('form-page:'.$request->route('slug')),
+        ]);
+
+        RateLimiter::for('audience-import-sheet', fn (Request $request) => [
+            Limit::perMinute(5)->by('ws-min:'.self::workspaceKey($request)),
+            Limit::perHour(30)->by('ws-hour:'.self::workspaceKey($request)),
+        ]);
+
+        RateLimiter::for('audience-import-step', fn (Request $request) => [
+            Limit::perMinute(60)->by('ws-min:'.self::workspaceKey($request)),
+            Limit::perHour(600)->by('ws-hour:'.self::workspaceKey($request)),
+        ]);
+
+        /*
+         | v1.1 · SABLONSZERKESZTŐ. Az autosave / előnézet / optimalizálás debounce-olt, de egy
+         | nyitva felejtett fül is folyamatosan ír — a fék a FELHASZNÁLÓÉ (nem a tenanté: egy
+         | kolléga szerkesztője ne fojtsa meg a másikét). A teszt-küldés küldő út, szűk kerettel,
+         | a workspace-re is; a képfeltöltés lemezt ír, ezért a workspace-re kulcsol.
+         */
+        RateLimiter::for('template-editor', fn (Request $request) => Limit::perMinute(120)->by('user:'.(string) $request->user()?->getAuthIdentifier()));
+
+        // v1.1 · 6. modul — a journey-vászon JSON-végpontjai (mentés, validálás, publikálás,
+        // szüneteltetés) és a teszt-futtatás (szegmens-lekérdezéseket futtat, csak olvas).
+        RateLimiter::for('journey-editor', fn (Request $request) => Limit::perMinute(120)->by('user:'.(string) $request->user()?->getAuthIdentifier()));
+        RateLimiter::for('journey-test-run', fn (Request $request) => Limit::perMinute(20)->by('user:'.(string) $request->user()?->getAuthIdentifier()));
+
+        RateLimiter::for('template-test-send', fn (Request $request) => [
+            Limit::perMinute(10)->by('user:'.(string) $request->user()?->getAuthIdentifier()),
+            Limit::perHour(100)->by('ws:'.self::workspaceKey($request)),
+        ]);
+
+        // KÜLÖN kulcs ablakonként: a Laravel a limitet md5(név + kulcs) szerint tárolja,
+        // azonos kulccsal a napi plafon soha nem érvényesülne (a percenkénti nullázza).
+        RateLimiter::for('template-assets', fn (Request $request) => [
+            Limit::perMinute(30)->by('ws-min:'.self::workspaceKey($request)),
+            Limit::perDay(1000)->by('ws-day:'.self::workspaceKey($request)),
+        ]);
+
+        /*
+         | „MEGNYITÁS BÖNGÉSZŐBEN" — publikus, olvasó végpont. Ugyanaz a minta, mint a
+         | nyomkövetésnél: érvényes tokennél az IGÉNY (a workspace + üzenet) a kulcs, nem a
+         | token bájtjai; értelmezhetetlen tokennél a valódi TCP-partner.
+         */
+        RateLimiter::for('web-version', function (Request $request) {
+            $claim = app(WebVersionTokens::class)->parse((string) $request->route('token'));
+
+            return Limit::perMinute(120)->by(
+                $claim === null ? 'peer:'.self::peer($request) : 'claim:'.hash('sha256', $claim['workspaceId'].'|'.$claim['messageUuid']),
+            );
+        });
+
+        /*
+         | v1.1 · 8. modul — PDF-RIPORT kérés: minden kérés egy Chromium-renderelés a sidecaron.
+         | A workspace óránként 10-et, a felhasználó percenként 3-at kérhet (külön kulcs ablakonként).
+         | A LOGÓ-feltöltés GD-újrakódolás + lemezírás: workspace-enként óránként 10.
+         */
+        RateLimiter::for('analytics-report', fn (Request $request) => [
+            Limit::perHour(10)->by('ws-hour:'.self::workspaceKey($request)),
+            Limit::perMinute(3)->by('user-min:'.(string) $request->user()?->getAuthIdentifier()),
+        ]);
+
+        RateLimiter::for('branding-logo', fn (Request $request) => [
+            Limit::perHour(10)->by('ws-hour:'.self::workspaceKey($request)),
+        ]);
+
+        // Külön kulcs ablakonként (lásd az `audience-import` limiternél): a közös kulcs a napi
+        // plafont hatástalanná tette.
         RateLimiter::for('sub-accounts', fn (Request $request) => [
-            Limit::perMinute(5)->by('ws:'.self::workspaceKey($request)),
-            Limit::perDay(50)->by('ws:'.self::workspaceKey($request)),
+            Limit::perMinute(5)->by('ws-min:'.self::workspaceKey($request)),
+            Limit::perDay(50)->by('ws-day:'.self::workspaceKey($request)),
         ]);
 
         RateLimiter::for('consent-confirm', function (Request $request) {

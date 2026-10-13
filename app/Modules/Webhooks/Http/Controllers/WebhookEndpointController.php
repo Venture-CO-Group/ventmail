@@ -9,7 +9,6 @@ use App\Modules\Webhooks\Models\WebhookEndpoint;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Support\Str;
 use InvalidArgumentException;
 use RuntimeException;
 
@@ -120,10 +119,8 @@ final class WebhookEndpointController
             return ApiError::response('UNKNOWN_ENDPOINT', 'Ismeretlen webhook-végpont.', 404);
         }
 
-        $secret = 'whsec_'.Str::random(40);
-
-        $endpoint->secret = $secret;
-        $endpoint->save();
+        // A `/v1` szerződése változatlan: AZONNALI csere, türelmi ablak nélkül.
+        $secret = $endpoint->rotateSecret(0);
 
         return response()->json([...$this->present($endpoint), 'secret' => $secret]);
     }

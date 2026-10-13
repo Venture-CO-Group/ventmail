@@ -25,6 +25,21 @@ enum TriggerType: string
     case ApiEvent = 'api_event';
     case InboundEmail = 'inbound_email';
 
+    // v1.1 · 6. modul — a vászon triggerei.
+    /** Feliratkozás listára (a double opt-in MEGERŐSÍTÉSEKOR — nem a puszta kérésnél). */
+    case ListSubscribe = 'list_subscribe';
+
+    case TagRemoved = 'tag_removed';
+
+    /** Kontakt-mező változása. */
+    case FieldChanged = 'field_changed';
+
+    /** Dátum / évforduló egy kontakt-mező alapján (napi ütemezett vizsgálat). */
+    case DateAnniversary = 'date_anniversary';
+
+    /** Kampány-interakció: megnyitás vagy kattintás. */
+    case CampaignInteraction = 'campaign_interaction';
+
     /**
      * HAMISÍTHATÓ-e a trigger forrása?
      *

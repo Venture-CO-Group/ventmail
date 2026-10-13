@@ -58,8 +58,11 @@ final class AuthenticateApiKey
         // rotáló fejléccel az IP-vödör kérésenként friss keretet adott, a `credentialKey`
         // pedig kulcsforgatásnál nem fékez. Vagyis az API-kulcs brute-force plafonja
         // gyakorlatilag megszűnt.
-        $ipKey = 'api-auth-fail:ip:'.$this->sourceBucket(ClientAddress::of($request));
-        $credentialKey = 'api-auth-fail:key:'.hash('sha256', (string) $plain);
+        $source = $this->sourceBucket(ClientAddress::of($request));
+        $ipKey = 'api-auth-fail:ip:'.$source;
+        // A KULCS-VÖDÖR a forráshoz is kötött (D188): egy kiszivárgott kulcs birtokosa idegen
+        // címről hibát gyűjtve különben kizárná a jogos ügyfelet a SAJÁT, engedélyezett címéről.
+        $credentialKey = 'api-auth-fail:key:'.hash('sha256', (string) $plain).':'.$source;
 
         // A fék a DRÁGA munka (kulcsolt hash + indexelt lekérdezés) ELŐTT csattan.
         if (RateLimiter::tooManyAttempts($credentialKey, self::MAX_FAILURES_PER_MINUTE)) {
@@ -81,6 +84,16 @@ final class AuthenticateApiKey
         // EGYETLEN üzenet minden hitelesítési hibára: a különböző szövegek orákulumot
         // adnának arra, hogy a kulcs valódi-e (csak a workspace-e törölt).
         if ($key === null) {
+            return $this->unauthorized($failureKey);
+        }
+
+        // IP-ALLOWLIST (D14, D188). PONTOSAN úgy viselkedik, mint a rossz kulcs — ugyanaz a
+        // válasz ÉS ugyanazok a hiba-vödrök. Ha a vödröt nem töltenénk, a 21. kérésnél a rossz
+        // kulcs 429-et, az érvényes (de rossz helyről jövő) 401-et adna: orákulum arra, hogy a
+        // máshonnan ellopott kulcs ÉRVÉNYES.
+        if (! $key->allowsAddress(ClientAddress::of($request))) {
+            Log::notice('API-kulcs az IP-allowlisten kívülről', ['api_key_prefix' => (string) $key->prefix]);
+
             return $this->unauthorized($failureKey);
         }
 

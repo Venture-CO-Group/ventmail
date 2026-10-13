@@ -33,9 +33,14 @@ final class TemplateRenderer
     private const TAG = '/'.self::TAG_INNER.'/';
 
     /** @param array<string, mixed> $variables */
-    public function render(string $template, array $variables, bool $escape = true): string
+    public function render(string $template, array $variables, bool $escape = true, bool $conditions = false): string
     {
-        return (string) preg_replace_callback(
+        // A FELTÉTELES TARTALOM a behelyettesítés ELŐTT dől el: egy behelyettesített érték
+        // (a plaintext ág nem escape-el) így nem tud feltétel-jelölőt becsempészni. Nem
+        // Studio-eredetű törzsön (`$conditions = false`) csak a jelölő tűnik el (D58).
+        $template = $conditions ? ConditionalContent::apply($template, $variables) : ConditionalContent::unmark($template);
+
+        return self::checked(preg_replace_callback(
             self::TAG,
             function (array $matches) use ($variables, $escape): string {
                 $value = $this->value($variables, $matches[1], $matches[2] ?? '');
@@ -43,7 +48,21 @@ final class TemplateRenderer
                 return $escape ? $this->escape($value) : (string) (is_array($value) ? json_encode($value) : $value);
             },
             $template
-        );
+        ));
+    }
+
+    /**
+     * FAIL-CLOSED (SB1): a `preg_*` hibánál `null`-t ad, amit egy `(string)` cast ÜRES
+     * törzzsé alakítana — és az üres levél kimenne. Itt hangos kivétel lesz belőle; a
+     * dispatcher ilyenkor nem küld.
+     */
+    private static function checked(?string $result): string
+    {
+        if ($result === null) {
+            throw new \RuntimeException('A merge-tag behelyettesítés nem futott le: '.preg_last_error_msg());
+        }
+
+        return $result;
     }
 
     /**
@@ -64,6 +83,7 @@ final class TemplateRenderer
         array $shared = [],
         bool $escape = true,
         array $reserved = [],
+        bool $conditions = false,
     ): string {
         // A hívó írja a `recipient-variables` kulcsait, a címzett viszont kisbetűsítve
         // tárolódik: illesztés előtt normalizálunk, különben a nem egyező kulcs ÜRES
@@ -87,10 +107,13 @@ final class TemplateRenderer
         // vinne — a mi DKIM-ünkkel aláírt levélben. A sorrend itt a védelem.
         $variables = array_merge($variables, $reserved);
 
+        // A FELTÉTELES TARTALOM a behelyettesítés ELŐTT — lásd `render()`.
+        $template = $conditions ? ConditionalContent::apply($template, $variables) : ConditionalContent::unmark($template);
+
         // EGYETLEN PASS mindkét szintaxisra. Korábban a `%recipient.x%` EREDMÉNYE újra
         // átment a `{{ }}` renderelésen — a `htmlspecialchars` a `{` és a `%` karaktert
         // nem escape-eli, tehát a hívótól jövő érték MÁSODSZOR is kiértékelődött.
-        return (string) preg_replace_callback(
+        return self::checked(preg_replace_callback(
             '/%recipient\.([a-zA-Z0-9_]+)%|%recipient_email%|'.self::TAG_INNER.'/',
             function (array $matches) use ($variables, $escape): string {
                 $name = match (true) {
@@ -108,7 +131,7 @@ final class TemplateRenderer
                     : (string) (is_array($value) ? json_encode($value, JSON_UNESCAPED_UNICODE) : $value);
             },
             $template
-        );
+        ));
     }
 
     /**
@@ -124,6 +147,12 @@ final class TemplateRenderer
     private function value(array $variables, string $name, string $fallback): mixed
     {
         $value = data_get($variables, $name);
+
+        // A BEÉPÍTETT `current_year` (v1.1 merge-tag választó): a lábléc „© {{ current_year }}"
+        // sora ne függjön attól, hogy a hívó átadja-e. A hívó értéke elsőbbséget élvez.
+        if (($value === null || $value === '') && $name === 'current_year') {
+            return now()->format('Y');
+        }
 
         if ($value === null || $value === '') {
             return $fallback;

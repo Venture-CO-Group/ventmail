@@ -15,4 +15,9 @@ final class SuppressionServiceProvider extends ModuleServiceProvider
     // bejelentkezett böngésző: a hozzáférést a titkosított token adja. A route-onkénti
     // `throttle` és a stateless stack a `routes/web.php`-ben van, explicit.
     protected bool $routesPrecedeAuthentication = true;
+
+    /** v1.1 · 7. modul: `/v1/suppressions` — API-kulccsal, scope-kapuval. */
+    protected array $apiMiddleware = ['api.auth'];
+
+    protected string $apiPrefix = 'v1';
 }

@@ -8,6 +8,7 @@ use App\Modules\Campaign\Jobs\SendCampaignChunk;
 use App\Modules\Campaign\Models\Campaign;
 use App\Modules\Sending\Data\SendQueue;
 use Illuminate\Support\Facades\Bus;
+use Illuminate\Support\Facades\DB;
 
 /**
  * A KÖTEGEK ELINDÍTÁSA — a `pending` sorokra, a `campaign` soron.
@@ -40,6 +41,11 @@ final class CampaignBatchDispatcher
      */
     public function dispatch(Campaign $campaign): ?string
     {
+        // A KÖTEG-GENERÁCIÓ, amire ez a hívás épít (review SEC4-S2 → r5 S2): a betöltött példány
+        // `batch_generation`-je. A szüneteltetés és a visszavonás a sorzár alatt LÉPTETI — egy előttük
+        // indult építés így biztosan veszít, akkor is, ha a kampány közben újra `sending`.
+        $seen = (int) $campaign->batch_generation;
+
         $jobs = [];
 
         $campaign->recipients()
@@ -66,7 +72,32 @@ final class CampaignBatchDispatcher
             ->allowFailures()
             ->dispatch();
 
-        $campaign->forceFill(['batch_id' => $batch->id])->save();
+        // FELTÉTELES ÍRÁS (review R-S1 → SEC4-S2 → r5 S2): 300k címzettnél a jobok felépítése és a batch indítása
+        // másodpercekig tart. Ha EZALATT szüneteltették vagy visszavonták, a `cancelBatch` még
+        // üres / régi `batch_id`-t látott — a most indult köteget senki nem állítaná le, a
+        // folytatás pedig egy második köteget indítana ugyanarra a `pending` halmazra (dupla
+        // számlálók). Ezért a `batch_id` csak `sending` állapotú kampányra íródik, különben a
+        // friss köteg azonnal törlődik.
+        //
+        // KÖTEG-GENERÁCIÓ CAS: a `sending` állapot önmagában nem elég — egy pause + resume a
+        // köteg-építés ablakában újra `sending`-re állítja, és a folytatás a SAJÁT kötegét indítja.
+        // Ezért csak akkor írunk, ha a generáció még az, amit a hívás látott; különben ez a köteg az
+        // árva — és törlődik.
+        //
+        // A győztes írás maga is LÉPTET: két, ugyanarra a generációra épülő építés közül csak egy nyerhet.
+        $written = Campaign::query()
+            ->whereKey($campaign->getKey())
+            ->where('status', 'sending')
+            ->where('batch_generation', $seen)
+            ->update([
+                'batch_id' => $batch->id,
+                'batch_generation' => DB::raw('batch_generation + 1'),
+                'updated_at' => now(),
+            ]);
+
+        if ($written === 0) {
+            $batch->cancel();
+        }
 
         return $batch->id;
     }

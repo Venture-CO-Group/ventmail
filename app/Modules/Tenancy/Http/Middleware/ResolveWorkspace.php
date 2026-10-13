@@ -87,6 +87,12 @@ final class ResolveWorkspace
         // tagság 404-be vinné a felhasználót minden kérésen.
         $membership = $this->membershipFor($user->getKey(), $requested);
 
+        // Nincs session-választás → a felhasználó ALAPÉRTELMEZETT workspace-e (profil), ha még
+        // tagja. Tagság nélkül nincs találat, és az első érvényes tagságra esünk vissza.
+        if ($requested === '' && $user instanceof User && $user->raw('default_workspace_id') !== null) {
+            $membership = $this->defaultMembership($user) ?? $membership;
+        }
+
         if ($membership === null && $requested !== '') {
             // Elavult választás (pl. időközben eltávolították a workspace-ből): a session-t
             // takarítjuk, és visszaesünk az első érvényes tagságra — enélkül a felhasználó
@@ -137,6 +143,15 @@ final class ResolveWorkspace
         $request->session()->put('workspace_uuid', $workspace->uuid);
 
         return $next($request);
+    }
+
+    private function defaultMembership(User $user): ?WorkspaceMember
+    {
+        return WorkspaceMember::query()
+            ->where('user_id', $user->getKey())
+            ->where('workspace_id', $user->raw('default_workspace_id'))
+            ->whereIn('workspace_id', Workspace::query()->select('id'))
+            ->first();
     }
 
     private function membershipFor(mixed $userId, string $requestedUuid): ?WorkspaceMember

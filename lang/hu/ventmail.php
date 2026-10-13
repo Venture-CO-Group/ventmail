@@ -37,6 +37,44 @@ return [
     'audience' => [
         'listCreated' => 'A lista létrejött.',
         'listUpdated' => 'A lista frissült.',
+        'import' => [
+            'reason' => [
+                'invalid_email' => 'Érvénytelen e-mail-cím.',
+                'missing_email' => 'Hiányzik az e-mail-cím.',
+                'invalid_field' => 'A(z) „:field” mező értéke nem felel meg a típusának.',
+                'duplicate' => 'Duplikátum: a cím már szerepelt a(z) :line. sorban.',
+                'suppressed' => 'A cím tiltólistán van.',
+                'erased' => 'A címet GDPR-kérésre töröltük, nem importálható.',
+                'revoked_consent' => 'A cím visszavonta a hozzájárulását.',
+                'deleted_contact' => 'A kontakt törölve van, nem élesztjük fel.',
+                'role_address' => 'Szerepalapú cím (pl. info@), kihagyva.',
+                'disposable_domain' => 'Eldobható e-mail-domain, kihagyva.',
+                'existing_contact' => 'A kontakt már létezik, a meglévő adat érintetlen.',
+            ],
+            'limit' => [
+                'encoding' => 'A fájl kódolása nem támogatott (UTF-16 vagy NUL-bájt) — mentsd UTF-8 vagy Windows-1250 CSV-ként.',
+                'timeout' => 'A fájl felmérése túllépte az időkeretet — töltsd fel kisebb fájlt.',
+                'line' => 'A fájlban egy sor túl hosszú.',
+                'size' => 'A fájl túl nagy.',
+                'rows' => 'A fájlban több sor van, mint a megengedett.',
+                'columns' => 'A fájlban több oszlop van, mint a megengedett.',
+                'zip' => 'Az XLSX-fájl a kitömörítési határt túllépi.',
+                'resources' => 'A fájl feldolgozása túllépte az erőforrás-keretet (memória) — töltsd fel kisebb vagy egyszerűbb fájlt.',
+                'format' => 'A fájl tartalma nem felel meg a kiterjesztésének.',
+                'sheet' => 'Ismeretlen munkalap.',
+                'mapping' => 'Az e-mail oszlop nincs hozzárendelve.',
+            ],
+            'inspectBusy' => 'Már folyik egy másik fájl felmérése ebben a workspace-ben — próbáld újra pár másodperc múlva.',
+            'concurrency' => 'Már fut elég import ebben a workspace-ben — várd meg, amíg valamelyik befejeződik.',
+            'fieldLimit' => 'Elérted az egyéni mezők számának korlátját.',
+            'pasteEmpty' => 'Illessz be legalább egy e-mail-címet.',
+            'mappingUnknown' => 'Ismeretlen cél az oszlop-hozzárendelésben.',
+            'mappingDuplicate' => 'Egy mezőhöz csak egy oszlop rendelhető.',
+            'mappingNoEmail' => 'Pontosan egy oszlopot rendelj az e-mail címhez.',
+            'listUnknown' => 'Ismeretlen lista.',
+            'fieldExists' => 'Ilyen kulcsú mező már létezik.',
+            'fieldCreated' => 'Az egyéni mező létrejött.',
+        ],
     ],
     'templates' => [
         'saved' => 'A sablon mentve.',
@@ -95,6 +133,12 @@ return [
     'journeys' => [
         'activated' => 'A journey aktív.',
         'paused' => 'A journey szünetel.',
+        'publishInvalid' => 'A journey gráfja hibás — javítsd a jelölt csomópontokat, és próbáld újra.',
+        'published' => 'Publikálva: :version. verzió.',
+        'notActive' => 'A journey nem aktív.',
+        'testRunTooExpensive' => 'A teszt-futtatás túl költséges lett — egyszerűsítsd a feltételeket, és próbáld újra.',
+        'webhookForbidden' => 'Webhook-végpontot csak webhook-kezelési joggal lehet kiválasztani.',
+        'triggerUnavailable' => 'Ez a trigger még nincs bekötve (hamarosan) — a journey sosem indulna, ezért nem aktiválható.',
     ],
     'gate' => [
         'domain_unverified' => 'A küldő domain nincs hitelesítve.',
@@ -155,5 +199,72 @@ return [
     ],
     'auth' => [
         'retry' => 'A bejelentkezés nem sikerült. Próbáld újra.',
+    ],
+    'workspaces' => [
+        'created' => 'A(z) „:name” workspace létrejött.',
+        'limit' => 'Elérted a birtokolt workspace-ek korlátját (:max).',
+    ],
+    'profile' => [
+        'saved' => 'A beállításaid mentve.',
+    ],
+    'editor' => [
+        'inUse' => 'A sablont futó kampány vagy aktív journey használja: :names. Előbb állítsd le vagy zárd le.',
+        'nameTaken' => 'Ilyen nevű sablon már létezik.',
+        'deleted' => 'A sablon törölve.',
+        'blocksFull' => 'Legfeljebb :max mentett blokk lehet — előbb törölj egyet.',
+        'blockDeleted' => 'A mentett blokk törölve.',
+        'assets' => [
+            'tooLarge' => 'A kép túl nagy (legfeljebb :max MB).',
+            'badType' => 'Csak JPG, PNG, GIF vagy WebP kép tölthető fel.',
+            'badDimensions' => 'A kép legfeljebb :max × :max pixeles lehet.',
+            'busy' => 'Ebben a workspace-ben épp egy másik feltöltés fut — próbáld újra egy pillanat múlva.',
+            'quota' => 'A workspace képtárhelye megtelt (legfeljebb :max MB).',
+            'processing' => 'A képfeldolgozás nem érhető el — a feltöltés elutasítva.',
+        ],
+        'compliance' => [
+            'missing' => 'A kampányra használható sablonnak láblécet kell tartalmaznia ezekkel: :items.',
+            'items' => [
+                'postal_address' => 'postai cím',
+                'unsubscribe' => 'leiratkozó link',
+                'preferences' => 'beállítás-link',
+            ],
+        ],
+        'testSend' => [
+            'subjectPrefix' => '[TESZT]',
+            'notAllowed' => 'Teszt-levél csak a workspace tagjainak vagy a seed-címekre mehet.',
+            'unverifiedDomain' => 'A feladó címe a workspace egy hitelesített domainjén kell legyen.',
+            'empty' => 'Teszt-küldés előtt mentsd a sablont.',
+        ],
+    ],
+    // v1.1 · 7. modul (Platform)
+    'plat' => [
+        'dkimRotated' => 'Új DKIM-kulcs generálva — vedd fel az új rekordot a DNS-be.',
+        'invalidAllowlist' => 'Az IP-allowlist csak érvényes IP-címeket vagy CIDR-tartományokat tartalmazhat (max. 50).',
+        'webhookUpdated' => 'A végpont mentve.',
+        'webhookTestQueued' => 'A teszt-esemény sorba állítva — az eredmény a kézbesítési naplóban látszik.',
+        'webhookTestThrottled' => 'Túl sok teszt-esemény; próbáld újra egy perc múlva.',
+        'exportThrottled' => 'Túl sok export; próbáld újra egy perc múlva.',
+        'webhookInactive' => 'A végpont ki van kapcsolva — teszt-esemény csak aktív végpontra küldhető.',
+    ],
+    // v1.1 · 8. modul — analitika (PDF-riport) és workspace-branding.
+    'analytics' => [
+        'report' => [
+            'invalidPeriod' => 'Az időszak legfeljebb :days nap lehet, és nem érhet véget a mai napnál később.',
+        ],
+    ],
+    'branding' => [
+        'saved' => 'A branding mentve.',
+        'logoSaved' => 'A logó feltöltve.',
+        'logoRemoved' => 'A logó eltávolítva.',
+        'validation' => [
+            'color' => 'A szín #RRGGBB alakú hex kód legyen.',
+            'contrast' => 'Ezen a színen sem a fehér, sem a sötét borítószöveg nem olvasható (WCAG 4,5 : 1) — válassz sötétebb vagy világosabb árnyalatot.',
+            'control' => 'A szöveg nem tartalmazhat vezérlőkaraktert.',
+            'logoType' => 'A logó PNG, JPEG vagy WebP kép lehet (SVG nem).',
+            'logoSize' => 'A logó legfeljebb :max MB lehet.',
+            'logoDimensions' => 'A logó mérete :min és :max pixel között legyen.',
+            'logoRatio' => 'A logó képaránya legfeljebb :ratio : 1 lehet.',
+            'processing' => 'A képet nem sikerült feldolgozni — próbálj egy másik fájlt.',
+        ],
     ],
 ];

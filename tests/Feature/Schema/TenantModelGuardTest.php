@@ -2,8 +2,11 @@
 
 declare(strict_types=1);
 
+use App\Modules\Analytics\Models\AnalyticsReport;
 use App\Modules\Analytics\Models\CampaignEngagement;
+use App\Modules\Analytics\Models\EngagementClientDaily;
 use App\Modules\Analytics\Models\LinkClick;
+use App\Modules\Analytics\Models\WorkspaceBranding;
 use App\Modules\Audit\Concerns\Auditable;
 use App\Modules\Audit\Models\AuditLog;
 use App\Modules\Billing\Models\UsageRecord;
@@ -18,6 +21,7 @@ use App\Modules\Inbound\Models\InboundAttachment;
 use App\Modules\Inbound\Models\InboundMessage;
 use App\Modules\Journey\Models\JourneyRun;
 use App\Modules\Journey\Models\JourneyRunStep;
+use App\Modules\Logs\Models\DomainDailyStat;
 use App\Modules\Logs\Models\SmtpTransaction;
 use App\Modules\Sending\Models\DeliveryAttempt;
 use App\Modules\Sending\Models\Message;
@@ -183,6 +187,20 @@ it('minden admin-felületű modell auditált', function () {
         // auditálja, ami `Auditable`. Soronkénti audit itt a törölhetetlen audit-táblát
         // tömné meg forgalommal, és a fogyás-sor amúgy sem tart személyes adatot.
         UsageRecord::class,
+        // v1.1 · 7. modul (D175): a DOMAIN-STATISZTIKA számláló-sora gépi adat — az
+        // esemény-folyam írja `+1` upserttel, felhasználói művelet nélkül, és PII-t nem tart.
+        DomainDailyStat::class,
+        // v1.1 · 8. modul (D229): az ESZKÖZ/KLIENS napi számláló gépi adat — a nyilvános
+        // tracking-végpont írja `+1` upserttel, felhasználói művelet nélkül, PII nélkül.
+        EngagementClientDaily::class,
+        // v1.1 · 8. modul: a RIPORT-sor életciklusát a job írja (rendering → ready → expired);
+        // a felhasználói DÖNTÉSEKET explicit, nevesített audit-sor rögzíti
+        // (`analytics.report_requested`, `analytics.report_downloaded`).
+        AnalyticsReport::class,
+        // v1.1 · 8. modul: a BRANDING írásait a kontroller nevesített audit-sorral naplózza
+        // (`branding.updated` mezőnkénti before/after-rel, `branding.logo_uploaded`,
+        // `branding.logo_removed`) — az általános `updated` sor ugyanazt duplán írná.
+        WorkspaceBranding::class,
         // deploy-ovh · A POSTAL-HIVATKOZÁS és a WEBHOOK-NYUGTA gépi adat: küldésenként,
         // címzettenként, illetve kézbesítési eseményenként keletkezik, felhasználói művelet
         // nélkül, és a `logs:purge` lejáratkor törli. Soronkénti audit a törölhetetlen

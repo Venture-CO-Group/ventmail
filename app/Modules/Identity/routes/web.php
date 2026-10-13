@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Modules\Api\Http\Controllers\DeveloperDocsController;
 use App\Modules\Identity\Http\Controllers\ApiKeyController;
 use App\Modules\Identity\Http\Controllers\DevLoginController;
 use App\Modules\Identity\Http\Controllers\DevSeedController;
@@ -9,6 +10,7 @@ use App\Modules\Identity\Http\Controllers\LocaleController;
 use App\Modules\Identity\Http\Controllers\LogoutController;
 use App\Modules\Identity\Http\Controllers\OidcCallbackController;
 use App\Modules\Identity\Http\Controllers\OidcRedirectController;
+use App\Modules\Identity\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -39,6 +41,16 @@ Route::post('/locale', LocaleController::class)
     ->name('locale.update');
 
 /*
+ | PROFILBEÁLLÍTÁSOK: az app-specifikus beállítások (nyelv, időzóna, formátumok,
+ | értesítések, alapértelmezett workspace). A személyes adat a ventSSO-ban marad.
+ | Ugyanaz a stack, mint a `/locale`-nál: `auth + workspace`, a bejelentkezési limiter nélkül.
+ */
+Route::middleware(['auth', 'workspace'])->withoutMiddleware('throttle:oidc')->group(function (): void {
+    Route::get('/profile', [ProfileController::class, 'show'])->name('profile.show');
+    Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update');
+});
+
+/*
  | API-KULCSOK felülete. A `/v1` gépi felület kulcsai innen születnek és itt halnak meg.
  |
  | A modul route-jai hitelesítés ELŐTTIEK (OIDC-folyamat), ezért itt EXPLICIT a stack — a
@@ -63,6 +75,8 @@ Route::middleware(['auth', 'workspace'])
         Route::get('/api-keys', [ApiKeyController::class, 'index'])->name('api-keys.index');
         Route::post('/api-keys', [ApiKeyController::class, 'store'])->name('api-keys.store');
         Route::delete('/api-keys/{uuid}', [ApiKeyController::class, 'destroy'])->name('api-keys.destroy');
+        // v1.1 · 7. modul: az appon belüli fejlesztői dokumentáció (OpenAPI-ból generálva).
+        Route::get('/developers', DeveloperDocsController::class)->name('developers.docs');
     });
 
 // KIZÁRÓLAG fejlesztői/teszt környezetben: a Playwright nem tudja végigjátszani a ventSSO

@@ -4,11 +4,16 @@ declare(strict_types=1);
 
 namespace App\Modules\Campaign\Console;
 
-use App\Modules\Campaign\Actions\StartCampaign;
+use App\Modules\Audit\Services\AuditLogger;
+use App\Modules\Campaign\Jobs\StartCampaignJob;
 use App\Modules\Campaign\Models\Campaign;
+use App\Modules\Campaign\Services\CampaignChecklist;
+use App\Modules\Campaign\Services\CampaignLifecycle;
+use App\Modules\Template\Services\TemplateUsage;
 use App\Modules\Tenancy\Models\Workspace;
 use App\Modules\Tenancy\Services\WorkspaceContext;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\DB;
 use Throwable;
 
 /**
@@ -34,7 +39,7 @@ final class DispatchScheduledCampaignsCommand extends Command
 
     protected $description = 'Az esedékes, ütemezett kampányok indítása.';
 
-    public function handle(WorkspaceContext $context, StartCampaign $start): int
+    public function handle(WorkspaceContext $context, CampaignLifecycle $lifecycle, CampaignChecklist $checklist, AuditLogger $audit): int
     {
         $started = 0;
         $failed = 0;
@@ -54,7 +59,7 @@ final class DispatchScheduledCampaignsCommand extends Command
         $previous = $context->hasWorkspace() ? $context->workspace() : null;
 
         try {
-            Workspace::query()->orderBy('id')->chunkById(50, function ($workspaces) use ($context, $start, &$started, &$failed): void {
+            Workspace::query()->orderBy('id')->chunkById(50, function ($workspaces) use ($context, $lifecycle, $checklist, $audit, &$started, &$failed): void {
                 foreach ($workspaces as $workspace) {
                     $context->set($workspace);
 
@@ -67,8 +72,70 @@ final class DispatchScheduledCampaignsCommand extends Command
 
                     foreach ($due as $campaign) {
                         try {
-                            $start($campaign);
-                            $started++;
+                            // A SZERVER-ELLENŐRZÉSEK az indítás pillanatában is (review RS1): az
+                            // ütemezés óta a domain hitelesítése lejárhatott, a sablon postai
+                            // címe helyőrzőre változhatott, a közönség elveszíthette a
+                            // megerősített hozzájárulást. A hiányos kampány VÁZLAT lesz, nem
+                            // indul el — és ez auditált.
+                            //
+                            // A ZÁR ELŐTT (review NIT): a keret nélküli consent-metszet egy nagy
+                            // célzáson sokáig fut — a sorzár alatt egy közben érkező szerkesztés
+                            // (`update()`) addig egy FPM-workert tartana várakozásban. A közbeni
+                            // szerkesztés így sem csúszik át: az `update()` maga újraértékeli a
+                            // checklistet, és a zár alatt itt a friss állapot / esedékesség dönt.
+                            //
+                            // FRISS példányon (review R4 NIT): a lista óta a felhasználó javíthatta vagy
+                            // maga vehette vissza — egy elavult példány hamis auditot / vázlatba vételt adna.
+                            $current = $campaign->fresh();
+
+                            if ($current === null || (string) $current->status !== 'scheduled') {
+                                continue;
+                            }
+
+                            $failing = $checklist->failingChecks($current);
+
+                            if ($failing !== []) {
+                                // Állapot-ellenőrzött váltás (review S2); az audit csak TÉNYLEGES váltás után.
+                                [$unscheduled, $changed] = $lifecycle->unscheduleTracked($current);
+
+                                if ($changed) {
+                                    $audit->log('campaign.unscheduled_by_checklist', $unscheduled, context: ['failing' => $failing]);
+                                    $failed++;
+                                }
+
+                                continue;
+                            }
+
+                            $outcome = DB::transaction(function () use ($campaign, $lifecycle): string {
+                                // SOR-ZÁR + FRISS esedékesség (review BN2/NIT): a kiválasztás óta egy
+                                // szerkesztés átütemezhette vagy vázlatba vehette. A szerkesztés
+                                // ugyanezt a sort zárolja, tehát a kettő sorban fut, nem egymásba.
+                                $locked = Campaign::query()
+                                    ->whereKey($campaign->getKey())
+                                    ->where('status', 'scheduled')
+                                    ->where('scheduled_at', '<=', now())
+                                    ->lockForUpdate()
+                                    ->first();
+
+                                if ($locked === null) {
+                                    return 'skipped';
+                                }
+
+                                // A hivatkozott sablonok megosztott zárja (SEC4-S1), mint a felületi indításnál.
+                                app(TemplateUsage::class)->lockForActivation($locked->templateIds());
+
+                                // LEFOGLALÁS + háttér-materializálás (review RB1): az ütemező sem
+                                // tart egy 300k-s felírást a percenkénti futásában. A job a commit
+                                // UTÁN kerül a sorba (`afterCommit`). Az indítás auditált (`system`).
+                                $claimed = $lifecycle->start($locked);
+                                StartCampaignJob::dispatch((string) $claimed->uuid, (int) $claimed->workspace_id);
+
+                                return 'started';
+                            });
+
+                            if ($outcome === 'started') {
+                                $started++;
+                            }
                         } catch (Throwable $e) {
                             report($e);
                             $failed++;

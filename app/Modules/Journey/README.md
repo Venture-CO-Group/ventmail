@@ -9,6 +9,14 @@ Customer Journey motor: trigger → condition → action → wait → branch, id
 - Külső gazda csak interfész mögött; a fake teszttel fedett kontraktus.
 - A modul nem épít saját identity / consent-banner / fájltár / számlázó / landing-page réteget.
 
-## Állapot
-Váz (M0-0). A tartalmat a saját packetje tölti fel — lásd `PHASE.md` és
-`docs/ventmail-roadmap.md`.
+## Állapot (v1.1 · 6. modul)
+- **Vászon** (`/journeys/{uuid}`, `Pages/Journey/Canvas.vue`, `@vue-flow/*` MIT): gráf a
+  `journeys.graph`-ban (`Graph/JourneyGraph` normalizál, `Graph/JourneyGraphValidator` validál:
+  árva csomópont, hiányzó trigger, várakozás nélküli hurok, kötelező konfiguráció, hivatkozások).
+- **Verziók** (D5): `JourneyPublisher` → `journey_versions` (megváltoztathatatlan) + a verzió
+  lépései (`journey_steps.journey_version_id`); a futás a saját verzióján halad.
+- **Motor**: `JourneyEngine` (a régi lánc ÉS a vászon lépései), `JourneyConditions` (közös
+  feltétel-kiértékelés), webhook csomópont a Webhooks modul `DeliverWebhook`-ján.
+- **Statisztika**: `JourneyNodeStats` (előre összesített `executed_count` + korlátos „vár").
+- **Teszt-futtatás**: `JourneySimulator` — csak olvas, nem küld.
+- Publikálás / szüneteltetés: `journey.publish` képesség, auditált.

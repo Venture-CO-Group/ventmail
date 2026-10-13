@@ -1,0 +1,142 @@
+/*
+ | A PROFILBEÁLLÍTÁSOK elrendezése — tokenekből. A térközök a v1.1 űrlap-szabály szerint:
+ | label–mező közt `space-2` (a `VtField` adja), a mezők/szakaszok/kártya távolságait a
+ | `Components/Form/*` adja — itt csak az oldal-elrendezés áll.
+ |
+ | JELENTÉS a @venture/ui felé: oldalfej (cím + művelet), link-gomb (a `VtButton` csak
+ | `<button>`), kétoszlopos oldal-elrendezés.
+ */
+
+.vm-pagehead {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--vt-space-4);
+}
+
+.vm-pagehead > :first-child {
+    min-inline-size: 0;
+    flex: 1 1 calc(var(--vt-space-32) * 2);
+}
+
+.vm-pagehead h1,
+.vm-pagehead p {
+    margin: 0;
+}
+
+.vm-profile {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--vt-space-8);
+    align-items: flex-start;
+}
+
+.vm-profile__main {
+    gap: var(--vt-space-8);
+    flex: 2 1 calc(var(--vt-space-32) * 3);
+    min-inline-size: 0;
+}
+
+.vm-profile__side {
+    gap: var(--vt-space-8);
+    flex: 1 1 calc(var(--vt-space-32) * 2);
+    min-inline-size: 0;
+}
+
+.vm-profile h2 {
+    font-size: var(--vt-fs-h4);
+}
+
+.vm-profile__notifs {
+    display: flex;
+    flex-direction: column;
+    gap: var(--vt-space-4);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.vm-profile__notif {
+    display: flex;
+    flex-direction: column;
+    gap: var(--vt-space-1);
+    padding-block-end: var(--vt-space-4);
+    border-block-end: thin solid var(--vt-border);
+}
+
+.vm-profile__notif:last-child {
+    padding-block-end: 0;
+    border-block-end: 0;
+}
+
+.vm-profile__notif-label {
+    font-weight: var(--vt-weight-medium);
+}
+
+.vm-profile__notif-hint {
+    padding-inline-start: var(--vt-space-8);
+    color: var(--vt-text-muted);
+    font-size: var(--vt-fs-body-sm);
+}
+
+.vm-profile__who {
+    padding-block-end: var(--vt-space-4);
+    border-block-end: thin solid var(--vt-border);
+}
+
+.vm-profile__name {
+    font-family: var(--vt-font-display);
+    font-weight: var(--vt-weight-semibold);
+    overflow-wrap: anywhere;
+}
+
+.vm-profile__email {
+    color: var(--vt-text-muted);
+    overflow-wrap: anywhere;
+}
+
+.vm-profile__roles {
+    display: flex;
+    flex-direction: column;
+    gap: var(--vt-space-3);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.vm-profile__role {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--vt-space-3);
+}
+
+.vm-profile__role-name {
+    min-inline-size: 0;
+    overflow-wrap: anywhere;
+}
+
+.vm-linkbutton {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--vt-space-2);
+    min-block-size: var(--vt-control-height);
+    padding: var(--vt-space-2) var(--vt-space-6);
+    border-radius: var(--vt-radius-md);
+    background: var(--vt-accent);
+    color: var(--vt-on-accent);
+    font-family: var(--vt-font-body);
+    font-weight: var(--vt-weight-medium);
+    text-decoration: none;
+}
+
+.vm-linkbutton:hover {
+    background: var(--vt-accent-hover);
+}
+
+.vm-linkbutton:focus-visible {
+    outline: thin solid transparent;
+    box-shadow: 0 0 0 var(--vt-space-1) var(--vt-ring);
+}

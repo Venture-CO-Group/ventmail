@@ -28,7 +28,7 @@ final class JourneyRun extends Model
 
     protected $fillable = [
         'journey_id', 'contact_id', 'current_step_id', 'email', 'status',
-        'exit_reason', 'resume_at', 'context', 'entered_at',
+        'exit_reason', 'resume_at', 'context', 'entered_at', 'journey_version_id',
     ];
 
     protected $attributes = ['status' => 'active', 'context' => '{}', 'steps_taken' => 0, 'failure_count' => 0];

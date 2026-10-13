@@ -62,6 +62,32 @@ final class MeilisearchContactIndex implements ContactSearchIndex
         });
     }
 
+    public function indexMany(iterable $contacts): void
+    {
+        $documents = [];
+
+        foreach ($contacts as $contact) {
+            $documents[] = [
+                'id' => (string) $contact->uuid,
+                'workspace_id' => (int) $contact->workspace_id,
+                'email' => (string) $contact->email,
+                'first_name' => (string) $contact->first_name,
+                'last_name' => (string) $contact->last_name,
+                'status' => (string) $contact->status,
+            ];
+        }
+
+        if ($documents === []) {
+            return;
+        }
+
+        $this->guarded(function () use ($documents): void {
+            $this->ensureFilterable();
+
+            $this->documents()->addDocuments($documents, 'id');
+        });
+    }
+
     public function remove(Contact $contact): void
     {
         $this->guarded(fn () => $this->documents()->deleteDocument((string) $contact->uuid));

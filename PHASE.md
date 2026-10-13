@@ -6,7 +6,12 @@
 ## Cél
 **Mailgun + Mailchimp egyidejű kiváltása.** Két pillér (Platform / Studio) egy közös motoron.
 
-## Aktuális milestone: **M4 — FELÜLET · LEZÁRVA (2026-09-10, PR #35)**
+## Aktuális milestone: **v1.1 csomag (kiadási tag `v1.2.0`) — Studio Mailchimp-szint, Platform Mailgun-szint**
+> Terv, döntések (D1–D300), állapot-napló: `docs/plans/v1.1.md` · változások: `CHANGELOG.md` ·
+> nyitott tételek: `HUMAN-QUEUE.md` · képernyőképek: `docs/screenshots/v1.1/`. Branch: `feat/v1.1`.
+> 2026-10-14: 8 modul + polírozás kész, minden review lezárva; Pest 2531 / vitest 113 / Playwright 89.
+
+## Korábbi milestone: **M4 — FELÜLET · LEZÁRVA (2026-09-10, PR #35)**
 
 > **A FELÜLET KÉSZ.** A `resources/js/Pages` alatt 30 képernyő van, `e2e/` alatt 7 spec,
 > 1615 Pest-teszt. Ami a terméken BELÜL hiányzott, elkészült; ami maradt, az mind KÜLSŐ

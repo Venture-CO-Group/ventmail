@@ -24,6 +24,9 @@ use Inertia\Response;
  */
 final class DomainController
 {
+    /** A lista felső korlátja (egy workspace domain-száma reálisan ennek töredéke). */
+    private const MAX_DOMAINS = 500;
+
     /**
      * A DOMAIN-LISTA — a wizard EGY domainről szól, a küldő viszont többet tart.
      *
@@ -31,11 +34,17 @@ final class DomainController
      * megnyitása sem): a tenantnak lefokozás után is látnia kell, mi van beállítva nála.
      * A csomag-funkció azt korlátozza, hogy ÚJAT vegyen fel vagy hitelesítsen.
      */
-    public function index(): Response
+    public function index(Request $request): Response
     {
         Gate::authorize('domain.manage');
 
-        $domains = Domain::query()->orderBy('name')->get();
+        $domains = Domain::query()->orderBy('name')->limit(self::MAX_DOMAINS)->get();
+
+        // A RÉSZLETEZETT domain: a kérésben megadott, különben az első. Idegen tenant uuid-je a
+        // global scope miatt nem található — ilyenkor is az első jön, nem hiba (a létezést
+        // sem áruljuk el).
+        $selectedUuid = $request->string('domain')->toString();
+        $selected = $domains->firstWhere('uuid', $selectedUuid) ?? $domains->first();
 
         return Inertia::render('Domains/Index', [
             'domains' => $domains->map(fn (Domain $domain) => [
@@ -48,9 +57,75 @@ final class DomainController
                 'dkim' => (string) $domain->dkim_status,
                 'dmarc' => (string) $domain->dmarc_status,
                 'tracking' => (string) $domain->tracking_status,
+                'returnPath' => (string) $domain->return_path_status,
                 'verified_at' => $domain->verified_at?->toIso8601String(),
+                // „N / 5 rekord rendben" — a lista ránézésre mondja meg, mennyi van hátra.
+                'okCount' => count(array_filter(
+                    [$domain->spf_status, $domain->dkim_status, $domain->dmarc_status, $domain->return_path_status, $domain->tracking_status],
+                    static fn ($status) => in_array($status, ['verified', 'rotating'], true),
+                )),
             ])->values()->all(),
+            'selected' => $selected === null ? null : $this->detail($selected),
         ]);
+    }
+
+    /**
+     * Egy domain RÉSZLETEI: a másolható DNS-rekordok élő állapottal és a DKIM-kulcs adatai.
+     *
+     * A privát kulcs SOHA nem kerül ide: a `dnsRecords()` csak a publikus kulcsot hordozza.
+     *
+     * @return array<string, mixed>
+     */
+    private function detail(Domain $domain): array
+    {
+        $records = $domain->dnsRecords();
+
+        $statuses = [
+            'spf' => $domain->spf_status,
+            'dkim' => $domain->dkim_status,
+            'dmarc' => $domain->dmarc_status,
+            'return_path_transactional' => $domain->return_path_status,
+            'return_path_marketing' => $domain->return_path_marketing_status,
+            'tracking' => $domain->tracking_status,
+        ];
+
+        $rows = [];
+
+        foreach ($statuses as $key => $status) {
+            if (! isset($records[$key])) {
+                continue;
+            }
+
+            $rows[] = [
+                'key' => $key,
+                'type' => (string) $records[$key]['type'],
+                'name' => (string) $records[$key]['name'],
+                'value' => (string) $records[$key]['value'],
+                'status' => (string) $status,
+                // A marketing Return-Path csak akkor kell, ha marketinget is küldenek innen.
+                'optional' => in_array($key, ['return_path_marketing', 'tracking'], true),
+            ];
+        }
+
+        $overlapDays = (int) config('domains.dkim_rotation_overlap_days');
+
+        return [
+            'uuid' => (string) $domain->uuid,
+            'name' => (string) $domain->name,
+            'status' => (string) $domain->status,
+            'lastCheckedAt' => $domain->last_checked_at?->toIso8601String(),
+            'records' => $rows,
+            'dkim' => [
+                'selector' => (string) $domain->dkim_selector,
+                'signingSelector' => (string) $domain->signingSelector(),
+                'previousSelector' => $domain->previousDkimIsValid() ? $domain->dkim_previous_selector : null,
+                'rotatedAt' => $domain->dkim_rotated_at?->toIso8601String(),
+                'previousValidUntil' => $domain->previousDkimIsValid()
+                    ? $domain->dkim_rotated_at?->copy()->addDays($overlapDays)->toIso8601String()
+                    : null,
+                'overlapDays' => $overlapDays,
+            ],
+        ];
     }
 
     public function store(Request $request, CreateDomain $createDomain): RedirectResponse
@@ -89,7 +164,7 @@ final class DomainController
 
         $verify->handle($domain);
 
-        return redirect()->route('domains.wizard', ['domain' => $domain->uuid]);
+        return $this->backTo($domain);
     }
 
     public function rotateDkim(string $uuid, RotateDkimKey $rotate): RedirectResponse
@@ -100,6 +175,17 @@ final class DomainController
 
         $rotate($domain);
 
-        return redirect()->route('domains.wizard', ['domain' => $domain->uuid]);
+        return $this->backTo($domain)->with('success', __('ventmail.plat.dkimRotated'));
+    }
+
+    /**
+     * Vissza ODA, ahonnan a művelet indult: a domain-lista részletező paneljéről (`return=index`)
+     * a listára, egyébként a wizardba (a wizard e2e-folyama ezt várja).
+     */
+    private function backTo(Domain $domain): RedirectResponse
+    {
+        return request()->input('return') === 'index'
+            ? redirect()->route('domains.index', ['domain' => $domain->uuid])
+            : redirect()->route('domains.wizard', ['domain' => $domain->uuid]);
     }
 }

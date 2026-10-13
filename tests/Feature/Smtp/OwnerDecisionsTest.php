@@ -119,6 +119,10 @@ it('a helyi rész VÁLTOZATLAN marad — azt csak a fogadó értelmezheti', func
 it('a hitelesítő perces kerete fölött 452 jön', function () {
     config(['smtp.rate_limit.per_credential_per_minute' => 2]);
 
+    // D297: a keret NAPTÁRI percre szól (`YmdHi` kulcs) — egy percváltáson átnyúló futásban a
+    // harmadik levél már új keretbe esne (flaky). Az idő rögzítve: mindhárom ugyanabban a percben.
+    $this->freezeTime();
+
     SmtpConversation::play(test()->username, test()->password, SmtpConversation::message(['Message-ID' => '<a@k.test>']), test()->workspace);
     SmtpConversation::play(test()->username, test()->password, SmtpConversation::message(['Message-ID' => '<b@k.test>']), test()->workspace);
 

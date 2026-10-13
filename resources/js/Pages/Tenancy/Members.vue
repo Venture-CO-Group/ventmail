@@ -1,9 +1,16 @@
 <script setup lang="ts">
 import { router } from '@inertiajs/vue3';
-import { VtButton, VtCard, VtCheckbox, VtField, VtInput, VtTable, type VtColumn } from '@venture/ui';
+import { VtButton, VtCheckbox, VtField, VtInput, type VtColumn } from '@venture/ui';
+import VmTable from '../../Components/Form/VmTable.vue';
+import VmCard from '../../Components/Form/VmCard.vue';
+import VmFieldGroup from '../../Components/Form/VmFieldGroup.vue';
+import VmForm from '../../Components/Form/VmForm.vue';
+import VmFormActions from '../../Components/Form/VmFormActions.vue';
+import VmFormSection from '../../Components/Form/VmFormSection.vue';
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import AppLayout from '../../Layouts/AppLayout.vue';
+import { useFormat } from '../../composables/useFormat';
 
 /**
  * TAGOK, MEGHÍVÓK, SUB-ACCOUNTOK.
@@ -46,6 +53,7 @@ const props = defineProps<{
 }>();
 
 const { t } = useI18n();
+const format = useFormat();
 
 const inviteEmail = ref('');
 const inviteRoles = ref<string[]>([]);
@@ -71,7 +79,7 @@ const rows = computed<Row[]>(() =>
         name: member.name,
         email: member.email,
         roles: member.roles.join(', '),
-        lastLogin: member.lastLoginAt ? new Date(member.lastLoginAt).toLocaleString() : '—',
+        lastLogin: member.lastLoginAt ? format.dateTime(member.lastLoginAt) : '—',
     })),
 );
 
@@ -144,14 +152,14 @@ function createSubAccount(): void {
 
         <p class="vm-banner" role="status">{{ t('members.note') }}</p>
 
-        <VtCard data-testid="members-card">
+        <VmCard data-testid="members-card">
             <h2>{{ t('members.heading') }}</h2>
 
-            <VtTable :columns="columns" :rows="rows" :caption="t('members.heading')" data-testid="members-table" />
+            <VmTable :columns="columns" :rows="rows" :caption="t('members.heading')" data-testid="members-table" />
 
             <div v-for="member in members" :key="member.id" class="vm-stack">
                 <div class="vm-cluster">
-                    <span class="vt-text-mono">{{ member.email }}</span>
+                    <span class="vt-text-mono vm-truncate vm-truncate--fill" :title="member.email">{{ member.email }}</span>
 
                     <VtButton variant="ghost" :data-testid="`edit-${member.id}`" @click="startEdit(member)">
                         {{ t('members.editRoles') }}
@@ -179,7 +187,7 @@ function createSubAccount(): void {
                     </VtButton>
                 </div>
 
-                <div v-if="editing === member.id" class="vm-stack" :data-testid="`roles-${member.id}`">
+                <VmForm v-if="editing === member.id" :data-testid="`roles-${member.id}`" @submit.prevent="saveRoles(member)">
                     <!-- Amit a hívó NEM oszthat ki, azt nem rejtjük el — csak nem
                          szerkeszthető. Enélkül úgy tűnne, hogy a tagnak nincs is olyan
                          szerepe. -->
@@ -187,30 +195,30 @@ function createSubAccount(): void {
                         {{ t('members.lockedRoles', { roles: member.roles.filter((role) => !assignableRoles.includes(role)).join(', ') }) }}
                     </p>
 
-                    <div class="vm-cluster">
-                    <VtCheckbox
-                        v-for="role in assignableRoles"
-                        :key="role"
-                        :model-value="editRoles.includes(role)"
-                        :data-testid="`role-${member.id}-${role}`"
-                        @update:model-value="editRoles = toggle(editRoles, role)"
-                    >
-                        {{ role }}
-                    </VtCheckbox>
+                    <VmFormSection>
+                        <VmFieldGroup :legend="t('members.roles')">
+                            <VtCheckbox
+                                v-for="role in assignableRoles"
+                                :key="role"
+                                :model-value="editRoles.includes(role)"
+                                :data-testid="`role-${member.id}-${role}`"
+                                @update:model-value="editRoles = toggle(editRoles, role)"
+                            >
+                                {{ role }}
+                            </VtCheckbox>
+                        </VmFieldGroup>
+                    </VmFormSection>
 
-                    <VtButton
-                        :disabled="!editRoles.length"
-                        :data-testid="`save-${member.id}`"
-                        @click="saveRoles(member)"
-                    >
-                        {{ t('members.save') }}
-                    </VtButton>
-                    </div>
-                </div>
+                    <VmFormActions>
+                        <VtButton type="submit" :disabled="!editRoles.length" :data-testid="`save-${member.id}`">
+                            {{ t('members.save') }}
+                        </VtButton>
+                    </VmFormActions>
+                </VmForm>
             </div>
-        </VtCard>
+        </VmCard>
 
-        <VtCard data-testid="invite-card">
+        <VmCard data-testid="invite-card">
             <h2>{{ t('members.invite') }}</h2>
 
             <p>{{ t('members.inviteHint') }}</p>
@@ -220,47 +228,53 @@ function createSubAccount(): void {
                  tudjon róla, mert a naplót gyengébb szerepek is látják. -->
             <p data-testid="invite-logged">{{ t('members.inviteLogged') }}</p>
 
-            <VtField :label="t('members.email')">
-                <VtInput v-model="inviteEmail" data-testid="invite-email" placeholder="kollega@pelda.hu" />
-            </VtField>
+            <VmForm @submit.prevent="invite">
+                <VmFormSection>
+                    <VtField :label="t('members.email')">
+                        <VtInput v-model="inviteEmail" data-testid="invite-email" placeholder="kollega@pelda.hu" />
+                    </VtField>
 
-            <div class="vm-cluster">
-                <VtCheckbox
-                    v-for="role in assignableRoles"
-                    :key="role"
-                    :model-value="inviteRoles.includes(role)"
-                    :data-testid="`invite-role-${role}`"
-                    @update:model-value="inviteRoles = toggle(inviteRoles, role)"
-                >
-                    {{ role }}
-                </VtCheckbox>
-            </div>
+                    <VmFieldGroup :legend="t('members.roles')">
+                        <VtCheckbox
+                            v-for="role in assignableRoles"
+                            :key="role"
+                            :model-value="inviteRoles.includes(role)"
+                            :data-testid="`invite-role-${role}`"
+                            @update:model-value="inviteRoles = toggle(inviteRoles, role)"
+                        >
+                            {{ role }}
+                        </VtCheckbox>
+                    </VmFieldGroup>
+                </VmFormSection>
 
-            <VtButton
-                :disabled="!inviteEmail.trim() || !inviteRoles.length"
-                data-testid="invite-submit"
-                @click="invite"
-            >
-                {{ t('members.inviteAction') }}
-            </VtButton>
+                <VmFormActions>
+                    <VtButton
+                        type="submit"
+                        :disabled="!inviteEmail.trim() || !inviteRoles.length"
+                        data-testid="invite-submit"
+                    >
+                        {{ t('members.inviteAction') }}
+                    </VtButton>
+                </VmFormActions>
+            </VmForm>
 
             <p v-if="!invitations.length" data-testid="invitations-empty">{{ t('members.noInvitations') }}</p>
 
             <div v-for="invitation in invitations" :key="invitation.uuid" class="vm-cluster">
-                <span class="vt-text-mono">{{ invitation.email }}</span>
-                <span>{{ invitation.roles.join(', ') }}</span>
+                <span class="vt-text-mono vm-truncate vm-truncate--fill" :title="invitation.email">{{ invitation.email }}</span>
+                <span class="vm-wrap">{{ invitation.roles.join(', ') }}</span>
                 <span v-if="invitation.expired" :data-testid="`expired-${invitation.uuid}`">
                     {{ t('members.expired') }}
                 </span>
-                <span v-else>{{ invitation.expiresAt ? new Date(invitation.expiresAt).toLocaleDateString() : '—' }}</span>
+                <span v-else>{{ invitation.expiresAt ? format.date(invitation.expiresAt) : '—' }}</span>
 
                 <VtButton variant="ghost" :data-testid="`revoke-${invitation.uuid}`" @click="revoke(invitation)">
                     {{ t('members.revoke') }}
                 </VtButton>
             </div>
-        </VtCard>
+        </VmCard>
 
-        <VtCard data-testid="sub-accounts-card">
+        <VmCard data-testid="sub-accounts-card">
             <h2>{{ t('members.subAccounts') }}</h2>
 
             <p>{{ t('members.subAccountsHint') }}</p>
@@ -274,30 +288,34 @@ function createSubAccount(): void {
             </p>
 
             <div v-for="child in subAccounts.children" :key="child.uuid" class="vm-cluster">
-                <span>{{ child.name }}</span>
+                <span class="vm-truncate vm-truncate--fill" :title="child.name">{{ child.name }}</span>
                 <span class="vt-text-mono">{{ child.plan }}</span>
                 <span>{{ t('members.memberCount', { count: child.members }) }}</span>
             </div>
 
-            <template v-if="subAccounts.canManage && !subAccounts.isChild">
-                <VtField :label="t('members.subAccountName')">
-                    <VtInput v-model="subAccountName" data-testid="sub-account-name" />
-                </VtField>
+            <VmForm v-if="subAccounts.canManage && !subAccounts.isChild" @submit.prevent="createSubAccount">
+                <VmFormSection>
+                    <VtField :label="t('members.subAccountName')">
+                        <VtInput v-model="subAccountName" data-testid="sub-account-name" />
+                    </VtField>
+                </VmFormSection>
 
-                <VtButton
-                    :disabled="!subAccountName.trim()"
-                    data-testid="sub-account-submit"
-                    @click="createSubAccount"
-                >
-                    {{ t('members.createSubAccount') }}
-                </VtButton>
-            </template>
+                <VmFormActions>
+                    <VtButton
+                        type="submit"
+                        :disabled="!subAccountName.trim()"
+                        data-testid="sub-account-submit"
+                    >
+                        {{ t('members.createSubAccount') }}
+                    </VtButton>
+                </VmFormActions>
+            </VmForm>
 
             <!-- Az EGYSZINTŰ hierarchia nem hiba, hanem szabály — a felület mondja meg,
                  miért nincs gomb. -->
             <p v-else-if="subAccounts.isChild" data-testid="sub-account-locked">
                 {{ t('members.subAccountLocked') }}
             </p>
-        </VtCard>
+        </VmCard>
     </AppLayout>
 </template>

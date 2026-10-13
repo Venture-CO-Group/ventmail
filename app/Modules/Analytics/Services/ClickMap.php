@@ -108,7 +108,7 @@ final class ClickMap
         string $recipient,
     ): void {
         $workspaceId = $this->workspaceId();
-        $url = $this->normalize($url);
+        $url = self::normalize($url);
 
         // A KORLÁT a HATÓKÖRÖN (kampány/journey), nem az üzeneten — lásd a
         // `MAX_LINKS_PER_SCOPE` indoklását.
@@ -205,14 +205,24 @@ final class ClickMap
             ->orderByDesc('clicks')
             ->orderBy('url')
             ->get()
-            ->map(static fn (object $row): array => [
-                'url' => (string) $row->url,
-                'clicks' => (int) $row->clicks,
-                // AZ EGYEDI KATTINTÓ a SOROK száma: soronként egy (link, címzett) páros áll.
-                'unique_clicks' => (int) $row->unique_clicks,
-                'first_clicked_at' => $row->first_clicked_at === null ? null : (string) $row->first_clicked_at,
-                'last_clicked_at' => $row->last_clicked_at === null ? null : (string) $row->last_clicked_at,
-            ])
+            // OLVASÁSKORI redaktálás (review S1): a javítás előtt tárolt, e-mailt hordozó útvonalak
+            // is `{redacted}`-ként jönnek ki, és az így egybeeső sorok összeadódnak.
+            ->groupBy(static fn (object $row): string => self::redactStored((string) $row->url))
+            ->map(static function ($rows, string $url): array {
+                $first = $rows->pluck('first_clicked_at')->filter()->min();
+                $last = $rows->pluck('last_clicked_at')->filter()->max();
+
+                return [
+                    'url' => $url,
+                    'clicks' => (int) $rows->sum('clicks'),
+                    // AZ EGYEDI KATTINTÓ a SOROK száma: soronként egy (link, címzett) páros áll.
+                    'unique_clicks' => (int) $rows->sum('unique_clicks'),
+                    'first_clicked_at' => $first === null ? null : (string) $first,
+                    'last_clicked_at' => $last === null ? null : (string) $last,
+                ];
+            })
+            ->sortBy([['clicks', 'desc'], ['url', 'asc']])
+            ->values()
             ->all();
     }
 
@@ -300,7 +310,10 @@ final class ClickMap
                         'campaign_uuid' => $group->campaign_uuid,
                         'journey_id' => $group->journey_id === null ? null : (int) $group->journey_id,
                         'url_hash' => (string) $group->url_hash,
-                        'url' => (string) $group->url,
+                        // GDPR (review round 2 S4, D282): az összevont sorba a REDAKTÁLT cím kerül — egy
+                        // törlési kérés vagy a retenció után a javítás előtti, e-mailes útvonal sem marad
+                        // a táblában. A kulcs (`url_hash`) marad: a térkép-sor azonossága nem változik.
+                        'url' => self::redactStored((string) $group->url),
                         'recipient_hash' => self::AGGREGATED_HASH,
                         'clicks' => (int) $group->clicks,
                         'unique_clicks' => (int) $group->unique_clicks,
@@ -360,7 +373,7 @@ final class ClickMap
      * `https://pelda.hu/akcio` viszont KETTŐBE — vagyis a rangsor hasadt, pontosan az,
      * amit a docblock „a térkép hazudik a rangsorról"-ként ír le.
      */
-    private function normalize(string $url): string
+    private static function normalize(string $url): string
     {
         $url = trim($url);
 
@@ -391,9 +404,9 @@ final class ClickMap
             $normalized .= ':'.$parts['port'];
         }
 
-        $normalized .= $path;
+        $normalized .= self::redactPath($path);
 
-        $query = $this->safeQuery($parts['query'] ?? '');
+        $query = self::safeQuery($parts['query'] ?? '');
 
         if ($query !== '') {
             $normalized .= '?'.$query;
@@ -405,6 +418,52 @@ final class ClickMap
     }
 
     /**
+     * AZ ÚTVONAL e-mail-szegmensei (review S1, D266): egy `@`-ot vagy `%40`-et tartalmazó szegmens
+     * (`/u/kiss.janos@pelda.hu/ajanlat`) címzett-azonosító — `{redacted}` lesz belőle. A csere
+     * STABIL, tehát a térkép-kulcs is az: ugyanaz a személyre szabott link címzettenként EGY sorba esik.
+     */
+    public static function redactPath(string $path): string
+    {
+        if ($path === '' || ! self::carriesAddress($path)) {
+            return $path;
+        }
+
+        return implode('/', array_map(
+            static fn (string $segment): string => self::carriesAddress($segment) ? '{redacted}' : $segment,
+            explode('/', $path),
+        ));
+    }
+
+    /** `@`, `%40` vagy a kétszer kódolt `%2540` (review round 2 N6). */
+    private static function carriesAddress(string $value): bool
+    {
+        return str_contains($value, '@') || stripos($value, '%40') !== false || stripos($value, '%2540') !== false;
+    }
+
+    /**
+     * Egy TÁROLT térkép-URL olvasáskori redaktálása: a javítás előtt rögzített sorokat nem írjuk át
+     * (expand-only), de a kimenetbe (UI, CSV, `/v1`, PDF) már csak redaktálva kerülnek.
+     */
+    public static function redactStored(string $url): string
+    {
+        if ($url === self::OVERFLOW_URL) {
+            return $url;
+        }
+
+        $parts = parse_url($url);
+
+        // FAIL-CLOSED (review round 2 N6): egy nem értelmezhető, de címet hordozó érték nem jut ki nyersen.
+        if ($parts === false || ! isset($parts['host'])) {
+            return self::carriesAddress($url) ? '{redacted}' : $url;
+        }
+
+        $out = ($parts['scheme'] ?? 'https').'://'.$parts['host'].(isset($parts['port']) ? ':'.$parts['port'] : '');
+        $out .= self::redactPath($parts['path'] ?? '');
+
+        return $out.(isset($parts['query']) ? '?'.$parts['query'] : '');
+    }
+
+    /**
      * A QUERY SZŰRÉSE — a személyre szabható paraméterek kiesnek.
      *
      * A tiltólista NEVESÍTETT, nem heurisztikus: egy „minden hosszú értéket kivágunk"
@@ -412,7 +471,7 @@ final class ClickMap
      * Ami kiesik, az a személyes adat és a címzettenkénti azonosító — ami marad, a
      * kampány-mérés (`utm_*`, `ref`, `gclid`).
      */
-    private function safeQuery(string $query): string
+    private static function safeQuery(string $query): string
     {
         if ($query === '') {
             return '';
@@ -450,6 +509,16 @@ final class ClickMap
         ksort($kept);
 
         return http_build_query($kept);
+    }
+
+    /**
+     * Egy NYERS cél-URL térkép-kulcsa (v1.1 · 8. modul, hőtérkép): ugyanaz a normalizálás és
+     * ugyanaz a kulcsolt hash, amivel a `record()` a `url_hash` oszlopot írja. A sablon `<a href>`
+     * -jei így pontosan a rögzített kattintás-sorokra képeződnek.
+     */
+    public static function linkKey(string $url): string
+    {
+        return KeyedHash::of('click-url', self::normalize($url));
     }
 
     private function known(string $scope, string|int $value, string $url): bool

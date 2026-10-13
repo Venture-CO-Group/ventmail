@@ -1,0 +1,97 @@
+# Changelog — ventMail
+
+Formátum: [Keep a Changelog](https://keepachangelog.com/hu/1.1.0/). Verziózás: a kiadás tagje `vMAJOR.MINOR.PATCH`.
+A részletes döntési nyomvonal: `docs/plans/v1.1.md` (D1–D300).
+
+## [1.2.0] — 2026-10-14 (ventMail v1.1)
+
+> A kiadás tagje `v1.2.0`, a terv/prompt neve „v1.1": a `v1.1.0` tag már élesben fut, kiadott tag nem írható át (D1).
+
+### Added
+
+**Felület és profil**
+- Felső navigáció (Platform / Studio / Settings csoportok), workspace-váltó, avatar-menü (monogram), nyelvválasztó; mobilon harmonika. Új workspace létrehozása (`POST /workspaces`, plafon: 20 birtokolt workspace).
+- Profil-beállítások: időzóna, dátum- és számformátum, értesítések, alapértelmezett workspace. A nyelv első belépéskor a ventSSO `locale` claimből jön. Személyes adat, jelszó, 2FA: a ventSSO fiókoldalán.
+- Francia nyelv (hu, en, de, fr, it, es, ru). Minden szám, dátum és gépi kód (trace-esemény, kapunév, állapot) a profil formátumában és nyelvén jelenik meg.
+- Közös űrlap-komponensek (`VmForm` család) és átfedés-kapu (`e2e/layout-overlap.spec.ts`, 1440/1024/390 px).
+- Áttekintő oldal: KPI-sor sparkline-nal, legutóbbi kampányok, kézbesíthetőség-kártya, teendők; a listák és szegmensek szerveroldali lapozással és kereséssel.
+
+**Studio**
+- Kontakt-import: kézi, CSV és XLSX (300 000 soros fájlig), elválasztó- és kódolás-felismerés (UTF-8, Windows-1250), előnézet, hibariport, jogalap + forrás + dátum kötelező; suppression-találat sosem éled fel.
+- Sablonszerkesztő: drag-and-drop (egér, érintés, billentyűzet), új blokkok és layoutok, feltételes blokk, stílusok, linkellenőrzés, optimalizáló, verziótörténet (visszaállítással), sablonkönyvtár, teszt-küldés, webes változat (`/w/{token}`), képfeltöltés (újrakódolt, workspace-kvótával).
+- Szegmensépítő (csoportok, 3 szint, 50 szabály), címkék, tömeges címkézés, engagement-szűrők, közönség-dashboard.
+- Kampány: checklist, időzóna-tudatos ütemezés, A/B (tárgy, tartalom, feladó), preheader, célzás kereséssel és lapozással, címzett-választó chipekkel.
+- Űrlapok és preference center (név és egyéni mezők), hosztolt oldalak (`/f`, `/c`, `/p`) süti és script nélkül.
+- Journey vászon (`@vue-flow`): verziózott gráf, elágazás, várakozás, cél, webhook-csomópont, évfordulós trigger, teszt-futtatás, statisztika, új `journey.publish` képesség.
+
+**Platform**
+- Domainek: Return-Path ellenőrzés, részletpanel, DKIM-rotáció.
+- API-kulcsok: IP-allowlist, helyes `validate:run` scope; `GET/POST/DELETE /v1/suppressions` (additív).
+- Webhookok: eseményszerkesztő, titok-rotáció 24 órás türelmi ablakkal (`X-VentMail-Signature-Previous`), teszt-esemény, kézbesítési napló szűrőkkel.
+- Napló: Message-ID, idővonal, CSV-export (alapból maszkolt címzett; teljes címhez `logs.export_pii` képesség).
+- Suppression: külön listák, kötelező indoklás törléskor; panasz/leiratkozás visszavonhatatlan.
+- Domain-statisztika (`domain_daily_stats`), infrastruktúra-nézet platform-adminoknak, appon belüli fejlesztői dokumentáció az OpenAPI-ból.
+
+**Analitika**
+- ECharts grafikonok, PNG-export minden grafikonon, „Top linkek CSV", levelezőkliens-bontás (saját osztályozó, nyers user-agent nem tárolódik).
+- PDF-riport (Gotenberg) kampányra és időszakra, workspace-branding (logó PNG/JPEG/WebP ≤ 1 MB, színek), aláírt, 10 percig érvényes letöltőlink, a fájl 7 napig él.
+
+**Fejlesztői eszközök**
+- `npm run test:unit` (vitest 4.1.11 + happy-dom 20.14.5), `npm run screenshots` (app és mockup képernyőképek: `docs/screenshots/v1.1/`).
+
+### Changed
+- A kampány-indítás külön sorra és külön Horizon supervisorra került (`campaign-start`); a PDF-riport is (`reports`). A Horizon környezetenként explicit supervisor-listát kap (production: sending, background, campaign-start, reports; imports: imports, imports-inspect).
+- Az import külön `worker-imports` konténerben fut (3 GB), a felmérés külön `imports-inspect` sorban; az XLSX-olvasás izolált gyerekfolyamatban, kemény memória- és időkorláttal.
+- Idempotency-Key fenntartott előtagok a `/v1`-en (`campaign:`, `journey:`, `template-test:`, `invite:`, `optin:`, `smtp:`, `inbound-fwd-`, `dev-seed-`) → `400 IDEMPOTENCY_KEY_RESERVED` (OpenAPI dokumentálja).
+- Aktív kampányhoz vagy journey-hez kötött sablon módosítása `template.publish` jogot kér.
+- A bounce-ok a suppression listában egységesen `bounce` okkal (hard/soft a `detail` mezőben; a régi `hard_bounce`/`soft_bounce` olvasáskor normalizálódik; OpenAPI: additív `detail`).
+- Composer `process-timeout` 900 s (a soros tesztsorozat meghaladta a 300 s-ot).
+- A kontakt-import kérés-limitje: 140 MB az import-útvonalakon, 16 MB máshol.
+
+### Fixed
+- A kampány indítása a felületről nem hozott létre címzetteket (`StartCampaign`).
+- A preference center mentése nem iratkoztatta le a lista nélküli kontaktot.
+- API-kulcs scope: a felület `validate`-et adott, a route `validate:run`-t várt.
+- A kampány-oldal variáns-hibája (`variant.variant` → `label`).
+- Duplikált listanév 500-as hiba helyett validációs hibát ad.
+- `Accept-Language` feldolgozás (a Symfony egyezés híján az első elemet adta).
+- Mobil import-lépésjelző, DNS-tábla csonkolása, journey-paletta feliratok, tördelő sávok mobilon.
+
+### Security
+- Import: zip-bomba és XML-bomba védelem, DTD/entitás tiltás, kódolás- és bináris-hely ellenőrzés; hibaüzenet és `failed_jobs` nem szivárogtat PII-t (`RedactQueryException`, redaktáló failed-job tároló); CSV-képletinjekció elleni védelem.
+- Verified-consent import után a `consents` sor `pending` marad (marketing consent nélkül nincs marketing-küldés).
+- Hosztolt oldalak és a webes változat szigorú CSP-vel, sütik nélkül; PreSendGate a teszt-küldésen is.
+- SMTP submission újra-ellenőrzi a hitelesítőt (visszavont/rotált → `421`); API-kulcs IP-allowlist ugyanazt a `401`-et adja, mint a rossz kulcs (nincs orákulum).
+- Platform-szintű tiltás sosem látszik a `/v1/suppressions` végpontokon; napló-export alapból maszkolt.
+- PDF-renderer hálózat nélküli, read-only, `cap_drop ALL` konténerben; éles környezetben a `fake` renderer az indulást állítja meg (fail-closed).
+- Kampány-életciklus és sablon-zárak (`FOR UPDATE`/`FOR SHARE`, CAS) a versenyhelyzetek ellen; köteg-számlálás címzettenként legfeljebb egyszer.
+
+### Deploy
+- **Megosztott fájltár:** két külső volume (`ventmail-storage`, `ventmail-storage-public`) az app/worker/worker-imports/scheduler/ops konténerekben; a `web` csak a public részt látja, csak olvasva. Enélkül az import, a sablon-képek és a PDF élesben nem működne (D227).
+- **Első deploy átállása:** a `deploy.sh` a régi szín fájljait (sablon-képek, privát fájlok) átmásolja a volume-okra, bájtra ellenőrzi, és csak utána távolítja el a régi színt. Hibánál a régi szín leállítva megmarad, minden további deploy tilos, amíg `./deploy.sh --migrate-storage` le nem fut (D254, D277–D300).
+- **Gotenberg render sidecar:** `deploy/compose.render.yml` (`ventmail-render` projekt, `internal` háló, tag + digest pin, 1 GB). Új env: `ANALYTICS_PDF_RENDERER=gotenberg`, `GOTENBERG_URL`, `ANALYTICS_PDF_TIMEOUT`. Deploy után: `php artisan analytics:render-smoke`.
+- **Memória:** egy szín 7,75 GB, blue/green átfedéssel +7,75 GB, + Gotenberg 1 GB ≈ 16,5 GB a 31 GB-os boxon (jóváhagyva, D252).
+- **Rollback:** régebbi tagre visszalépéskor is a mostani `compose.prod.yml`/`compose.data.yml`/`compose.render.yml` maradjon a boxon; visszaállítás előtt a gráf-alapú journey-ket szüneteltetni kell (lásd `HUMAN-QUEUE.md`).
+- Migrációk expand-only (új, nullable vagy alapértékes oszlopok és táblák); a `2026_10_13_140000` migráció a kiadás előtt, helyben bővült (sosem futott éles DB-n).
+
+### Known limitations
+- Natív dátummezők (import hozzájárulás-dátuma, napló szűrők) a böngésző formátumát követik, nem a profilét.
+- Mobilon a táblák vízszintesen görgetnek (kártyanézet nincs); a kontakttábla egyszerűbb a mockupnál.
+- A fejlesztői dokumentációból hiányzik a paramétertábla és a nyelvi kódminta-fülek; az API-referencia szövege csak magyar.
+- A PDF-riport rendszerbetűket használ (OFL betűk beágyazása nyitott); a hőtérkép nem kerül a PDF-be.
+- Bekötetlen journey-triggerek: `tag_added`, `tag_removed`, `field_changed` („hamarosan", nem publikálható).
+- A sablon-képek és a riport-fájlok helyi megosztott volume-on élnek (ventVault-integráció nyitott); nincs avatar-kép.
+- Az `@venture/sdk`-ban a suppressions metódusok és a `detail` mező még nincsenek meg.
+- A teljes nyitott lista: `HUMAN-QUEUE.md`.
+
+## [1.1.0] — 2026-10-12
+- ventSSO-stílusú bejelentkezés, app-shell, statikus termékoldal az apexen (`ventmail.app`).
+
+## [1.0.2] — 2026-10-12
+- A szerepkörök az ellenőrzött ventSSO access tokenből jönnek; megszemélyesített (impersonated) munkamenet elutasítva.
+
+## [1.0.1] — 2026-10-12
+- Kijelentkezés gomb az app-shellben (Inertia-barát RP-initiated logout).
+
+## [1.0.0] — 2026-10-12
+- Első éles kiadás (`mail-ovh-01`).

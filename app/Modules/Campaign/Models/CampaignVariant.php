@@ -22,7 +22,7 @@ final class CampaignVariant extends Model
 {
     use Auditable, BelongsToWorkspace, HasUuids;
 
-    protected $fillable = ['campaign_id', 'template_id', 'label', 'subject', 'weight'];
+    protected $fillable = ['campaign_id', 'template_id', 'label', 'subject', 'weight', 'from_email', 'from_name'];
 
     protected $attributes = ['weight' => 50];
 

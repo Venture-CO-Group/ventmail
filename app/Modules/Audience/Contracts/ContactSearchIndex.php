@@ -21,6 +21,14 @@ interface ContactSearchIndex
 {
     public function index(Contact $contact): void;
 
+    /**
+     * KÖTEGES indexelés (v1.1 import): egy kérés sok dokumentumra. A soronkénti `index()` egy
+     * 300 000 kontaktos import után 300 000 HTTP-hívás lenne a keresőhöz.
+     *
+     * @param  iterable<Contact>  $contacts
+     */
+    public function indexMany(iterable $contacts): void;
+
     public function remove(Contact $contact): void;
 
     /**

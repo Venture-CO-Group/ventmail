@@ -1,19 +1,13 @@
-{{-- UGYANAZ a válasz botra, ismeretlen űrlapra és érvényes beküldésre: a különbség
-     orákulum lenne, és a bot-szűrés visszajelzése a csapda kikerülésére tanítana. --}}
-<!doctype html>
-<html lang="hu">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="robots" content="noindex, nofollow">
-    <meta name="referrer" content="no-referrer">
-    <title>Köszönjük</title>
-</head>
-<body>
-    <main>
-        <h1>Köszönjük!</h1>
-        <p>Elküldtünk egy megerősítő levelet. Kérjük, kattints a benne lévő linkre —
-           megerősítés nélkül nem küldünk semmit.</p>
-    </main>
-</body>
-</html>
+{{-- UGYANAZ a válasz botra, ismeretlen űrlapra és érvényes beküldésre (űrlaponként: az űrlap
+     saját köszönő szövegével): a különbség orákulum lenne, és a bot-szűrés visszajelzése a
+     csapda kikerülésére tanítana. A double opt-in miatt a szöveg MINDIG a megerősítő levélről
+     szól — azonnali feliratkozás nincs. --}}
+@extends('hosted.layout')
+
+@section('title', $title ?? __('studio.hosted.thanksTitle'))
+
+@section('content')
+    <h1 data-testid="hosted-thanks">{{ $title ?? __('studio.hosted.thanksTitle') }}</h1>
+    <p>{{ $message ?? __('studio.hosted.thanksBody') }}</p>
+    <p class="hp-muted">{{ __('studio.hosted.thanksNoMail') }}</p>
+@endsection

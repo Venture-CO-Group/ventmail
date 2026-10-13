@@ -1,0 +1,198 @@
+/*
+ | A PDF-RIPORT stílusa (v1.1 · 8. modul) — fehér papír, színek CSAK `--vt-*` tokenből. A riport a
+ | világos téma tokenjeit használja (`data-theme="light"`); a borító a workspace brand-színét
+ | (`--vm-brand`, szerveren validált), különben a Venture accent tokent. A betűk a tokenek
+ | font-stackjéből jönnek; hálózat nélkül a rendszer-fallback (D234, HUMAN-QUEUE: saját OFL-betűk).
+ */
+@import '@venture/design/tokens.css';
+
+html,
+body {
+    margin: 0;
+    padding: 0;
+    background: var(--vt-color-neutral-0);
+    color: var(--vt-color-neutral-900);
+    font-family: var(--vt-font-body);
+    font-size: var(--vt-fs-body-sm);
+    line-height: var(--vt-leading-normal);
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+}
+
+.vm-report {
+    --vm-cover-bg: var(--vm-brand, var(--vt-accent));
+    --vm-cover-fg: var(--vt-on-accent);
+}
+
+.vm-report--cover-light {
+    --vm-cover-fg: var(--vt-color-neutral-0);
+}
+
+.vm-report--cover-dark {
+    --vm-cover-fg: var(--vt-color-neutral-900);
+}
+
+.vm-report__cover {
+    display: flex;
+    flex-direction: column;
+    gap: var(--vt-space-6);
+    break-after: page;
+}
+
+.vm-report__band {
+    display: flex;
+    flex-direction: column;
+    gap: var(--vt-space-4);
+    padding: var(--vt-space-12) var(--vt-space-8);
+    border-radius: var(--vt-radius-lg);
+    background: var(--vm-cover-bg);
+    color: var(--vm-cover-fg);
+}
+
+.vm-report__brand {
+    display: flex;
+    align-items: center;
+    gap: var(--vt-space-3);
+    font-weight: var(--vt-weight-semibold);
+    font-size: var(--vt-fs-body);
+}
+
+.vm-report__logo {
+    width: var(--vt-space-12);
+    height: var(--vt-space-12);
+    object-fit: contain;
+    border-radius: var(--vt-radius-md);
+    background: var(--vt-color-neutral-0);
+    padding: var(--vt-space-1);
+}
+
+.vm-report__company {
+    overflow-wrap: anywhere;
+}
+
+.vm-report__title {
+    margin: 0;
+    font-family: var(--vt-font-display);
+    font-size: var(--vt-fs-h2);
+    line-height: var(--vt-leading-tight);
+    overflow-wrap: anywhere;
+}
+
+.vm-report__range,
+.vm-report__generated {
+    margin: 0;
+}
+
+.vm-report__generated {
+    color: var(--vt-color-neutral-500);
+}
+
+.vm-report__section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--vt-space-3);
+    margin-bottom: var(--vt-space-8);
+}
+
+.vm-report__keep {
+    break-inside: avoid;
+}
+
+.vm-report__section h2 {
+    margin: 0;
+    font-family: var(--vt-font-display);
+    font-size: var(--vt-fs-h5);
+    color: var(--vt-color-neutral-900);
+}
+
+.vm-report__caption,
+.vm-report__note {
+    margin: 0;
+    color: var(--vt-color-neutral-500);
+    font-size: var(--vt-fs-caption);
+}
+
+.vm-report__kpis {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--vt-space-3);
+}
+
+.vm-report__kpi {
+    display: flex;
+    flex-direction: column;
+    gap: var(--vt-space-1);
+    padding: var(--vt-space-4);
+    border: thin solid var(--vt-color-neutral-200);
+    border-radius: var(--vt-radius-md);
+    break-inside: avoid;
+}
+
+.vm-report__kpi b {
+    font-family: var(--vt-font-display);
+    font-size: var(--vt-fs-h4);
+}
+
+.vm-report__kpi span {
+    color: var(--vt-color-neutral-500);
+}
+
+.vm-report__chart {
+    width: 100%;
+    height: calc(var(--vt-space-32) * 2);
+}
+
+.vm-report__chart--pie {
+    height: calc(var(--vt-space-32) * 1.6);
+}
+
+.vm-report__table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--vt-fs-caption);
+}
+
+.vm-report__table th,
+.vm-report__table td {
+    padding: var(--vt-space-2) var(--vt-space-3);
+    border-bottom: thin solid var(--vt-color-neutral-200);
+    text-align: start;
+    vertical-align: top;
+    overflow-wrap: anywhere;
+}
+
+.vm-report__table th {
+    color: var(--vt-color-neutral-600);
+    font-weight: var(--vt-weight-semibold);
+}
+
+.vm-report__table tr {
+    break-inside: avoid;
+}
+
+.vm-report__mono {
+    font-family: var(--vt-font-mono);
+}
+
+/* A LÁBLÉC (külön Chromium-kontextus, ez a CSS inline érkezik). */
+.vm-report-footer {
+    margin: 0;
+    padding: 0 var(--vt-space-8);
+    width: 100%;
+    font-family: var(--vt-font-body);
+    font-size: var(--vt-fs-caption);
+    color: var(--vt-color-neutral-500);
+    background: transparent;
+}
+
+.vm-report-footer__row {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--vt-space-4);
+}
+
+.vm-report-footer__text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}

@@ -5,9 +5,12 @@ declare(strict_types=1);
 namespace App\Modules\Events\Http\Controllers;
 
 use App\Modules\Analytics\Services\ClickMap;
+use App\Modules\Analytics\Services\ClientStatsRecorder;
 use App\Modules\Events\Data\TrackingClaim;
 use App\Modules\Events\Models\MessageEvent;
 use App\Modules\Events\Services\TrackingTokens;
+use App\Modules\Journey\Actions\FireJourneyEvent;
+use App\Modules\Journey\Services\JourneyWaitWaker;
 use App\Modules\Logs\Models\ErasedRecipient;
 use App\Modules\Sending\Models\Message;
 use App\Modules\Tenancy\Models\Workspace;
@@ -237,11 +240,64 @@ final class TrackingController
             if ($type === 'clicked' && $destination !== null) {
                 $this->mapClick($message, $claim->recipient, $destination);
             }
+
+            // v1.1 · 8. modul (D229): ESZKÖZ/KLIENS-bontás. A User-Agent itt osztályozódik és
+            // ELDOBÓDIK — sem az eseménybe, sem a webhookba, sem naplóba nem kerül. A hiba a
+            // követést nem buktatja el.
+            try {
+                app(ClientStatsRecorder::class)->record($message, $type, $request->userAgent());
+            } catch (Throwable $e) {
+                Log::warning('Az eszköz-statisztika nem frissült', ['exception' => $e::class]);
+            }
+
+            $this->fireCampaignInteraction($message, (string) $claim->recipient, $type);
+            $this->wakeWaitingJourneys((string) $claim->recipient);
         } finally {
             // A végpont NYILVÁNOS: a bent felejtett kontextus a következő, akár egészen más
             // tenanthoz tartozó kérést szennyezné. A hívó korábbi kontextusát viszont nem a
             // mi dolgunk eldobni.
             $previous === null ? $context->forget() : $context->set($previous);
+        }
+    }
+
+    /**
+     * v1.1 · 6. modul — a „kampány-interakció" journey-trigger (megnyitás / kattintás).
+     *
+     * CSAK kampány-levélre (a `campaign:<uuid>` címke), és a journey hibája a követést nem
+     * bukhatja el: a pixel válasza nem függhet egy automatizálástól. A dupla tüzelést a
+     * fenti egyperces fék és a `JourneyTrigger` újrabelépési szabálya fogja.
+     */
+    private function fireCampaignInteraction(Message $message, string $recipient, string $type): void
+    {
+        $campaign = collect((array) $message->tags)
+            ->map(static fn ($tag): string => (string) $tag)
+            ->first(static fn (string $tag): bool => str_starts_with($tag, 'campaign:'));
+
+        if ($campaign === null) {
+            return;
+        }
+
+        try {
+            app(FireJourneyEvent::class)->campaignInteraction(
+                $recipient,
+                substr($campaign, strlen('campaign:')),
+                $type === 'clicked' ? 'click' : 'open',
+            );
+        } catch (Throwable $e) {
+            report($e);
+        }
+    }
+
+    /**
+     * v1.1 · 6. modul (review REV-S3) — az eseményre váró journey-futások ÉBRESZTÉSE: a címzett
+     * várakozó futásai azonnal esedékesek lesznek. A hiba itt sem bukhatja el a követést.
+     */
+    private function wakeWaitingJourneys(string $recipient): void
+    {
+        try {
+            app(JourneyWaitWaker::class)->wake($recipient);
+        } catch (Throwable $e) {
+            report($e);
         }
     }
 }
