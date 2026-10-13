@@ -267,7 +267,13 @@ final class CampaignLifecycle
             $locked->forceFill([
                 'finished_at' => now(),
                 'sent_count' => $locked->recipients()->where('status', 'sent')->count(),
-                'failed_count' => $locked->recipients()->whereIn('status', ['failed', 'skipped'])->count(),
+                // A visszavonás miatti kihagyás (`campaign_canceled`) NEM hibás küldés (review r7 N3): a
+                // `cancel()` sem számolja `failed_count`-ba — a címzett a kimenet-bontásban látszik, okkal.
+                'failed_count' => $locked->recipients()
+                    ->where(fn ($query) => $query->where('status', 'failed')
+                        ->orWhere(fn ($skipped) => $skipped->where('status', 'skipped')
+                            ->where(fn ($reason) => $reason->whereNull('skip_reason')->orWhere('skip_reason', '!=', 'campaign_canceled'))))
+                    ->count(),
             ]);
 
             // A tenant-szűrt modellen (global scope), nem nyers táblán. Az allekérdezés a `campaign_id`-t is

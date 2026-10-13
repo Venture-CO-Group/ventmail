@@ -351,7 +351,13 @@ final class ImportFileInspector
                 throw new ImportLimitExceeded('format');
             }
 
-            return $this->countRealBytes($zip);
+            $stats = $this->countRealBytes($zip);
+
+            // A SZERKEZETI őr (review r7, D179): a bájt-ellenőrzések UTÁN, ugyanazzal a parserrel és
+            // hivatkozás-feloldással, amit az openspout használ.
+            $this->assertStructure($path, $zip);
+
+            return $stats;
         } finally {
             $zip->close();
         }
@@ -410,8 +416,8 @@ final class ImportFileInspector
             // SZÖVEG-RÉSZ (review r6 S4b): MINDEN bejegyzés, kivéve az ismert bináris helyeket (kép,
             // nyomtatóbeállítás, beágyazott objektum, miniatűr). A név nem dönt (a `rels` Target bármi
             // lehet, pl. `.bin` munkalap); hogy az XML-olvasó ne kaphasson bináris helyről részt, azt a
-            // ciklus utáni `assertWorkbookTargetsAreText()` biztosítja.
-            $isTextPart = ! self::isBinaryPart($lowerName);
+            // szerkezeti őr (`assertStructure()`) biztosítja.
+            $isTextPart = ! XlsxStructure::isBinaryPart($lowerName);
             // Az első nem-BOM / nem-szóköz bájt még hátravan (több chunkon át is követjük).
             $awaitingFirstByte = true;
 
@@ -455,10 +461,20 @@ final class ImportFileInspector
                                 // A deklaráció kódolása (a fej első 512 bájtjából). KÜLÖN változónév: a
                                 // `$declared` a bejegyzés hirdetett mérete (a hazug fejléc elleni védelem) —
                                 // a felülírása a méret-ellenőrzést kapcsolta ki (review r6 B1).
-                                if (str_starts_with($head, '<?xml')
-                                    && preg_match('/^<\?xml[^>]*?\sencoding\s*=\s*["\']([^"\']*)["\']/i', substr($head, 0, 512), $encodingMatch) === 1
-                                    && strtolower($encodingMatch[1]) !== 'utf-8') {
-                                    throw new ImportLimitExceeded('format');
+                                // A deklaráció TELJES egészében az első olvasási egységben (64 KB) kell
+                                // álljon (review r7 S1: a korábbi 512 bájtos ablak mögé tolt `encoding="UTF-7"`
+                                // átcsúszott). Ez mélységi védelem — a döntő a szerkezeti őr (`XlsxStructure`).
+                                if (str_starts_with($head, '<?xml')) {
+                                    $close = strpos($head, '?>');
+
+                                    if ($close === false) {
+                                        throw new ImportLimitExceeded('format');
+                                    }
+
+                                    if (preg_match('/\sencoding\s*=\s*["\']([^"\']*)["\']/i', substr($head, 0, $close), $encodingMatch) === 1
+                                        && strtolower($encodingMatch[1]) !== 'utf-8') {
+                                        throw new ImportLimitExceeded('format');
+                                    }
                                 }
                             }
                         }
@@ -533,85 +549,108 @@ final class ImportFileInspector
             }
         }
 
-        // A munkafüzet SZINTŰ hivatkozások (munkalap, sharedStrings, stílus, …) nem mutathatnak bináris
-        // helyre (review r6 S4b): az XML-olvasó ezeket olvassa, a bináris helyek viszont a szöveg-
-        // ellenőrzés alól mentesek.
-        $this->assertWorkbookTargetsAreText($zip);
-
         return $stats;
     }
 
-    /** Az ismert BINÁRIS helyek (kis betűs bejegyzés-név) — ezek mentesek a szöveg-rész ellenőrzései alól. */
-    private static function isBinaryPart(string $lowerName): bool
-    {
-        return (bool) preg_match('#^(xl/media/|xl/printersettings/|xl/embeddings/|docprops/thumbnail\.)#', $lowerName);
-    }
-
     /**
-     * A `xl/_rels/workbook.xml.rels` MINDEN Target-je szöveg-részre mutat (nem bináris helyre). A rels
-     * maga ekkor már átment a szöveg-ellenőrzéseken (UTF-8, `<`-kezdés, DTD nélkül).
+     * A SZERKEZETI ŐR (review r7 B1/S1, D179–D181).
+     *
+     *  1. Minden nem bináris bejegyzés átmegy a parseren (`XlsxStructure::assertWellFormedPart`): DTD,
+     *     entitás, jelölés vagy bármely olvasási hiba → formátum-hiba. A munkalapoknál a prológus és a
+     *     gyökér (a DTD csak ott állhat; a teljes sort az openspout olvasása ellenőrzi), a többi
+     *     résznél a teljes tartalom.
+     *  2. A `workbook.xml.rels` MINDEN belső hivatkozása (bármely mélységű / előtagú `Relationship`)
+     *     mindkét openspout-feloldással (rész és munkalap) nem bináris helyre mutat, és létező
+     *     bejegyzésre — a sharedStrings / styles cél és minden munkalap célja kötelezően létezik.
+     *
+     * @throws ImportLimitExceeded
      */
-    private function assertWorkbookTargetsAreText(ZipArchive $zip): void
+    private function assertStructure(string $path, ZipArchive $zip): void
     {
-        $rels = $zip->getFromName('xl/_rels/workbook.xml.rels', 1_048_576);
+        $real = realpath($path);
 
-        if ($rels === false) {
-            return;
-        }
-
-        $relationships = @simplexml_load_string((string) $rels, options: LIBXML_NONET);
-
-        if ($relationships === false) {
+        if ($real === false) {
             throw new ImportLimitExceeded('format');
         }
 
-        foreach ($relationships->Relationship ?? [] as $relationship) {
-            $target = strtolower(ltrim((string) $relationship['Target'], '/'));
-            $target = str_starts_with($target, 'xl/') ? $target : 'xl/'.$target;
+        $maxNodes = (int) config('audience.import.xlsx_max_part_nodes');
 
-            if (self::isBinaryPart($target)) {
+        for ($i = 0; $i < $zip->numFiles; $i++) {
+            $name = (string) $zip->getNameIndex($i);
+
+            if ($name === '' || str_ends_with($name, '/') || XlsxStructure::isBinaryPart($name)) {
+                continue;
+            }
+
+            $isSheet = str_starts_with(strtolower($name), 'xl/worksheets/');
+
+            XlsxStructure::assertWellFormedPart(
+                'zip://'.$real.'#'.$name,
+                full: ! $isSheet,
+                tick: fn () => $this->checkBudget(),
+                maxNodes: $isSheet ? PHP_INT_MAX : $maxNodes,
+            );
+        }
+
+        $relsXml = $zip->getFromName('xl/_rels/workbook.xml.rels', 1_048_576);
+        $workbookXml = $zip->getFromName('xl/workbook.xml', 1_048_576);
+
+        if ($relsXml === false || $workbookXml === false) {
+            throw new ImportLimitExceeded('format');
+        }
+
+        $relationships = XlsxStructure::relationshipsFrom($relsXml);
+        $exists = static fn (string $entry): bool => $zip->locateName($entry) !== false;
+
+        foreach ($relationships as $relationship) {
+            if ($relationship['external']) {
+                continue;
+            }
+
+            $asPart = XlsxStructure::partPathFor($relationship['target']);
+            $asSheet = XlsxStructure::sheetPathFor($relationship['target']);
+
+            if (XlsxStructure::isBinaryPart($asPart) || XlsxStructure::isBinaryPart($asSheet)
+                || (! $exists($asPart) && ! $exists($asSheet))) {
+                throw new ImportLimitExceeded('format');
+            }
+        }
+
+        foreach ([XlsxStructure::SHARED_STRINGS_TYPES, XlsxStructure::STYLES_TYPES] as $types) {
+            $target = XlsxStructure::typedTarget($relationships, $types);
+
+            if ($target !== null && ! $exists(XlsxStructure::partPathFor($target))) {
+                throw new ImportLimitExceeded('format');
+            }
+        }
+
+        foreach (XlsxStructure::sheetsFrom($workbookXml) as $sheet) {
+            $file = XlsxStructure::sheetTarget($relationships, $sheet['rid']);
+
+            if ($file === null || XlsxStructure::isBinaryPart($file) || ! $exists($file)) {
                 throw new ImportLimitExceeded('format');
             }
         }
     }
 
     /**
-     * A munkalap fájlja (`xl/worksheets/sheetN.xml`) a neve alapján: a `workbook.xml` `r:id`-ja és
-     * a `workbook.xml.rels` célja. A két fájl kicsi — olvasásuk korlátos.
+     * A munkalap fájlja a neve alapján — UGYANAZZAL a feloldással, mint az openspout (review r7 N1):
+     * a `sheet` csomópontok (bármely előtag) `r:id`-ja, és a `workbook.xml.rels` `Relationship`-jei
+     * (bármely mélység / előtag) az openspout ciklus-szemantikájával.
      */
     private function sheetFile(string $path, string $name): string
     {
-        $rid = null;
+        [$workbook, $rels] = $this->workbookParts($path);
 
-        foreach ($this->workbookSheets($path) as $sheet) {
+        foreach (XlsxStructure::sheetsFrom($workbook) as $sheet) {
             if ($sheet['name'] === $name) {
-                $rid = $sheet['rid'];
-            }
-        }
+                $file = XlsxStructure::sheetTarget(XlsxStructure::relationshipsFrom($rels), $sheet['rid']);
 
-        $zip = new ZipArchive;
+                if ($file !== null) {
+                    return $file;
+                }
 
-        if ($rid === null || $zip->open($path, ZipArchive::RDONLY) !== true) {
-            throw new ImportLimitExceeded('format');
-        }
-
-        try {
-            $rels = (string) $zip->getFromName('xl/_rels/workbook.xml.rels', 1_048_576);
-        } finally {
-            $zip->close();
-        }
-
-        $relationships = @simplexml_load_string($rels, options: LIBXML_NONET);
-
-        if ($relationships === false) {
-            throw new ImportLimitExceeded('format');
-        }
-
-        foreach ($relationships->Relationship ?? [] as $relationship) {
-            if ((string) $relationship['Id'] === $rid) {
-                $target = ltrim((string) $relationship['Target'], '/');
-
-                return str_starts_with($target, 'xl/') ? $target : 'xl/'.$target;
+                break;
             }
         }
 
@@ -619,7 +658,34 @@ final class ImportFileInspector
     }
 
     /**
-     * A munkalapok nevei a `workbook.xml`-ből (simplexml, korlátos olvasás) — NEM az openspoutból:
+     * A `workbook.xml` és a `workbook.xml.rels` (korlátos olvasás).
+     *
+     * @return array{0: string, 1: string}
+     */
+    private function workbookParts(string $path): array
+    {
+        $zip = new ZipArchive;
+
+        if ($zip->open($path, ZipArchive::RDONLY) !== true) {
+            throw new ImportLimitExceeded('format');
+        }
+
+        try {
+            $workbook = $zip->getFromName('xl/workbook.xml', 1_048_576);
+            $rels = $zip->getFromName('xl/_rels/workbook.xml.rels', 1_048_576);
+        } finally {
+            $zip->close();
+        }
+
+        if ($workbook === false || $rels === false) {
+            throw new ImportLimitExceeded('format');
+        }
+
+        return [$workbook, $rels];
+    }
+
+    /**
+     * A munkalapok nevei a `workbook.xml`-ből (XMLReader, openspout-paritás, korlátos olvasás) — NEM az openspoutból:
      * az újabb XML-menetet indítana a (drága) sharedStrings fölött, és a költséget megduplázná.
      *
      * @return list<string>
@@ -638,33 +704,6 @@ final class ImportFileInspector
     /** @return list<array{name: string, rid: string}> */
     private function workbookSheets(string $path): array
     {
-        $zip = new ZipArchive;
-
-        if ($zip->open($path, ZipArchive::RDONLY) !== true) {
-            throw new ImportLimitExceeded('format');
-        }
-
-        try {
-            $workbook = (string) $zip->getFromName('xl/workbook.xml', 1_048_576);
-        } finally {
-            $zip->close();
-        }
-
-        $book = @simplexml_load_string($workbook, options: LIBXML_NONET);
-
-        if ($book === false) {
-            throw new ImportLimitExceeded('format');
-        }
-
-        $sheets = [];
-
-        foreach ($book->sheets->sheet ?? [] as $candidate) {
-            $sheets[] = [
-                'name' => (string) $candidate['name'],
-                'rid' => (string) ($candidate->attributes('http://schemas.openxmlformats.org/officeDocument/2006/relationships')['id'] ?? ''),
-            ];
-        }
-
-        return $sheets;
+        return XlsxStructure::sheetsFrom($this->workbookParts($path)[0]);
     }
 }

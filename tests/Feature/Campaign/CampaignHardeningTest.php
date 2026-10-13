@@ -984,18 +984,40 @@ it('S1(r6) · küldés alatt (és visszavont kampányon) a köteg-számlálás t
         ->and($campaign->fresh()->failed_count)->toBe(1);
 });
 
-it('S2(r6) · a variáns-egyeztetés a kampányra szűkít (a lekérdezés a campaign_id-t is köti)', function () {
+it('S2(r6)/N3(r7) · a variáns-egyeztetés kampányonként független (viselkedés, nem SQL-szöveg)', function () {
     hardMember('a@pelda.hu');
+    $contact = Contact::query()->value('id');
+
+    $one = app(CampaignLifecycle::class)->start(hardCampaign());
+    $two = app(CampaignLifecycle::class)->start(hardCampaign());
+    $v1 = $one->variants()->create(['label' => 'A', 'subject' => 'A', 'weight' => 100]);
+    $v2 = $two->variants()->create(['label' => 'A', 'subject' => 'A', 'weight' => 100]);
+    $one->recipients()->create(['contact_id' => $contact, 'email' => 'a@pelda.hu', 'campaign_variant_id' => $v1->getKey()]);
+    $two->recipients()->create(['contact_id' => $contact, 'email' => 'a@pelda.hu', 'campaign_variant_id' => $v2->getKey()]);
+    DB::table('campaign_recipients')->update(['status' => 'sent']);
+    DB::table('campaign_variants')->where('id', $v2->getKey())->update(['sent_count' => 7]);
+
+    app(CampaignLifecycle::class)->complete($one->fresh());
+
+    expect((int) $v1->fresh()->sent_count)->toBe(1)
+        // A MÁSIK kampány variánsához az egyeztetés nem nyúl.
+        ->and((int) $v2->fresh()->sent_count)->toBe(7);
+});
+
+it('N3(r7) · a visszavonás miatt kihagyott címzett NEM hibás küldés — sem a visszavonáskor, sem az egyeztetésben', function () {
+    hardMember('a@pelda.hu');
+    hardMember('b@pelda.hu');
+    $ids = Contact::query()->orderBy('email')->pluck('id', 'email');
     $campaign = app(CampaignLifecycle::class)->start(hardCampaign());
-    $sql = [];
-    DB::listen(function ($query) use (&$sql): void {
-        $sql[] = strtolower($query->sql);
-    });
+    $campaign->recipients()->create(['contact_id' => $ids['a@pelda.hu'], 'email' => 'a@pelda.hu']);
+    $campaign->recipients()->create(['contact_id' => $ids['b@pelda.hu'], 'email' => 'b@pelda.hu']);
+    DB::table('campaign_recipients')->where('email', 'a@pelda.hu')->update(['status' => 'skipped', 'skip_reason' => 'NO_CONSENT']);
+    DB::table('campaign_recipients')->where('email', 'b@pelda.hu')->update(['status' => 'skipped', 'skip_reason' => 'campaign_canceled']);
 
     app(CampaignLifecycle::class)->complete($campaign->fresh());
 
-    expect(collect($sql)->contains(fn (string $q) => str_contains($q, 'update "campaign_variants"')
-        && str_contains($q, 'r.campaign_id = campaign_variants.campaign_id')))->toBeTrue();
+    // A kapu-elutasítás (NO_CONSENT) hibás küldés; a visszavonás-kihagyás nem az.
+    expect($campaign->fresh()->failed_count)->toBe(1);
 });
 
 it('N3(r6) · a VISSZAVONÁS közben épülő köteg veszít és törlődik', function () {
