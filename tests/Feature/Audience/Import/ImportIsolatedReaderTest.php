@@ -236,7 +236,34 @@ it('S1(r11) · a szülő nyitott fd-i (socket, fájl) NEM jutnak a gyerekhez —
         $this->markTestSkipped('A nyitott fd-k listája /proc nélkül (macOS) nem mérhető; a wrapper itt a /dev/fd-n át zár — Linuxon (CI, éles) fut.');
     }
 
-    // A szülőben nyitott fájlok és egy TCP-socket — ezek NEM öröklődhetnek.
+    $reader = new IsolatedXlsxRowReader(isoLegit(), null, sys_get_temp_dir(), 30);
+    $script = base_path('app/Modules/Audience/Resources/xlsx-reader-child.php');
+
+    // A gyerek fd-listája célokként (0–2 a csövek; a futó szkript és a `/proc/self/fd` listázásának
+    // könyvtár-fd-je a gyerek SAJÁTJA — a readlink idejére zárt könyvtár-fd üres célt ad).
+    $targets = static function (array $probe) use ($script): array {
+        $out = [];
+
+        foreach ($probe['fds'] as $fd) {
+            [$number, $target] = array_map('trim', explode('->', (string) $fd, 2) + [1 => '']);
+
+            if ((int) $number > 2 && $target !== '' && $target !== $script && ! preg_match('#^/proc/\d+/fd$#', $target)) {
+                $out[] = $target;
+            }
+        }
+
+        return $out;
+    };
+
+    /*
+     | CI (PR #42, 3. kör) · ALAPVONAL. A GitHub-runner PHP-jában a `zmq` bővítmény modul-induláskor
+     | SAJÁT eventfd-t nyit (`anon_inode:[eventfd]`, mérve: ubuntu:24.04 + ondrej php8.3-zmq — a
+     | bővítmény nélkül eltűnik) — ez a gyerek saját futtatókörnyezetéé, nem örökölt. Egy plusz szülő-
+     | fd NÉLKÜL indított gyerek fd-i az alapvonal: ami ott is megvan, az a futtatókörnyezeté.
+     */
+    $baseline = $targets($reader->probeChildForTests());
+
+    // A szülőben nyitott fájlok és sockets (TCP kliens + figyelő) — ezek NEM öröklődhetnek.
     $keep = [];
 
     for ($i = 0; $i < 5; $i++) {
@@ -246,24 +273,35 @@ it('S1(r11) · a szülő nyitott fd-i (socket, fájl) NEM jutnak a gyerekhez —
     $server = stream_socket_server('tcp://127.0.0.1:0');
     $client = stream_socket_client('tcp://'.stream_socket_get_name($server, false));
 
-    $probe = (new IsolatedXlsxRowReader(isoLegit(), null, sys_get_temp_dir(), 30))->probeChildForTests();
+    // A szülő SAJÁT, ismert fd-inek AZONOSSÁGA: a `/proc/self/fd` célja (a fájl útja, ill. a
+    // `socket:[inode]`) — ezek közül egy sem lehet a gyereknél.
+    $parentTargets = [];
 
-    // A 0–2 a csövek. A gyerek SAJÁT fd-i maradhatnak: a futó szkript (a PHP nyitva tartja) és a
-    // `/proc/self/fd` listázásának könyvtár-fd-je (a readlink idejére már zárva: üres cél). Örökölt nem.
-    $script = base_path('app/Modules/Audience/Resources/xlsx-reader-child.php');
-    $inherited = array_values(array_filter($probe['fds'], static function (string $fd) use ($script): bool {
-        [$number, $target] = array_map('trim', explode('->', $fd, 2) + [1 => '']);
+    foreach ((array) scandir('/proc/self/fd') as $fd) {
+        if (ctype_digit((string) $fd)) {
+            $target = (string) @readlink('/proc/self/fd/'.$fd);
 
-        return (int) $number > 2 && $target !== '' && $target !== $script && ! preg_match('#^/proc/\d+/fd$#', $target);
-    }));
+            if (str_starts_with($target, 'socket:') || preg_match('#vm-iso-.*\.tmp$#', $target) === 1) {
+                $parentTargets[] = $target;
+            }
+        }
+    }
 
-    expect($inherited)->toBe([])
+    try {
+        $childTargets = $targets($reader->probeChildForTests());
+    } finally {
+        fclose($client);
+        fclose($server);
+        array_map('fclose', $keep);
+    }
+
+    expect($parentTargets)->not->toBeEmpty()
+        // (a) AZONOSSÁG szerint: a szülő egyetlen saját fájlja/socketje sincs a gyereknél.
+        ->and(array_values(array_intersect($childTargets, $parentTargets)))->toBe([])
+        // (b) a gyerek minden fd-je az alapvonalban is megvan (a futtatókörnyezet saját fd-i).
+        ->and(array_values(array_diff($childTargets, $baseline)))->toBe([])
         // Kifejezetten: sem socket, sem a szülő ideiglenes fájljai.
-        ->and(preg_grep('#socket:|vm-iso-.*\.tmp#', $probe['fds']))->toBe([]);
-
-    fclose($client);
-    fclose($server);
-    array_map('fclose', $keep);
+        ->and(preg_grep('#socket:|vm-iso-.*\.tmp#', $childTargets))->toBe([]);
 });
 
 it('S2(r11) · árva gyerek: ha a szülő eltűnik (a cső zárva), a gyerek az első sikertelen írásnál kilép (exit 4)', function () {
