@@ -23,6 +23,10 @@ it('a demó-domain hitelesített, és mind az öt számolt rekordja rendben van'
         ->and($domain->verified_at)->not->toBeNull()
         ->and([$domain->spf_status, $domain->dkim_status, $domain->dmarc_status, $domain->return_path_status, $domain->tracking_status])
         ->each->toBe('verified');
+
+    // A „Rendben" DKIM mögött valódi kulcs van (nem üres selector / `p=`).
+    expect($domain->dkim_selector)->not->toBeEmpty()
+        ->and($domain->dnsRecords()['dkim']['value'])->toMatch('/p=[A-Za-z0-9+\/]{20,}/');
 });
 
 it('idempotens, és egy korábbi, ellentmondásos demó-domaint is rendbe tesz', function () {

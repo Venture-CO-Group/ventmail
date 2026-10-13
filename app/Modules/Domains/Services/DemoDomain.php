@@ -22,6 +22,13 @@ final class DemoDomain
     {
         $domain = Domain::query()->firstOrCreate(['name' => self::NAME], ['status' => 'verified', 'verified_at' => now()]);
 
+        // A „Rendben" DKIM-rekordhoz VALÓDI kulcs kell (a DNS-tábla különben üres selectort és
+        // `p=`-t mutatna) — ugyanaz a generátor, mint a felületi domain-létrehozásnál.
+        if ($domain->dkim_selector === null || $domain->dkim_public_key === null) {
+            $keys = app(DkimKeyManager::class)->generate();
+            $domain->forceFill(['dkim_selector' => $keys['selector'], 'dkim_private_key' => $keys['private'], 'dkim_public_key' => $keys['public']]);
+        }
+
         $domain->forceFill([
             'status' => 'verified',
             'verified_at' => $domain->verified_at ?? now(),
