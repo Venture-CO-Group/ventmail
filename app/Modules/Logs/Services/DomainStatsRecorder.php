@@ -74,7 +74,10 @@ final class DomainStatsRecorder
 
         $root = $this->rootTransaction();
 
-        // Tranzakción kívül nincs mit összevonni: azonnal kiírjuk.
+        // Tranzakción kívül nincs mit összevonni: azonnal kiírjuk. A `MessageEvent::created`
+        // figyelője a `record()`-ot MINDIG savepointban/tranzakcióban hívja, tehát ott ez az ág
+        // nem fut (review 3 N2) — VÉDEKEZŐ ág a közvetlen hívóknak (pl. konzolos újraszámolás),
+        // akik tranzakció nélkül hívnák: azoknál se vesszen el a növekmény.
         if ($root === null) {
             $this->write([$key => [$column => 1]]);
 

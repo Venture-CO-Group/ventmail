@@ -241,3 +241,37 @@ it('N2 (D200): a felvétel a MENTETT ok listájára visz (ragadós leiratkozásn
     supAs()->from('/suppressions')->post('/suppressions', ['email' => 'leiratkozott@example.test', 'reason' => 'blocked', 'appliesTo' => 'all'])
         ->assertRedirect('/suppressions?list=unsubscribes');
 });
+
+/*
+ | Review 3 S2 (D205/D206): a legacy `hard_bounce`/`soft_bounce` olvasáskor `bounce`; az
+ | automatikus bounce-tiltás mostantól `bounce` okkal, hard/soft a `detail`-ben.
+ */
+it('a legacy hard_bounce sor a Bounce-ok fülön és a /v1-en bounce-ként jelenik meg', function () {
+    app(WorkspaceContext::class)->runFor($this->workspace, fn () => Suppression::create(['email' => 'regi@example.test', 'reason' => 'hard_bounce', 'applies_to' => 'all', 'source' => 'legacy']));
+
+    supAs()->get('/suppressions?list=bounces&search=regi')
+        ->assertInertia(fn ($page) => $page
+            ->has('suppressions.items', 1)
+            ->where('suppressions.items.0.reason', 'bounce')
+            ->where('suppressions.items.0.detail', 'hard')
+            ->where('counts.bounces', 3)
+        );
+
+    supApi()->getJson('/v1/suppressions?list=bounces&search=regi')
+        ->assertOk()
+        ->assertJsonPath('items.0.reason', 'bounce')
+        ->assertJsonPath('items.0.detail', 'hard');
+
+    // A későbbi kézi felvétel nem „fokozza le" (a legacy érték bounce-súlyú).
+    supApi()->postJson('/v1/suppressions', ['email' => 'regi@example.test', 'reason' => 'manual'])
+        ->assertCreated()->assertJsonPath('reason', 'bounce');
+});
+
+it('az automatikus bounce-tiltás bounce okkal íródik, hard/soft a detailben, és nem fokozható le', function () {
+    $row = app(WorkspaceContext::class)->runFor($this->workspace, fn () => app(\App\Modules\Suppression\Services\SuppressionStore::class)->recordBounce('Uj.Bounce@example.test', true));
+
+    expect($row->reason)->toBe('bounce')->and($row->detail)->toBe('hard');
+
+    supApi()->postJson('/v1/suppressions', ['email' => 'uj.bounce@example.test', 'reason' => 'manual'])
+        ->assertCreated()->assertJsonPath('reason', 'bounce');
+});

@@ -130,12 +130,28 @@ final class SuppressionApiController
         return [
             'id' => (string) $suppression->uuid,
             'email' => (string) $suppression->email,
-            'reason' => (string) $suppression->reason,
+            // A legacy `hard_bounce`/`soft_bounce` a szerződés `bounce` értékeként megy ki (D206);
+            // a hard/soft jelleg a `detail`-ben.
+            'reason' => SuppressionReason::fromStored((string) $suppression->reason)?->value ?? (string) $suppression->reason,
+            'detail' => self::detail($suppression),
             'applies_to' => (string) $suppression->applies_to,
             'source' => (string) $suppression->source,
-            'deletable' => SuppressionReason::tryFrom((string) $suppression->reason)?->isIrrevocableByTenant() !== true,
+            'deletable' => SuppressionReason::fromStored((string) $suppression->reason)?->isIrrevocableByTenant() !== true,
             'expires_at' => $suppression->expires_at?->toIso8601String(),
             'created_at' => $suppression->created_at?->toIso8601String(),
         ];
+    }
+
+    private static function detail(Suppression $suppression): ?string
+    {
+        if ($suppression->detail !== null) {
+            return mb_substr((string) $suppression->detail, 0, 160);
+        }
+
+        return match ((string) $suppression->reason) {
+            'hard_bounce' => 'hard',
+            'soft_bounce' => 'soft',
+            default => null,
+        };
     }
 }

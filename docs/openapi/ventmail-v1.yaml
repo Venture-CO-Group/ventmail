@@ -1055,6 +1055,7 @@ components:
         reason: { type: string, enum: [manual, unsubscribe, bounce, blocked, complaint, policy] }
         applies_to: { type: string, enum: [all, marketing] }
         source: { type: string }
+        detail: { type: [string, 'null'], description: 'kiegészítő ok, pl. bounce-nál `hard` / `soft`' }
         deletable: { type: boolean, description: 'a panasz és a leiratkozás nem törölhető' }
         expires_at: { type: [string, 'null'], format: date-time }
         created_at: { type: string, format: date-time }

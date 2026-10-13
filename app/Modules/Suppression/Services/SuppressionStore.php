@@ -28,6 +28,21 @@ use InvalidArgumentException;
  */
 final class SuppressionStore
 {
+    /**
+     * TESZT-HOROG (review 3 N1, D208): a „nincs sor" döntés és a beszúrás KÖZÉ fut. A
+     * két-kapcsolatos teszt ezen át szúr be egy párhuzamos sort, hogy az ütközés utáni
+     * újraolvasási ág valóban lefusson. Élesben mindig `null`.
+     *
+     * @internal
+     */
+    private ?\Closure $beforeInsert = null;
+
+    /** @internal csak teszthez */
+    public function setBeforeInsertHook(?\Closure $hook): void
+    {
+        $this->beforeInsert = $hook;
+    }
+
     public function add(
         ApiKey $key,
         string $email,
@@ -101,6 +116,10 @@ final class SuppressionStore
             $existing = $this->lockedOwnRow($email);
 
             if ($existing === null) {
+                if ($this->beforeInsert !== null) {
+                    ($this->beforeInsert)($email);
+                }
+
                 $created = $this->createUnlessExists([
                     'email' => $email,
                     'reason' => $reasonEnum->value,
@@ -118,7 +137,7 @@ final class SuppressionStore
                 $existing = $this->lockedOwnRow($email) ?? throw new \RuntimeException('A tiltás-sor eltűnt az ütközés után.');
             }
 
-            $existingReason = SuppressionReason::tryFrom((string) $existing->reason);
+            $existingReason = SuppressionReason::fromStored((string) $existing->reason);
             $existingScope = SuppressionScope::tryFrom((string) $existing->applies_to) ?? SuppressionScope::All;
             $merged = SuppressionReason::merged($existingReason, $reasonEnum);
 
@@ -187,6 +206,21 @@ final class SuppressionStore
         return $this->upsert($email, SuppressionReason::Unsubscribe, SuppressionScope::Marketing, null, $source, $detail);
     }
 
+    /**
+     * AUTOMATIKUS BOUNCE-TILTÁS a kézbesítési eredményből (D206).
+     *
+     * A v1.1 előtt a `RecordDeliveryOutcome` `hard_bounce`/`soft_bounce` okot írt közvetlenül
+     * (enumon kívül: egyik listán sem látszott, és a `merged()` sem ismerte). Mostantól a
+     * közös írási ponton megy, `bounce` okkal, a hard/soft jelleg a `detail`-ben — így a
+     * monotonitás és a ragadós okok (D186) erre az útra is érvényesek.
+     */
+    public function recordBounce(string $email, bool $hard): Suppression
+    {
+        $email = DomainNormalizer::listKey(trim($email));
+
+        return $this->upsert($email, SuppressionReason::Bounce, SuppressionScope::All, null, 'bounce', $hard ? 'hard' : 'soft');
+    }
+
     /** @return CursorPaginator<Suppression> */
     public function list(ApiKey $key, int $perPage = 100): CursorPaginator
     {
@@ -213,7 +247,7 @@ final class SuppressionStore
             // tiltás) nem tenant-adat, és a listázás/keresés orákulum lenne a létezésére.
             ->whereNotNull('workspace_id')
             // A KÜLÖN LISTÁK (v1.1): okra szűrve, a `(workspace_id, reason, id)` index mentén.
-            ->when($reasons !== null, fn ($query) => $query->whereIn('reason', $reasons))
+            ->when($reasons !== null, fn ($query) => $query->whereIn('reason', SuppressionReason::storedValues($reasons)))
             ->when($search !== null && $search !== '', function ($query) use ($search): void {
                 // A `like` metakaraktereit escape-eljük: a `%` különben MINDENT adna, és a
                 // felhasználó azt hinné, a szűrője nem működik.
@@ -235,8 +269,13 @@ final class SuppressionStore
             ->selectRaw('reason, count(*) as total')
             ->groupBy('reason')
             ->pluck('total', 'reason')
-            ->map(static fn ($total): int => (int) $total)
-            ->all();
+            // A legacy `hard_bounce`/`soft_bounce` a `bounce`-hoz számít (D206).
+            ->reduce(static function (array $carry, $total, $reason): array {
+                $key = SuppressionReason::fromStored((string) $reason)?->value ?? (string) $reason;
+                $carry[$key] = ($carry[$key] ?? 0) + (int) $total;
+
+                return $carry;
+            }, []);
     }
 
     /**
@@ -255,21 +294,23 @@ final class SuppressionStore
             throw new InvalidArgumentException('A törléshez indoklás kötelező.');
         }
 
-        $email = DomainNormalizer::listKey(trim($email));
-        $existing = Suppression::query()->whereNotNull('workspace_id')->where('email', $email)->first();
-        $reason = $existing?->reason;
+        // EGY tranzakció, a ZÁROLT soron dönt és auditál (review 3 S1, D207): a döntés és a
+        // törlés között egy párhuzamos one-click leiratkozás nem csúszhat be.
+        return DB::transaction(function () use ($email, $justification, $via): bool {
+            $deleted = $this->deleteLockedOwnRow($email);
 
-        $removed = $this->removeForWorkspace($email);
+            if ($deleted === null) {
+                return false;
+            }
 
-        if ($removed && $existing !== null) {
-            app(AuditLogger::class)->log('suppression.removed', $existing, context: [
-                'reason' => (string) $reason,
+            app(AuditLogger::class)->log('suppression.removed', $deleted, context: [
+                'reason' => SuppressionReason::fromStored((string) $deleted->reason)?->value ?? (string) $deleted->reason,
                 'justification' => mb_substr($justification, 0, 500),
                 'via' => $via,
             ]);
-        }
 
-        return $removed;
+            return true;
+        });
     }
 
     public function remove(ApiKey $key, string $email): bool
@@ -289,31 +330,41 @@ final class SuppressionStore
      */
     public function removeForWorkspace(string $email): bool
     {
-        $email = DomainNormalizer::listKey(trim($email));
+        return DB::transaction(fn (): bool => $this->deleteLockedOwnRow($email) !== null);
+    }
 
-        // Platform-szintű tiltásra ugyanaz a válasz, mint egy nem létező címre (D187): a
-        // keresés csak a SAJÁT sorok között fut.
-        $suppression = Suppression::query()
-            ->whereNotNull('workspace_id')
-            ->where('email', $email)
-            ->orderBy('id')
-            ->first();
+    /**
+     * A saját sor törlése `FOR UPDATE` zár ALATT (D207) — a hívó tranzakciójában.
+     *
+     * Zár nélkül a törlés egy elavult olvasásra döntött: közben egy one-click leiratkozás
+     * `unsubscribe`-ra írhatta a sort, a `DELETE … WHERE id = ?` pedig READ COMMITTED alatt
+     * a friss sort törölte volna. Most a visszavonhatatlanság a ZÁROLT állapoton dől el.
+     *
+     * Platform-szintű tiltásra ugyanaz a válasz, mint egy nem létező címre (D187).
+     *
+     * @return Suppression|null a törölt sor, vagy `null`, ha nem volt mit törölni
+     *
+     * @throws AuthorizationException panasz/leiratkozás esetén
+     */
+    private function deleteLockedOwnRow(string $email): ?Suppression
+    {
+        $suppression = $this->lockedOwnRow(DomainNormalizer::listKey(trim($email)));
 
         if ($suppression === null) {
-            return false;
+            return null;
         }
-
-        $reason = SuppressionReason::tryFrom((string) $suppression->reason);
 
         // A panasz és a leiratkozás az ÉRINTETT akarata — a tenant nem törölheti, hogy
         // újra küldhessen. Operátori úton (SuperAdmin, C2) feloldható.
-        if ($reason?->isIrrevocableByTenant() === true) {
+        if (SuppressionReason::fromStored((string) $suppression->reason)?->isIrrevocableByTenant() === true) {
             throw new AuthorizationException(
                 'A panasz- és leiratkozás-alapú tiltás API-ból nem vonható vissza.'
             );
         }
 
-        return (bool) $suppression->delete();
+        $suppression->delete();
+
+        return $suppression;
     }
 
     private function authorize(ApiKey $key, string $scope): void

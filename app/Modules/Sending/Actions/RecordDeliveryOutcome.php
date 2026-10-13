@@ -11,7 +11,7 @@ use App\Modules\Sending\Data\BounceClass;
 use App\Modules\Sending\Models\DeliveryAttempt;
 use App\Modules\Sending\Models\Message;
 use App\Modules\Sending\Services\BounceClassifier;
-use App\Modules\Suppression\Models\Suppression;
+use App\Modules\Suppression\Services\SuppressionStore;
 
 /**
  * A fogadó válaszának feldolgozása (20. kritérium).
@@ -108,9 +108,8 @@ final class RecordDeliveryOutcome
 
     private function suppress(string $recipient, BounceClass $class): void
     {
-        Suppression::query()->firstOrCreate(
-            ['email' => strtolower($recipient)],
-            ['reason' => $class === BounceClass::Hard ? 'hard_bounce' : 'soft_bounce']
-        );
+        // A KÖZÖS írási ponton, `bounce` okkal (D206): így a tiltás a Bounce-ok listáján
+        // látszik, és a ragadós/monoton szabályok erre az útra is érvényesek.
+        app(SuppressionStore::class)->recordBounce($recipient, $class === BounceClass::Hard);
     }
 }

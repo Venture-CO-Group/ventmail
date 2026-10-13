@@ -55,15 +55,21 @@ final class SuppressionUiController
                 'items' => collect($page->items())->map(fn (Suppression $suppression) => [
                     'uuid' => (string) $suppression->uuid,
                     'email' => (string) $suppression->email,
-                    'reason' => (string) $suppression->reason,
+                    'reason' => SuppressionReason::fromStored((string) $suppression->reason)?->value ?? (string) $suppression->reason,
                     'appliesTo' => (string) $suppression->applies_to,
                     'source' => (string) $suppression->source,
-                    'detail' => $suppression->detail === null ? null : mb_substr((string) $suppression->detail, 0, 160),
+                    'detail' => $suppression->detail === null
+                        ? match ((string) $suppression->reason) {
+                            'hard_bounce' => 'hard',
+                            'soft_bounce' => 'soft',
+                            default => null,
+                        }
+                        : mb_substr((string) $suppression->detail, 0, 160),
                     'expiresAt' => $suppression->expires_at?->toIso8601String(),
                     'createdAt' => $suppression->created_at?->toIso8601String(),
                     // A FELÜLETNEK tudnia kell, mit NEM lehet feloldani — különben a gomb
                     // ott van, a kattintás pedig hibát ad.
-                    'revocable' => SuppressionReason::tryFrom((string) $suppression->reason)?->isIrrevocableByTenant() !== true,
+                    'revocable' => SuppressionReason::fromStored((string) $suppression->reason)?->isIrrevocableByTenant() !== true,
                 ])->values()->all(),
                 'nextCursor' => $page->nextCursor()?->encode(),
             ],
@@ -87,7 +93,7 @@ final class SuppressionUiController
 
         // A cím a MENTETT ok listáján jelenik meg (N2, D200): egy ragadós leiratkozásra
         // felvett „blocked" a leiratkozások között marad — oda kell vinni a felhasználót.
-        $list = collect(SuppressionReason::categories())->search(fn (array $reasons) => in_array((string) $saved->reason, $reasons, true)) ?: 'manual';
+        $list = collect(SuppressionReason::categories())->search(fn (array $reasons) => in_array(SuppressionReason::fromStored((string) $saved->reason)?->value, $reasons, true)) ?: 'manual';
 
         return redirect()->route('suppressions.index', ['list' => $list])->with('success', __('ventmail.suppressions.added'));
     }

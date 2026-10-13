@@ -89,6 +89,7 @@ enum SuppressionReason: string
             return $incoming;
         }
 
+
         $existingSticky = $existing->isIrrevocableByTenant();
         $incomingSticky = $incoming->isIrrevocableByTenant();
 
@@ -97,5 +98,35 @@ enum SuppressionReason: string
         }
 
         return $incoming->severity() > $existing->severity() ? $incoming : $existing;
+    }
+
+    /**
+     * A REGI tárolt bounce-értékek (D205/D206): a v1.1 előtti automatikus tiltás
+     * `hard_bounce`/`soft_bounce`-ot írt, ami nincs az enumban. Adat-migráció NINCS
+     * (expand-only, élő adat nem íródik át) — OLVASÁSKOR `bounce`-ként kezeljük.
+     */
+    public const LEGACY_BOUNCE = ['hard_bounce', 'soft_bounce'];
+
+    /** A tárolt érték → enum, a legacy bounce-alias feloldásával. */
+    public static function fromStored(?string $value): ?self
+    {
+        if ($value !== null && in_array($value, self::LEGACY_BOUNCE, true)) {
+            return self::Bounce;
+        }
+
+        return self::tryFrom((string) $value);
+    }
+
+    /**
+     * Szűréshez: az okok TÁROLT alakjai (a bounce a legacy értékeivel együtt).
+     *
+     * @param  list<string>  $reasons
+     * @return list<string>
+     */
+    public static function storedValues(array $reasons): array
+    {
+        return in_array(self::Bounce->value, $reasons, true)
+            ? array_values(array_unique([...$reasons, ...self::LEGACY_BOUNCE]))
+            : $reasons;
     }
 }
