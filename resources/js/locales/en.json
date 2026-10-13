@@ -58,13 +58,15 @@
             "segments": "AND/OR conditions with a live count",
             "domainStats": "Sent, delivered, bounces, complaints, opens, clicks per domain",
             "infrastructure": "IP pools, reputation, blocklists, rate limits",
-            "docs": "API reference with code samples, webhook payloads, sandbox"
+            "docs": "API reference with code samples, webhook payloads, sandbox",
+            "branding": "Report logo, colour, footer"
         },
         "profile": "Profile settings",
         "segments": "Segments",
         "domainStats": "Sending statistics",
         "infrastructure": "Sending infrastructure",
-        "docs": "Developer docs"
+        "docs": "Developer docs",
+        "branding": "Branding"
     },
     "shell": {
         "workspace": "Workspace",
@@ -813,6 +815,173 @@
             "clicked": "Clicked",
             "bounced": "Bounced",
             "unsubscribed": "Unsubscribed"
+        },
+        "eyebrow": "Studio · Analytics",
+        "lead": "Campaigns, audience, journeys and deliverability — every chart can be exported.",
+        "range": {
+            "label": "Period",
+            "d7": "7 days",
+            "d30": "30 days",
+            "d90": "90 days",
+            "custom": "Custom",
+            "from": "From",
+            "to": "To",
+            "apply": "Apply"
+        },
+        "pickCampaign": "Campaign",
+        "pickJourney": "Journey",
+        "noCampaign": "No sent campaign",
+        "noJourney": "No journey yet.",
+        "section": {
+            "campaign": "Campaign",
+            "audience": "Audience",
+            "journey": "Journey",
+            "platform": "Platform"
+        },
+        "chart": {
+            "openClick": "Opens and clicks",
+            "devices": "Device and mail client",
+            "heatmap": "Click map",
+            "topLinks": "Top links",
+            "growth": "Growth and churn",
+            "engagement": "Engagement segments",
+            "journey": "Journey: conversion per node",
+            "deliverability": "Deliverability over time",
+            "bounces": "Bounce types",
+            "variants": "A/B variants",
+            "daily": "Daily events"
+        },
+        "series": {
+            "opens": "Unique openers",
+            "clicks": "Unique clickers",
+            "new": "New",
+            "unsubscribed": "Unsubscribed",
+            "net": "Net",
+            "delivered": "Delivered %",
+            "bounced": "Bounce %",
+            "complained": "Complaint %",
+            "threshold": "Complaint threshold (0.3%)"
+        },
+        "bucket": {
+            "hour": "hourly",
+            "day": "daily"
+        },
+        "uniqueNote": "Unique recipients by time of first reaction.",
+        "eventsNote": "Event count (not unique recipients).",
+        "device": {
+            "desktop": "Desktop",
+            "mobile": "Mobile",
+            "tablet": "Tablet",
+            "unknown": "Unknown (proxy)"
+        },
+        "client": {
+            "apple_mail": "Apple Mail",
+            "apple_mpp": "Apple MPP (machine, estimated)",
+            "gmail": "Gmail",
+            "yahoo": "Yahoo Mail",
+            "outlook": "Outlook",
+            "ios_mail": "iOS Mail",
+            "android": "Android mail app",
+            "thunderbird": "Thunderbird",
+            "webmail_other": "Other webmail",
+            "bot": "Bot / scanner",
+            "other": "Other"
+        },
+        "bounce": {
+            "hard": "Hard bounce (no such address)",
+            "soft": "Soft bounce (temporary)",
+            "mailbox_full": "Mailbox full",
+            "blocked": "Blocked (reputation)",
+            "spam": "Rejected as spam",
+            "policy": "Policy rejection",
+            "unclassified": "Unclassified"
+        },
+        "tier": {
+            "active": "Active",
+            "inactive": "Inactive",
+            "never_opened": "Never opened",
+            "not_mailed": "Not mailed yet"
+        },
+        "tierWindow": "Active: opened or clicked in the last {days} days.",
+        "churn": "Churn: {rate} ({lost} unsubscribes / {base} subscribers at start).",
+        "goal": "Goal conversion: {rate} ({reached} / {entered} entered).",
+        "branch": "branch: {name}",
+        "noData": "No data in this period.",
+        "noDataBeforeV12": "No device or client data for campaigns sent before v1.2.",
+        "unavailable": "The numbers are not available right now — try again later.",
+        "templateChanged": "The template has changed since sending — markers may be off.",
+        "machineOpensNote": "Apple MPP machine opens are estimated: the proxy downloads every message.",
+        "heatmapEmpty": "There is no template to show for this campaign.",
+        "clicksTotal": "over the template · {count} unique clickers",
+        "export": {
+            "menu": "Export",
+            "pngTransparent": "PNG – transparent",
+            "pngTransparentHint": "for dark surfaces",
+            "pngDark": "PNG – dark background",
+            "csv": "Top links CSV"
+        },
+        "report": {
+            "title": "Branded PDF report",
+            "button": "PDF report",
+            "subject": "Subject",
+            "kindCampaign": "Campaign: {name}",
+            "kindCampaignShort": "Campaign report",
+            "kindPeriod": "Period",
+            "content": "Contents",
+            "sections": {
+                "kpis": "Summary KPIs",
+                "charts": "Charts",
+                "top_links": "Top links table",
+                "journeys": "Journey conversion",
+                "deliverability": "Deliverability"
+            },
+            "brandingHint": "The cover uses the workspace logo and primary colour. The report is A4 portrait, printable, with page numbers in the footer.",
+            "brandingLink": "Set up branding",
+            "create": "Create PDF report",
+            "download": "Download",
+            "status": {
+                "queued": "Queued",
+                "rendering": "Background job: rendering",
+                "ready": "Background job: ready",
+                "failed": "Failed",
+                "expired": "Expired"
+            },
+            "list": "My recent reports",
+            "none": "No reports yet.",
+            "failed": "The report was not created ({code}).",
+            "failedGeneric": "The report request failed.",
+            "throttled": "Too many report requests — try again later.",
+            "coverCampaign": "Campaign report",
+            "coverPeriod": "Period report",
+            "generatedAt": "Generated: {date} ({tz})",
+            "kpis": "Summary",
+            "campaignList": "Campaigns in the period"
+        },
+        "kpi": {
+            "recipients": "Recipients",
+            "delivered": "Delivered",
+            "openRate": "Opens",
+            "clickRate": "Clicks",
+            "bounceRate": "Bounce rate",
+            "unsubscribeRate": "Unsubscribes",
+            "sent": "Sent",
+            "complaintRate": "Complaint rate",
+            "newContacts": "New contacts",
+            "churnRate": "Churn"
+        },
+        "table": {
+            "variant": "Variant",
+            "url": "Link",
+            "unique": "Unique",
+            "clicks": "Clicks",
+            "share": "Share",
+            "campaign": "Campaign",
+            "node": "Node",
+            "entered": "Entered",
+            "movedOn": "Moved on",
+            "conversion": "Conversion",
+            "type": "Type",
+            "count": "Count"
         }
     },
     "platform": {
@@ -2280,5 +2449,31 @@
             "responses": "Responses",
             "testField": "true — test events only"
         }
+    },
+    "branding": {
+        "eyebrow": "Settings · Branding",
+        "title": "Workspace branding",
+        "lead": "PDF report covers and footers use these. If left empty, the Venture default applies.",
+        "save": "Save",
+        "saveFailed": "Saving failed — check the fields.",
+        "logo": "Logo",
+        "logoHint": "PNG, JPEG or WebP, at most {max} MB, {min}–{maxPx} px. A transparent background is recommended.",
+        "upload": "Upload",
+        "remove": "Remove",
+        "color": "Primary colour",
+        "colorHex": "Colour hex code",
+        "colorDefault": "Venture default",
+        "colorDefaultHint": "No custom colour: the cover uses the Venture default.",
+        "reset": "Default",
+        "contrastOk": "Cover contrast: {ratio} : 1 ({text} text) — passes.",
+        "contrastFail": "Cover contrast is too low — pick a darker or lighter colour.",
+        "contrastWeak": "Weak on dark surfaces (< 3 : 1).",
+        "textLight": "white",
+        "textDark": "dark",
+        "footer": "Report footer text",
+        "footerHint": "The page number is added to the right of the footer automatically.",
+        "company": "Company name on the cover",
+        "preview": "Live preview — cover page",
+        "previewSample": "Sample campaign"
     }
 }

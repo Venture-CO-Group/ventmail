@@ -87,6 +87,11 @@ const PATHS: Record<string, string[]> = {
     columns: ['M4 5h16v14H4V5Z', 'M12 5v14'],
     condition: ['M6 3v12', 'M18 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z', 'M6 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z', 'M18 9a9 9 0 0 1-9 9'],
     warning: ['M12 3 2 20h20L12 3Z', 'M12 10v4', 'M12 17h.01'],
+    // v1.1 · 8. modul (analitika): export, riport, tájékoztatás, mentés.
+    download: ['M12 4v12', 'm7 11 5 5 5-5', 'M4 20h16'],
+    file: ['M14 3H6v18h12V7l-4-4Z', 'M14 3v4h4'],
+    info: ['M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z', 'M12 11v5', 'M12 8h.01'],
+    save: ['M5 3h11l3 3v15H5V3Z', 'M8 3v5h7V3', 'M8 21v-7h8v7'],
 };
 
 const paths = computed(() => PATHS[props.name] ?? []);

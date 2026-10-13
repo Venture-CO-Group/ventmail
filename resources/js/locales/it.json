@@ -58,13 +58,15 @@
             "segments": "Condizioni E/O con conteggio in tempo reale",
             "domainStats": "Inviati, consegnati, rimbalzi, reclami, aperture, clic per dominio",
             "infrastructure": "Pool IP, reputazione, blocklist, limiti di velocità",
-            "docs": "Riferimento API con esempi di codice, payload webhook, sandbox"
+            "docs": "Riferimento API con esempi di codice, payload webhook, sandbox",
+            "branding": "Logo, colore e piè di pagina dei report"
         },
         "profile": "Impostazioni del profilo",
         "segments": "Segmenti",
         "domainStats": "Statistiche di invio",
         "infrastructure": "Infrastruttura di invio",
-        "docs": "Documentazione sviluppatori"
+        "docs": "Documentazione sviluppatori",
+        "branding": "Branding"
     },
     "shell": {
         "workspace": "Workspace",
@@ -813,6 +815,173 @@
             "clicked": "Cliccate",
             "bounced": "Respinte",
             "unsubscribed": "Disiscritti"
+        },
+        "eyebrow": "Studio · Analisi",
+        "lead": "Campagne, pubblico, journey e recapitabilità — ogni grafico è esportabile.",
+        "range": {
+            "label": "Periodo",
+            "d7": "7 giorni",
+            "d30": "30 giorni",
+            "d90": "90 giorni",
+            "custom": "Personalizzato",
+            "from": "Dal",
+            "to": "Al",
+            "apply": "Applica"
+        },
+        "pickCampaign": "Campagna",
+        "pickJourney": "Journey",
+        "noCampaign": "Nessuna campagna inviata",
+        "noJourney": "Ancora nessun journey.",
+        "section": {
+            "campaign": "Campagna",
+            "audience": "Pubblico",
+            "journey": "Journey",
+            "platform": "Piattaforma"
+        },
+        "chart": {
+            "openClick": "Aperture e clic",
+            "devices": "Dispositivo e client di posta",
+            "heatmap": "Mappa dei clic",
+            "topLinks": "Link principali",
+            "growth": "Crescita e abbandono",
+            "engagement": "Segmenti di engagement",
+            "journey": "Journey: conversione per nodo",
+            "deliverability": "Recapitabilità nel tempo",
+            "bounces": "Tipi di bounce",
+            "variants": "Varianti A/B",
+            "daily": "Eventi giornalieri"
+        },
+        "series": {
+            "opens": "Aperture uniche",
+            "clicks": "Clic unici",
+            "new": "Nuovi",
+            "unsubscribed": "Disiscritti",
+            "net": "Netto",
+            "delivered": "Recapitate %",
+            "bounced": "Bounce %",
+            "complained": "Reclami %",
+            "threshold": "Soglia reclami (0,3%)"
+        },
+        "bucket": {
+            "hour": "orario",
+            "day": "giornaliero"
+        },
+        "uniqueNote": "Destinatari unici in base al momento della prima reazione.",
+        "eventsNote": "Numero di eventi (non destinatari unici).",
+        "device": {
+            "desktop": "Desktop",
+            "mobile": "Mobile",
+            "tablet": "Tablet",
+            "unknown": "Sconosciuto (proxy)"
+        },
+        "client": {
+            "apple_mail": "Apple Mail",
+            "apple_mpp": "Apple MPP (automatiche, stimate)",
+            "gmail": "Gmail",
+            "yahoo": "Yahoo Mail",
+            "outlook": "Outlook",
+            "ios_mail": "iOS Mail",
+            "android": "App di posta Android",
+            "thunderbird": "Thunderbird",
+            "webmail_other": "Altra webmail",
+            "bot": "Bot / scanner",
+            "other": "Altro"
+        },
+        "bounce": {
+            "hard": "Hard bounce (indirizzo inesistente)",
+            "soft": "Soft bounce (temporaneo)",
+            "mailbox_full": "Casella piena",
+            "blocked": "Bloccato (reputazione)",
+            "spam": "Rifiutato come spam",
+            "policy": "Rifiuto per policy",
+            "unclassified": "Non classificato"
+        },
+        "tier": {
+            "active": "Attivi",
+            "inactive": "Inattivi",
+            "never_opened": "Mai aperto",
+            "not_mailed": "Non ancora contattati"
+        },
+        "tierWindow": "Attivo: apertura o clic negli ultimi {days} giorni.",
+        "churn": "Abbandono: {rate} ({lost} disiscrizioni / {base} iscritti all’inizio).",
+        "goal": "Conversione obiettivo: {rate} ({reached} / {entered} entrati).",
+        "branch": "ramo: {name}",
+        "noData": "Nessun dato in questo periodo.",
+        "noDataBeforeV12": "Nessun dato su dispositivi e client per le campagne precedenti alla v1.2.",
+        "unavailable": "I numeri non sono disponibili al momento — riprova più tardi.",
+        "templateChanged": "Il modello è cambiato dall’invio — i marcatori potrebbero essere spostati.",
+        "machineOpensNote": "Le aperture automatiche di Apple MPP sono stimate: il proxy scarica ogni messaggio.",
+        "heatmapEmpty": "Nessun modello da mostrare per questa campagna.",
+        "clicksTotal": "sopra il modello · {count} clic unici",
+        "export": {
+            "menu": "Esporta",
+            "pngTransparent": "PNG – trasparente",
+            "pngTransparentHint": "per superfici scure",
+            "pngDark": "PNG – sfondo scuro",
+            "csv": "CSV dei link principali"
+        },
+        "report": {
+            "title": "Report PDF personalizzato",
+            "button": "Report PDF",
+            "subject": "Oggetto",
+            "kindCampaign": "Campagna: {name}",
+            "kindCampaignShort": "Report di campagna",
+            "kindPeriod": "Periodo",
+            "content": "Contenuto",
+            "sections": {
+                "kpis": "KPI di sintesi",
+                "charts": "Grafici",
+                "top_links": "Tabella dei link principali",
+                "journeys": "Conversione dei journey",
+                "deliverability": "Recapitabilità"
+            },
+            "brandingHint": "La copertina usa il logo e il colore principale del workspace. Il report è A4 verticale, stampabile, con numeri di pagina nel piè di pagina.",
+            "brandingLink": "Configura il branding",
+            "create": "Crea report PDF",
+            "download": "Scarica",
+            "status": {
+                "queued": "In coda",
+                "rendering": "Attività in background: in corso",
+                "ready": "Attività in background: pronta",
+                "failed": "Non riuscito",
+                "expired": "Scaduto"
+            },
+            "list": "I miei report recenti",
+            "none": "Ancora nessun report.",
+            "failed": "Il report non è stato creato ({code}).",
+            "failedGeneric": "La richiesta del report non è riuscita.",
+            "throttled": "Troppe richieste di report — riprova più tardi.",
+            "coverCampaign": "Report di campagna",
+            "coverPeriod": "Report di periodo",
+            "generatedAt": "Generato: {date} ({tz})",
+            "kpis": "Sintesi",
+            "campaignList": "Campagne nel periodo"
+        },
+        "kpi": {
+            "recipients": "Destinatari",
+            "delivered": "Recapitate",
+            "openRate": "Aperture",
+            "clickRate": "Clic",
+            "bounceRate": "Tasso di bounce",
+            "unsubscribeRate": "Disiscrizioni",
+            "sent": "Inviate",
+            "complaintRate": "Tasso di reclami",
+            "newContacts": "Nuovi contatti",
+            "churnRate": "Abbandono"
+        },
+        "table": {
+            "variant": "Variante",
+            "url": "Link",
+            "unique": "Unici",
+            "clicks": "Clic",
+            "share": "Quota",
+            "campaign": "Campagna",
+            "node": "Nodo",
+            "entered": "Entrati",
+            "movedOn": "Proseguiti",
+            "conversion": "Conversione",
+            "type": "Tipo",
+            "count": "Numero"
         }
     },
     "platform": {
@@ -2280,5 +2449,31 @@
             "responses": "Risposte",
             "testField": "true — solo negli eventi di prova"
         }
+    },
+    "branding": {
+        "eyebrow": "Settings · Branding",
+        "title": "Branding del workspace",
+        "lead": "Copertina e piè di pagina dei report PDF usano questi dati. Se mancano, vale l’impostazione predefinita Venture.",
+        "save": "Salva",
+        "saveFailed": "Salvataggio non riuscito — controlla i campi.",
+        "logo": "Logo",
+        "logoHint": "PNG, JPEG o WebP, al massimo {max} MB, {min}–{maxPx} px. Consigliato lo sfondo trasparente.",
+        "upload": "Carica",
+        "remove": "Rimuovi",
+        "color": "Colore principale",
+        "colorHex": "Codice esadecimale del colore",
+        "colorDefault": "Predefinito Venture",
+        "colorDefaultHint": "Nessun colore personalizzato: la copertina usa il colore predefinito Venture.",
+        "reset": "Predefinito",
+        "contrastOk": "Contrasto della copertina: {ratio} : 1 (testo {text}) — conforme.",
+        "contrastFail": "Il contrasto della copertina è troppo basso — scegli un colore più scuro o più chiaro.",
+        "contrastWeak": "Poco visibile su superfici scure (< 3 : 1).",
+        "textLight": "bianco",
+        "textDark": "scuro",
+        "footer": "Testo del piè di pagina del report",
+        "footerHint": "Il numero di pagina viene aggiunto automaticamente a destra del piè di pagina.",
+        "company": "Nome dell’azienda in copertina",
+        "preview": "Anteprima dal vivo — copertina",
+        "previewSample": "Campagna di esempio"
     }
 }

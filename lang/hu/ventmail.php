@@ -246,4 +246,25 @@ return [
         'exportThrottled' => 'Túl sok export; próbáld újra egy perc múlva.',
         'webhookInactive' => 'A végpont ki van kapcsolva — teszt-esemény csak aktív végpontra küldhető.',
     ],
+    // v1.1 · 8. modul — analitika (PDF-riport) és workspace-branding.
+    'analytics' => [
+        'report' => [
+            'invalidPeriod' => 'Az időszak legfeljebb :days nap lehet, és nem érhet véget a mai napnál később.',
+        ],
+    ],
+    'branding' => [
+        'saved' => 'A branding mentve.',
+        'logoSaved' => 'A logó feltöltve.',
+        'logoRemoved' => 'A logó eltávolítva.',
+        'validation' => [
+            'color' => 'A szín #RRGGBB alakú hex kód legyen.',
+            'contrast' => 'Ezen a színen sem a fehér, sem a sötét borítószöveg nem olvasható (WCAG 4,5 : 1) — válassz sötétebb vagy világosabb árnyalatot.',
+            'control' => 'A szöveg nem tartalmazhat vezérlőkaraktert.',
+            'logoType' => 'A logó PNG, JPEG vagy WebP kép lehet (SVG nem).',
+            'logoSize' => 'A logó legfeljebb :max MB lehet.',
+            'logoDimensions' => 'A logó mérete :min és :max pixel között legyen.',
+            'logoRatio' => 'A logó képaránya legfeljebb :ratio : 1 lehet.',
+            'processing' => 'A képet nem sikerült feldolgozni — próbálj egy másik fájlt.',
+        ],
+    ],
 ];

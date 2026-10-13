@@ -122,6 +122,8 @@ export function useNavigation(): {
          */
         const settings = build([
             { href: '/members', testid: 'nav-members', key: 'members', icon: 'users', show: can('member.manage') },
+            // v1.1 · 8. modul: a PDF-riport borítója és lábléce (logó, szín, láblécszöveg).
+            { href: '/settings/branding', testid: 'nav-branding', key: 'branding', icon: 'palette', show: can('workspace.manage') },
             { href: '/profile', testid: 'nav-profile', key: 'profile', labelKey: 'nav.profile', icon: 'user', show: true },
         ]);
 

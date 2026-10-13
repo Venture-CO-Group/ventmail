@@ -31,6 +31,8 @@
             <group>smtp-socket</group>
             <group>timescale</group>
             <group>heavy</group>
+            <!-- v1.1 · 8. modul: a valódi Gotenberg-sidecart igénylő kontraktus-teszt (CI: gotenberg-contract job). -->
+            <group>gotenberg</group>
         </exclude>
     </groups>
     <source>

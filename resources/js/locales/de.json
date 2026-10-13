@@ -58,13 +58,15 @@
             "segments": "UND/ODER-Bedingungen mit Live-Zählung",
             "domainStats": "Gesendet, zugestellt, Bounces, Beschwerden, Öffnungen, Klicks je Domain",
             "infrastructure": "IP-Pools, Reputation, Blocklisten, Ratenlimits",
-            "docs": "API-Referenz mit Codebeispielen, Webhook-Payloads, Sandbox"
+            "docs": "API-Referenz mit Codebeispielen, Webhook-Payloads, Sandbox",
+            "branding": "Berichtslogo, Farbe, Fußzeile"
         },
         "profile": "Profileinstellungen",
         "segments": "Segmente",
         "domainStats": "Versandstatistik",
         "infrastructure": "Versandinfrastruktur",
-        "docs": "Entwicklerdoku"
+        "docs": "Entwicklerdoku",
+        "branding": "Branding"
     },
     "shell": {
         "workspace": "Workspace",
@@ -813,6 +815,173 @@
             "clicked": "Geklickt",
             "bounced": "Unzustellbar",
             "unsubscribed": "Abgemeldet"
+        },
+        "eyebrow": "Studio · Analytics",
+        "lead": "Kampagnen, Zielgruppe, Journeys und Zustellbarkeit — jedes Diagramm ist exportierbar.",
+        "range": {
+            "label": "Zeitraum",
+            "d7": "7 Tage",
+            "d30": "30 Tage",
+            "d90": "90 Tage",
+            "custom": "Benutzerdefiniert",
+            "from": "Von",
+            "to": "Bis",
+            "apply": "Anwenden"
+        },
+        "pickCampaign": "Kampagne",
+        "pickJourney": "Journey",
+        "noCampaign": "Keine versendete Kampagne",
+        "noJourney": "Noch keine Journey.",
+        "section": {
+            "campaign": "Kampagne",
+            "audience": "Zielgruppe",
+            "journey": "Journey",
+            "platform": "Plattform"
+        },
+        "chart": {
+            "openClick": "Öffnungen und Klicks",
+            "devices": "Gerät und Mail-Client",
+            "heatmap": "Klick-Heatmap",
+            "topLinks": "Top-Links",
+            "growth": "Wachstum und Abwanderung",
+            "engagement": "Engagement-Segmente",
+            "journey": "Journey: Konversion pro Knoten",
+            "deliverability": "Zustellbarkeit im Zeitverlauf",
+            "bounces": "Bounce-Typen",
+            "variants": "A/B-Varianten",
+            "daily": "Tägliche Ereignisse"
+        },
+        "series": {
+            "opens": "Eindeutige Öffner",
+            "clicks": "Eindeutige Klicker",
+            "new": "Neu",
+            "unsubscribed": "Abgemeldet",
+            "net": "Netto",
+            "delivered": "Zugestellt %",
+            "bounced": "Bounce %",
+            "complained": "Beschwerde %",
+            "threshold": "Beschwerde-Schwelle (0,3 %)"
+        },
+        "bucket": {
+            "hour": "stündlich",
+            "day": "täglich"
+        },
+        "uniqueNote": "Eindeutige Empfänger nach Zeitpunkt der ersten Reaktion.",
+        "eventsNote": "Anzahl der Ereignisse (keine eindeutigen Empfänger).",
+        "device": {
+            "desktop": "Desktop",
+            "mobile": "Mobil",
+            "tablet": "Tablet",
+            "unknown": "Unbekannt (Proxy)"
+        },
+        "client": {
+            "apple_mail": "Apple Mail",
+            "apple_mpp": "Apple MPP (maschinell, geschätzt)",
+            "gmail": "Gmail",
+            "yahoo": "Yahoo Mail",
+            "outlook": "Outlook",
+            "ios_mail": "iOS Mail",
+            "android": "Android-Mail-App",
+            "thunderbird": "Thunderbird",
+            "webmail_other": "Anderes Webmail",
+            "bot": "Bot / Scanner",
+            "other": "Sonstige"
+        },
+        "bounce": {
+            "hard": "Hard Bounce (Adresse existiert nicht)",
+            "soft": "Soft Bounce (vorübergehend)",
+            "mailbox_full": "Postfach voll",
+            "blocked": "Blockiert (Reputation)",
+            "spam": "Als Spam abgelehnt",
+            "policy": "Richtlinien-Ablehnung",
+            "unclassified": "Nicht klassifiziert"
+        },
+        "tier": {
+            "active": "Aktiv",
+            "inactive": "Inaktiv",
+            "never_opened": "Nie geöffnet",
+            "not_mailed": "Noch nicht angeschrieben"
+        },
+        "tierWindow": "Aktiv: geöffnet oder geklickt in den letzten {days} Tagen.",
+        "churn": "Abwanderung: {rate} ({lost} Abmeldungen / {base} Abonnenten zu Beginn).",
+        "goal": "Ziel-Konversion: {rate} ({reached} / {entered} eingetreten).",
+        "branch": "Zweig: {name}",
+        "noData": "Keine Daten in diesem Zeitraum.",
+        "noDataBeforeV12": "Für Kampagnen vor v1.2 gibt es keine Geräte- und Client-Daten.",
+        "unavailable": "Die Zahlen sind gerade nicht verfügbar — versuche es später erneut.",
+        "templateChanged": "Die Vorlage wurde seit dem Versand geändert — Markierungen können verrutschen.",
+        "machineOpensNote": "Maschinelle Öffnungen durch Apple MPP sind geschätzt: der Proxy lädt jede Nachricht herunter.",
+        "heatmapEmpty": "Für diese Kampagne gibt es keine darstellbare Vorlage.",
+        "clicksTotal": "über der Vorlage · {count} eindeutige Klicker",
+        "export": {
+            "menu": "Exportieren",
+            "pngTransparent": "PNG – transparent",
+            "pngTransparentHint": "für dunkle Flächen",
+            "pngDark": "PNG – dunkler Hintergrund",
+            "csv": "Top-Links als CSV"
+        },
+        "report": {
+            "title": "PDF-Bericht mit Branding",
+            "button": "PDF-Bericht",
+            "subject": "Gegenstand",
+            "kindCampaign": "Kampagne: {name}",
+            "kindCampaignShort": "Kampagnenbericht",
+            "kindPeriod": "Zeitraum",
+            "content": "Inhalt",
+            "sections": {
+                "kpis": "Zusammenfassende KPIs",
+                "charts": "Diagramme",
+                "top_links": "Tabelle der Top-Links",
+                "journeys": "Journey-Konversion",
+                "deliverability": "Zustellbarkeit"
+            },
+            "brandingHint": "Das Deckblatt verwendet Logo und Primärfarbe des Workspace. Der Bericht ist A4 hoch, druckbar, mit Seitenzahlen in der Fußzeile.",
+            "brandingLink": "Branding einrichten",
+            "create": "PDF-Bericht erstellen",
+            "download": "Herunterladen",
+            "status": {
+                "queued": "In der Warteschlange",
+                "rendering": "Hintergrundauftrag: wird erstellt",
+                "ready": "Hintergrundauftrag: fertig",
+                "failed": "Fehlgeschlagen",
+                "expired": "Abgelaufen"
+            },
+            "list": "Meine letzten Berichte",
+            "none": "Noch keine Berichte.",
+            "failed": "Der Bericht wurde nicht erstellt ({code}).",
+            "failedGeneric": "Die Berichtsanfrage ist fehlgeschlagen.",
+            "throttled": "Zu viele Berichtsanfragen — versuche es später erneut.",
+            "coverCampaign": "Kampagnenbericht",
+            "coverPeriod": "Zeitraumbericht",
+            "generatedAt": "Erstellt: {date} ({tz})",
+            "kpis": "Zusammenfassung",
+            "campaignList": "Kampagnen im Zeitraum"
+        },
+        "kpi": {
+            "recipients": "Empfänger",
+            "delivered": "Zugestellt",
+            "openRate": "Öffnungen",
+            "clickRate": "Klicks",
+            "bounceRate": "Bounce-Rate",
+            "unsubscribeRate": "Abmeldungen",
+            "sent": "Gesendet",
+            "complaintRate": "Beschwerderate",
+            "newContacts": "Neue Kontakte",
+            "churnRate": "Abwanderung"
+        },
+        "table": {
+            "variant": "Variante",
+            "url": "Link",
+            "unique": "Eindeutig",
+            "clicks": "Klicks",
+            "share": "Anteil",
+            "campaign": "Kampagne",
+            "node": "Knoten",
+            "entered": "Eingetreten",
+            "movedOn": "Weitergegangen",
+            "conversion": "Konversion",
+            "type": "Typ",
+            "count": "Anzahl"
         }
     },
     "platform": {
@@ -2280,5 +2449,31 @@
             "responses": "Antworten",
             "testField": "true — nur bei Testereignissen"
         }
+    },
+    "branding": {
+        "eyebrow": "Settings · Branding",
+        "title": "Workspace-Branding",
+        "lead": "Deckblatt und Fußzeile der PDF-Berichte verwenden diese Angaben. Ohne Angabe gilt die Venture-Voreinstellung.",
+        "save": "Speichern",
+        "saveFailed": "Speichern fehlgeschlagen — prüfe die Felder.",
+        "logo": "Logo",
+        "logoHint": "PNG, JPEG oder WebP, höchstens {max} MB, {min}–{maxPx} px. Transparenter Hintergrund empfohlen.",
+        "upload": "Hochladen",
+        "remove": "Entfernen",
+        "color": "Primärfarbe",
+        "colorHex": "Hex-Code der Farbe",
+        "colorDefault": "Venture-Voreinstellung",
+        "colorDefaultHint": "Keine eigene Farbe: das Deckblatt verwendet die Venture-Grundfarbe.",
+        "reset": "Voreinstellung",
+        "contrastOk": "Kontrast auf dem Deckblatt: {ratio} : 1 ({text} Text) — ausreichend.",
+        "contrastFail": "Der Kontrast auf dem Deckblatt ist zu gering — wähle eine dunklere oder hellere Farbe.",
+        "contrastWeak": "Auf dunklen Flächen schwach sichtbar (< 3 : 1).",
+        "textLight": "weißer",
+        "textDark": "dunkler",
+        "footer": "Fußzeilentext des Berichts",
+        "footerHint": "Die Seitenzahl wird automatisch rechts in der Fußzeile ergänzt.",
+        "company": "Firmenname auf dem Deckblatt",
+        "preview": "Live-Vorschau — Deckblatt",
+        "previewSample": "Beispielkampagne"
     }
 }

@@ -102,6 +102,9 @@ Schedule::command('journeys:purge-runs')->dailyAt('03:55');
 // korábbi kampány klikk-térképe kiürülne.
 Schedule::command('analytics:purge-click-map')->dailyAt('04:05');
 
+// v1.1 · 8. modul: a lejárt (7 napos) PDF-riportok fájlja törlődik, a sor `expired`-ként marad.
+Schedule::command('analytics:purge-reports')->hourly()->withoutOverlapping();
+
 // SZEGMENSBE LÉPÉS mint trigger (69. kritérium). A szegmens egy LEKÉRDEZÉS, nincs „belépés"
 // pillanata — ezért ütemezett összehasonlítás adja. A `FireJourneyEvent::segmentEntered()`
 // megvolt, a docblock erre a parancsra hivatkozott, de a parancs NEM LÉTEZETT: a

@@ -5,7 +5,14 @@ declare(strict_types=1);
 namespace App\Modules\Analytics\Providers;
 
 use App\Modules\Analytics\Console\PurgeClickMapCommand;
+use App\Modules\Analytics\Console\PurgeReportsCommand;
+use App\Modules\Analytics\Console\RenderSmokeCommand;
+use App\Modules\Analytics\Contracts\PdfRenderer;
+use App\Modules\Analytics\Contracts\ReportArtifactStore;
 use App\Modules\Analytics\Services\EngagementRecorder;
+use App\Modules\Analytics\Services\Pdf\GotenbergPdfRenderer;
+use App\Modules\Analytics\Services\Reports\LocalPrivateReportStore;
+use App\Modules\Analytics\Testing\FakePdfRenderer;
 use App\Modules\Events\Models\MessageEvent;
 use App\Modules\Support\ModuleServiceProvider;
 use Illuminate\Support\Facades\DB;
@@ -26,6 +33,19 @@ use Throwable;
  */
 final class AnalyticsServiceProvider extends ModuleServiceProvider
 {
+    public function register(): void
+    {
+        parent::register();
+
+        // A PDF-renderer (D7): élesben a Gotenberg sidecar, fejlesztésben/tesztben a fake.
+        $this->app->singleton(PdfRenderer::class, fn () => config('analytics.pdf.renderer') === 'gotenberg'
+            ? GotenbergPdfRenderer::fromConfig()
+            : new FakePdfRenderer);
+
+        // A riport-tároló (D235): privát helyi diszk a megosztott volume-on. // TODO ventVault
+        $this->app->singleton(ReportArtifactStore::class, LocalPrivateReportStore::class);
+    }
+
     /*
      | A `/v1` ROUTE-OK AZ API-HITELESÍTÉS ELŐTT regisztrálódnak.
      |
@@ -50,8 +70,11 @@ final class AnalyticsServiceProvider extends ModuleServiceProvider
     protected function bootModule(): void
     {
         if ($this->app->runningInConsole()) {
-            $this->commands([PurgeClickMapCommand::class]);
+            $this->commands([PurgeClickMapCommand::class, PurgeReportsCommand::class, RenderSmokeCommand::class]);
         }
+
+        // A riport Blade-nézetei (`analytics::report.document`, `analytics::report.footer`).
+        $this->loadViewsFrom(resource_path('views/analytics'), 'analytics');
 
         /*
          | A TÉNYTÁBLA FELTÖLTÉSE — KÍVÜLRŐL figyelt modell-eseménnyel.

@@ -246,4 +246,25 @@ return [
         'exportThrottled' => 'Troppe esportazioni; riprova tra un minuto.',
         'webhookInactive' => 'L\'endpoint è disattivato — gli eventi di prova si inviano solo a un endpoint attivo.',
     ],
+    // v1.1 · 8. modul — analitika (PDF-riport) és workspace-branding.
+    'analytics' => [
+        'report' => [
+            'invalidPeriod' => 'Il periodo può durare al massimo :days giorni e non può terminare dopo oggi.',
+        ],
+    ],
+    'branding' => [
+        'saved' => 'Branding salvato.',
+        'logoSaved' => 'Logo caricato.',
+        'logoRemoved' => 'Logo rimosso.',
+        'validation' => [
+            'color' => 'Il colore deve essere un codice esadecimale #RRGGBB.',
+            'contrast' => 'Su questo colore non è leggibile né il testo bianco né quello scuro della copertina (WCAG 4,5 : 1) — scegli una tonalità più scura o più chiara.',
+            'control' => 'Il testo non può contenere caratteri di controllo.',
+            'logoType' => 'Il logo deve essere un’immagine PNG, JPEG o WebP (non SVG).',
+            'logoSize' => 'Il logo può essere al massimo di :max MB.',
+            'logoDimensions' => 'Il logo deve misurare tra :min e :max pixel.',
+            'logoRatio' => 'Il rapporto d’aspetto del logo può essere al massimo :ratio : 1.',
+            'processing' => 'Non è stato possibile elaborare l’immagine — prova un altro file.',
+        ],
+    ],
 ];

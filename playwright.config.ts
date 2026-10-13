@@ -75,7 +75,7 @@ export default defineConfig({
                | volt. A `--no-reload` a workerek előfeltétele is (az `artisan serve`
                | különben figyelmeztet, és egy folyamattal indul).
                */
-              command: 'PHP_INI_SCAN_DIR=":$PWD/e2e/php.d" WEBHOOKS_E2E_SINK=https://93.184.216.34/e2e/ SESSION_DRIVER=file CACHE_STORE=array QUEUE_CONNECTION=sync AUDIENCE_IMPORT_QUEUE_CONNECTION=database AUDIENCE_IMPORT_INSPECT_QUEUE_CONNECTION=database TEMPLATE_ASSET_DRIVER=local TENANCY_WORKSPACE_MAX_OWNED=1000 PHP_CLI_SERVER_WORKERS=4 php artisan serve --port=8000 --no-reload',
+              command: 'PHP_INI_SCAN_DIR=":$PWD/e2e/php.d" WEBHOOKS_E2E_SINK=https://93.184.216.34/e2e/ SESSION_DRIVER=file CACHE_STORE=array QUEUE_CONNECTION=sync AUDIENCE_IMPORT_QUEUE_CONNECTION=database AUDIENCE_IMPORT_INSPECT_QUEUE_CONNECTION=database TEMPLATE_ASSET_DRIVER=local ANALYTICS_PDF_RENDERER=fake TENANCY_WORKSPACE_MAX_OWNED=1000 PHP_CLI_SERVER_WORKERS=4 php artisan serve --port=8000 --no-reload',
               url: 'http://127.0.0.1:8000/up',
               reuseExistingServer: !process.env.CI,
               timeout: 60_000,

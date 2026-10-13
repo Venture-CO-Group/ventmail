@@ -45,6 +45,9 @@ const STATIC_PAGES = [
     '/campaigns',
     '/journeys',
     '/analytics',
+    // v1.1 · 8. modul: a teljes analitika 90 napos ablakkal (minden kártya, hosszú kampánynév) és a branding.
+    '/analytics?range=90',
+    '/settings/branding',
     '/domains',
     '/domains/wizard',
     '/api-keys',
@@ -115,6 +118,8 @@ test.beforeAll(async ({ browser }) => {
     };
 
     await page.goto('/dev/seed-logs');
+    // v1.1 · 8. modul: kiküldött demó-kampány (hosszú névvel), eszköz/kliens, klikk-térkép, journey, bounce-típusok.
+    await page.goto('/dev/seed-analytics');
     await seedOnce('/domains', LONG_DOMAIN, '/domains', { name: LONG_DOMAIN });
     await seedOnce('/api-keys', LONG, '/api-keys', { name: LONG, scopes: ['messages:send'], channels: [], testmode: false });
     await seedOnce('/suppressions?list=manual', LONG_EMAIL, '/suppressions', { email: LONG_EMAIL, reason: 'manual', appliesTo: 'all' });

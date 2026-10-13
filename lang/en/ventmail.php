@@ -262,4 +262,25 @@ return [
         'exportThrottled' => 'Too many exports; try again in a minute.',
         'webhookInactive' => 'The endpoint is disabled — test events can only be sent to an active endpoint.',
     ],
+    // v1.1 · 8. modul — analitika (PDF-riport) és workspace-branding.
+    'analytics' => [
+        'report' => [
+            'invalidPeriod' => 'The period can be at most :days days long and cannot end after today.',
+        ],
+    ],
+    'branding' => [
+        'saved' => 'Branding saved.',
+        'logoSaved' => 'Logo uploaded.',
+        'logoRemoved' => 'Logo removed.',
+        'validation' => [
+            'color' => 'The colour must be a #RRGGBB hex code.',
+            'contrast' => 'Neither white nor dark cover text is readable on this colour (WCAG 4.5 : 1) — pick a darker or lighter shade.',
+            'control' => 'The text cannot contain control characters.',
+            'logoType' => 'The logo must be a PNG, JPEG or WebP image (not SVG).',
+            'logoSize' => 'The logo can be at most :max MB.',
+            'logoDimensions' => 'The logo must be between :min and :max pixels.',
+            'logoRatio' => 'The logo aspect ratio can be at most :ratio : 1.',
+            'processing' => 'The image could not be processed — try another file.',
+        ],
+    ],
 ];

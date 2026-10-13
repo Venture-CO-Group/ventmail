@@ -246,4 +246,25 @@ return [
         'exportThrottled' => 'Demasiadas exportaciones; inténtalo de nuevo en un minuto.',
         'webhookInactive' => 'El endpoint está desactivado: solo se pueden enviar eventos de prueba a un endpoint activo.',
     ],
+    // v1.1 · 8. modul — analitika (PDF-riport) és workspace-branding.
+    'analytics' => [
+        'report' => [
+            'invalidPeriod' => 'El periodo puede durar como máximo :days días y no puede terminar después de hoy.',
+        ],
+    ],
+    'branding' => [
+        'saved' => 'Marca guardada.',
+        'logoSaved' => 'Logotipo subido.',
+        'logoRemoved' => 'Logotipo eliminado.',
+        'validation' => [
+            'color' => 'El color debe ser un código hexadecimal #RRGGBB.',
+            'contrast' => 'En este color no se lee ni el texto blanco ni el oscuro de la portada (WCAG 4,5 : 1): elige un tono más oscuro o más claro.',
+            'control' => 'El texto no puede contener caracteres de control.',
+            'logoType' => 'El logotipo debe ser una imagen PNG, JPEG o WebP (no SVG).',
+            'logoSize' => 'El logotipo puede ocupar como máximo :max MB.',
+            'logoDimensions' => 'El logotipo debe medir entre :min y :max píxeles.',
+            'logoRatio' => 'La relación de aspecto del logotipo puede ser como máximo :ratio : 1.',
+            'processing' => 'No se pudo procesar la imagen: prueba con otro archivo.',
+        ],
+    ],
 ];

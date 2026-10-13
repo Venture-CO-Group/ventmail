@@ -58,13 +58,15 @@
             "segments": "Conditions ET/OU avec comptage en direct",
             "domainStats": "Envoyés, délivrés, rebonds, plaintes, ouvertures, clics par domaine",
             "infrastructure": "Pools IP, réputation, listes de blocage, limites de débit",
-            "docs": "Référence API avec exemples de code, payloads webhook, sandbox"
+            "docs": "Référence API avec exemples de code, payloads webhook, sandbox",
+            "branding": "Logo, couleur et pied de page des rapports"
         },
         "profile": "Paramètres du profil",
         "segments": "Segments",
         "domainStats": "Statistiques d'envoi",
         "infrastructure": "Infrastructure d'envoi",
-        "docs": "Documentation développeur"
+        "docs": "Documentation développeur",
+        "branding": "Image de marque"
     },
     "shell": {
         "workspace": "Espace de travail",
@@ -813,6 +815,173 @@
             "clicked": "Cliqués",
             "bounced": "Rebondis",
             "unsubscribed": "Désabonnés"
+        },
+        "eyebrow": "Studio · Analytique",
+        "lead": "Campagnes, audience, parcours et délivrabilité — chaque graphique est exportable.",
+        "range": {
+            "label": "Période",
+            "d7": "7 jours",
+            "d30": "30 jours",
+            "d90": "90 jours",
+            "custom": "Personnalisée",
+            "from": "Du",
+            "to": "Au",
+            "apply": "Appliquer"
+        },
+        "pickCampaign": "Campagne",
+        "pickJourney": "Parcours",
+        "noCampaign": "Aucune campagne envoyée",
+        "noJourney": "Aucun parcours pour l’instant.",
+        "section": {
+            "campaign": "Campagne",
+            "audience": "Audience",
+            "journey": "Parcours",
+            "platform": "Plateforme"
+        },
+        "chart": {
+            "openClick": "Ouvertures et clics",
+            "devices": "Appareil et client de messagerie",
+            "heatmap": "Carte des clics",
+            "topLinks": "Liens principaux",
+            "growth": "Croissance et attrition",
+            "engagement": "Segments d’engagement",
+            "journey": "Parcours : conversion par nœud",
+            "deliverability": "Délivrabilité dans le temps",
+            "bounces": "Types de rebonds",
+            "variants": "Variantes A/B",
+            "daily": "Événements quotidiens"
+        },
+        "series": {
+            "opens": "Ouvreurs uniques",
+            "clicks": "Cliqueurs uniques",
+            "new": "Nouveaux",
+            "unsubscribed": "Désabonnés",
+            "net": "Net",
+            "delivered": "Délivrés %",
+            "bounced": "Rebonds %",
+            "complained": "Plaintes %",
+            "threshold": "Seuil de plaintes (0,3 %)"
+        },
+        "bucket": {
+            "hour": "par heure",
+            "day": "par jour"
+        },
+        "uniqueNote": "Destinataires uniques selon l’heure de la première réaction.",
+        "eventsNote": "Nombre d’événements (pas de destinataires uniques).",
+        "device": {
+            "desktop": "Ordinateur",
+            "mobile": "Mobile",
+            "tablet": "Tablette",
+            "unknown": "Inconnu (proxy)"
+        },
+        "client": {
+            "apple_mail": "Apple Mail",
+            "apple_mpp": "Apple MPP (automatique, estimé)",
+            "gmail": "Gmail",
+            "yahoo": "Yahoo Mail",
+            "outlook": "Outlook",
+            "ios_mail": "iOS Mail",
+            "android": "Appli mail Android",
+            "thunderbird": "Thunderbird",
+            "webmail_other": "Autre webmail",
+            "bot": "Robot / analyseur",
+            "other": "Autre"
+        },
+        "bounce": {
+            "hard": "Rebond dur (adresse inexistante)",
+            "soft": "Rebond doux (temporaire)",
+            "mailbox_full": "Boîte pleine",
+            "blocked": "Bloqué (réputation)",
+            "spam": "Refusé comme spam",
+            "policy": "Refus de politique",
+            "unclassified": "Non classé"
+        },
+        "tier": {
+            "active": "Actifs",
+            "inactive": "Inactifs",
+            "never_opened": "Jamais ouvert",
+            "not_mailed": "Pas encore contactés"
+        },
+        "tierWindow": "Actif : ouverture ou clic au cours des {days} derniers jours.",
+        "churn": "Attrition : {rate} ({lost} désabonnements / {base} abonnés au départ).",
+        "goal": "Conversion d’objectif : {rate} ({reached} / {entered} entrés).",
+        "branch": "branche : {name}",
+        "noData": "Aucune donnée sur cette période.",
+        "noDataBeforeV12": "Pas de données appareil ni client pour les campagnes antérieures à la v1.2.",
+        "unavailable": "Les chiffres ne sont pas disponibles pour le moment — réessayez plus tard.",
+        "templateChanged": "Le modèle a changé depuis l’envoi — les repères peuvent être décalés.",
+        "machineOpensNote": "Les ouvertures automatiques d’Apple MPP sont estimées : le proxy télécharge chaque message.",
+        "heatmapEmpty": "Aucun modèle à afficher pour cette campagne.",
+        "clicksTotal": "sur le modèle · {count} cliqueurs uniques",
+        "export": {
+            "menu": "Exporter",
+            "pngTransparent": "PNG – transparent",
+            "pngTransparentHint": "pour fonds sombres",
+            "pngDark": "PNG – fond sombre",
+            "csv": "CSV des liens principaux"
+        },
+        "report": {
+            "title": "Rapport PDF à votre image",
+            "button": "Rapport PDF",
+            "subject": "Objet",
+            "kindCampaign": "Campagne : {name}",
+            "kindCampaignShort": "Rapport de campagne",
+            "kindPeriod": "Période",
+            "content": "Contenu",
+            "sections": {
+                "kpis": "KPI de synthèse",
+                "charts": "Graphiques",
+                "top_links": "Tableau des liens principaux",
+                "journeys": "Conversion des parcours",
+                "deliverability": "Délivrabilité"
+            },
+            "brandingHint": "La couverture utilise le logo et la couleur principale de l’espace de travail. Le rapport est au format A4 portrait, imprimable, avec numéros de page en pied de page.",
+            "brandingLink": "Configurer l’image de marque",
+            "create": "Créer le rapport PDF",
+            "download": "Télécharger",
+            "status": {
+                "queued": "En file d’attente",
+                "rendering": "Tâche de fond : en cours",
+                "ready": "Tâche de fond : prête",
+                "failed": "Échec",
+                "expired": "Expiré"
+            },
+            "list": "Mes derniers rapports",
+            "none": "Aucun rapport pour l’instant.",
+            "failed": "Le rapport n’a pas été créé ({code}).",
+            "failedGeneric": "La demande de rapport a échoué.",
+            "throttled": "Trop de demandes de rapport — réessayez plus tard.",
+            "coverCampaign": "Rapport de campagne",
+            "coverPeriod": "Rapport de période",
+            "generatedAt": "Généré : {date} ({tz})",
+            "kpis": "Synthèse",
+            "campaignList": "Campagnes de la période"
+        },
+        "kpi": {
+            "recipients": "Destinataires",
+            "delivered": "Délivrés",
+            "openRate": "Ouvertures",
+            "clickRate": "Clics",
+            "bounceRate": "Taux de rebond",
+            "unsubscribeRate": "Désabonnements",
+            "sent": "Envoyés",
+            "complaintRate": "Taux de plaintes",
+            "newContacts": "Nouveaux contacts",
+            "churnRate": "Attrition"
+        },
+        "table": {
+            "variant": "Variante",
+            "url": "Lien",
+            "unique": "Uniques",
+            "clicks": "Clics",
+            "share": "Part",
+            "campaign": "Campagne",
+            "node": "Nœud",
+            "entered": "Entrés",
+            "movedOn": "Poursuivi",
+            "conversion": "Conversion",
+            "type": "Type",
+            "count": "Nombre"
         }
     },
     "platform": {
@@ -2280,5 +2449,31 @@
             "responses": "Réponses",
             "testField": "true — uniquement pour les événements de test"
         }
+    },
+    "branding": {
+        "eyebrow": "Settings · Image de marque",
+        "title": "Image de marque de l’espace",
+        "lead": "La couverture et le pied de page des rapports PDF utilisent ces éléments. À défaut, la valeur Venture par défaut s’applique.",
+        "save": "Enregistrer",
+        "saveFailed": "L’enregistrement a échoué — vérifiez les champs.",
+        "logo": "Logo",
+        "logoHint": "PNG, JPEG ou WebP, {max} Mo au plus, {min}–{maxPx} px. Fond transparent recommandé.",
+        "upload": "Importer",
+        "remove": "Supprimer",
+        "color": "Couleur principale",
+        "colorHex": "Code hexadécimal de la couleur",
+        "colorDefault": "Valeur Venture par défaut",
+        "colorDefaultHint": "Pas de couleur personnalisée : la couverture utilise la couleur Venture par défaut.",
+        "reset": "Par défaut",
+        "contrastOk": "Contraste de la couverture : {ratio} : 1 (texte {text}) — conforme.",
+        "contrastFail": "Le contraste de la couverture est trop faible — choisissez une couleur plus foncée ou plus claire.",
+        "contrastWeak": "Peu visible sur fond sombre (< 3 : 1).",
+        "textLight": "blanc",
+        "textDark": "sombre",
+        "footer": "Texte de pied de page du rapport",
+        "footerHint": "Le numéro de page est ajouté automatiquement à droite du pied de page.",
+        "company": "Nom de l’entreprise sur la couverture",
+        "preview": "Aperçu en direct — couverture",
+        "previewSample": "Campagne exemple"
     }
 }

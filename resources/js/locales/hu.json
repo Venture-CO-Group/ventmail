@@ -58,13 +58,15 @@
             "segments": "ÉS/VAGY feltételek élő számlálóval",
             "domainStats": "Küldött, kézbesített, bounce, panasz, nyitás, kattintás domainenként",
             "infrastructure": "IP-poolok, reputáció, feketelisták, rate limitek",
-            "docs": "API-referencia kódmintákkal, webhook-payloadok, sandbox"
+            "docs": "API-referencia kódmintákkal, webhook-payloadok, sandbox",
+            "branding": "Riport-logó, szín, lábléc"
         },
         "profile": "Profilbeállítások",
         "segments": "Szegmensek",
         "domainStats": "Küldési statisztika",
         "infrastructure": "Küldési infrastruktúra",
-        "docs": "Fejlesztői dokumentáció"
+        "docs": "Fejlesztői dokumentáció",
+        "branding": "Branding"
     },
     "shell": {
         "workspace": "Workspace",
@@ -813,6 +815,173 @@
             "clicked": "Kattintva",
             "bounced": "Visszapattant",
             "unsubscribed": "Leiratkozott"
+        },
+        "eyebrow": "Studio · Analitika",
+        "lead": "Kampány, közönség, journey és kézbesíthetőség — minden ábra exportálható.",
+        "range": {
+            "label": "Időszak",
+            "d7": "7 nap",
+            "d30": "30 nap",
+            "d90": "90 nap",
+            "custom": "Egyedi",
+            "from": "Kezdete",
+            "to": "Vége",
+            "apply": "Alkalmaz"
+        },
+        "pickCampaign": "Kampány",
+        "pickJourney": "Journey",
+        "noCampaign": "Nincs kiküldött kampány",
+        "noJourney": "Még nincs journey.",
+        "section": {
+            "campaign": "Kampány",
+            "audience": "Közönség",
+            "journey": "Journey",
+            "platform": "Platform"
+        },
+        "chart": {
+            "openClick": "Megnyitás és kattintás",
+            "devices": "Eszköz és levelező-kliens",
+            "heatmap": "Kattintási térkép",
+            "topLinks": "Top linkek",
+            "growth": "Növekedés és lemorzsolódás",
+            "engagement": "Engagement-szegmensek",
+            "journey": "Journey: csomópontonkénti konverzió",
+            "deliverability": "Kézbesíthetőség időben",
+            "bounces": "Bounce-típusok",
+            "variants": "A/B változatok",
+            "daily": "Napi események"
+        },
+        "series": {
+            "opens": "Egyedi megnyitók",
+            "clicks": "Egyedi kattintók",
+            "new": "Új",
+            "unsubscribed": "Leiratkozott",
+            "net": "Nettó",
+            "delivered": "Kézbesítve %",
+            "bounced": "Bounce %",
+            "complained": "Panasz %",
+            "threshold": "Panasz-küszöb (0,3%)"
+        },
+        "bucket": {
+            "hour": "óránként",
+            "day": "naponta"
+        },
+        "uniqueNote": "Egyedi címzettek az első reakció ideje szerint.",
+        "eventsNote": "Eseményszám (nem egyedi címzett).",
+        "device": {
+            "desktop": "Asztali",
+            "mobile": "Mobil",
+            "tablet": "Tablet",
+            "unknown": "Ismeretlen (proxy)"
+        },
+        "client": {
+            "apple_mail": "Apple Mail",
+            "apple_mpp": "Apple MPP (gépi, becsült)",
+            "gmail": "Gmail",
+            "yahoo": "Yahoo Mail",
+            "outlook": "Outlook",
+            "ios_mail": "iOS Mail",
+            "android": "Android levelező",
+            "thunderbird": "Thunderbird",
+            "webmail_other": "Egyéb webmail",
+            "bot": "Bot / szűrő",
+            "other": "Egyéb"
+        },
+        "bounce": {
+            "hard": "Hard bounce (nem létező cím)",
+            "soft": "Soft bounce (átmeneti)",
+            "mailbox_full": "Postafiók tele",
+            "blocked": "Blokkolt (reputáció)",
+            "spam": "Spamként elutasítva",
+            "policy": "Szabályzati elutasítás",
+            "unclassified": "Besorolatlan"
+        },
+        "tier": {
+            "active": "Aktív",
+            "inactive": "Inaktív",
+            "never_opened": "Soha nem nyitotta",
+            "not_mailed": "Még nem kapott levelet"
+        },
+        "tierWindow": "Aktív: megnyitás vagy kattintás az elmúlt {days} napban.",
+        "churn": "Lemorzsolódás: {rate} ({lost} leiratkozó / {base} induló feliratkozott).",
+        "goal": "Cél-konverzió: {rate} ({reached} / {entered} belépő).",
+        "branch": "ág: {name}",
+        "noData": "Nincs adat ebben az időszakban.",
+        "noDataBeforeV12": "Eszköz- és kliensadat a v1.2 előtti kampányokra nincs.",
+        "unavailable": "A számok most nem érhetők el — próbáld újra később.",
+        "templateChanged": "A sablon a küldés óta változott — a jelölések elcsúszhatnak.",
+        "machineOpensNote": "Az Apple MPP gépi megnyitásai becsültek: a proxy minden levelet letölt.",
+        "heatmapEmpty": "Ehhez a kampányhoz nincs megjeleníthető sablon.",
+        "clicksTotal": "a sablon fölött · {count} egyedi kattintó",
+        "export": {
+            "menu": "Exportálás",
+            "pngTransparent": "PNG – átlátszó",
+            "pngTransparentHint": "sötét felülethez",
+            "pngDark": "PNG – sötét háttér",
+            "csv": "Top linkek CSV"
+        },
+        "report": {
+            "title": "Brandelt PDF riport",
+            "button": "PDF riport",
+            "subject": "Tárgy",
+            "kindCampaign": "Kampány: {name}",
+            "kindCampaignShort": "Kampányriport",
+            "kindPeriod": "Időszak",
+            "content": "Tartalom",
+            "sections": {
+                "kpis": "Összefoglaló KPI-k",
+                "charts": "Grafikonok",
+                "top_links": "Top linkek táblázat",
+                "journeys": "Journey-konverzió",
+                "deliverability": "Kézbesíthetőség"
+            },
+            "brandingHint": "A borító a workspace logóját és elsődleges színét használja. A riport A4 álló, nyomtatható, a láblécben oldalszámmal.",
+            "brandingLink": "Branding beállítása",
+            "create": "PDF riport létrehozása",
+            "download": "Letöltés",
+            "status": {
+                "queued": "Sorban",
+                "rendering": "Háttérfeladat: készül",
+                "ready": "Háttérfeladat: kész",
+                "failed": "Sikertelen",
+                "expired": "Lejárt"
+            },
+            "list": "Legutóbbi riportjaim",
+            "none": "Még nincs riport.",
+            "failed": "A riport nem készült el ({code}).",
+            "failedGeneric": "A riport-kérés nem sikerült.",
+            "throttled": "Túl sok riport-kérés — próbáld újra később.",
+            "coverCampaign": "Kampányriport",
+            "coverPeriod": "Időszaki riport",
+            "generatedAt": "Készült: {date} ({tz})",
+            "kpis": "Összefoglaló",
+            "campaignList": "Kampányok az időszakban"
+        },
+        "kpi": {
+            "recipients": "Címzett",
+            "delivered": "Kézbesítve",
+            "openRate": "Megnyitás",
+            "clickRate": "Kattintás",
+            "bounceRate": "Bounce-arány",
+            "unsubscribeRate": "Leiratkozás",
+            "sent": "Küldött",
+            "complaintRate": "Panasz-arány",
+            "newContacts": "Új kontakt",
+            "churnRate": "Lemorzsolódás"
+        },
+        "table": {
+            "variant": "Változat",
+            "url": "Link",
+            "unique": "Egyedi",
+            "clicks": "Kattintás",
+            "share": "Arány",
+            "campaign": "Kampány",
+            "node": "Csomópont",
+            "entered": "Belépett",
+            "movedOn": "Továbblépett",
+            "conversion": "Konverzió",
+            "type": "Típus",
+            "count": "Darab"
         }
     },
     "platform": {
@@ -2280,5 +2449,31 @@
             "responses": "Válaszok",
             "testField": "true — csak teszt-eseményben"
         }
+    },
+    "branding": {
+        "eyebrow": "Settings · Branding",
+        "title": "Workspace branding",
+        "lead": "A PDF riportok borítója és lábléce ezeket használja. Ha nincs megadva, a Venture alapértelmezés érvényes.",
+        "save": "Mentés",
+        "saveFailed": "A mentés nem sikerült — ellenőrizd a mezőket.",
+        "logo": "Logó",
+        "logoHint": "PNG, JPEG vagy WebP, legfeljebb {max} MB, {min}–{maxPx} px. Átlátszó háttér ajánlott.",
+        "upload": "Feltöltés",
+        "remove": "Eltávolítás",
+        "color": "Elsődleges szín",
+        "colorHex": "Szín hex kódja",
+        "colorDefault": "Venture alapértelmezés",
+        "colorDefaultHint": "Nincs saját szín: a borító a Venture alapszínét használja.",
+        "reset": "Alapértelmezés",
+        "contrastOk": "Kontraszt a borítón: {ratio} : 1 ({text} szöveg) — megfelel.",
+        "contrastFail": "Kontraszt a borítón túl alacsony — válassz sötétebb vagy világosabb színt.",
+        "contrastWeak": "Sötét felületen gyengén látszik (< 3 : 1).",
+        "textLight": "fehér",
+        "textDark": "sötét",
+        "footer": "Riport-láblécszöveg",
+        "footerHint": "Az oldalszám automatikusan a lábléc jobb szélére kerül.",
+        "company": "Cégnév a borítón",
+        "preview": "Élő előnézet — borítólap",
+        "previewSample": "Minta kampány"
     }
 }

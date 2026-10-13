@@ -63,7 +63,7 @@ class AppServiceProvider extends ServiceProvider
      *
      * @var list<string>
      */
-    private const DEVELOPMENT_ROUTES = ['auth.dev-login', 'dev.seed-logs'];
+    private const DEVELOPMENT_ROUTES = ['auth.dev-login', 'dev.seed-logs', 'dev.seed-analytics'];
 
     /**
      * Deploy-idejű őr: élesben a fejlesztői belépés route-ja nem is LÉTEZHET.
@@ -390,6 +390,20 @@ class AppServiceProvider extends ServiceProvider
                 $claim === null ? 'peer:'.self::peer($request) : 'claim:'.hash('sha256', $claim['workspaceId'].'|'.$claim['messageUuid']),
             );
         });
+
+        /*
+         | v1.1 · 8. modul — PDF-RIPORT kérés: minden kérés egy Chromium-renderelés a sidecaron.
+         | A workspace óránként 10-et, a felhasználó percenként 3-at kérhet (külön kulcs ablakonként).
+         | A LOGÓ-feltöltés GD-újrakódolás + lemezírás: workspace-enként óránként 10.
+         */
+        RateLimiter::for('analytics-report', fn (Request $request) => [
+            Limit::perHour(10)->by('ws-hour:'.self::workspaceKey($request)),
+            Limit::perMinute(3)->by('user-min:'.(string) $request->user()?->getAuthIdentifier()),
+        ]);
+
+        RateLimiter::for('branding-logo', fn (Request $request) => [
+            Limit::perHour(10)->by('ws-hour:'.self::workspaceKey($request)),
+        ]);
 
         // Külön kulcs ablakonként (lásd az `audience-import` limiternél): a közös kulcs a napi
         // plafont hatástalanná tette.

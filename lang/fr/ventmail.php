@@ -248,4 +248,25 @@ return [
         'exportThrottled' => 'Trop d\'exports ; réessayez dans une minute.',
         'webhookInactive' => 'Le point de terminaison est désactivé — les événements de test ne peuvent être envoyés qu\'à un point actif.',
     ],
+    // v1.1 · 8. modul — analitika (PDF-riport) és workspace-branding.
+    'analytics' => [
+        'report' => [
+            'invalidPeriod' => 'La période ne peut pas dépasser :days jours ni se terminer après aujourd’hui.',
+        ],
+    ],
+    'branding' => [
+        'saved' => 'Image de marque enregistrée.',
+        'logoSaved' => 'Logo importé.',
+        'logoRemoved' => 'Logo supprimé.',
+        'validation' => [
+            'color' => 'La couleur doit être un code hexadécimal #RRGGBB.',
+            'contrast' => 'Ni un texte blanc ni un texte sombre n’est lisible sur cette couleur (WCAG 4,5 : 1) — choisissez une teinte plus foncée ou plus claire.',
+            'control' => 'Le texte ne peut pas contenir de caractères de contrôle.',
+            'logoType' => 'Le logo doit être une image PNG, JPEG ou WebP (pas de SVG).',
+            'logoSize' => 'Le logo ne peut pas dépasser :max Mo.',
+            'logoDimensions' => 'Le logo doit mesurer entre :min et :max pixels.',
+            'logoRatio' => 'Le rapport d’aspect du logo ne peut pas dépasser :ratio : 1.',
+            'processing' => 'L’image n’a pas pu être traitée — essayez un autre fichier.',
+        ],
+    ],
 ];
