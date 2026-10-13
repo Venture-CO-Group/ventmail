@@ -58,7 +58,7 @@ const props = defineProps<{
     contacts: { items: ContactRow[]; nextCursor: string | null };
 }>();
 
-const { t } = useI18n();
+const { t, te } = useI18n();
 const format = useFormat();
 
 const search = ref(props.search);
@@ -75,7 +75,7 @@ const listName = ref('');
 const editingList = ref<string | null>(null);
 const listForm = ref({ name: '', description: '', fromEmail: '', fromName: '' });
 
-type Row = { uuid: string; select: string; email: string; name: string; status: string; consent: string; tags: string; validation: string };
+type Row = { uuid: string; select: string; email: string; name: string; status: string; statusCode: string; consent: string; consentCode: string; tags: string; validation: string };
 
 const columns: VtColumn<Row>[] = [
     { key: 'select', label: t('audience.select') },
@@ -93,8 +93,11 @@ const rows = computed<Row[]>(() =>
         select: '',
         email: contact.email,
         name: contact.name || '—',
-        status: contact.status,
-        consent: contact.consent,
+        // A GÉPI kód helyett a fordított felirat (D284): „subscribed" / „none" nem felületi szöveg.
+        statusCode: contact.status,
+        consentCode: contact.consent,
+        status: te(`segments.value.status.${contact.status}`) ? t(`segments.value.status.${contact.status}`) : contact.status,
+        consent: te(`segments.value.consent.${contact.consent}`) ? t(`segments.value.consent.${contact.consent}`) : contact.consent,
         tags: contact.tags.join(', ') || '—',
         validation: contact.validation ?? '—',
     })),
@@ -517,6 +520,9 @@ function createList(): void {
                         :title="String(value)"
                         data-testid="contact-link"
                     >{{ value }}</Link>
+                    <!-- A `data-status` / `data-consent` a GÉPI kód (nyelvfüggetlen tesztekhez), a felirat a fordítás. -->
+                    <span v-else-if="column.key === 'status'" class="vm-truncate" :data-status="row.statusCode">{{ value }}</span>
+                    <span v-else-if="column.key === 'consent'" class="vm-truncate" :data-consent="row.consentCode">{{ value }}</span>
                     <span v-else class="vm-truncate" :title="String(value ?? '')">{{ value }}</span>
                 </template>
             </VmTable>

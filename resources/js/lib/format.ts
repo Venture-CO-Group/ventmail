@@ -139,3 +139,14 @@ export function formatDateTime(value: DateInput, prefs: FormatPrefs): string {
 
     return p === null ? DASH : `${datePart(p, prefs.dateFormat)} ${p.hour}:${p.minute}`;
 }
+
+/**
+ * NAPTÁRI NAP (`YYYY-MM-DD`, pl. egy grafikon kategóriája) a profil dátumformátumában — időzóna-
+ * átváltás NÉLKÜL: a nap már a felhasználó (vagy a workspace) napja, egy UTC-éjfélként értelmezett
+ * dátum nyugati zónában az előző napra csúszna. Nem nap-alakú bemenetet változatlanul ad vissza.
+ */
+export function formatDay(value: string, prefs: FormatPrefs): string {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+
+    return match === null ? value : datePart({ year: match[1], month: match[2], day: match[3], hour: '00', minute: '00' }, prefs.dateFormat);
+}

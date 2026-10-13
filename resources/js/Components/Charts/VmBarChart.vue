@@ -2,6 +2,7 @@
 import { ref } from 'vue';
 import type { ExportBackground, TokenResolver } from './chartTheme';
 import VmChart from './VmChart.vue';
+import { useFormat } from '../../composables/useFormat';
 
 /** HALMOZOTT OSZLOP-GRAFIKON (v1.1 · 8. modul) — pl. új / leiratkozott + nettó vonal. */
 export interface VmBarSeries {
@@ -19,17 +20,19 @@ const props = withDefaults(
 );
 
 const inner = ref<InstanceType<typeof VmChart> | null>(null);
+// A tengely- és tooltip-számok a profil formátumában (D284).
+const format = useFormat();
 
 function build(token: TokenResolver): Record<string, unknown> {
     const text = token('--vt-text-muted');
     const grid = token('--vt-border');
 
     return {
-        tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+        tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, valueFormatter: (value: number) => format.number(value, { maximumFractionDigits: 2 }) },
         legend: { top: 0, textStyle: { color: text } },
         grid: { left: 8, right: 24, top: 36, bottom: 8, containLabel: true },
-        xAxis: { type: 'category', data: props.categories, axisLine: { lineStyle: { color: grid } }, axisLabel: { color: text } },
-        yAxis: { type: 'value', minInterval: 1, splitLine: { lineStyle: { color: grid } }, axisLabel: { color: text } },
+        xAxis: { type: 'category', data: props.categories, axisLine: { lineStyle: { color: grid } }, axisLabel: { color: text, formatter: (value: string) => format.day(value) } },
+        yAxis: { type: 'value', minInterval: 1, splitLine: { lineStyle: { color: grid } }, axisLabel: { color: text, formatter: (value: number) => format.number(value) } },
         series: props.series.map((serie) => ({
             name: serie.name,
             type: serie.line ? 'line' : 'bar',

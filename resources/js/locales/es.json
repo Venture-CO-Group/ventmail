@@ -1850,7 +1850,9 @@
         "value": {
             "status": {
                 "subscribed": "suscrito",
-                "pending": "pendiente de confirmación"
+                "pending": "pendiente de confirmación",
+                "unsubscribed": "dado de baja",
+                "cleaned": "depurado"
             },
             "source": {
                 "import": "Importación",

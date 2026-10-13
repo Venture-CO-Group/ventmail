@@ -54,7 +54,8 @@ test('űrlap építése, hosztolt beküldés → a kontakt függő, megerősít�
     const contact = page.getByTestId('contacts-table');
     await expect(contact).toContainText(email);
     // Állapot és consent is `pending`: a megerősítő link előtt marketing nem mehet ki.
-    await expect(contact.locator('tbody tr').first()).toContainText('pending');
+    await expect(contact.locator('tbody tr').first().locator('[data-status]')).toHaveAttribute('data-status', 'pending');
+    await expect(contact.locator('tbody tr').first().locator('[data-consent]')).toHaveAttribute('data-consent', 'pending');
 });
 
 test('a preference center globális leiratkozása leiratkoztat (suppression + visszavont consent)', async ({ page }) => {
@@ -68,5 +69,5 @@ test('a preference center globális leiratkozása leiratkoztat (suppression + vi
     await expect(page.getByTestId('preferences-saved')).toBeVisible();
 
     await page.goto(`/audience?search=${encodeURIComponent(seed.emails.confirmed)}`);
-    await expect(page.getByTestId('contacts-table').locator('tbody tr').first()).toContainText('unsubscribed');
+    await expect(page.getByTestId('contacts-table').locator('tbody tr').first().locator('[data-status]')).toHaveAttribute('data-status', 'unsubscribed');
 });

@@ -1,6 +1,6 @@
 import { usePage } from '@inertiajs/vue3';
 import { computed } from 'vue';
-import { type DateInput, formatDate, formatDateTime, formatNumber, formatPercent, formatTime, type FormatPrefs, type NumberOptions, resolvePrefs } from '../lib/format';
+import { type DateInput, formatDate, formatDateTime, formatDay, formatNumber, formatPercent, formatTime, type FormatPrefs, type NumberOptions, resolvePrefs } from '../lib/format';
 
 /**
  * A felhasználó formázási beállításai (D11) a megosztott Inertia-propsból (`format`), és a
@@ -8,8 +8,16 @@ import { type DateInput, formatDate, formatDateTime, formatNumber, formatPercent
  * a nyers `toLocaleString()` a böngésző nyelvét követné, nem a profilt.
  */
 export function useFormat() {
-    const page = usePage();
-    const prefs = computed<FormatPrefs>(() => resolvePrefs((page.props as { format?: Partial<Record<keyof FormatPrefs, unknown>> }).format));
+    // Inertia-oldalon kívül (pl. a PDF-riport külön Vue-appja) nincs megosztott prop: alapértékek.
+    let page: ReturnType<typeof usePage> | null = null;
+
+    try {
+        page = usePage();
+    } catch {
+        page = null;
+    }
+
+    const prefs = computed<FormatPrefs>(() => resolvePrefs((page?.props as { format?: Partial<Record<keyof FormatPrefs, unknown>> } | undefined)?.format));
 
     return {
         prefs,
@@ -18,5 +26,6 @@ export function useFormat() {
         date: (value: DateInput) => formatDate(value, prefs.value),
         time: (value: DateInput) => formatTime(value, prefs.value),
         dateTime: (value: DateInput) => formatDateTime(value, prefs.value),
+        day: (value: string) => formatDay(value, prefs.value),
     };
 }

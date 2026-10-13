@@ -59,6 +59,8 @@ async function settle(page: Page): Promise<void> {
     await page.waitForLoadState('networkidle').catch(() => undefined);
     await page.evaluate(() => document.fonts.ready);
     await page.waitForTimeout(400);
+    // Az ECharts a beúszó animáció UTÁN rajzol teljesen: a túl korai kép üres grafikont mutatott.
+    if ((await page.locator('canvas').count()) > 0) await page.waitForTimeout(1500);
 }
 
 async function shot(page: Page, kind: Kind, name: string, options: { fullPage?: boolean } = {}): Promise<void> {

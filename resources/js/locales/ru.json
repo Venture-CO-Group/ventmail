@@ -1850,7 +1850,9 @@
         "value": {
             "status": {
                 "subscribed": "подписан",
-                "pending": "ожидает подтверждения"
+                "pending": "ожидает подтверждения",
+                "unsubscribed": "отписан",
+                "cleaned": "очищен"
             },
             "source": {
                 "import": "Импорт",

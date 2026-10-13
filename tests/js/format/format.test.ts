@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatDate, formatDateTime, formatNumber, formatPercent, formatTime, resolvePrefs } from '../../../resources/js/lib/format';
+import { formatDate, formatDateTime, formatDay, formatNumber, formatPercent, formatTime, resolvePrefs } from '../../../resources/js/lib/format';
 
 const hu = resolvePrefs({ dateFormat: 'ymd', numberFormat: 'space_comma', timezone: 'Europe/Budapest' });
 
@@ -63,5 +63,15 @@ describe('resolvePrefs — fail-safe alapértékek', () => {
         const prefs = resolvePrefs({ dateFormat: 'xyz', numberFormat: null, timezone: 'Mars/Olympus' });
 
         expect(prefs).toEqual({ dateFormat: 'ymd', numberFormat: 'space_comma', timezone: 'UTC' });
+    });
+});
+
+describe('formatDay — naptári nap időzóna-csúszás nélkül', () => {
+    it('a nap a profil formátumában, nyugati zónában is ugyanaz a nap', () => {
+        const ny = resolvePrefs({ dateFormat: 'mdy', numberFormat: 'comma_dot', timezone: 'America/New_York' });
+
+        expect(formatDay('2026-09-14', ny)).toBe('09/14/2026');
+        expect(formatDay('2026-09-14', hu)).toBe('2026. 09. 14.');
+        expect(formatDay('nem nap', hu)).toBe('nem nap');
     });
 });

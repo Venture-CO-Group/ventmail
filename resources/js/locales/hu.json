@@ -1850,7 +1850,9 @@
         "value": {
             "status": {
                 "subscribed": "feliratkozott",
-                "pending": "megerősítésre vár"
+                "pending": "megerősítésre vár",
+                "unsubscribed": "leiratkozott",
+                "cleaned": "tisztított"
             },
             "source": {
                 "import": "Import",

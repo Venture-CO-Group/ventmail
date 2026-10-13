@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue';
+import { useFormat } from '../../composables/useFormat';
 import type { ExportBackground, TokenResolver } from './chartTheme';
 import VmChart from './VmChart.vue';
 
@@ -29,17 +30,19 @@ const props = withDefaults(
 );
 
 const inner = ref<InstanceType<typeof VmChart> | null>(null);
+// A tengely- és tooltip-számok a profil formátumában (D284), nem az ECharts angol alapján.
+const format = useFormat();
 
 function build(token: TokenResolver): Record<string, unknown> {
     const text = token('--vt-text-muted');
     const grid = token('--vt-border');
-    const formatter = props.percent ? '{value}%' : '{value}';
+    const formatter = (value: number): string => (props.percent ? format.percent(value, 2) : format.number(value, { maximumFractionDigits: 2 }));
 
     return {
-        tooltip: { trigger: 'axis', valueFormatter: (value: number) => (props.percent ? `${value}%` : String(value)) },
+        tooltip: { trigger: 'axis', valueFormatter: (value: number) => formatter(value) },
         legend: { top: 0, textStyle: { color: text } },
         grid: { left: 8, right: 24, top: 36, bottom: 8, containLabel: true },
-        xAxis: { type: 'category', boundaryGap: false, data: props.categories, axisLine: { lineStyle: { color: grid } }, axisLabel: { color: text } },
+        xAxis: { type: 'category', boundaryGap: false, data: props.categories, axisLine: { lineStyle: { color: grid } }, axisLabel: { color: text, formatter: (value: string) => format.day(value) } },
         yAxis: { type: 'value', minInterval: props.percent ? undefined : 1, splitLine: { lineStyle: { color: grid } }, axisLabel: { color: text, formatter } },
         series: props.series.map((serie, index) => ({
             name: serie.name,

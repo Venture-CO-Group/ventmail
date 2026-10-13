@@ -69,6 +69,11 @@ export default defineConfig({
                | plafont emeli (`e2e/php.d/e2e.ini`): a CLI-szerver alapból 8 MB-os POST-ot
                | enged, a 300 000 soros CSV ~13 MB.
                |
+               | A `SEND_ALLOWLIST=@example.test` (D284): a seed-mód (SENDING_LIVE=false) csak allowlistes
+               | címzettnek enged levelet. A dev-seed demó-levele (`demo@example.test`, fenntartott teszt-
+               | TLD, fake driver) enélkül TISZTA adatbázison elutasítva jönne létre, és a napló-/trace-flow
+               | „delivered" lépése hiányozna — régi adatbázison csak egy korábbi sor takarta el.
+               |
                | A `WEBHOOKS_E2E_SINK` (D191): a webhook teszt-esemény kézbesítése a helyi
                | HTTP-fake-re fut, nem harmadik félhez (csak local/testing környezetben hat).
                |
@@ -77,7 +82,7 @@ export default defineConfig({
                | volt. A `--no-reload` a workerek előfeltétele is (az `artisan serve`
                | különben figyelmeztet, és egy folyamattal indul).
                */
-              command: 'PHP_INI_SCAN_DIR=":$PWD/e2e/php.d" WEBHOOKS_E2E_SINK=https://93.184.216.34/e2e/ SESSION_DRIVER=file CACHE_STORE=array QUEUE_CONNECTION=sync AUDIENCE_IMPORT_QUEUE_CONNECTION=database AUDIENCE_IMPORT_INSPECT_QUEUE_CONNECTION=database TEMPLATE_ASSET_DRIVER=local ANALYTICS_PDF_RENDERER=fake TENANCY_WORKSPACE_MAX_OWNED=1000 PHP_CLI_SERVER_WORKERS=4 php artisan serve --port=8000 --no-reload',
+              command: 'PHP_INI_SCAN_DIR=":$PWD/e2e/php.d" SEND_ALLOWLIST=@example.test WEBHOOKS_E2E_SINK=https://93.184.216.34/e2e/ SESSION_DRIVER=file CACHE_STORE=array QUEUE_CONNECTION=sync AUDIENCE_IMPORT_QUEUE_CONNECTION=database AUDIENCE_IMPORT_INSPECT_QUEUE_CONNECTION=database TEMPLATE_ASSET_DRIVER=local ANALYTICS_PDF_RENDERER=fake TENANCY_WORKSPACE_MAX_OWNED=1000 PHP_CLI_SERVER_WORKERS=4 php artisan serve --port=8000 --no-reload',
               url: 'http://127.0.0.1:8000/up',
               reuseExistingServer: !process.env.CI,
               timeout: 60_000,

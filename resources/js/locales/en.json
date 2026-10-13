@@ -1850,7 +1850,9 @@
         "value": {
             "status": {
                 "subscribed": "subscribed",
-                "pending": "awaiting confirmation"
+                "pending": "awaiting confirmation",
+                "unsubscribed": "unsubscribed",
+                "cleaned": "cleaned"
             },
             "source": {
                 "import": "Import",
