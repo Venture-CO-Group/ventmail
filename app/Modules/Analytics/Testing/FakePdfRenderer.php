@@ -25,6 +25,9 @@ final class FakePdfRenderer implements PdfRenderer
 
     private ?string $failure = null;
 
+    /** @param bool $record a renderelt dokumentumok megőrzése (csak tesztben — workerben nőne) */
+    public function __construct(private readonly bool $record = true) {}
+
     public function failWith(?string $code): self
     {
         $this->failure = $code;
@@ -49,7 +52,9 @@ final class FakePdfRenderer implements PdfRenderer
             throw $this->failure === 'too_large' ? new PdfTooLarge : new PdfRenderFailed($this->failure);
         }
 
-        $this->rendered[] = $document;
+        if ($this->record) {
+            $this->rendered[] = $document;
+        }
 
         return new RenderedPdf(self::minimalPdf(2), 2);
     }

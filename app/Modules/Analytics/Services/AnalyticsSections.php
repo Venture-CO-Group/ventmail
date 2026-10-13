@@ -84,18 +84,14 @@ final class AnalyticsSections
     {
         return $this->section('audience', $range->toArray(), function () use ($range): array {
             $growth = $this->audience->growthBetween($range->from, $range->to, $range->timezone);
-            $totals = $this->audience->totals();
-
-            $new = array_sum(array_column($growth, 'new'));
-            $lost = array_sum(array_column($growth, 'unsubscribed'));
-            // A KEZDŐ feliratkozott-szám becslése (D232): a mai feliratkozottak mínusz az ablak
-            // nettó változása. A leiratkozás-arány nevezője ez — nem a mai létszám.
-            $atStart = max(0, $totals['subscribed'] - ($new - $lost));
+            // D262 (review RS1): a lemorzsolódás nevezője az időszak ELEJÉN feliratkozottak száma —
+            // közvetlenül lekérdezve, nem a mai létszámból visszaszámolva (múltbeli ablakra is helyes).
+            $churn = $this->audience->churnBetween($range->from, $range->to, $range->timezone);
 
             return [
                 'growth' => $growth,
-                'totals' => $totals,
-                'churn' => ['unsubscribed' => $lost, 'new' => $new, 'subscribedAtStart' => $atStart, 'rate' => Rates::percent($lost, $atStart)],
+                'totals' => $this->audience->totals(),
+                'churn' => ['unsubscribed' => $churn['unsubscribed'], 'new' => $churn['newSubscribed'], 'subscribedAtStart' => $churn['subscribedAtStart'], 'rate' => $churn['rate']],
                 'engagement' => $this->audience->engagement(),
                 'activeWindowDays' => AudienceInsights::ACTIVE_WINDOW_DAYS,
             ];

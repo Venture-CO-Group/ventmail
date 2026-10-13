@@ -9,7 +9,7 @@ import type { ExportBackground } from './chartTheme';
  * Esc, ↑/↓/Home/End). PNG átlátszó vagy sötét háttérrel; a hőtérkép-kártyán a top linkek CSV-je
  * (D230). Szerverhívás a PNG-hez nincs.
  */
-const props = defineProps<{ id: string; csvHref?: string; testid?: string }>();
+const props = defineProps<{ id: string; title?: string; csvHref?: string; testid?: string }>();
 const emit = defineEmits<{ export: [background: ExportBackground] }>();
 
 const { t } = useI18n();
@@ -25,7 +25,7 @@ function choose(background: ExportBackground, close: () => void): void {
         :id="`export-${props.id}`"
         mode="menu"
         align="end"
-        :label="t('analytics.export.menu')"
+        :label="title ? `${t('analytics.export.menu')}: ${title}` : t('analytics.export.menu')"
         :testid="testid ?? `export-${props.id}`"
         trigger-class="vm-export__trigger"
     >

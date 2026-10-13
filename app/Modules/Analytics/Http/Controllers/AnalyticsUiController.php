@@ -17,6 +17,7 @@ use App\Modules\Tenancy\Services\WorkspaceContext;
 use App\Support\WorkspaceTimezone;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 use Symfony\Component\HttpFoundation\Response as HttpResponse;
@@ -56,6 +57,11 @@ final class AnalyticsUiController
 
         // A KIVÁLASZTOTT kampány / journey: a kérésből (idegen uuid → 404 a global scope miatt),
         // különben a legutóbbi.
+        // Nem UUID-alakú paraméter → 404 (különben a típusos oszlop 22P02-t, azaz 500-at adna).
+        foreach (['campaign', 'journey'] as $key) {
+            abort_if($request->filled($key) && ! Str::isUuid((string) $request->query($key)), 404);
+        }
+
         $campaign = $request->filled('campaign')
             ? Campaign::query()->where('uuid', (string) $request->query('campaign'))->firstOrFail()
             : $campaigns->first();
@@ -156,8 +162,12 @@ final class AnalyticsUiController
     }
 
     /**
-     * A KATTINTÁSI HŐTÉRKÉP sablon-HTML-je (`data-vm-link` kulcsokkal). A tenant tartalma: a válasz
-     * `sandbox` CSP-vel megy, a szülő szkript nélküli, sandboxolt iframe-ben (`srcdoc`) mutatja.
+     * A KATTINTÁSI HŐTÉRKÉP sablon-HTML-je (`data-vm-link` kulcsokkal) — tenant-tartalom.
+     *
+     * A felület `fetch`-csel kéri, és szkript nélküli, `sandbox="allow-same-origin"` iframe-be teszi
+     * (`srcdoc`). Egy `srcdoc`-dokumentum a SZÜLŐ oldal CSP-jét örökli, NEM ennek a válasznak a
+     * fejléceit: a lenti `sandbox` CSP és a `nosniff` csak akkor hat, ha valaki a címet közvetlenül
+     * (top-level) nyitja meg — ott sem futhat kód. Szkriptet mindkét esetben a sandbox tilt.
      */
     public function heatmap(string $uuid, HeatmapRenderer $renderer): HttpResponse
     {

@@ -2,7 +2,9 @@
 
 declare(strict_types=1);
 
+use App\Modules\Analytics\Contracts\PdfRenderer;
 use App\Modules\Analytics\Data\ReportDocument;
+use App\Modules\Analytics\Providers\AnalyticsServiceProvider;
 use App\Modules\Analytics\Services\Pdf\GotenbergPdfRenderer;
 use App\Modules\Analytics\Services\Pdf\PdfRenderFailed;
 use App\Modules\Analytics\Services\Pdf\PdfTooLarge;
@@ -88,4 +90,47 @@ it('a config alapértéke tesztben fake, élesben gotenberg', function () {
     expect(config('analytics.pdf.renderer'))->toBe('fake')
         ->and(configFileWith('analytics', ['APP_ENV' => 'production', 'ANALYTICS_PDF_RENDERER' => null])['pdf']['renderer'])->toBe('gotenberg')
         ->and(configFileWith('analytics', ['APP_ENV' => 'local', 'ANALYTICS_PDF_RENDERER' => null])['pdf']['renderer'])->toBe('fake');
+});
+
+it('fail-closed renderer-választás: ismeretlen érték hiba, élesben a fake tiltott (D263)', function () {
+    config(['analytics.pdf.renderer' => 'gotenbreg']);
+    expect(fn () => AnalyticsServiceProvider::renderer())->toThrow(InvalidArgumentException::class);
+
+    config(['analytics.pdf.renderer' => 'fake']);
+    app()->detectEnvironment(fn () => 'production');
+
+    try {
+        expect(fn () => AnalyticsServiceProvider::renderer())->toThrow(RuntimeException::class, 'tiltott');
+
+        config(['analytics.pdf.renderer' => 'gotenberg']);
+        expect(AnalyticsServiceProvider::renderer())->toBe('gotenberg');
+    } finally {
+        app()->detectEnvironment(fn () => 'testing');
+    }
+
+    // Az üres env-érték (`ANALYTICS_PDF_RENDERER=` a mintából) az alapértelmezés, nem „üres renderer".
+    expect(configFileWith('analytics', ['APP_ENV' => 'production', 'ANALYTICS_PDF_RENDERER' => ''])['pdf']['renderer'])->toBe('gotenberg');
+});
+
+it('a render-smoke kiírja a renderert, és élesben a fake-kel bukik', function () {
+    config(['analytics.pdf.renderer' => 'fake']);
+    app()->instance(PdfRenderer::class, new FakePdfRenderer(record: false));
+
+    $this->artisan('analytics:render-smoke')->expectsOutputToContain('renderer: FakePdfRenderer (fake)')->assertSuccessful();
+
+    app()->detectEnvironment(fn () => 'production');
+
+    try {
+        $this->artisan('analytics:render-smoke')->assertFailed();
+    } finally {
+        app()->detectEnvironment(fn () => 'testing');
+    }
+});
+
+it('a nem-tesztbeli fake nem gyűjti a dokumentumokat (hosszan futó worker)', function () {
+    $fake = new FakePdfRenderer(record: false);
+    $fake->render(vmDoc());
+    $fake->render(vmDoc());
+
+    expect($fake->rendered)->toBe([]);
 });

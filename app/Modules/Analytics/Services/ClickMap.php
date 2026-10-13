@@ -205,14 +205,24 @@ final class ClickMap
             ->orderByDesc('clicks')
             ->orderBy('url')
             ->get()
-            ->map(static fn (object $row): array => [
-                'url' => (string) $row->url,
-                'clicks' => (int) $row->clicks,
-                // AZ EGYEDI KATTINTÓ a SOROK száma: soronként egy (link, címzett) páros áll.
-                'unique_clicks' => (int) $row->unique_clicks,
-                'first_clicked_at' => $row->first_clicked_at === null ? null : (string) $row->first_clicked_at,
-                'last_clicked_at' => $row->last_clicked_at === null ? null : (string) $row->last_clicked_at,
-            ])
+            // OLVASÁSKORI redaktálás (review S1): a javítás előtt tárolt, e-mailt hordozó útvonalak
+            // is `{redacted}`-ként jönnek ki, és az így egybeeső sorok összeadódnak.
+            ->groupBy(static fn (object $row): string => self::redactStored((string) $row->url))
+            ->map(static function ($rows, string $url): array {
+                $first = $rows->pluck('first_clicked_at')->filter()->min();
+                $last = $rows->pluck('last_clicked_at')->filter()->max();
+
+                return [
+                    'url' => $url,
+                    'clicks' => (int) $rows->sum('clicks'),
+                    // AZ EGYEDI KATTINTÓ a SOROK száma: soronként egy (link, címzett) páros áll.
+                    'unique_clicks' => (int) $rows->sum('unique_clicks'),
+                    'first_clicked_at' => $first === null ? null : (string) $first,
+                    'last_clicked_at' => $last === null ? null : (string) $last,
+                ];
+            })
+            ->sortBy([['clicks', 'desc'], ['url', 'asc']])
+            ->values()
             ->all();
     }
 
@@ -391,7 +401,7 @@ final class ClickMap
             $normalized .= ':'.$parts['port'];
         }
 
-        $normalized .= $path;
+        $normalized .= self::redactPath($path);
 
         $query = self::safeQuery($parts['query'] ?? '');
 
@@ -402,6 +412,45 @@ final class ClickMap
         // A FRAGMENT eldobva: a szerverre amúgy sem érkezik meg, tehát két „különböző"
         // link egyazon oldalra ugyanaz a kattintás.
         return mb_substr($normalized, 0, 2000);
+    }
+
+    /**
+     * AZ ÚTVONAL e-mail-szegmensei (review S1, D266): egy `@`-ot vagy `%40`-et tartalmazó szegmens
+     * (`/u/kiss.janos@pelda.hu/ajanlat`) címzett-azonosító — `{redacted}` lesz belőle. A csere
+     * STABIL, tehát a térkép-kulcs is az: ugyanaz a személyre szabott link címzettenként EGY sorba esik.
+     */
+    public static function redactPath(string $path): string
+    {
+        if ($path === '' || (! str_contains($path, '@') && stripos($path, '%40') === false)) {
+            return $path;
+        }
+
+        return implode('/', array_map(
+            static fn (string $segment): string => str_contains($segment, '@') || stripos($segment, '%40') !== false ? '{redacted}' : $segment,
+            explode('/', $path),
+        ));
+    }
+
+    /**
+     * Egy TÁROLT térkép-URL olvasáskori redaktálása: a javítás előtt rögzített sorokat nem írjuk át
+     * (expand-only), de a kimenetbe (UI, CSV, `/v1`, PDF) már csak redaktálva kerülnek.
+     */
+    public static function redactStored(string $url): string
+    {
+        if ($url === self::OVERFLOW_URL) {
+            return $url;
+        }
+
+        $parts = parse_url($url);
+
+        if ($parts === false || ! isset($parts['host'])) {
+            return $url;
+        }
+
+        $out = ($parts['scheme'] ?? 'https').'://'.$parts['host'].(isset($parts['port']) ? ':'.$parts['port'] : '');
+        $out .= self::redactPath($parts['path'] ?? '');
+
+        return $out.(isset($parts['query']) ? '?'.$parts['query'] : '');
     }
 
     /**

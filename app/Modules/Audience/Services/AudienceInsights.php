@@ -175,6 +175,52 @@ final class AudienceInsights
     }
 
     /**
+     * LEMORZSOLÓDÁS egy zárt időszakra (v1.1 · 8. modul, D232; review RS1 → D262).
+     *
+     * - `subscribedAtStart`: az időszak ELEJÉN feliratkozott kontaktok — a kezdet előtt jöttek létre,
+     *   és vagy ma is `subscribed`, vagy `unsubscribed`, de a leiratkozásuk a kezdet UTÁN volt. A
+     *   `pending` (DOI-megerősítésre váró) és a `cleaned` kontakt nem számít (a `cleaned` időpontja
+     *   nem ismert). Múltbeli ablakra is helyes — nem a mai létszámból visszaszámolva.
+     * - `newSubscribed`: az időszakban létrejött, feliratkozott (vagy azóta leiratkozott) kontakt; a
+     *   `pending` nem új feliratkozó.
+     * - `unsubscribed`: az időszakban leiratkozottak.
+     * - `rate` = leiratkozott / induló feliratkozott (%).
+     *
+     * @return array{subscribedAtStart: int, newSubscribed: int, unsubscribed: int, rate: float}
+     */
+    public function churnBetween(Carbon $from, Carbon $to, string $timezone): array
+    {
+        $lower = Carbon::parse($from->toDateString(), $timezone)->startOfDay()->utc();
+        $upper = Carbon::parse($to->toDateString(), $timezone)->startOfDay()->addDay()->utc();
+
+        $atStart = Contact::query()
+            ->where('created_at', '<', $lower->toDateTimeString())
+            ->where(fn (Builder $query) => $query
+                ->where('status', 'subscribed')
+                ->orWhere(fn (Builder $q) => $q->where('status', 'unsubscribed')->where('unsubscribed_at', '>=', $lower)))
+            ->count();
+
+        $new = Contact::query()
+            ->where('created_at', '>=', $lower->toDateTimeString())
+            ->where('created_at', '<', $upper->toDateTimeString())
+            ->whereIn('status', ['subscribed', 'unsubscribed'])
+            ->count();
+
+        $lost = Contact::query()
+            ->whereNotNull('unsubscribed_at')
+            ->where('unsubscribed_at', '>=', $lower)
+            ->where('unsubscribed_at', '<', $upper)
+            ->count();
+
+        return [
+            'subscribedAtStart' => $atStart,
+            'newSubscribed' => $new,
+            'unsubscribed' => $lost,
+            'rate' => $atStart > 0 ? round($lost / $atStart * 100, 2) : 0.0,
+        ];
+    }
+
+    /**
      * FORRÁS-bontás — ugyanaz a kifejezés, mint a szegmens `source` mezőjéé.
      *
      * @return list<array{key: string, count: int}>

@@ -439,14 +439,34 @@ jobs:
     permissions:
       contents: read
 
+    # A kontraktus a VALÓDI riport-láncot rendereli (builder + Blade + riport-csomag): adatbázis kell.
     services:
-      gotenberg:
-        # UGYANAZ a tag + digest, mint a deploy/compose.render.yml-ben.
-        image: gotenberg/gotenberg:8.37.0-chromium@sha256:0d28ae9a96441588ef739623726bd500ad0720b77266c6f1351a13e333fbd61c
-        ports: ['3000:3000']
+      db:
+        image: timescale/timescaledb-ha:pg17
+        env:
+          POSTGRES_DB: ventmail_test
+          POSTGRES_USER: ventmail
+          POSTGRES_PASSWORD: ventmail
+        ports: ['5432:5432']
         options: >-
-          --health-cmd="curl -fs http://localhost:3000/health"
+          --health-cmd="pg_isready -U ventmail -d ventmail_test"
           --health-interval=5s --health-timeout=5s --health-retries=20
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+
+    env:
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5432
+      DB_DATABASE: ventmail_test
+      DB_USERNAME: ventmail
+      DB_PASSWORD: ventmail
+      DB_SSLMODE: disable
+      REDIS_HOST: 127.0.0.1
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -458,6 +478,11 @@ jobs:
         with:
           name: public-build
           path: public/build
+
+      # UGYANAZ a sidecar, mint élesben: a deploy/compose.render.yml (image digest, flagek, belső háló,
+      # read-only, tmpfs /tmp + /home/gotenberg, cap_drop) — és egy teszt-csak ingress-proxy.
+      - name: Gotenberg (deploy/compose.render.yml)
+        run: deploy/tests/gotenberg-up.sh
 
       - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
         with:
@@ -478,6 +503,10 @@ jobs:
         env:
           GOTENBERG_URL: http://127.0.0.1:3000
         run: php artisan test --group=gotenberg
+
+      - name: Gotenberg napló (hiba esetén)
+        if: failure()
+        run: docker compose -p ventmail-render -f deploy/compose.render.yml logs
 
   security:
     name: Security (gitleaks)

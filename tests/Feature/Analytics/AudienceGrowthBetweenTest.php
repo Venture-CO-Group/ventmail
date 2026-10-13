@@ -80,3 +80,25 @@ it('a lemorzsolódás nevezője az INDULÓ feliratkozott-szám', function () {
         ->and($section['churn']['rate'])->toBe(20.0)
         ->and(array_column($section['engagement'], 'key'))->toBe(['active', 'inactive', 'never_opened', 'not_mailed']);
 });
+
+it('múltbeli ablakra is helyes a lemorzsolódás nevezője; a pending nem új feliratkozó (D262)', function () {
+    Carbon::setTestNow('2026-10-13 12:00:00');
+    AnalyticsFixtures::tenant();
+
+    vmContact('a@pelda.hu', Carbon::parse('2026-07-10'));                                       // induló, maradt
+    vmContact('b@pelda.hu', Carbon::parse('2026-07-11'), Carbon::parse('2026-08-10 10:00'));     // induló, az ablakban ment el
+    vmContact('c@pelda.hu', Carbon::parse('2026-07-12'), Carbon::parse('2026-09-15 10:00'));     // induló, az ablak UTÁN ment el
+    vmContact('d@pelda.hu', Carbon::parse('2026-08-05'));                                       // új feliratkozó
+    $pending = Contact::create(['email' => 'e@pelda.hu', 'status' => 'pending']);
+    $pending->forceFill(['created_at' => Carbon::parse('2026-08-06')])->saveQuietly();           // DOI-ra vár: nem új
+    vmContact('f@pelda.hu', Carbon::parse('2026-09-20'));                                       // az ablak után
+
+    $churn = app(AudienceInsights::class)->churnBetween(Carbon::parse('2026-08-01'), Carbon::parse('2026-08-31'), 'UTC');
+
+    expect($churn)->toBe(['subscribedAtStart' => 3, 'newSubscribed' => 1, 'unsubscribed' => 1, 'rate' => 33.33]);
+
+    $section = app(AnalyticsSections::class)->audience(AnalyticsRange::resolve('custom', '2026-08-01', '2026-08-31', 'UTC'));
+    expect($section['churn'])->toBe(['unsubscribed' => 1, 'new' => 1, 'subscribedAtStart' => 3, 'rate' => 33.33]);
+
+    Carbon::setTestNow();
+});

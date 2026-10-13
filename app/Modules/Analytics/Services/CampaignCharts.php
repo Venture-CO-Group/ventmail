@@ -132,16 +132,35 @@ final class CampaignCharts
      */
     private function fill(CarbonInterface $from, CarbonInterface $to, string $bucket, string $timezone, array $opens, array $clicks): array
     {
-        $cursor = Carbon::parse($from)->setTimezone($timezone);
-        $cursor = $bucket === 'hour' ? $cursor->startOfHour() : $cursor->startOfDay();
-        $end = Carbon::parse($to)->setTimezone($timezone);
+        $end = Carbon::parse($to);
         $points = [];
 
-        // Felső korlát: 72 óra órásan, legfeljebb 400 nap naponta — a válasz mérete korlátos.
-        for ($i = 0; $cursor->lte($end) && $i < 400; $i++) {
-            $key = $bucket === 'hour' ? $cursor->format('Y-m-d\TH:00') : $cursor->toDateString();
+        if ($bucket === 'hour') {
+            // UTC-ben léptetünk, és a felhasználó zónájában címkézünk (review NIT, D268): az őszi
+            // óraátállításnál a megismételt óra EGY kulcs (ahogy a `date_trunc` is egy vödörbe teszi),
+            // nem két azonos címkéjű pont.
+            $cursor = Carbon::parse($from)->utc()->startOfHour();
+
+            for ($i = 0; $cursor->lte($end) && $i < 400; $i++, $cursor->addHour()) {
+                $key = $cursor->copy()->setTimezone($timezone)->format('Y-m-d\TH:00');
+
+                if ($points !== [] && $points[array_key_last($points)]['at'] === $key) {
+                    continue;
+                }
+
+                $points[] = ['at' => $key, 'opens' => $opens[$key] ?? 0, 'clicks' => $clicks[$key] ?? 0];
+            }
+
+            return $points;
+        }
+
+        $cursor = Carbon::parse($from)->setTimezone($timezone)->startOfDay();
+        $last = $end->copy()->setTimezone($timezone);
+
+        // Felső korlát: legfeljebb 400 nap — a válasz mérete korlátos.
+        for ($i = 0; $cursor->lte($last) && $i < 400; $i++, $cursor->addDay()) {
+            $key = $cursor->toDateString();
             $points[] = ['at' => $key, 'opens' => $opens[$key] ?? 0, 'clicks' => $clicks[$key] ?? 0];
-            $bucket === 'hour' ? $cursor->addHour() : $cursor->addDay();
         }
 
         return $points;

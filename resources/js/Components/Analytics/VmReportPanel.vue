@@ -93,6 +93,17 @@ async function create(): Promise<void> {
     }
 }
 
+/*
+ | A letöltő-link 10 percig érvényes, a lista lekérdezése viszont 2 perc után leáll (review NIT):
+ | kattintáskor FRISS aláírt linket kérünk, és azzal indul a letöltés.
+ */
+async function download(uuid: string): Promise<void> {
+    await refresh();
+    const fresh = reports.value.find((row) => row.uuid === uuid)?.downloadUrl;
+
+    if (fresh) window.location.assign(fresh);
+}
+
 const formatSize = (bytes: number | null) => (bytes === null ? '' : `${Math.max(1, Math.round(bytes / 1024)).toLocaleString(locale.value)} KB`);
 const formatDate = (iso: string | null) => (iso ? new Date(iso).toLocaleString(locale.value) : '');
 
@@ -151,6 +162,7 @@ onBeforeUnmount(() => window.clearTimeout(timer));
                             class="vm-report__download"
                             download
                             data-testid="report-download"
+                            @click.prevent="download(latest.uuid)"
                         >
                             <VmIcon name="download" /> {{ t('analytics.report.download') }} · {{ formatSize(latest.size) }}
                         </a>
@@ -165,7 +177,7 @@ onBeforeUnmount(() => window.clearTimeout(timer));
                                 <span class="vm-truncate">{{ row.kind === 'campaign' ? t('analytics.report.kindCampaignShort') : `${row.from} – ${row.to}` }}</span>
                                 <span class="vm-report__muted">{{ formatDate(row.createdAt) }}</span>
                                 <span v-if="row.status === 'failed'" class="vm-report__muted">{{ t('analytics.report.failed', { code: row.failureCode ?? '' }) }}</span>
-                                <a v-if="row.downloadUrl" :href="row.downloadUrl" download class="vm-report__link">{{ t('analytics.report.download') }}</a>
+                                <a v-if="row.downloadUrl" :href="row.downloadUrl" download class="vm-report__link" @click.prevent="download(row.uuid)">{{ t('analytics.report.download') }}</a>
                             </li>
                         </ul>
                     </div>

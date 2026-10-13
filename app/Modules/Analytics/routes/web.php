@@ -14,7 +14,9 @@ use Illuminate\Support\Facades\Route;
  */
 Route::middleware(['auth', 'workspace'])->group(function (): void {
     Route::get('/analytics', [AnalyticsUiController::class, 'index'])->name('analytics.index');
-    Route::get('/analytics/campaigns/{uuid}', [AnalyticsUiController::class, 'show'])->name('analytics.campaign');
+    Route::get('/analytics/campaigns/{uuid}', [AnalyticsUiController::class, 'show'])
+        ->where('uuid', '[0-9a-fA-F-]{36}')
+        ->name('analytics.campaign');
     Route::get('/analytics/campaigns/{uuid}/heatmap', [AnalyticsUiController::class, 'heatmap'])
         ->where('uuid', '[0-9a-fA-F-]{36}')
         ->name('analytics.heatmap');

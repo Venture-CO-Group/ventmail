@@ -41,7 +41,7 @@ function exportPng(background: ExportBackground): void {
                     <span v-if="subtitle" class="vm-chartcard__subtitle">{{ subtitle }}</span>
                 </div>
                 <div v-if="$slots.legend" class="vm-chartcard__legend"><slot name="legend" /></div>
-                <VmChartExportMenu v-if="exportable && (chart || csvHref)" :id="id" :csv-href="csvHref" @export="exportPng" />
+                <VmChartExportMenu v-if="exportable && (chart || csvHref)" :id="id" :title="title" :csv-href="csvHref" @export="exportPng" />
             </header>
             <slot />
             <p v-if="$slots.note" class="vm-chartcard__note"><slot name="note" /></p>

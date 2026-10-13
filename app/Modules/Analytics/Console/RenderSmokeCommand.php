@@ -8,6 +8,7 @@ use App\Modules\Analytics\Contracts\PdfRenderer;
 use App\Modules\Analytics\Data\ReportDocument;
 use App\Modules\Analytics\Services\Pdf\PdfRenderFailed;
 use App\Modules\Analytics\Services\Reports\ReportAssets;
+use App\Modules\Analytics\Testing\FakePdfRenderer;
 use Illuminate\Console\Command;
 
 /**
@@ -24,6 +25,15 @@ final class RenderSmokeCommand extends Command
 
     public function handle(PdfRenderer $renderer, ReportAssets $assets): int
     {
+        $this->line('renderer: '.class_basename($renderer).' ('.config('analytics.pdf.renderer').')');
+
+        // Éles ellenőrzésnek a fake PDF nem bizonyíték (review RS2).
+        if ($renderer instanceof FakePdfRenderer && app()->environment('production', 'staging')) {
+            $this->error('A fake renderer élesben nem ellenőrzés: ANALYTICS_PDF_RENDERER=gotenberg kell.');
+
+            return self::FAILURE;
+        }
+
         try {
             $pdf = $renderer->render(self::fixture($assets, config('analytics.pdf.renderer') === 'gotenberg'));
         } catch (PdfRenderFailed $e) {

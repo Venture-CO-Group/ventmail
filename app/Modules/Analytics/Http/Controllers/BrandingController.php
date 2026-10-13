@@ -84,7 +84,9 @@ final class BrandingController
         ])->validate();
 
         foreach (['company_name', 'footer_text'] as $field) {
-            if (is_string($request->input($field)) && preg_match('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/u', (string) $request->input($field)) === 1) {
+            // Vezérlőkarakter, és az irány-felülíró (bidi override / isolate) karakterek is: a PDF
+            // borítóján és láblécén egy RLO a szöveget megfordíthatja (review N3, D270).
+            if (is_string($request->input($field)) && preg_match('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F\x{202A}-\x{202E}\x{2066}-\x{2069}]/u', (string) $request->input($field)) === 1) {
                 throw ValidationException::withMessages([$field => __('ventmail.branding.validation.control')]);
             }
         }

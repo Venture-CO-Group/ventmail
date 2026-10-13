@@ -332,8 +332,12 @@ it('a Gotenberg-sidecar tag+digest szerint pinelt, belső hálón, kimenő forga
 
     expect(vmProdCompose()['networks']['render'])->toBe(['name' => 'ventmail-render', 'external' => true]);
 
-    // A CI kontraktus-jobja UGYANAZT az image-et futtatja.
-    expect((string) file_get_contents(base_path('.github/workflows/ci.yml')))->toContain('image: '.$gotenberg['image']);
+    // A CI kontraktus-jobja UGYANAZT a compose-fájlt (image, flagek, hardening) futtatja (review S2).
+    $ci = Yaml::parseFile(base_path('.github/workflows/ci.yml'));
+    $steps = collect($ci['jobs']['gotenberg-contract']['steps'])->pluck('run')->filter()->implode("\n");
+    expect($steps)->toContain('deploy/tests/gotenberg-up.sh')
+        ->and($ci['jobs']['gotenberg-contract']['services'] ?? [])->not->toHaveKey('gotenberg')
+        ->and((string) file_get_contents(base_path('deploy/tests/gotenberg-up.sh')))->toContain('compose.render.yml');
 });
 
 it('az image buildje bukik a PDF-riport csomagja nélkül, a production-env a Gotenberget kéri', function () {

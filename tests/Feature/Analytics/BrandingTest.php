@@ -76,6 +76,9 @@ it('szín: hex-alak és WCAG-kontraszt; vezérlőkarakter tiltva; üres = alapé
     // #777777: sem a fehér, sem a sötét borítószöveg nem éri el a 4,5 : 1-et.
     $put(['primary_color' => '#777777'])->assertSessionHasErrors('primary_color');
     $put(['company_name' => "Nádor\x07Kft"])->assertSessionHasErrors('company_name');
+    // Irány-felülíró (RLO / isolate) karakter sem kerülhet a borítóra (D270).
+    $put(['company_name' => "Nádor \u{202E}tfK"])->assertSessionHasErrors('company_name');
+    $put(['footer_text' => "Bizalmas \u{2066}x\u{2069}"])->assertSessionHasErrors('footer_text');
     $put(['footer_text' => str_repeat('x', 301)])->assertSessionHasErrors('footer_text');
 
     $put(['primary_color' => '#5b7cff', 'company_name' => '  Nádor  ', 'footer_text' => "Első sor\nMásodik sor"])->assertSessionHasNoErrors();

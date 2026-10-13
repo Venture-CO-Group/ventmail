@@ -38,9 +38,11 @@ final class AnalyticsServiceProvider extends ModuleServiceProvider
         parent::register();
 
         // A PDF-renderer (D7): élesben a Gotenberg sidecar, fejlesztésben/tesztben a fake.
-        $this->app->singleton(PdfRenderer::class, fn () => config('analytics.pdf.renderer') === 'gotenberg'
-            ? GotenbergPdfRenderer::fromConfig()
-            : new FakePdfRenderer);
+        $this->app->singleton(PdfRenderer::class, fn () => match (self::renderer()) {
+            'gotenberg' => GotenbergPdfRenderer::fromConfig(),
+            // A fake CSAK tesztben gyűjti a renderelt dokumentumokat (egy hosszan futó workerben nőne).
+            default => new FakePdfRenderer(record: $this->app->runningUnitTests()),
+        });
 
         // A riport-tároló (D235): privát helyi diszk a megosztott volume-on. // TODO ventVault
         $this->app->singleton(ReportArtifactStore::class, LocalPrivateReportStore::class);
@@ -67,8 +69,30 @@ final class AnalyticsServiceProvider extends ModuleServiceProvider
 
     protected string $apiPrefix = 'v1';
 
+    /**
+     * A PDF-renderer választása — FAIL-CLOSED (review RS2, D263): ismeretlen érték hiba (egy
+     * elgépelés ne adjon csendben üres fake-PDF-et), élesben és stagingen a `fake` tiltott. A
+     * `bootModule()` ezt induláskor ellenőrzi, így a deploy preflight-ja (`config:cache`) már bukik.
+     */
+    public static function renderer(): string
+    {
+        $renderer = (string) config('analytics.pdf.renderer');
+
+        if (! in_array($renderer, ['gotenberg', 'fake'], true)) {
+            throw new \InvalidArgumentException(sprintf('Ismeretlen ANALYTICS_PDF_RENDERER: „%s" (gotenberg | fake).', $renderer));
+        }
+
+        if ($renderer === 'fake' && app()->environment('production', 'staging')) {
+            throw new \RuntimeException('A fake PDF-renderer éles/staging környezetben tiltott: ANALYTICS_PDF_RENDERER=gotenberg.');
+        }
+
+        return $renderer;
+    }
+
     protected function bootModule(): void
     {
+        self::renderer();
+
         if ($this->app->runningInConsole()) {
             $this->commands([PurgeClickMapCommand::class, PurgeReportsCommand::class, RenderSmokeCommand::class]);
         }

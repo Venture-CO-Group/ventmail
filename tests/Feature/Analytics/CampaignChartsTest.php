@@ -2,11 +2,17 @@
 
 declare(strict_types=1);
 
+use App\Modules\Analytics\Contracts\PdfRenderer;
+use App\Modules\Analytics\Models\AnalyticsReport;
 use App\Modules\Analytics\Models\EngagementClientDaily;
+use App\Modules\Analytics\Models\LinkClick;
 use App\Modules\Analytics\Services\CampaignCharts;
 use App\Modules\Analytics\Services\ClickMap;
+use App\Modules\Analytics\Services\Reports\ReportDocumentBuilder;
+use App\Modules\Analytics\Testing\FakePdfRenderer;
 use App\Modules\Audit\Services\KeyedHash;
 use App\Modules\Campaign\Models\CampaignVariant;
+use App\Modules\Identity\Models\ApiKey;
 use App\Modules\Template\Services\TemplateVersions;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
@@ -181,4 +187,72 @@ it('variáns-regresszió (D241): a variáns kulcsa `label`, a győztes a címké
     // A felület a `label` kulcsot olvassa (nem a régi, nem létező `variant`-ot).
     $vue = (string) file_get_contents(resource_path('js/Pages/Analytics/Campaign.vue'));
     expect($vue)->not->toContain('variant.variant')->toContain('variant.label');
+});
+
+it('e-mail az URL útvonalában: rögzítéskor és olvasáskor is {redacted}; UI, CSV, /v1 és PDF tiszta (review S1)', function () {
+    [$workspace, $user] = AnalyticsFixtures::tenant('owner');
+    $campaign = AnalyticsFixtures::campaign();
+    $map = app(ClickMap::class);
+
+    // ÚJ kattintás: a normalizálás már redaktál, a kulcs stabil (két címzett = egy sor).
+    $map->record((string) Str::uuid7(), (string) $campaign->uuid, null, 'https://shop.pelda.hu/u/kiss.janos@pelda.hu/ajanlat', 'kiss.janos@pelda.hu');
+    $map->record((string) Str::uuid7(), (string) $campaign->uuid, null, 'https://shop.pelda.hu/u/nagy.eva%40pelda.hu/ajanlat', 'nagy.eva@pelda.hu');
+
+    // RÉGI (a javítás előtt tárolt) sor nyers címmel — nem írjuk át, de olvasáskor redaktálódik.
+    LinkClick::query()->insert([
+        'workspace_id' => $workspace->getKey(), 'message_uuid' => (string) Str::uuid7(), 'campaign_uuid' => $campaign->uuid,
+        'url_hash' => KeyedHash::of('click-url', 'https://shop.pelda.hu/u/regi.cim@pelda.hu/ajanlat'),
+        'url' => 'https://shop.pelda.hu/u/regi.cim@pelda.hu/ajanlat', 'recipient_hash' => 'x', 'clicks' => 1, 'unique_clicks' => 1,
+        'first_clicked_at' => now(), 'last_clicked_at' => now(), 'created_at' => now(), 'updated_at' => now(),
+    ]);
+
+    expect(ClickMap::linkKey('https://shop.pelda.hu/u/a@b.hu/ajanlat'))->toBe(ClickMap::linkKey('https://shop.pelda.hu/u/c%40d.hu/ajanlat'));
+
+    $links = $map->forCampaign($campaign);
+    expect($links)->toHaveCount(1)
+        ->and($links[0]['url'])->toBe('https://shop.pelda.hu/u/{redacted}/ajanlat')
+        ->and($links[0]['unique_clicks'])->toBe(3);
+
+    $session = ['workspace_uuid' => $workspace->uuid];
+    $csv = (string) $this->actingAs($user)->withSession($session)->get('/analytics/campaigns/'.$campaign->uuid.'/links.csv')->getContent();
+    expect($csv)->not->toContain('@')->not->toContain('%40');
+
+    ['plain' => $key] = ApiKey::issue('Riport', ['analytics:read']);
+    $v1 = (string) $this->withHeader('Authorization', 'Bearer '.$key)->getJson('/v1/analytics/campaigns/'.$campaign->uuid)->assertOk()->getContent();
+    expect($v1)->not->toContain('pelda.hu\/ajanlat"')->not->toContain('kiss.janos')->not->toContain('regi.cim');
+
+    $this->actingAs($user)->withSession($session)->get('/analytics?campaign='.$campaign->uuid)
+        ->assertInertia(fn (AssertableInertia $page) => $page->loadDeferredProps('campaign', fn (AssertableInertia $reload) => $reload->where('campaignSection.links.0.url', 'https://shop.pelda.hu/u/{redacted}/ajanlat')));
+
+    // A PDF top-link táblájában sincs e-mail.
+    $renderer = new FakePdfRenderer;
+    app()->instance(PdfRenderer::class, $renderer);
+    $report = new AnalyticsReport;
+    $report->forceFill(['requested_by' => $user->getKey(), 'kind' => 'campaign', 'campaign_uuid' => $campaign->uuid, 'timezone' => 'UTC', 'locale' => 'hu', 'sections' => ['top_links'], 'params_hash' => str_repeat('f', 64), 'status' => 'queued'])->save();
+    $html = app(ReportDocumentBuilder::class)->build($report, $workspace, false)->html;
+    expect($html)->toContain('{redacted}')->not->toMatch('/[A-Za-z0-9._%+-]+(@|%40)pelda\.hu/');
+});
+
+it('őszi óraátállás: a megismételt óra egy kulcs, nincs duplikált címke (D268)', function () {
+    [$workspace] = AnalyticsFixtures::tenant();
+    // 2026-10-25 03:00 CEST → 02:00 CET (Europe/Budapest).
+    $campaign = AnalyticsFixtures::campaign(['started_at' => Carbon::parse('2026-10-24 22:00:00', 'UTC')]);
+    $scope = 'campaign:'.$campaign->uuid;
+
+    StudioFixtures::engagement((int) $workspace->getKey(), 'a@pelda.hu', Carbon::parse('2026-10-25 00:30:00', 'UTC'), null, $scope); // 02:30 CEST
+    StudioFixtures::engagement((int) $workspace->getKey(), 'b@pelda.hu', Carbon::parse('2026-10-25 01:30:00', 'UTC'), null, $scope); // 02:30 CET
+
+    $points = app(CampaignCharts::class)->timeline($campaign, 'Europe/Budapest')['points'];
+    $keys = array_column($points, 'at');
+
+    expect($keys)->toBe(array_values(array_unique($keys)))
+        ->and(collect($points)->firstWhere('at', '2026-10-25T02:00')['opens'])->toBe(2);
+});
+
+it('nem UUID-alakú kampány/journey paraméter 404, nem 500', function () {
+    [$workspace, $user] = AnalyticsFixtures::tenant('analyst');
+
+    $this->actingAs($user)->withSession(['workspace_uuid' => $workspace->uuid])->get('/analytics?campaign=nem-uuid')->assertNotFound();
+    $this->actingAs($user)->withSession(['workspace_uuid' => $workspace->uuid])->get('/analytics?journey=1%27%20or%201=1')->assertNotFound();
+    $this->actingAs($user)->withSession(['workspace_uuid' => $workspace->uuid])->get('/analytics/campaigns/nem-uuid')->assertNotFound();
 });
