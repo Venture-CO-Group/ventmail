@@ -594,7 +594,9 @@
             "tooLarge": "A fájl túl nagy (legfeljebb {mb} MB).",
             "inspecting": {
                 "title": "Fájl elemzése…",
-                "hint": "A fájl felmérése a háttérben fut — az oszlopok pár másodperc múlva megjelennek. Az oldalt nem kell frissíteni."
+                "hint": "A fájl felmérése a háttérben fut — az oszlopok pár másodperc múlva megjelennek. Az oldalt nem kell frissíteni.",
+                "stuck": "Az elemzés szokatlanul sokáig tart — valószínűleg elakadt. Megszakíthatod, és új fájllal próbálkozhatsz.",
+                "cancel": "Megszakítás"
             }
         },
         "contact": {

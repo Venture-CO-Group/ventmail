@@ -87,6 +87,19 @@ return [
             'after_commit' => false,
         ],
 
+        /*
+         | A KONTAKT-IMPORT FELMÉRÉSÉNEK kapcsolata: a `retry_after` (90 mp) alig haladja meg a job 60 mp-es
+         | timeoutját — egy fatalban (OOM) meghalt felmérés gyorsan szabadul, nem 65 percig reserved.
+         */
+        'redis_imports_inspect' => [
+            'driver' => 'redis',
+            'connection' => env('REDIS_QUEUE_CONNECTION', 'default'),
+            'queue' => 'imports-inspect',
+            'retry_after' => (int) env('REDIS_IMPORTS_INSPECT_RETRY_AFTER', 90),
+            'block_for' => null,
+            'after_commit' => false,
+        ],
+
         'deferred' => [
             'driver' => 'deferred',
         ],

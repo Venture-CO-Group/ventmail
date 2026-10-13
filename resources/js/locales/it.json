@@ -594,7 +594,9 @@
             "tooLarge": "Il file è troppo grande (al massimo {mb} MB).",
             "inspecting": {
                 "title": "Analisi del file…",
-                "hint": "Il file viene analizzato in background — le colonne compaiono tra pochi secondi. Non serve aggiornare la pagina."
+                "hint": "Il file viene analizzato in background — le colonne compaiono tra pochi secondi. Non serve aggiornare la pagina.",
+                "stuck": "L’analisi sta impiegando un tempo insolito — probabilmente si è bloccata. Puoi annullare e provare con un nuovo file.",
+                "cancel": "Annulla"
             }
         },
         "contact": {

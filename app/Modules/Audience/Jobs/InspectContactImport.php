@@ -50,7 +50,7 @@ final class InspectContactImport implements ShouldQueue
         private readonly ?int $userId = null,
     ) {
         $this->afterCommit();
-        $this->onConnection(config('audience.import.connection'));
+        $this->onConnection(config('audience.import.inspect_connection'));
         // KÜLÖN queue (és Horizon supervisor): a drága felmérés soha nem állítja meg a
         // `RunContactImport`-ot, és az import-futás sem várakoztatja a felmérést.
         $this->onQueue('imports-inspect');
@@ -64,11 +64,24 @@ final class InspectContactImport implements ShouldQueue
         ContactImportProcessor $processor,
         InspectGate $gate,
     ): void {
+        try {
+            $this->inspect($context, $inspector, $uploads, $mappings, $processor);
+        } finally {
+            // A KAPU-HELY MINDIG szabadul — a workspace-ellenőrzés és minden kivétel előtt/után is.
+            $gate->release($this->workspaceId, $this->userId);
+        }
+    }
+
+    private function inspect(
+        WorkspaceContext $context,
+        ImportFileInspector $inspector,
+        ImportUploads $uploads,
+        ImportMappingBuilder $mappings,
+        ContactImportProcessor $processor,
+    ): void {
         $workspace = Workspace::query()->whereKey($this->workspaceId)->first();
 
         if ($workspace === null) {
-            $gate->release($this->workspaceId, $this->userId);
-
             return;
         }
 
@@ -102,6 +115,8 @@ final class InspectContactImport implements ShouldQueue
                 $format,
                 $this->sheet,
                 (int) config('audience.import.inspect_job_budget_seconds'),
+                // KÖTEG-szintű ideiglenes könyvtár az openspout előtöltőjének (nem a rendszer /tmp-je).
+                $uploads->tempDir((string) $import->uuid),
             );
 
             $fields = ContactField::query()->orderBy('label')->get(['key', 'label'])
@@ -130,14 +145,27 @@ final class InspectContactImport implements ShouldQueue
 
             $this->report($e);
         } finally {
+            $uploads->cleanTemp($this->importUuid);
             $previous === null ? $context->forget() : $context->set($previous);
-            $gate->release($this->workspaceId, $this->userId);
         }
     }
 
     /** Worker-kill / időtúllépés: ugyanaz a takarítás, mint a hibánál. */
     public function failed(Throwable $e): void
     {
+        // A kapu-hely a workspace-ellenőrzés ELŐTT szabadul (törölt workspace-nél is), és a
+        // takarítás kivétele sem tarthatja vissza.
+        try {
+            $this->cleanup($e);
+        } finally {
+            app(InspectGate::class)->release($this->workspaceId, $this->userId);
+        }
+    }
+
+    private function cleanup(Throwable $e): void
+    {
+        app(ImportUploads::class)->cleanTemp($this->importUuid);
+
         $workspace = Workspace::query()->whereKey($this->workspaceId)->first();
 
         if ($workspace === null) {
@@ -156,7 +184,6 @@ final class InspectContactImport implements ShouldQueue
             }
 
             $this->report($e);
-            app(InspectGate::class)->release($this->workspaceId, $this->userId);
         } finally {
             $previous === null ? $context->forget() : $context->set($previous);
         }

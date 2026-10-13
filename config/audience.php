@@ -77,6 +77,12 @@ return [
         'inspect_max_per_user' => (int) env('AUDIENCE_IMPORT_INSPECT_MAX_USER', 1),
         'inspect_max_global' => (int) env('AUDIENCE_IMPORT_INSPECT_MAX_GLOBAL', 8),
         'inspect_gate_ttl_seconds' => (int) env('AUDIENCE_IMPORT_INSPECT_GATE_TTL', 600),
+        // BÁJT-plafonok (kitömörítve): sharedStrings, illetve a többi NEM-munkalap bejegyzés.
+        'xlsx_max_shared_strings_bytes' => (int) env('AUDIENCE_IMPORT_XLSX_MAX_SS_MB', 64) * 1024 * 1024,
+        'xlsx_max_meta_bytes' => (int) env('AUDIENCE_IMPORT_XLSX_MAX_META_MB', 16) * 1024 * 1024,
+        // A felmérés queue-kapcsolata: rövid `retry_after` (90 mp), hogy egy fatalban (OOM) meghalt
+        // job ne maradjon 65 percig „reserved” állapotban, és a kapu-hely ne égjen el.
+        'inspect_connection' => env('AUDIENCE_IMPORT_INSPECT_QUEUE_CONNECTION', env('QUEUE_CONNECTION') === 'redis' ? 'redis_imports_inspect' : null),
         'xlsx_max_entries' => (int) env('AUDIENCE_IMPORT_XLSX_MAX_ENTRIES', 500),
         'manual_max_rows' => (int) env('AUDIENCE_IMPORT_MANUAL_MAX_ROWS', 20_000),
         // Egy fizikai sor (és egy CSV-rekord egy olvasása) legfeljebb ennyi bájt: sor-határ nélkül

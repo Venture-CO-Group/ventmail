@@ -73,11 +73,22 @@ watch(
     },
 );
 
+const now = ref(Date.now());
+const inspectingStuck = computed(
+    () => props.import?.status === 'inspecting' && props.import.updatedAt !== null && now.value - new Date(props.import.updatedAt).getTime() > 5 * 60_000,
+);
+
+function cancelStuck(): void {
+    if (props.import) router.post(`/audience/import/${props.import.uuid}/cancel`);
+}
+
 const polling = computed(() => ['inspecting', 'previewing', 'queued', 'processing'].includes(props.import?.status ?? ''));
 let timer: ReturnType<typeof setInterval> | null = null;
 
 onMounted(() => {
     timer = setInterval(() => {
+        now.value = Date.now();
+
         if (polling.value) {
             router.reload({ only: ['import'] });
         }
@@ -138,6 +149,11 @@ function leave(): void {
             <VmCard v-if="run?.status === 'inspecting'" data-testid="import-inspecting">
                 <h2>{{ t('audience.import.inspecting.title') }}</h2>
                 <p class="vm-import-counter" role="status">{{ t('audience.import.inspecting.hint') }}</p>
+                <!-- ELAKADT felmérés (5 perc után): üzenet és Mégse — a szerver is csak ekkor engedi. -->
+                <template v-if="inspectingStuck">
+                    <p class="vm-banner vm-banner--warning" role="alert" data-testid="import-inspecting-stuck">{{ t('audience.import.inspecting.stuck') }}</p>
+                    <VtButton variant="glass" data-testid="import-inspecting-cancel" @click="cancelStuck">{{ t('audience.import.inspecting.cancel') }}</VtButton>
+                </template>
             </VmCard>
 
             <VmCard v-else>

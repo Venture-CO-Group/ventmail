@@ -38,6 +38,17 @@ services:
     mem_limit: 2g
     cpus: 2.0
 
+  # The contact-import queues (imports, imports-inspect), isolated from the send queue: a
+  # byte-heavy upload can exhaust memory, and in a shared cgroup that would OOM-kill the
+  # sending Horizon too. Own limits, own container; `artisan horizon --environment=imports`.
+  worker-imports:
+    <<: *php
+    command: ["worker-imports"]
+    stop_signal: SIGTERM
+    stop_grace_period: 60s
+    mem_limit: 3g
+    cpus: 2.0
+
   scheduler:
     <<: *php
     command: ["scheduler"]

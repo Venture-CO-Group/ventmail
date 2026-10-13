@@ -87,7 +87,7 @@ export function startImportWorker(): ChildProcess {
             cwd: process.cwd(),
             // A worker belső (nem import) jobjai szinkron futnak; a cache `array`, mint a webszervernél
             // (a `queue:work` a cache-be írja az újraindítás-jelzést, és a Redis-bővítmény nem kell).
-            env: { ...process.env, QUEUE_CONNECTION: 'sync', CACHE_STORE: 'array', AUDIENCE_IMPORT_QUEUE_CONNECTION: 'database' },
+            env: { ...process.env, QUEUE_CONNECTION: 'sync', CACHE_STORE: 'array', AUDIENCE_IMPORT_QUEUE_CONNECTION: 'database', AUDIENCE_IMPORT_INSPECT_QUEUE_CONNECTION: 'database' },
             stdio: 'ignore',
         },
     );

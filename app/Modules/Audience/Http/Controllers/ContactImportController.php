@@ -554,6 +554,7 @@ final class ContactImportController
             'chunkSize' => (int) config('audience.import.chunk'),
             'hasReport' => $import->error_report_path !== null,
             'failureReason' => $import->failure_reason,
+            'updatedAt' => $import->updated_at?->toIso8601String(),
             'startedAt' => $import->started_at?->toIso8601String(),
             'completedAt' => $import->completed_at?->toIso8601String(),
             'startedBy' => $import->user?->name,

@@ -97,6 +97,8 @@ final class PurgeImportsCommand extends Command
             $context->forget();
         }
 
+        $this->sweepTemp($uploads);
+
         $this->info("Törölve — félbehagyott import: {$drafts}, lejárt hibariport: {$reports}");
 
         return self::SUCCESS;
@@ -123,6 +125,29 @@ final class PurgeImportsCommand extends Command
         foreach ($disk->files('imports/'.$workspaceId) as $file) {
             if (! isset($referenced[$file]) && $disk->lastModified($file) <= $cutoff->getTimestamp()) {
                 $disk->delete($file);
+            }
+        }
+    }
+
+    /**
+     * Az `import-tmp/{uuid}` ideiglenes könyvtárak (openspout előtöltő) söprése: az 1 óránál régebbi
+     * maradék (OOM-ban megszakadt felmérés) törlődik. Globális könyvtár, nem workspace-hez kötött.
+     */
+    private function sweepTemp(ImportUploads $uploads): void
+    {
+        $disk = $uploads->disk();
+
+        foreach ($disk->directories('import-tmp') as $directory) {
+            $newest = 0;
+
+            foreach ($disk->allFiles($directory) as $file) {
+                $newest = max($newest, $disk->lastModified($file));
+            }
+
+            $modified = $newest > 0 ? $newest : (int) @filemtime($disk->path($directory));
+
+            if ($modified <= now()->subHour()->getTimestamp()) {
+                $disk->deleteDirectory($directory);
             }
         }
     }

@@ -21,6 +21,7 @@ final class XlsxRowReader implements ImportRowReader
     public function __construct(
         private readonly string $path,
         private readonly ?string $sheet = null,
+        private readonly ?string $tempFolder = null,
     ) {}
 
     public function rows(): Generator
@@ -29,7 +30,7 @@ final class XlsxRowReader implements ImportRowReader
         $maxCell = (int) config('audience.import.max_cell_length');
         $maxRows = (int) config('audience.import.max_rows');
 
-        $reader = new Reader(new Options(SHOULD_PRESERVE_EMPTY_ROWS: true));
+        $reader = new Reader(new Options(SHOULD_PRESERVE_EMPTY_ROWS: true, tempFolder: $this->tempFolder));
         $reader->open($this->path);
 
         try {

@@ -44,11 +44,11 @@ final class ImportFileInspector
      *
      * @throws ImportLimitExceeded
      */
-    public function inspect(string $path, string $format, ?string $sheet = null, ?int $budget = null): array
+    public function inspect(string $path, string $format, ?string $sheet = null, ?int $budget = null, ?string $tempFolder = null): array
     {
         $this->deadline = microtime(true) + ($budget ?? (int) config('audience.import.inspect_budget_seconds'));
 
-        return $format === 'xlsx' ? $this->xlsx($path, $sheet) : $this->csv($path);
+        return $format === 'xlsx' ? $this->xlsx($path, $sheet, $tempFolder) : $this->csv($path);
     }
 
     /** A felmérés időkerete (a kérésen belül fut — lásd a konfig `inspect_budget_seconds`). */
@@ -78,7 +78,7 @@ final class ImportFileInspector
     }
 
     /** @return array<string, mixed> */
-    private function xlsx(string $path, ?string $sheet): array
+    private function xlsx(string $path, ?string $sheet, ?string $tempFolder): array
     {
         // A zip-ellenőrzés EGYBEN gyűjti a munkalapok csomópont- és sorstatisztikáját: a
         // felmérés a teljes XML-t SOHA nem a (lassú) openspout-tal járja végig — az a háttérjob
@@ -108,7 +108,7 @@ final class ImportFileInspector
         $records = (int) (($stats[$file] ?? $stats[strtolower($file)])['rows'] ?? 0);
 
         return $this->profile(
-            new XlsxRowReader($path, $sheet),
+            new XlsxRowReader($path, $sheet, $tempFolder),
             format: 'xlsx',
             delimiter: ',',
             encoding: 'UTF-8',
@@ -386,9 +386,20 @@ final class ImportFileInspector
             // plafont választja (a nem-munkalap bejegyzés a szigorú meta-plafont kapja).
             $lowerName = strtolower($stat['name']);
             $isSheet = str_starts_with($lowerName, 'xl/worksheets/') && str_ends_with($lowerName, '.xml');
-            $partCap = str_contains($lowerName, 'sharedstrings')
+            $isShared = str_contains($lowerName, 'sharedstrings');
+            $partCap = $isShared
                 ? (int) config('audience.import.xlsx_max_part_nodes')
                 : (int) config('audience.import.xlsx_max_meta_nodes');
+            // BÁJT-plafon a nem-munkalap bejegyzésekre: a bájt-nehéz, kevés `<`-t tartalmazó sharedStrings
+            // (nagy `<t>` szövegek) a csomópont-plafont nem érinti, de az openspout a memóriába
+            // olvassa (mérve: 950 MB-ra nyíló fájl OOM-ot okozott). A sharedStrings 64 MB, a többi 16 MB.
+            $byteCap = $isShared
+                ? (int) config('audience.import.xlsx_max_shared_strings_bytes')
+                : (int) config('audience.import.xlsx_max_meta_bytes');
+            // A leghosszabb `<`-mentes szakasz (egy szövegcsomópont) legfeljebb 4 × a cella-hossz plafon.
+            $maxRun = 4 * (int) config('audience.import.max_cell_length');
+            $checkRun = $isSheet || $isShared;
+            $run = 0;
             $entry = 0;
             $nodes = 0;
             $rows = 0;
@@ -438,9 +449,23 @@ final class ImportFileInspector
                     if (! $isSheet) {
                         $nodes += substr_count($chunk, '<');
 
-                        if ($nodes > $partCap) {
+                        if ($nodes > $partCap || $entry > $byteCap) {
                             throw new ImportLimitExceeded('zip');
                         }
+                    }
+
+                    if ($checkRun) {
+                        // Hosszú `<`-mentes szakasz: a lánc folytatása az előző chunkból + a chunk
+                        // belsejében bárhol.
+                        $first = strpos($chunk, '<');
+
+                        if ($run + ($first === false ? strlen($chunk) : $first) > $maxRun
+                            || preg_match('/[^<]{'.($maxRun + 1).',}/', $chunk) === 1) {
+                            throw new ImportLimitExceeded('zip');
+                        }
+
+                        $last = strrpos($chunk, '<');
+                        $run = $last === false ? $run + strlen($chunk) : strlen($chunk) - $last - 1;
                     }
 
                     $this->checkBudget();

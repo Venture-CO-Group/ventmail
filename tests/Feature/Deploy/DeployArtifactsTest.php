@@ -57,7 +57,7 @@ it('csak pinelt registry-image fut, soha :latest és soha helyi build', function
 });
 
 it('minden hosszan futó szolgáltatásnak van memória- és CPU-limitje és restart-politikája', function () {
-    $limits = ['app' => '2g', 'worker' => '2g', 'scheduler' => '512m', 'web' => '256m', 'redis' => '1280m'];
+    $limits = ['app' => '2g', 'worker' => '2g', 'worker-imports' => '3g', 'scheduler' => '512m', 'web' => '256m', 'redis' => '1280m'];
 
     foreach ($limits as $name => $limit) {
         $service = vmLongRunning()[$name] ?? null;
@@ -79,7 +79,7 @@ it('a Postgrest csak a mail-db-n, a Postalt csak a postal-api-n éri el; az edge
 
     foreach (vmLongRunning() as $name => $service) {
         $joined = vmNetworks($service);
-        $php = in_array($name, ['app', 'worker', 'scheduler'], true);
+        $php = in_array($name, ['app', 'worker', 'worker-imports', 'scheduler'], true);
 
         expect(in_array('edge', $joined, true))->toBe($name === 'web', "{$name} edge membership")
             ->and(in_array('mail-db', $joined, true))->toBe($php, "{$name} mail-db membership")
@@ -211,4 +211,31 @@ it('a futó verzió a git tagből jut el a lábléc `config(app.version)` érté
         ->and(file_get_contents(base_path('config/app.php')))->toContain("env('VENTMAIL_VERSION'")
         ->and(file_get_contents(app_path('Http/Middleware/HandleInertiaRequests.php')))
         ->toContain("'version' => (string) config('app.version')");
+});
+
+it('az import külön worker-konténerben fut (saját limit), és az entrypoint/healthcheck ismeri a szerepet', function () {
+    $service = vmLongRunning()['worker-imports'];
+
+    expect($service['command'])->toBe(['worker-imports'])
+        ->and(vmLongRunning()['worker']['command'])->toBe(['worker']);
+
+    $entrypoint = (string) file_get_contents(base_path('docker/entrypoint.sh'));
+    $health = (string) file_get_contents(base_path('docker/healthcheck.sh'));
+
+    expect($entrypoint)->toContain('worker-imports)')->toContain('horizon --environment=imports')
+        ->and($health)->toContain('worker-imports)');
+
+    // A küldő Horizon (production környezet) NEM indítja az import supervisorokat.
+    expect(array_keys(config('horizon.environments.production')))->toBe(['sending', 'background'])
+        ->and(array_keys(config('horizon.environments.imports')))->toBe(['imports', 'imports-inspect']);
+});
+
+it('a php.ini kivétel-trace-e nem tartalmaz függvény-argumentumot', function () {
+    expect(parse_ini_file(base_path('docker/php/php.ini'))['zend.exception_ignore_args'])->toBe('1');
+});
+
+it('a gd és a zip telepítve a Dockerfile-ban', function () {
+    $dockerfile = (string) file_get_contents(base_path('Dockerfile'));
+
+    expect($dockerfile)->toMatch('/install-php-extensions[^\n]* gd\b/')->toMatch('/install-php-extensions[^\n]* zip\b/');
 });

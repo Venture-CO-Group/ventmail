@@ -11,19 +11,33 @@ use App\Modules\Events\Services\TrackingTokens;
 use App\Modules\Suppression\Services\UnsubscribeTokens;
 use App\Modules\Template\Services\WebVersionTokens;
 use App\Support\ClientAddress;
+use App\Support\RedactingFailedJobProvider;
+use App\Support\RedactingHorizonJobRepository;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Contracts\Redis\Factory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
+use Laravel\Horizon\Contracts\JobRepository;
+use Laravel\Horizon\Repositories\RedisJobRepository;
 use RuntimeException;
 
 class AppServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        //
+        // A failed-job tárolók REDAKCIÓJA: a QueryException szövege (kötések, értékek) sem a
+        // `failed_jobs`-ba, sem a Horizon Redis-tárolójába nem kerülhet nyersen.
+        $this->app->extend('queue.failer', fn ($provider) => new RedactingFailedJobProvider($provider));
+
+        if (class_exists(RedisJobRepository::class)) {
+            $this->app->extend(
+                JobRepository::class,
+                fn ($repository, $app) => new RedactingHorizonJobRepository($app->make(Factory::class)),
+            );
+        }
     }
 
     public function boot(): void

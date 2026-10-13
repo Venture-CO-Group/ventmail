@@ -121,6 +121,7 @@ final class ContactImportProcessor
             throw $e;
         } finally {
             app()->setLocale($previousLocale);
+            $this->uploads->cleanTemp((string) $import->uuid);
         }
     }
 
@@ -736,6 +737,7 @@ final class ContactImportProcessor
         $this->uploads->delete($this->uploads->reportPath($import));
         $this->uploads->delete($import->error_report_path);
         $this->uploads->delete($import->storage_path);
+        $this->uploads->cleanTemp((string) $import->uuid);
 
         $profile = (array) $import->profile;
         unset($profile['sample']);

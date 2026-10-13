@@ -64,6 +64,7 @@ export interface ImportState {
     chunkSize: number;
     hasReport: boolean;
     failureReason: string | null;
+    updatedAt: string | null;
     startedAt: string | null;
     completedAt: string | null;
     startedBy: string | null;

@@ -110,6 +110,24 @@ final class ImportUploads
         return 'imports/'.$import->workspace_id.'/'.$import->uuid.'-report.csv';
     }
 
+    /**
+     * Az openspout ELŐTÖLTŐ (sharedStrings-gyorsítótár) fájljainak KÖTEG-szintű ideiglenes
+     * könyvtára — nem a rendszer `/tmp`-je: ott egy megszakadt (OOM) felmérés maradéka futásonként
+     * ~1 GB-ot hagyna. Törlése a `finally`-ben, a `failed()`-ben és a purge-ban (1 óránál régebbi).
+     */
+    public function tempDir(string $importUuid): string
+    {
+        $relative = 'import-tmp/'.$importUuid;
+        $this->disk()->makeDirectory($relative);
+
+        return $this->disk()->path($relative);
+    }
+
+    public function cleanTemp(string $importUuid): void
+    {
+        $this->disk()->deleteDirectory('import-tmp/'.$importUuid);
+    }
+
     /** A feldolgozás olvasója a köteg formátuma szerint. */
     public function reader(ContactImport $import): ImportRowReader
     {
@@ -117,7 +135,7 @@ final class ImportUploads
         $path = $this->absolute((string) $import->storage_path);
 
         return ($profile['format'] ?? 'csv') === 'xlsx'
-            ? new XlsxRowReader($path, $profile['sheet'] ?? null)
+            ? new XlsxRowReader($path, $profile['sheet'] ?? null, $this->tempDir((string) $import->uuid))
             : new CsvRowReader($path, (string) ($profile['delimiter'] ?? ','), (string) ($profile['encoding'] ?? 'UTF-8'));
     }
 

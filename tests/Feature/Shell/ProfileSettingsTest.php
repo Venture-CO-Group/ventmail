@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Models\User;
+use App\Modules\Audit\Models\AuditLog;
 use App\Modules\Tenancy\Models\Workspace;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
@@ -231,7 +232,7 @@ it('a profilmódosítás auditált, a megváltozott kulcsokkal és érték nélk
     $this->actingAs($user)->withSession(['workspace_uuid' => $workspace->uuid])
         ->put('/profile', ['timezone' => 'Europe/Paris', 'date_format' => 'iso'])->assertSessionHasNoErrors();
 
-    $log = \App\Modules\Audit\Models\AuditLog::query()->where('action', 'user.settings.updated')->firstOrFail();
+    $log = AuditLog::query()->where('action', 'user.settings.updated')->firstOrFail();
 
     expect($log->context['changed'])->toEqualCanonicalizing(['timezone', 'date_format'])
         ->and(json_encode($log->context))->not->toContain('Paris');

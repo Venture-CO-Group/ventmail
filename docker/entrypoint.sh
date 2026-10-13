@@ -26,6 +26,12 @@ case "$role" in
         # 256M default a worker would FATAL (not a Throwable: no catch runs).
         exec php -d memory_limit=512M artisan horizon
         ;;
+    worker-imports)
+        warm_caches
+        # Imports only (own container and cgroup, see compose.prod.yml): the send Horizon is never
+        # starved or OOM-killed by a heavy upload. Two import supervisors at 512M plus the master.
+        exec php -d memory_limit=512M artisan horizon --environment=imports
+        ;;
     scheduler)
         warm_caches
         exec php artisan schedule:work

@@ -96,7 +96,7 @@ return [
          | futásokat) soha nem állíthatja meg, és a futások sem várakoztatják a felmérést.
          */
         'imports-inspect' => [
-            'connection' => 'redis_imports',
+            'connection' => 'redis_imports_inspect',
             'queue' => ['imports-inspect'],
             'balance' => 'simple',
             'maxProcesses' => 1,
@@ -110,11 +110,15 @@ return [
     ],
 
     'environments' => [
+        // KÜLÖN WORKER-KONTÉNER az importnak (`worker-imports`, `artisan horizon --environment=imports`): a
+        // bájt-nehéz fájlok memóriaigénye nem ölheti ki a KÜLDŐ workert (közös cgroup-limit).
+        'imports' => [
+            'imports' => ['maxProcesses' => 2],
+            'imports-inspect' => ['maxProcesses' => 2],
+        ],
         'production' => [
             'sending' => ['maxProcesses' => 20, 'balanceMaxShift' => 3, 'balanceCooldown' => 3],
             'background' => ['maxProcesses' => 6],
-            'imports' => ['maxProcesses' => 2],
-            'imports-inspect' => ['maxProcesses' => 2],
         ],
         'local' => [
             'sending' => ['maxProcesses' => 3],

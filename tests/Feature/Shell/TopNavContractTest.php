@@ -19,7 +19,7 @@ it('az app-héj felső sáv, nem oldalsáv, és kér szerkesztő módot', functi
         ->and($layout)->not->toContain('vm-shell__nav')
         // A szerkesztő mód: prop VAGY a kontroller `editorMode` Inertia-propja.
         ->and($layout)->toContain('editorMode')
-        ->and($layout)->toContain("page.props.editorMode === true")
+        ->and($layout)->toContain('page.props.editorMode === true')
         // Hamburger tablet alatt, harmonikás csoportokkal.
         ->and($layout)->toContain('nav-hamburger')
         ->and($layout)->toContain('aria-expanded');

@@ -105,7 +105,11 @@ it('a felmérés külön queue-n fut, és van hozzá Horizon supervisor', functi
         ->and($supervisors['imports-inspect']['timeout'])->toBe(60)
         ->and($supervisors['imports']['queue'])->not->toContain('imports-inspect');
 
-    foreach (['production', 'local', 'testing'] as $env) {
+    // A felmérés queue-kapcsolata rövid retry_after-ű (fatalban meghalt job ne maradjon reserved).
+    expect($supervisors['imports-inspect']['connection'])->toBe('redis_imports_inspect')
+        ->and(config('queue.connections.redis_imports_inspect.retry_after'))->toBeLessThanOrEqual(90);
+
+    foreach (['local', 'testing', 'imports'] as $env) {
         expect(config("horizon.environments.{$env}"))->toHaveKey('imports-inspect');
     }
 });
@@ -224,4 +228,9 @@ it('a globális QueryException-leképezés a previous DETAIL/CONTEXT sorait is e
         ->and($mapped->getPrevious()->getMessage())->not->toContain('alice@')
         ->and($mapped->getBindings())->toBe(['?'])
         ->and($mapped->getMessage())->toContain('22P05');
+
+    // Az ERROR első sora is hordozhat értéket: az üzenet teljesen eldobva.
+    $first = new QueryException('pgsql', 'select ?', ['carol@example.hu'], new PDOException('SQLSTATE[22P02]: Invalid text representation: 7 ERROR:  invalid input syntax for type integer: "carol@example.hu"'));
+
+    expect((new RedactQueryException)($first)->getMessage())->not->toContain('carol@')->toContain('22P02');
 });

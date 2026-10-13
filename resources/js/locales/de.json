@@ -594,7 +594,9 @@
             "tooLarge": "Die Datei ist zu groß (höchstens {mb} MB).",
             "inspecting": {
                 "title": "Datei wird analysiert…",
-                "hint": "Die Datei wird im Hintergrund analysiert — die Spalten erscheinen in wenigen Sekunden. Die Seite muss nicht neu geladen werden."
+                "hint": "Die Datei wird im Hintergrund analysiert — die Spalten erscheinen in wenigen Sekunden. Die Seite muss nicht neu geladen werden.",
+                "stuck": "Die Analyse dauert ungewöhnlich lange — sie ist vermutlich hängen geblieben. Du kannst abbrechen und eine neue Datei versuchen.",
+                "cancel": "Abbrechen"
             }
         },
         "contact": {
