@@ -70,6 +70,7 @@ return [
                 'rows' => 'The file has more rows than allowed.',
                 'columns' => 'The file has more columns than allowed.',
                 'zip' => 'The XLSX file exceeds the decompression limit.',
+                'resources' => 'Processing the file exceeded the resource limit (memory) — upload a smaller or simpler file.',
                 'format' => 'The file content does not match its extension.',
                 'sheet' => 'Unknown worksheet.',
                 'mapping' => 'The e-mail column is not mapped.',

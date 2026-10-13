@@ -18,17 +18,24 @@ use OpenSpout\Reader\XLSX\Reader;
  */
 final class XlsxRowReader implements ImportRowReader
 {
+    /**
+     * A plafonok EXPLICIT átadhatók (D221): a gyerekfolyamat (`IsolatedXlsxRowReader`) Laravel nélkül
+     * fut, ott nincs `config()`. Ha nincsenek megadva, a konfigurációból jönnek (a régi viselkedés).
+     */
     public function __construct(
         private readonly string $path,
         private readonly ?string $sheet = null,
         private readonly ?string $tempFolder = null,
+        private readonly ?int $maxColumns = null,
+        private readonly ?int $maxCell = null,
+        private readonly ?int $maxRows = null,
     ) {}
 
     public function rows(): Generator
     {
-        $maxColumns = (int) config('audience.import.max_columns');
-        $maxCell = (int) config('audience.import.max_cell_length');
-        $maxRows = (int) config('audience.import.max_rows');
+        $maxColumns = $this->maxColumns ?? (int) config('audience.import.max_columns');
+        $maxCell = $this->maxCell ?? (int) config('audience.import.max_cell_length');
+        $maxRows = $this->maxRows ?? (int) config('audience.import.max_rows');
 
         $reader = new Reader(new Options(SHOULD_PRESERVE_EMPTY_ROWS: true, tempFolder: $this->tempFolder));
         $reader->open($this->path);

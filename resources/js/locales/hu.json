@@ -577,7 +577,8 @@
                 "sheet": "ismeretlen munkalap",
                 "timeout": "a fájl felmérése túllépte az időkeretet",
                 "line": "a fájlban egy sor túl hosszú",
-                "encoding": "a fájl kódolása nem támogatott"
+                "encoding": "a fájl kódolása nem támogatott",
+                "resources": "a fájl feldolgozása túllépte az erőforrás-keretet"
             },
             "result": {
                 "new": "Új kontakt",

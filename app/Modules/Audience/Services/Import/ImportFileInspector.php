@@ -108,7 +108,12 @@ final class ImportFileInspector
         $records = (int) (($stats[$file] ?? $stats[strtolower($file)])['rows'] ?? 0);
 
         return $this->profile(
-            new XlsxRowReader($path, $sheet, $tempFolder),
+            // IZOLÁLT gyerekfolyamat (D220): a felmérés sem futtatja az openspoutot a worker folyamatában.
+            // A gyerek ideje a felmérés hátralévő keretéből, legfeljebb a konfigurált felmérési kerettel.
+            new IsolatedXlsxRowReader($path, $sheet, $tempFolder, (int) max(1, min(
+                (int) config('audience.import.xlsx_child_timeout_inspect'),
+                floor($this->deadline - microtime(true)),
+            ))),
             format: 'xlsx',
             delimiter: ',',
             encoding: 'UTF-8',
@@ -616,7 +621,15 @@ final class ImportFileInspector
 
         $sheets = [];
 
-        foreach (XlsxStructure::sheetsFrom($workbookXml) as $sheet) {
+        $workbookSheets = XlsxStructure::sheetsFrom($workbookXml);
+
+        // Legfeljebb 255 munkalap (review r10 S1, D225): az openspout munkalaponként újraolvassa a rels-t
+        // és objektumot épít — a korlátlan szám (1 MB-os workbook ≈ 37 k munkalap) ~306 MB volt.
+        if (count($workbookSheets) > (int) config('audience.import.xlsx_max_sheets')) {
+            throw new ImportLimitExceeded('format');
+        }
+
+        foreach ($workbookSheets as $sheet) {
             $file = XlsxStructure::sheetTarget($relationships, $sheet['rid']);
 
             if ($file === null || XlsxStructure::isBinaryPart($file) || ! $exists($file)) {

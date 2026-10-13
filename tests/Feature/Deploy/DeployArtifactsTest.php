@@ -257,3 +257,12 @@ it('a gd és a zip telepítve a Dockerfile-ban', function () {
 
     expect($dockerfile)->toMatch('/install-php-extensions[^\n]* gd\b/')->toMatch('/install-php-extensions[^\n]* zip\b/');
 });
+
+it('az image ellenőrzi, hogy a gyerekfolyamat címtér-limitje (ulimit -v) működik (D222)', function () {
+    $dockerfile = (string) file_get_contents(base_path('Dockerfile'));
+
+    expect($dockerfile)->toMatch("/RUN sh -c 'ulimit -v \\d+ && exec php /");
+
+    // A gyerek címtér-limitje a worker-imports konténerbe négy párhuzamos folyamattal is belefér (3g).
+    expect(4 * (150 + (int) config('audience.import.xlsx_child_address_space_mb')))->toBeLessThan(3 * 1024);
+});

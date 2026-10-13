@@ -59,6 +59,7 @@ return [
                 'rows' => 'El archivo tiene más filas de las permitidas.',
                 'columns' => 'El archivo tiene más columnas de las permitidas.',
                 'zip' => 'El archivo XLSX supera el límite de descompresión.',
+                'resources' => 'El procesamiento del archivo superó el límite de recursos (memoria): sube un archivo más pequeño o más sencillo.',
                 'format' => 'El contenido del archivo no coincide con su extensión.',
                 'sheet' => 'Hoja desconocida.',
                 'mapping' => 'La columna de correo no está asignada.',

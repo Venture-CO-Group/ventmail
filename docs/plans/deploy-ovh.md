@@ -112,6 +112,13 @@
       (a review „+6g” becslése a scheduler/web nélkül számolt). A migrációhoz egyszer futó `ops` +1g.
     - Közös (színfüggetlen): Postgres 6g, Redis 1.25g, MariaDB 2g, Postal worker 2 × 1.5g, Postal
       web/smtp, edge 0.25g.
+    - **worker-imports (3g) belső költségvetése (D224, modul 5 r10):** 4 folyamat (imports 2 +
+      imports-inspect 2), mindegyik legfeljebb EGY izolált XLSX-olvasó gyerekkel (D220). A gyerek
+      címtér-limitje 512 MB (`AUDIENCE_IMPORT_XLSX_CHILD_AS_MB`, Linuxon `ulimit -v`; a libxml
+      memóriája is ebbe számít), `memory_limit` 256 MB. Legrosszabb eset: 4 × (≈150 MB worker +
+      512 MB gyerek) ≈ 2,6 GB < 3g — a cgroup OOM-killer így nem viheti el a supervisorokat; a
+      túlnyúló gyereket a kernel/PHP állítja meg, és az import `resources` okkal elutasul. Az image
+      buildje ellenőrzi, hogy a `ulimit -v` működik (Dockerfile, D222).
     - A box (mail-ovh-01): **31 GB RAM, ~28 GB szabad — mérve 2026-10-13.** A limitek PLAFONOK, nem
       foglalás: a tényleges csúcs a váltás alatt jóval a limitösszeg alatt van, de a limitösszeg a
       váltás pillanatában megközelíti a box méretét — új szolgáltatás vagy limitemelés előtt ezt a

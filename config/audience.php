@@ -68,6 +68,20 @@ return [
         // +0,37 KB openspout-memória / <xf>; az Excel 64 000 formátumos maximuma (<xf> + <alignment>)
         // ≈ 192 k csomópont, +22 MB; a plafon legrosszabb esete (300 k csupasz <xf/>) +112 MB — az
         // 512 MB-os workerben bőven. A korábbi 1 M-s meta-plafon alatt egy styles ~377 MB-ot vitt el.
+        // AZ IZOLÁLT XLSX-OLVASÓ (D220–D226): minden openspout-olvasás külön PHP gyerekfolyamatban.
+        //  - memory_limit (MB) a gyereknek; címtér-limit (MB, Linuxon `ulimit -v`) — a libxml memóriája
+        //    is ebbe számít; falióra-keret (mp) a felmérésnek, illetve az import teljes sorolvasásának;
+        //  - a PHP bináris (üres: CLI-ben a futó bináris, máskor `php`).
+        'xlsx_child_memory_mb' => (int) env('AUDIENCE_IMPORT_XLSX_CHILD_MEMORY_MB', 256),
+        // A címtér 512 MB: a `worker-imports` (3g) 4 folyamata (imports 2 + imports-inspect 2) egyszerre is
+        // belefér: 4 × (≈150 MB worker + 512 MB gyerek) ≈ 2,6 GB (lásd deploy-ovh.md, D224).
+        'xlsx_child_address_space_mb' => (int) env('AUDIENCE_IMPORT_XLSX_CHILD_AS_MB', 512),
+        'xlsx_child_timeout_inspect' => (int) env('AUDIENCE_IMPORT_XLSX_CHILD_TIMEOUT_INSPECT', 45),
+        'xlsx_child_timeout_import' => (int) env('AUDIENCE_IMPORT_XLSX_CHILD_TIMEOUT_IMPORT', 3300),
+        'xlsx_child_php' => env('AUDIENCE_IMPORT_XLSX_CHILD_PHP'),
+        // Legfeljebb ennyi munkalap (review r10 S1): a munkalaponkénti rels-újraolvasás és a munkalap-
+        // objektumok miatt egy 1 MB-os workbook ~37 k munkalappal ~306 MB-ot vitt el. Az Excel ennyit enged.
+        'xlsx_max_sheets' => (int) env('AUDIENCE_IMPORT_XLSX_MAX_SHEETS', 255),
         'xlsx_max_styles_nodes' => (int) env('AUDIENCE_IMPORT_XLSX_MAX_STYLES_NODES', 300_000),
         // A háttér-felmérés belső időkerete. FIGYELEM: az openspout XML-előtöltése (a
         // sharedStrings teljes beolvasása) közben ez a keret NEM érvényesül (nincs hova ellenőrizni);

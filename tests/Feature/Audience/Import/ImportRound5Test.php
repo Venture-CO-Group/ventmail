@@ -429,3 +429,23 @@ it('S4(r6) · a valódi bináris részek (nyomtatóbeállítás, kép) átmennek
     expect(fn () => app(ImportFileInspector::class)->guard($smuggled, 'xlsx'))
         ->toThrow(fn (ImportLimitExceeded $e) => expect($e->reason)->toBe('format'));
 });
+
+/* ---------------------------------------------------------------- r10 (D220): izolált olvasó a valódi job-úton */
+
+it('D220 · a `<row spans>` fájl a felmérő JOBBAN elegánsan elutasul (resources) — nincs 500, fájl és temp takarítva', function () {
+    $path = r5Zip(array_merge(r5Base([]), [
+        'xl/worksheets/sheet1.xml' => '<worksheet><sheetData><row r="1" spans="1:30000000"><c r="A1" t="inlineStr"><is><t>email</t></is></c></row></sheetData></worksheet>',
+    ]));
+
+    $this->actingAs($this->user)->withSession(['workspace_uuid' => $this->ws->uuid])
+        ->post('/audience/import', ['mode' => 'file', 'file' => new UploadedFile($path, 'spans.xlsx', null, null, true)])
+        ->assertRedirect();
+
+    $import = app(WorkspaceContext::class)->runFor($this->ws, fn () => ContactImport::query()->firstOrFail());
+
+    expect($import->status)->toBe(ContactImport::STATUS_FAILED)
+        ->and($import->failure_reason)->toBe('resources')
+        ->and($import->storage_path)->toBeNull()
+        ->and(Storage::disk('local')->allFiles('imports'))->toBe([])
+        ->and(Storage::disk('local')->directories('import-tmp'))->toBe([]);
+});

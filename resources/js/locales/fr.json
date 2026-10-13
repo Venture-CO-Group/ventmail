@@ -577,7 +577,8 @@
                 "sheet": "feuille inconnue",
                 "timeout": "l’analyse du fichier a dépassé le délai",
                 "line": "une ligne du fichier est trop longue",
-                "encoding": "l’encodage du fichier n’est pas pris en charge"
+                "encoding": "l’encodage du fichier n’est pas pris en charge",
+                "resources": "le traitement du fichier a dépassé la limite de ressources"
             },
             "result": {
                 "new": "Nouveaux contacts",

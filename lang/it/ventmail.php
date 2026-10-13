@@ -59,6 +59,7 @@ return [
                 'rows' => 'Il file ha più righe di quelle consentite.',
                 'columns' => 'Il file ha più colonne di quelle consentite.',
                 'zip' => 'Il file XLSX supera il limite di decompressione.',
+                'resources' => 'L\'elaborazione del file ha superato il limite di risorse (memoria) — carica un file più piccolo o più semplice.',
                 'format' => 'Il contenuto del file non corrisponde alla sua estensione.',
                 'sheet' => 'Foglio sconosciuto.',
                 'mapping' => 'La colonna e-mail non è associata.',

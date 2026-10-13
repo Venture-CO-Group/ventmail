@@ -577,7 +577,8 @@
                 "sheet": "unknown worksheet",
                 "timeout": "inspecting the file exceeded the time budget",
                 "line": "a line in the file is too long",
-                "encoding": "the file encoding is not supported"
+                "encoding": "the file encoding is not supported",
+                "resources": "processing the file exceeded the resource limit"
             },
             "result": {
                 "new": "New contacts",

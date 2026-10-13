@@ -59,6 +59,7 @@ return [
                 'rows' => 'A fájlban több sor van, mint a megengedett.',
                 'columns' => 'A fájlban több oszlop van, mint a megengedett.',
                 'zip' => 'Az XLSX-fájl a kitömörítési határt túllépi.',
+                'resources' => 'A fájl feldolgozása túllépte az erőforrás-keretet (memória) — töltsd fel kisebb vagy egyszerűbb fájlt.',
                 'format' => 'A fájl tartalma nem felel meg a kiterjesztésének.',
                 'sheet' => 'Ismeretlen munkalap.',
                 'mapping' => 'Az e-mail oszlop nincs hozzárendelve.',

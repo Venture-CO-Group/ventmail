@@ -59,6 +59,7 @@ return [
                 'rows' => 'Die Datei hat mehr Zeilen als erlaubt.',
                 'columns' => 'Die Datei hat mehr Spalten als erlaubt.',
                 'zip' => 'Die XLSX-Datei überschreitet das Entpackungslimit.',
+                'resources' => 'Die Verarbeitung der Datei hat das Ressourcenlimit (Speicher) überschritten — lade eine kleinere oder einfachere Datei hoch.',
                 'format' => 'Der Dateiinhalt passt nicht zur Dateiendung.',
                 'sheet' => 'Unbekanntes Tabellenblatt.',
                 'mapping' => 'Die E-Mail-Spalte ist nicht zugeordnet.',

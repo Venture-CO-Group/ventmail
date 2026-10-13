@@ -577,7 +577,8 @@
                 "sheet": "unbekanntes Tabellenblatt",
                 "timeout": "die Prüfung der Datei hat das Zeitbudget überschritten",
                 "line": "eine Zeile in der Datei ist zu lang",
-                "encoding": "die Dateikodierung wird nicht unterstützt"
+                "encoding": "die Dateikodierung wird nicht unterstützt",
+                "resources": "die Verarbeitung der Datei hat das Ressourcenlimit überschritten"
             },
             "result": {
                 "new": "Neue Kontakte",

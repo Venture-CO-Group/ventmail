@@ -135,7 +135,8 @@ final class ImportUploads
         $path = $this->absolute((string) $import->storage_path);
 
         return ($profile['format'] ?? 'csv') === 'xlsx'
-            ? new XlsxRowReader($path, $profile['sheet'] ?? null, $this->tempDir((string) $import->uuid))
+            // IZOLÁLT gyerekfolyamat (D220): az import sorolvasása sem a worker folyamatában fut.
+            ? new IsolatedXlsxRowReader($path, $profile['sheet'] ?? null, $this->tempDir((string) $import->uuid), (int) config('audience.import.xlsx_child_timeout_import'))
             : new CsvRowReader($path, (string) ($profile['delimiter'] ?? ','), (string) ($profile['encoding'] ?? 'UTF-8'));
     }
 

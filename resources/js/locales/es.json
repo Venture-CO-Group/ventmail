@@ -577,7 +577,8 @@
                 "sheet": "hoja desconocida",
                 "timeout": "el análisis del archivo superó el tiempo límite",
                 "line": "una línea del archivo es demasiado larga",
-                "encoding": "la codificación del archivo no es compatible"
+                "encoding": "la codificación del archivo no es compatible",
+                "resources": "el procesamiento del archivo superó el límite de recursos"
             },
             "result": {
                 "new": "Contactos nuevos",

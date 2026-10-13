@@ -577,7 +577,8 @@
                 "sheet": "foglio sconosciuto",
                 "timeout": "l’analisi del file ha superato il tempo massimo",
                 "line": "una riga del file è troppo lunga",
-                "encoding": "la codifica del file non è supportata"
+                "encoding": "la codifica del file non è supportata",
+                "resources": "l'elaborazione del file ha superato il limite di risorse"
             },
             "result": {
                 "new": "Nuovi contatti",
