@@ -21,9 +21,13 @@ echo "$line" >>"$CALLS"
 [ -n "${TRUSTED_PROXIES:-}" ] && echo "TRUSTED_PROXIES=$TRUSTED_PROXIES leaked into compose" >>"$CALLS"
 if [ -n "${FAKE_FAIL:-}" ] && [[ "$line" =~ $FAKE_FAIL ]]; then exit 1; fi
 if [ -n "${FAKE_RUNNING:-}" ] && [[ "$*" == ps* ]] && [[ "$*" == *"project=$FAKE_RUNNING"* ]]; then echo deadbeef; fi
-if [ -n "${FAKE_APP_CID:-}" ] && [[ "$*" == "ps -aq "* ]] && [[ "$*" == *"project=ventmail-"* ]]; then echo "$FAKE_APP_CID"; fi
-if [ -n "${FAKE_OTHER_CID:-}" ] && [[ "$*" == "ps -aq "* ]] && [[ "$*" != *"service=app"* ]]; then echo "$FAKE_OTHER_CID"; fi
+# The OLD colour in these scenarios is blue (FAKE_OLD overrides): only its project has containers.
+if [ -n "${FAKE_APP_CID:-}" ] && [[ "$*" == "ps -aq "* ]] && [[ "$*" == *"project=ventmail-${FAKE_OLD:-blue}"* ]]; then echo "$FAKE_APP_CID"; fi
+if [ -n "${FAKE_OTHER_CID:-}" ] && [[ "$*" == "ps -aq "* ]] && [[ "$*" == *"project=ventmail-${FAKE_OLD:-blue}"* ]] && [[ "$*" != *"service=app"* ]]; then echo "$FAKE_OTHER_CID"; fi
+if [ -n "${FAKE_MOUNTED:-}" ] && [[ "$*" == inspect* ]]; then echo "/run/php /app/storage/app /app/storage/app/public "; fi
 if [[ "$*" == *"vm.step=d227-space"* ]]; then echo "${FAKE_FREE_KB:-99999999}"; fi
+# An ssh drop mid-copy: hang up deploy.sh itself (once).
+if [[ "$*" == *"vm.step=d227-copy"* ]] && [ -n "${KILLFILE:-}" ] && [ -f "$KILLFILE" ]; then rm "$KILLFILE"; kill -HUP "$(cat "$PIDFILE")"; sleep 1; fi
 exit 0
 STUB
     chmod +x "$WORK/bin/docker"
@@ -31,7 +35,7 @@ STUB
     printf 'DB_DATABASE=ventmail\nTRUSTED_HOSTS=app.ventmail.app,api.ventmail.app,ventmail.app,ventmail-web\n' >"$WORK/app/.env"
     export PATH="$WORK/bin:$PATH" CALLS="$WORK/calls" APP_DIR="$WORK/app" BACKUP_DIR="$WORK/backups"
     export WAIT_TIMEOUT=5 DRAIN_SECONDS=0
-    unset FAKE_FAIL FAKE_RUNNING FAKE_APP_CID FAKE_OTHER_CID FAKE_FREE_KB
+    unset FAKE_FAIL FAKE_RUNNING FAKE_APP_CID FAKE_OTHER_CID FAKE_FREE_KB FAKE_OLD FAKE_MOUNTED KILLFILE PIDFILE
     : >"$CALLS"
 }
 teardown() { rm -rf "$WORK"; }
@@ -190,10 +194,11 @@ export FAKE_FAIL='d227-marker-check' FAKE_APP_CID=0ldapp
 expect "storage migration: drain -> stop -> space check -> copy -> verify -> down (D254, D280)" \
     'order "-p ventmail-blue .*exec -T web touch /tmp/ventmail-draining" "-p ventmail-blue -f compose.prod.yml stop" "ps -aq --filter label=com.docker.compose.project=ventmail-blue --filter label=com.docker.compose.service=app" "vm.step=d227-space" "vm.step=d227-copy" "vm.step=d227-verify" "-p ventmail-blue .*down"'
 expect "... the copy runs as root on both shared volumes (owner/mode preserved)" 'called "run --rm -i --label vm.step=d227-copy --user 0 --entrypoint sh -v ventmail-storage:/dst -v ventmail-storage-public:/dst/public ghcr.io/venture-co-group/ventmail:v1.1.0"'
-expect "... copies atomically (.d227-part + mv) and removes partial leftovers first (D277)" \
-    'grep -q "cp -p \"\$f\" \"/dst/\$f.d227-part\"" "$CALLS" && grep -q "mv \"/dst/\$f.d227-part\" \"/dst/\$f\"" "$CALLS" && grep -q "find /dst -name \"\*.d227-part\" -type f -exec rm" "$CALLS"'
+expect "... copies atomically and no-clobber (.d227-part + ln), removing only its own leftovers (D277, D287)" \
+    'grep -q "cp -p \"\$f\" \"\$part\"" "$CALLS" && grep -q "if ln \"\$part\" \"/dst/\$f\"" "$CALLS" && grep -q "! grep -qxF \"\$part\" /dst/.d227-preexisting; then rm \"\$part\"" "$CALLS" && ! grep -q "find /dst -name" "$CALLS"'
 expect "... records the pre-existing files once, outside the staging dir (D277)" 'grep -q "if \[ ! -f /dst/.d227-preexisting \]; then" "$CALLS"'
-expect "... verifies migrated files byte for byte and fails on partial leftovers (D277)" 'grep -q "content mismatch" "$CALLS" && grep -q "partial file(s) left" "$CALLS"'
+expect "... verifies byte for byte, the source entry count and partial leftovers (D277, D289)" \
+    'grep -q "content mismatch" "$CALLS" && grep -q "partial file left" "$CALLS" && grep -q "entry count mismatch" "$CALLS" && order "vm.step=d227-count" "vm.step=d227-copy" "run --rm -e D227_ENTRIES=.* --label vm.step=d227-verify"'
 expect "... keeps a conflicting old version aside, never overwrites (D281)" 'grep -q "/dst/.d227-conflicts/" "$CALLS"'
 expect "... and the deploy completes" '[ "$(deployed)" = v1.1.0 ] && [ ! -f "$APP_DIR/.d227-pending" ]'
 teardown
@@ -261,6 +266,60 @@ expect "deploy.sh --migrate-storage finishes it: copy, verify, then down, then u
     '[ "$rc" -eq 0 ] && order "vm.step=d227-copy" "vm.step=d227-verify" "-p ventmail-blue .*down" && [ ! -f "$APP_DIR/.d227-pending" ]'
 rc=0; "$DEPLOY" --migrate-storage >/dev/null 2>&1 || rc=$?
 expect "... and refuses when nothing is pending" '[ "$rc" -ne 0 ]'
+teardown
+
+# --- review round 3: an INTERRUPTED retire must never let a re-run recreate the old colour.
+setup
+"$DEPLOY" v1.0.0 >/dev/null 2>&1
+export FAKE_FAIL='d227-marker-check' FAKE_APP_CID=0ldapp
+# SIGHUP while the copy runs (an ssh drop): the stub hangs up deploy.sh itself.
+export KILLFILE="$WORK/kill" PIDFILE="$WORK/pid"
+touch "$KILLFILE"
+"$DEPLOY" v1.1.0 >/dev/null 2>&1 & echo $! >"$PIDFILE"; rc=0; wait "$(cat "$PIDFILE")" || rc=$?
+expect "a SIGHUP during the copy leaves .d227-pending (written before the drain) (D285)" \
+    '[ "$rc" -ne 0 ] && [ "$(cat "$APP_DIR/.d227-pending")" = blue ] && [ "$(color)" = green ] && ! called "-p ventmail-blue .*down"'
+rmdir "$APP_DIR/.deploy.lock" 2>/dev/null || true
+: >"$CALLS"
+rc=0; "$DEPLOY" v1.1.0 >/dev/null 2>&1 || rc=$?
+expect "... the re-run deploy refuses and never recreates the old colour" '[ "$rc" -ne 0 ] && ! called "up -d"'
+rm "$APP_DIR/.d227-pending"
+: >"$CALLS"
+rc=0; out="$("$DEPLOY" v1.2.0 2>&1)" || rc=$?
+expect "... even without .d227-pending, the guard refuses to recreate a colour with containers and no marker (D286)" \
+    '[ "$rc" -ne 0 ] && ! called "-p ventmail-blue .*up -d" && grep -q "D227 storage migration is not done" <<<"$out"'
+echo blue >"$APP_DIR/.d227-pending"
+rc=0; "$DEPLOY" --migrate-storage >/dev/null 2>&1 || rc=$?
+expect "... and --migrate-storage completes it (copy, verify, down)" \
+    '[ "$rc" -eq 0 ] && order "vm.step=d227-copy" "vm.step=d227-verify" "-p ventmail-blue .*down" && [ ! -f "$APP_DIR/.d227-pending" ]'
+teardown
+
+setup
+"$DEPLOY" v1.0.0 >/dev/null 2>&1
+export FAKE_APP_CID=0ldapp
+rc=0; "$DEPLOY" v1.1.0 >/dev/null 2>&1 || rc=$?
+expect "the guard lets a later deploy through once the marker exists, even if the colour has containers" '[ "$rc" -eq 0 ] && called "-p ventmail-green .*up -d"'
+teardown
+
+setup
+"$DEPLOY" v1.0.0 >/dev/null 2>&1
+expect "a fresh box (no colour served before) writes the D227 marker without a copy (D288)" 'called "vm.step=d227-mark" && ! called "vm.step=d227-copy"'
+teardown
+
+setup
+"$DEPLOY" v1.0.0 >/dev/null 2>&1
+export FAKE_FAIL='d227-marker-check' FAKE_APP_CID=0ldapp FAKE_MOUNTED=1
+rc=0; "$DEPLOY" v1.1.0 >/dev/null 2>&1 || rc=$?
+expect "an old colour that already mounts the volume is marked, not copied onto itself (D288)" \
+    '[ "$rc" -eq 0 ] && called "inspect -f" && called "vm.step=d227-mark" && ! called "vm.step=d227-copy" && called "-p ventmail-blue .*down"'
+teardown
+
+setup
+"$DEPLOY" v1.0.0 >/dev/null 2>&1
+echo blue >"$APP_DIR/.d227-pending"
+: >"$CALLS"
+rc=0; out="$("$DEPLOY" --migrate-storage 2>&1)" || rc=$?
+expect "--migrate-storage refuses when the pending colour is the serving one (N6, D290)" \
+    '[ "$rc" -ne 0 ] && grep -q "serving colour" <<<"$out" && ! called "stop" && ! called "down"'
 teardown
 
 setup

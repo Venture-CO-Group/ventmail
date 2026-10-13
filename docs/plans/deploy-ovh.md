@@ -185,6 +185,18 @@
       `./deploy.sh --migrate-storage` fejezi be. Ha közben a régi színt ideiglenesen vissza kell
       indítani (pl. kiszolgálásra): `docker compose -p ventmail-<szín> -f compose.prod.yml start` a
       `/srv/apps/ventmail`-ből — a `--migrate-storage` ilyenkor is működik (előtte újra leállítja).
+    - **Megszakítás (SIGHUP, ssh-szakadás, reboot; D285–D286):** a `.d227-pending` a 7. lépés ELEJÉN,
+      a drain ELŐTT íródik (atomian), és csak a sikeres `down` után törlődik — egy megszakított váltás
+      után minden deploy tilt, amíg a `--migrate-storage` le nem fut. Második védővonal: a 6. lépés
+      (`up`) előtt, ha nincs `.d227-migrated` jelölő és a cél-szín projektjének van (akár leállított)
+      konténere, a deploy megáll — `up -d --remove-orphans` nem semmisítheti meg a régi réteget. A
+      `--migrate-storage` a kiszolgáló színt soha nem állítja le (D290).
+    - **Friss box / már volume-os szín (D288):** az első deploy (nincs korábbi szín) a jelölőt másolás
+      nélkül írja; egy szín, amelynek `app` konténere már a volume-ot csatolja (`docker inspect`), nem
+      másolódik önmagára — jelölő, és kész.
+    - **Ellenőrzés (D287, D289):** a forrás tar-stream bejegyzés-száma (`tar -t`) és a staging egyezik
+      (egy fejléc-határon csonkult stream nem mehet át); a no-clobber `ln`-nel (nincs ellenőrzés–mozgatás
+      verseny); csak a SAJÁT `.d227-part` maradékok törlődnek; az ütközés-másolat is atomi és `cmp`-elt.
     - Élesítés előtt: `docker exec <app> du -s /app/storage/app` és `df` a docker-gyökéren.
     Ellenőrzés: `docker run --rm -v ventmail-storage:/d alpine cat /d/.d227-migrated`.
     **Rollback:** egy D227 előtti tagre visszalépéskor is a mostani (D227-es) `compose.prod.yml`,

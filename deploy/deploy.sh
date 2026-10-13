@@ -131,7 +131,7 @@ D227_MIN_FREE_FACTOR="${D227_MIN_FREE_FACTOR:-2}"
 D227_MIN_FREE_MARGIN_KB="${D227_MIN_FREE_MARGIN_KB:-65536}"
 
 migrate_d227() {
-    local old="$1" helper="$2" all cid source_kb free_kb need_kb
+    local old="$1" helper="$2" all cid mounted source_kb entries free_kb need_kb
     local mounts=(-v ventmail-storage:/dst -v ventmail-storage-public:/dst/public)
 
     if docker run --rm --label vm.step=d227-marker-check --user 0 --entrypoint sh "${mounts[@]}" "$helper" -c 'test -f /dst/.d227-migrated'; then
@@ -151,8 +151,21 @@ migrate_d227() {
         return 0
     fi
 
-    # 0. free space: the source size (tar stream) against the volume's free space.
+    # A colour that already runs on the shared volume (a D227 release) has nothing in its own
+    # layer: record that and stop (review round 3 N3, D288) - never copy the volume onto itself.
+    mounted="$(docker inspect -f '{{range .Mounts}}{{.Destination}} {{end}}' "$cid")" || { log "storage: cannot inspect $cid"; return 1; }
+    if [[ " $mounted " == *" /app/storage/app "* ]]; then
+        mark_d227 "$helper" "source=$old already-on-volume" || return 1
+        log "storage: colour $old already uses the shared volume; marker written, nothing to copy"
+        return 0
+    fi
+
+    # 0. the source: size (tar stream) against the volume's free space, and its entry count - the
+    #    verification compares the staged tree against it, so a stream cut at a header boundary
+    #    (which busybox tar extracts without error) cannot pass (review round 3 N4, D289).
     source_kb="$(docker cp "$cid:/app/storage/app" - | wc -c | awk '{ print int(($1 + 1023) / 1024) }')" || { log "storage: cannot measure the source"; return 1; }
+    entries="$(docker cp "$cid:/app/storage/app" - | docker run --rm -i --label vm.step=d227-count --entrypoint sh "$helper" -c 'tar -t -f - | wc -l')" || { log "storage: cannot count the source entries"; return 1; }
+    entries="$(tr -dc '0-9' <<<"$entries")"
     free_kb="$(docker run --rm --label vm.step=d227-space --user 0 --entrypoint sh "${mounts[@]}" "$helper" -c 'df -Pk /dst | awk "NR == 2 { print \$4 }"')" || { log "storage: cannot measure the free space"; return 1; }
     need_kb=$((source_kb * D227_MIN_FREE_FACTOR + D227_MIN_FREE_MARGIN_KB))
     if ! [[ "$free_kb" =~ ^[0-9]+$ ]] || [ "$free_kb" -lt "$need_kb" ]; then
@@ -160,13 +173,14 @@ migrate_d227() {
         return 1
     fi
 
-    # 1. copy: stage the tar stream on the volume, then copy entry by entry (atomic, no overwrite).
+    # 1. copy: stage the tar stream on the volume, then copy entry by entry. Atomic no-clobber: the
+    #    file is written as `<name>.d227-part` and HARD-LINKED to its final name (`ln` fails if the
+    #    name exists - no check-then-move race); an existing name goes to the conflict branch.
     docker cp "$cid:/app/storage/app" - | docker run --rm -i --label vm.step=d227-copy --user 0 --entrypoint sh "${mounts[@]}" "$helper" -c '
         set -eu
         ok=0
         trap '"'"'if [ "$ok" != 1 ] && [ -d /dst/.d227-staging ]; then rm -r /dst/.d227-staging; fi'"'"' EXIT
         if [ -d /dst/.d227-staging ]; then rm -r /dst/.d227-staging; fi
-        find /dst -name "*.d227-part" -type f -exec rm {} +
         if [ ! -f /dst/.d227-preexisting ]; then
             find /dst -path /dst/.d227-conflicts -prune -o -type f -print > /dst/.d227-preexisting.tmp
             mv /dst/.d227-preexisting.tmp /dst/.d227-preexisting
@@ -183,27 +197,38 @@ migrate_d227() {
         conflicts=0
         find . -type f > /tmp/staged
         while IFS= read -r f; do
-            if [ -e "/dst/$f" ]; then
-                if ! cmp -s "$f" "/dst/$f"; then
-                    mkdir -p "/dst/.d227-conflicts/$(dirname "$f")"
-                    cp -p "$f" "/dst/.d227-conflicts/$f"
-                    echo "conflict kept: $f" >&2
-                    conflicts=$((conflicts + 1))
-                fi
-                continue
+            part="/dst/$f.d227-part"
+            # Only OUR leftover from an interrupted attempt is removed - never a live file that
+            # merely ends in .d227-part (it would be on the pre-existing list).
+            if [ -e "$part" ] && ! grep -qxF "$part" /dst/.d227-preexisting; then rm "$part"; fi
+            if [ ! -e "/dst/$f" ]; then
+                cp -p "$f" "$part"
+                if ln "$part" "/dst/$f" 2>/dev/null; then rm "$part"; continue; fi
+                rm "$part"
             fi
-            cp -p "$f" "/dst/$f.d227-part"
-            mv "/dst/$f.d227-part" "/dst/$f"
+            if ! cmp -s "$f" "/dst/$f"; then
+                mkdir -p "/dst/.d227-conflicts/$(dirname "$f")"
+                cp -p "$f" "/dst/.d227-conflicts/$f.d227-part"
+                mv "/dst/.d227-conflicts/$f.d227-part" "/dst/.d227-conflicts/$f"
+                cmp -s "$f" "/dst/.d227-conflicts/$f"
+                echo "conflict kept: $f" >&2
+                conflicts=$((conflicts + 1))
+            fi
         done < /tmp/staged
         echo "conflicts: $conflicts"
         ok=1
     ' || return 1
 
-    # 2. verify: a migrated file is byte-identical; a pre-existing or conflicting one exists.
-    docker run --rm --label vm.step=d227-verify --user 0 --entrypoint sh "${mounts[@]}" "$helper" -c '
+    # 2. verify: the staged tree has the source's entry count; a migrated file is byte-identical; a
+    #    pre-existing one exists; a conflict copy is byte-identical; no part file of ours is left.
+    docker run --rm -e "D227_ENTRIES=$entries" --label vm.step=d227-verify --user 0 --entrypoint sh "${mounts[@]}" "$helper" -c '
         set -eu
         ok=0
         trap '"'"'if [ "$ok" != 1 ] && [ -d /dst/.d227-staging ]; then rm -r /dst/.d227-staging; fi'"'"' EXIT
+        staged_entries="$(find /dst/.d227-staging/app | wc -l)"
+        if [ "$staged_entries" != "${D227_ENTRIES:-}" ]; then
+            echo "entry count mismatch: source ${D227_ENTRIES:-?}, staged $staged_entries" >&2; exit 1
+        fi
         cd /dst/.d227-staging/app
         files=0; bytes=0; bad=0
         find . -type f > /tmp/staged
@@ -211,11 +236,16 @@ migrate_d227() {
             rel="${f#./}"; files=$((files + 1))
             bytes=$((bytes + $(stat -c %s "$f")))
             if [ ! -f "/dst/$rel" ]; then echo "missing: $rel" >&2; bad=$((bad + 1)); continue; fi
-            if grep -qxF "/dst/$rel" /dst/.d227-preexisting || [ -f "/dst/.d227-conflicts/$rel" ]; then continue; fi
+            if [ -e "/dst/$rel.d227-part" ] && ! grep -qxF "/dst/$rel.d227-part" /dst/.d227-preexisting; then
+                echo "partial file left: $rel" >&2; bad=$((bad + 1))
+            fi
+            if [ -f "/dst/.d227-conflicts/$rel" ]; then
+                cmp -s "$f" "/dst/.d227-conflicts/$rel" || { echo "conflict copy mismatch: $rel" >&2; bad=$((bad + 1)); }
+                continue
+            fi
+            if grep -qxF "/dst/$rel" /dst/.d227-preexisting; then continue; fi
             if ! cmp -s "$f" "/dst/$rel"; then echo "content mismatch: $rel" >&2; bad=$((bad + 1)); fi
         done < /tmp/staged
-        leftovers="$(find /dst -name "*.d227-part" -type f | wc -l)"
-        [ "$leftovers" -eq 0 ] || { echo "$leftovers partial file(s) left" >&2; bad=$((bad + 1)); }
         [ "$bad" -eq 0 ] || { echo "$bad file(s) failed verification" >&2; exit 1; }
         printf "migrated=%s files=%s bytes=%s\\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$files" "$bytes" > /dst/.d227-migrated
         chown 10001:10001 /dst/.d227-migrated
@@ -227,6 +257,35 @@ migrate_d227() {
     ' || return 1
 
     log "storage: D227 migration from $old verified, marker written"
+}
+
+# mark_d227 <helper image> <note>: write the `.d227-migrated` marker without a copy (a fresh box or
+# a colour that already runs on the volume: there is no container layer to rescue).
+mark_d227() {
+    local helper="$1" note="$2"
+
+    docker run --rm -e "D227_NOTE=$note" --label vm.step=d227-mark --user 0 --entrypoint sh -v ventmail-storage:/dst "$helper" -c '
+        set -eu
+        if [ ! -f /dst/.d227-migrated ]; then
+            printf "migrated=%s %s\\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$D227_NOTE" > /dst/.d227-migrated.tmp
+            chown 10001:10001 /dst/.d227-migrated.tmp
+            mv /dst/.d227-migrated.tmp /dst/.d227-migrated
+        fi
+    '
+}
+
+# d227_guard <colour> <helper image>: before a colour is (re)created, make sure it does not hold
+# the only copy of pre-D227 files: without the marker, a colour project that still has containers
+# (running OR stopped) must not be recreated - `up` would destroy its layer (review round 3 B1).
+d227_guard() {
+    local target="$1" helper="$2" existing
+
+    existing="$(docker ps -aq --filter "label=com.docker.compose.project=ventmail-$target")" || die "cannot list the containers of $target; nothing changed"
+    [ -z "$existing" ] && return 0
+    if docker run --rm --label vm.step=d227-marker-check --user 0 --entrypoint sh -v ventmail-storage:/dst "$helper" -c 'test -f /dst/.d227-migrated'; then
+        return 0
+    fi
+    die "colour $target still has containers and the D227 storage migration is not done: recreating it would destroy its files. Run ./deploy.sh --migrate-storage (record the colour in .d227-pending first if it is missing: echo $target > .d227-pending)"
 }
 
 # retire <old colour> <old tag> <helper image>: stop the (drained) colour first - its workers and
@@ -256,6 +315,8 @@ if [ "$mode" = migrate-storage ]; then
     [ -f .d227-pending ] || die "no storage migration is pending"
     pending="$(cat .d227-pending)"
     [[ "$pending" =~ ^(blue|green)$ ]] || die ".d227-pending is invalid"
+    # Never the SERVING colour (review round 3 N6): stopping and removing it would take the site down.
+    [ "$pending" != "$(cat .active-color 2>/dev/null || true)" ] || die ".d227-pending names the serving colour ($pending); refusing"
     retire "$pending" "$tag" "$IMAGE:$tag"
     log "storage migration finished; deploys are unblocked"
     exit 0
@@ -305,7 +366,9 @@ ops migrate --force --isolated --no-interaction ||
 
 log "migrations applied"
 
-# 6. start the idle colour next to the serving one
+# 6. start the idle colour next to the serving one. Never over a colour that may still hold the
+#    only copy of pre-D227 files (an interrupted retire; review round 3 B1, D286).
+d227_guard "$next" "$IMAGE:$tag"
 if ! colour "$next" "$tag" up -d --remove-orphans --wait --wait-timeout "$WAIT_TIMEOUT"; then
     log "$tag did not become healthy on $next; discarding it"
     colour "$next" "$tag" down --remove-orphans ||
@@ -318,10 +381,16 @@ log "$next is healthy on $tag"
 printf '%s\n' "$tag" >.deployed-tag.tmp && mv .deployed-tag.tmp .deployed-tag
 printf '%s\n' "$next" >.active-color.tmp && mv .active-color.tmp .active-color
 if [ -n "$active" ] && [ "$active" != "$next" ]; then
+    # B1 (D285): recorded BEFORE the drain, atomically - an interrupted retire (SIGHUP, reboot) must
+    # still block further deploys; `retire` removes it only after a successful `down`.
+    printf '%s\n' "$active" >.d227-pending.tmp && mv .d227-pending.tmp .d227-pending
     colour "$active" "${previous:-$tag}" exec -T web touch /tmp/ventmail-draining ||
         log "warning: could not mark $active as draining; stopping it anyway"
     sleep "$DRAIN_SECONDS"
     retire "$active" "${previous:-$tag}" "$IMAGE:$tag"
+elif [ -z "$active" ]; then
+    # A fresh box (no colour served before): no pre-D227 layer exists anywhere (N3, D288).
+    mark_d227 "$IMAGE:$tag" "fresh-box" || log "warning: could not write the D227 marker on a fresh box"
 fi
 
 log "deployed $tag on $next"
