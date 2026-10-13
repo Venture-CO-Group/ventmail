@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Support\ConcurrentIndex;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
@@ -33,7 +34,8 @@ return new class extends Migration
             });
         }
 
-        DB::statement('create index concurrently if not exists campaign_engagement_recipient on campaign_engagement (workspace_id, recipient_hash)');
+        // Az INVALID maradványt a segéd eldobja és újraépíti (review NIT).
+        ConcurrentIndex::create('campaign_engagement_recipient', 'on campaign_engagement (workspace_id, recipient_hash)');
     }
 
     public function down(): void

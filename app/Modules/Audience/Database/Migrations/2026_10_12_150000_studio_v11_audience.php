@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Support\ConcurrentIndex;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
@@ -40,8 +41,9 @@ return new class extends Migration
             });
         }
 
-        DB::statement('create index concurrently if not exists contacts_ws_created_idx on contacts (workspace_id, created_at)');
-        DB::statement('create index concurrently if not exists contacts_ws_unsubscribed_idx on contacts (workspace_id, unsubscribed_at) where unsubscribed_at is not null');
+        // Az INVALID maradványt (megszakadt építés) a segéd eldobja és újraépíti (review NIT).
+        ConcurrentIndex::create('contacts_ws_created_idx', 'on contacts (workspace_id, created_at)');
+        ConcurrentIndex::create('contacts_ws_unsubscribed_idx', 'on contacts (workspace_id, unsubscribed_at) where unsubscribed_at is not null');
 
         if (! Schema::hasColumn('forms', 'page')) {
             Schema::table('forms', function (Blueprint $table): void {

@@ -51,8 +51,11 @@ use Illuminate\Support\Facades\RateLimiter;
  */
 final class SubmitForm
 {
-    /** Egy címre naponta legfeljebb ennyi megerősítő levél megy (minden űrlapon és tenanton át). */
-    public const DOI_PER_ADDRESS_PER_DAY = 3;
+    /** Egy címre EGY workspace-ből naponta legfeljebb ennyi megerősítő levél megy (minden űrlapján át). */
+    public const DOI_PER_WORKSPACE_ADDRESS_PER_DAY = 3;
+
+    /** Egy címre naponta legfeljebb ennyi megerősítő levél megy ÖSSZESEN (minden tenanton át). */
+    public const DOI_PER_ADDRESS_PER_DAY = 10;
 
     public function __construct(
         private readonly ConsentRecorder $consent,
@@ -112,21 +115,6 @@ final class SubmitForm
         if ($this->isSuppressed($email)) {
             return true;
         }
-
-        // 5. CÍMENKÉNTI GLOBÁLIS PLAFON a megerősítő levelekre (review S1).
-        //
-        // A kulcs a cím kulcsolt hash-e, workspace NÉLKÜL: egy idegen cím bombázása sok
-        // űrlapon és sok tenanton át is legfeljebb ennyi megerősítő levelet küld naponta. A
-        // túllépés csendes (ugyanaz a válasz), és nem ír bizonyítékot sem.
-        $doiKey = 'doi-mail:'.KeyedHash::of('email', $email);
-
-        if (RateLimiter::tooManyAttempts($doiKey, self::DOI_PER_ADDRESS_PER_DAY)) {
-            Log::info('Megerősítő levél címenkénti plafonon.', ['form' => $form->uuid]);
-
-            return true;
-        }
-
-        RateLimiter::hit($doiKey, 86400);
 
         DB::transaction(function () use ($form, $submission, $email): void {
             $contact = Contact::query()->firstOrNew(['email' => $email]);
@@ -225,7 +213,29 @@ final class SubmitForm
             return;
         }
 
-        app(SendMessage::class)([
+        // CÍMENKÉNTI PLAFON a megerősítő LEVÉLRE (review S1 → SN1).
+        //
+        // CSAK A LEVÉL marad ki, a beiratkozás nem: a kontakt és a `pending` consent fent már
+        // létrejött. Korábban a plafon az egész beküldést eldobta — egy idegen cím napi három
+        // beküldésével bárki blokkolhatta az áldozat valódi feliratkozását MINDEN tenantnál.
+        //
+        // Két kulcs (a cím kulcsolt hash-ével, a cím maga nem kerül a kulcsba):
+        //  - (workspace, cím) — napi 3: egy tenant űrlapjai ennyit küldhetnek egy címre;
+        //  - cím — napi 10, minden tenanton át: a sok tenanton át szervezett bombázás plafonja.
+        // A számláló CSAK ELKÜLDÖTT levél után nő: a feladó nélküli (vagy elutasított) beküldés
+        // nem fogyasztja a napi keretet.
+        $hash = KeyedHash::of('email', $email);
+        $workspaceKey = 'doi-mail:ws:'.(int) $contact->workspace_id.':'.$hash;
+        $globalKey = 'doi-mail:'.$hash;
+
+        if (RateLimiter::tooManyAttempts($workspaceKey, self::DOI_PER_WORKSPACE_ADDRESS_PER_DAY)
+            || RateLimiter::tooManyAttempts($globalKey, self::DOI_PER_ADDRESS_PER_DAY)) {
+            Log::info('Megerősítő levél címenkénti plafonon — a beiratkozás pending, levél nélkül.', ['form' => $form->uuid]);
+
+            return;
+        }
+
+        $result = app(SendMessage::class)([
             'channel' => 'transactional',
             'from_email' => $from,
             'from_name' => $list?->from_name,
@@ -242,6 +252,12 @@ final class SubmitForm
             // űrlapból származik, tehát a dupla beküldés nem küld két levelet.
             'idempotency_key' => 'optin:'.hash('sha256', $form->uuid.'|'.$email.'|'.now()->format('YmdH')),
         ]);
+
+        // A KAPU ÁLTAL ELUTASÍTOTT levél (pl. hitelesítetlen feladó-domain) nem ment ki: nem számol.
+        if ($result->decision->allowed) {
+            RateLimiter::hit($workspaceKey, 86400);
+            RateLimiter::hit($globalKey, 86400);
+        }
     }
 
     private function isSuppressed(string $email): bool

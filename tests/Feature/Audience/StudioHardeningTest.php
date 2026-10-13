@@ -12,6 +12,7 @@ use App\Modules\Audience\Services\AudienceInsights;
 use App\Modules\Audience\Services\FormRenderTokens;
 use App\Modules\Audience\Services\SegmentEngine;
 use App\Modules\Audit\Models\AuditLog;
+use App\Modules\Consent\Models\Consent;
 use App\Modules\Consent\Services\ConsentRecorder;
 use App\Modules\Consent\Services\PreferenceTokens;
 use App\Modules\Domains\Models\Domain;
@@ -19,12 +20,12 @@ use App\Modules\Sending\Drivers\FakeDriver;
 use App\Modules\Sending\Models\Message;
 use App\Modules\Tenancy\Models\Workspace;
 use App\Modules\Tenancy\Services\WorkspaceContext;
+use App\Support\ConcurrentIndex;
 use App\Support\QueryBudget;
 use App\Support\QueryTooExpensive;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\RateLimiter;
 use Tests\Support\StudioFixtures;
 
 uses(RefreshDatabase::class);
@@ -145,20 +146,50 @@ it('S1 · a régi (mérés nélkül is elfogadó) űrlap beágyazott kódja tov�
     expect(Contact::query()->where('email', 'regi@pelda.hu')->exists())->toBeTrue();
 });
 
-it('S1 · címenkénti GLOBÁLIS plafon a megerősítő levelekre — űrlapokon és workspace-eken át', function () {
+it('SN1 · a megerősítő levél plafonja (workspace, cím) 3/nap — a beiratkozás MINDEN beküldésnél létrejön, csak a levél marad ki', function () {
     Domain::create(['name' => 'pelda.hu', 'status' => 'verified', 'verified_at' => now()]);
 
     foreach (range(1, 5) as $i) {
-        $form = $i <= 3 ? hardeningForm(['name' => "F{$i}"]) : $this->context->runFor(Workspace::factory()->create(), fn () => Form::create(['name' => "F{$i}", 'consent_text' => 'x', 'min_seconds' => 1]));
+        $this->post('/f/'.hardeningForm(['name' => "F{$i}"])->slug, ['email' => 'aldozat@pelda.hu', 'consent' => '1', '_elapsed' => 10])->assertOk();
+    }
+
+    expect(Message::query()->withoutGlobalScopes()->where('channel', 'transactional')->where('status', '!=', 'rejected')->count())->toBe(3)
+        ->and(Message::query()->withoutGlobalScopes()->where('channel', 'transactional')->count())->toBe(3)
+        ->and(Contact::query()->where('email', 'aldozat@pelda.hu')->exists())->toBeTrue()
+        ->and(Consent::query()->where('email', 'aldozat@pelda.hu')->where('status', 'pending')->exists())->toBeTrue();
+});
+
+it('SN1 · a globális címenkénti plafon (10/nap) más tenantok beiratkozását NEM blokkolja, csak a levelet', function () {
+    foreach (range(1, 12) as $i) {
+        $workspace = Workspace::factory()->create();
+        $form = $this->context->runFor($workspace, function () use ($i) {
+            Domain::create(['name' => 'pelda.hu', 'status' => 'verified', 'verified_at' => now()]);
+            $list = ContactList::create(['name' => "L{$i}", 'from_email' => 'hirlevel@pelda.hu']);
+
+            return Form::create(['name' => "F{$i}", 'contact_list_id' => $list->getKey(), 'consent_text' => 'x', 'min_seconds' => 1]);
+        });
 
         $this->post('/f/'.$form->slug, ['email' => 'aldozat@pelda.hu', 'consent' => '1', '_elapsed' => 10])->assertOk();
     }
 
-    $sent = Message::query()->withoutGlobalScopes()->where('channel', 'transactional')->count();
+    expect(Message::query()->withoutGlobalScopes()->where('channel', 'transactional')->where('status', '!=', 'rejected')->count())->toBe(10)
+        // A 11. és 12. tenantnál is LÉTREJÖTT a kontakt (pending) — az áldozat feliratkozása nem veszett el.
+        ->and(Contact::query()->withoutGlobalScopes()->where('email', 'aldozat@pelda.hu')->count())->toBe(12);
+});
 
-    expect($sent)->toBe(3);
+it('SN1 · a plafon csak ELKÜLDÖTT levél után számol: feladó nélküli beküldés nem fogyasztja', function () {
+    config(['mail.from.address' => null]);
+    $list = ContactList::create(['name' => 'Feladó nélkül']);
 
-    RateLimiter::clear('doi-mail');
+    foreach (range(1, 4) as $i) {
+        $this->post('/f/'.hardeningForm(['name' => "N{$i}", 'contact_list_id' => $list->getKey()])->slug, ['email' => 'x@pelda.hu', 'consent' => '1', '_elapsed' => 10])->assertOk();
+    }
+
+    expect(Message::query()->count())->toBe(0);
+
+    $this->post('/f/'.hardeningForm(['name' => 'Rendes'])->slug, ['email' => 'x@pelda.hu', 'consent' => '1', '_elapsed' => 10])->assertOk();
+
+    expect(Message::query()->count())->toBe(1);
 });
 
 /* ---------------------------------------------------------------- S3 */
@@ -293,4 +324,31 @@ it('RS5 · a forrás-visszatöltés a NULL forrású kontaktokat kitölti, köte
         'kezi@pelda.hu' => 'manual',
         'import@pelda.hu' => 'import',
     ]);
+});
+
+/* ---------------------------------------------------------------- 2. review-kör NIT-ek */
+
+it('NIT · a lekérdezési keret BEÁGYAZOTT tranzakcióban sem szivárog: a statement_timeout visszaáll', function () {
+    // A RefreshDatabase maga is tranzakció — a keret itt savepointban fut.
+    $before = DB::selectOne("select current_setting('statement_timeout') as v")->v;
+
+    DB::transaction(function () use ($before): void {
+        expect(app(QueryBudget::class)->run(fn () => 42, 1234))->toBe(42)
+            ->and(DB::selectOne("select current_setting('statement_timeout') as v")->v)->toBe($before);
+    });
+});
+
+it('NIT · a CONCURRENTLY index INVALID maradványát a migrációs segéd eldobja és újraépíti', function () {
+    DB::statement('create table if not exists nit_idx_probe (id bigint, v text)');
+    DB::statement('create index nit_idx_probe_v on nit_idx_probe (v)');
+
+    try {
+        DB::statement("update pg_index set indisvalid = false where indexrelid = 'nit_idx_probe_v'::regclass");
+    } catch (Throwable) {
+        $this->markTestSkipped('A teszt-DB felhasználója nem írhatja a pg_index-et.');
+    }
+
+    ConcurrentIndex::create('nit_idx_probe_v', 'on nit_idx_probe (v)');
+
+    expect((bool) DB::selectOne("select indisvalid from pg_index where indexrelid = 'nit_idx_probe_v'::regclass")->indisvalid)->toBeTrue();
 });

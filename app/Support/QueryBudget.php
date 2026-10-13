@@ -33,11 +33,25 @@ class QueryBudget
     {
         $budget = max(1, (int) ($milliseconds ?? config('studio.query_budget_ms', self::DEFAULT_MS)));
 
+        // BEÁGYAZOTT hívásnál (a hívó már tranzakcióban van) a `DB::transaction` csak SAVEPOINT, és a
+        // `SET LOCAL` a KÜLSŐ tranzakció végéig élne — a keret a hívó további lekérdezéseire is
+        // szivárogna (review NIT). Ezért a korábbi értéket a munka után visszaállítjuk. (Hibánál a
+        // savepoint visszagörgetése magától visszaállítja.)
+        $nested = DB::transactionLevel() > 0;
+
         try {
-            return DB::transaction(function () use ($work, $budget) {
+            return DB::transaction(function () use ($work, $budget, $nested) {
+                $previous = $nested ? (string) DB::selectOne("select current_setting('statement_timeout') as v")->v : null;
+
                 DB::statement('set local statement_timeout = '.$budget);
 
-                return $work();
+                $result = $work();
+
+                if ($previous !== null) {
+                    DB::select("select set_config('statement_timeout', ?, true)", [$previous]);
+                }
+
+                return $result;
             });
         } catch (QueryException $e) {
             if ((string) ($e->errorInfo[0] ?? $e->getCode()) === '57014') {
