@@ -239,5 +239,8 @@ return [
     'plat' => [
         'dkimRotated' => 'Nuova chiave DKIM generata — aggiungi il nuovo record al DNS.',
         'invalidAllowlist' => 'L\'allowlist IP può contenere solo indirizzi IP o intervalli CIDR validi (max 50).',
+        'webhookUpdated' => 'Endpoint salvato.',
+        'webhookTestQueued' => 'Evento di prova in coda — il risultato è nel registro consegne.',
+        'webhookTestThrottled' => 'Troppi eventi di prova; riprova tra un minuto.',
     ],
 ];

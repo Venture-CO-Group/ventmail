@@ -75,6 +75,7 @@ test('a tiltólista felvesz, és a PANASZT nem engedi feloldani', async ({ page 
 test('a webhook-végpont SSRF-es címre nem jön létre', async ({ page }) => {
     await page.goto('/webhooks');
 
+    await page.getByTestId('endpoint-new').click();
     await page.getByTestId('endpoint-name').fill('Belső');
     await page.getByTestId('endpoint-url').fill('http://169.254.169.254/latest/meta-data/');
     await page.getByTestId('endpoint-submit').click();

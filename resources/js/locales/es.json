@@ -2032,7 +2032,7 @@
             "verified": "OK",
             "active": "Activo",
             "rotating": "En rotación",
-            "pending": "Propagándose…",
+            "pending": "Pendiente",
             "failed": "Error",
             "revoked": "Revocado",
             "dead_letter": "Dead-letter",
@@ -2041,12 +2041,15 @@
             "listed": "En lista",
             "clean": "Limpio",
             "quarantined": "En cuarentena",
-            "warming": "Calentamiento"
+            "warming": "Calentamiento",
+            "test": "prueba",
+            "propagating": "Propagándose…"
         },
         "eyebrow": {
             "domains": "Plataforma · Dominios",
             "apiKeys": "Plataforma · Claves API",
-            "smtp": "Plataforma · SMTP"
+            "smtp": "Plataforma · SMTP",
+            "webhooks": "Plataforma · Webhooks"
         },
         "domains": {
             "title": "Dominios de envío",
@@ -2104,6 +2107,36 @@
             "perDomain": "Una credencial vinculada a un dominio solo puede enviar desde ese dominio. No hay autenticación en texto plano; cada envío pasa por el mismo PreSendGate que la API.",
             "rotateConfirm": "Se emitirán un nuevo usuario y contraseña para «{name}»; los anteriores dejan de funcionar de inmediato. La acción queda auditada.",
             "revokeConfirm": "La credencial «{name}» deja de funcionar de inmediato. La acción queda auditada."
+        },
+        "save": "Guardar",
+        "webhooks": {
+            "lead": "Notificaciones de eventos firmadas (HMAC-SHA256) con reintentos, dead-letter y reenvío.",
+            "add": "Añadir endpoint",
+            "secretTitle": "Nuevo secreto de firma",
+            "filterDelivered": "Correctas",
+            "filterFailed": "Fallidas",
+            "response": "Respuesta",
+            "latency": "Latencia",
+            "attemptN": "Intento {n}",
+            "immediately": "inmediato",
+            "replayable": "reenviable",
+            "rate7d": "Éxito en 7 días: {rate}",
+            "schedule": "Calendario de reintentos",
+            "eventTypes": "Tipos de evento",
+            "disable": "Desactivar",
+            "enable": "Activar",
+            "secret": "Secreto de firma",
+            "signatureHint": "Cabeceras: X-VentMail-Timestamp y X-VentMail-Signature = HMAC-SHA256(secreto, marca de tiempo + \".\" + cuerpo). Rechaza marcas de tiempo de más de 5 minutos.",
+            "previousUntil": "Una firma con el secreto anterior también se envía en X-VentMail-Signature-Previous hasta {at}.",
+            "test": "Enviar un evento de prueba",
+            "send": "Enviar",
+            "testHint": "Payload sintético marcado con \"test\": true; no se envía ningún correo. La entrega usa la misma firma y protección SSRF que en producción.",
+            "log": "Registro de entregas",
+            "resend": "Reenviar",
+            "rotateTitle": "Rotar el secreto de firma",
+            "rotateText": "Se genera un nuevo secreto que se muestra una sola vez. La acción queda auditada.",
+            "grace": "Mantener válido el secreto anterior {hours} horas (segunda firma): desactívalo si hubo una filtración.",
+            "deleteConfirm": "El endpoint «{name}» se eliminará y no recibirá más eventos. La acción queda auditada."
         }
     }
 }

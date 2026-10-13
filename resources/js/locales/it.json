@@ -2032,7 +2032,7 @@
             "verified": "OK",
             "active": "Attivo",
             "rotating": "In rotazione",
-            "pending": "In propagazione…",
+            "pending": "In attesa",
             "failed": "Errore",
             "revoked": "Revocato",
             "dead_letter": "Dead-letter",
@@ -2041,12 +2041,15 @@
             "listed": "In lista",
             "clean": "Pulito",
             "quarantined": "In quarantena",
-            "warming": "Warm-up"
+            "warming": "Warm-up",
+            "test": "test",
+            "propagating": "In propagazione…"
         },
         "eyebrow": {
             "domains": "Piattaforma · Domini",
             "apiKeys": "Piattaforma · Chiavi API",
-            "smtp": "Piattaforma · SMTP"
+            "smtp": "Piattaforma · SMTP",
+            "webhooks": "Piattaforma · Webhook"
         },
         "domains": {
             "title": "Domini di invio",
@@ -2104,6 +2107,36 @@
             "perDomain": "Una credenziale legata a un dominio può inviare solo da quel dominio. Nessuna autenticazione in chiaro; ogni invio passa dallo stesso PreSendGate dell'API.",
             "rotateConfirm": "Verranno emessi nuovo utente e nuova password per \"{name}\"; i vecchi smettono subito di funzionare. L'azione è registrata.",
             "revokeConfirm": "La credenziale \"{name}\" smette subito di funzionare. L'azione è registrata."
+        },
+        "save": "Salva",
+        "webhooks": {
+            "lead": "Notifiche di eventi firmate (HMAC-SHA256) con tentativi, dead-letter e reinvio.",
+            "add": "Aggiungi endpoint",
+            "secretTitle": "Nuovo segreto di firma",
+            "filterDelivered": "Riuscite",
+            "filterFailed": "Fallite",
+            "response": "Risposta",
+            "latency": "Latenza",
+            "attemptN": "Tentativo {n}",
+            "immediately": "subito",
+            "replayable": "reinviabile",
+            "rate7d": "Successo 7 giorni: {rate}",
+            "schedule": "Pianificazione dei tentativi",
+            "eventTypes": "Tipi di evento",
+            "disable": "Disattiva",
+            "enable": "Attiva",
+            "secret": "Segreto di firma",
+            "signatureHint": "Header: X-VentMail-Timestamp e X-VentMail-Signature = HMAC-SHA256(segreto, timestamp + \".\" + corpo). Rifiuta i timestamp più vecchi di 5 minuti.",
+            "previousUntil": "Una firma con il vecchio segreto viene inviata anche in X-VentMail-Signature-Previous fino al {at}.",
+            "test": "Invia un evento di prova",
+            "send": "Invia",
+            "testHint": "Payload sintetico con \"test\": true; nessuna email viene inviata. La consegna usa la stessa firma e protezione SSRF degli eventi reali.",
+            "log": "Registro consegne",
+            "resend": "Reinvia",
+            "rotateTitle": "Ruota il segreto di firma",
+            "rotateText": "Viene generato un nuovo segreto, mostrato una sola volta. L'azione è registrata.",
+            "grace": "Mantieni valido il vecchio segreto per {hours} ore (seconda firma) — disattiva in caso di fuga.",
+            "deleteConfirm": "L'endpoint \"{name}\" verrà eliminato e non riceverà più eventi. L'azione è registrata."
         }
     }
 }

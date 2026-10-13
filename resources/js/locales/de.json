@@ -2032,7 +2032,7 @@
             "verified": "OK",
             "active": "Aktiv",
             "rotating": "Rotation läuft",
-            "pending": "Wird verbreitet…",
+            "pending": "Ausstehend",
             "failed": "Fehler",
             "revoked": "Widerrufen",
             "dead_letter": "Dead-Letter",
@@ -2041,12 +2041,15 @@
             "listed": "Gelistet",
             "clean": "Sauber",
             "quarantined": "In Quarantäne",
-            "warming": "Warm-up"
+            "warming": "Warm-up",
+            "test": "Test",
+            "propagating": "Wird verbreitet…"
         },
         "eyebrow": {
             "domains": "Plattform · Domains",
             "apiKeys": "Plattform · API-Schlüssel",
-            "smtp": "Plattform · SMTP"
+            "smtp": "Plattform · SMTP",
+            "webhooks": "Plattform · Webhooks"
         },
         "domains": {
             "title": "Absender-Domains",
@@ -2104,6 +2107,36 @@
             "perDomain": "Domain-gebundene Zugangsdaten senden nur von dieser Domain. Keine Klartext-Authentifizierung; jede Einlieferung durchläuft dasselbe PreSendGate wie die API.",
             "rotateConfirm": "Für „{name}\" werden neuer Benutzername und neues Passwort ausgestellt; die alten werden sofort ungültig. Die Aktion wird protokolliert.",
             "revokeConfirm": "Die Zugangsdaten „{name}\" werden sofort ungültig. Die Aktion wird protokolliert."
+        },
+        "save": "Speichern",
+        "webhooks": {
+            "lead": "Signierte (HMAC-SHA256) Ereignisbenachrichtigungen mit Wiederholungen, Dead-Letter und erneutem Senden.",
+            "add": "Endpunkt hinzufügen",
+            "secretTitle": "Neues Signatur-Geheimnis",
+            "filterDelivered": "Erfolgreich",
+            "filterFailed": "Fehlgeschlagen",
+            "response": "Antwort",
+            "latency": "Latenz",
+            "attemptN": "Versuch {n}",
+            "immediately": "sofort",
+            "replayable": "erneut sendbar",
+            "rate7d": "Erfolg (7 Tage): {rate}",
+            "schedule": "Wiederholungsplan",
+            "eventTypes": "Ereignistypen",
+            "disable": "Deaktivieren",
+            "enable": "Aktivieren",
+            "secret": "Signatur-Geheimnis",
+            "signatureHint": "Header: X-VentMail-Timestamp und X-VentMail-Signature = HMAC-SHA256(Geheimnis, Zeitstempel + \".\" + Body). Zeitstempel älter als 5 Minuten ablehnen.",
+            "previousUntil": "Eine Signatur mit dem alten Geheimnis kommt bis {at} zusätzlich in X-VentMail-Signature-Previous.",
+            "test": "Testereignis senden",
+            "send": "Senden",
+            "testHint": "Ein synthetischer Payload mit \"test\": true; es wird keine E-Mail gesendet. Zustellung mit derselben Signatur und SSRF-Schutz wie im Live-Betrieb.",
+            "log": "Zustellprotokoll",
+            "resend": "Erneut senden",
+            "rotateTitle": "Signatur-Geheimnis rotieren",
+            "rotateText": "Ein neues Geheimnis wird erzeugt und einmal angezeigt. Die Aktion wird protokolliert.",
+            "grace": "Altes Geheimnis {hours} Stunden gültig lassen (zweite Signatur) — bei einem Leck deaktivieren.",
+            "deleteConfirm": "Der Endpunkt „{name}\" wird gelöscht und erhält keine Ereignisse mehr. Die Aktion wird protokolliert."
         }
     }
 }

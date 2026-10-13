@@ -2032,7 +2032,7 @@
             "verified": "Rendben",
             "active": "Aktív",
             "rotating": "Rotáció alatt",
-            "pending": "Terjed…",
+            "pending": "Függőben",
             "failed": "Hiba",
             "revoked": "Visszavonva",
             "dead_letter": "Dead-letter",
@@ -2041,12 +2041,15 @@
             "listed": "Listán",
             "clean": "Tiszta",
             "quarantined": "Karanténban",
-            "warming": "Warmup"
+            "warming": "Warmup",
+            "test": "teszt",
+            "propagating": "Terjed…"
         },
         "eyebrow": {
             "domains": "Platform · Domainek",
             "apiKeys": "Platform · API-kulcsok",
-            "smtp": "Platform · SMTP"
+            "smtp": "Platform · SMTP",
+            "webhooks": "Platform · Webhookok"
         },
         "domains": {
             "title": "Küldő domainek",
@@ -2104,6 +2107,36 @@
             "perDomain": "Domainhez kötött hitelesítő csak arról a domainről küldhet. Plaintext hitelesítés nincs; minden beküldés ugyanazon a PreSendGate-en megy át, mint az API.",
             "rotateConfirm": "Új jelszót és felhasználónevet adunk ki a(z) „{name}” hitelesítőhöz; a régi azonnal érvénytelen. A művelet auditált.",
             "revokeConfirm": "A(z) „{name}” hitelesítő azonnal érvénytelen lesz. A művelet auditált."
+        },
+        "save": "Mentés",
+        "webhooks": {
+            "lead": "Aláírt (HMAC-SHA256) eseményértesítések újrapróbálkozással, dead-letterrel és újraküldéssel.",
+            "add": "Végpont hozzáadása",
+            "secretTitle": "Új aláíró titok",
+            "filterDelivered": "Sikeres",
+            "filterFailed": "Hibás",
+            "response": "Válasz",
+            "latency": "Késleltetés",
+            "attemptN": "{n}. próba",
+            "immediately": "azonnal",
+            "replayable": "újraküldhető",
+            "rate7d": "7 napos sikerarány: {rate}",
+            "schedule": "Újrapróbálkozási menetrend",
+            "eventTypes": "Eseménytípusok",
+            "disable": "Kikapcsolás",
+            "enable": "Bekapcsolás",
+            "secret": "Aláíró titok",
+            "signatureHint": "Fejlécek: X-VentMail-Timestamp és X-VentMail-Signature = HMAC-SHA256(titok, időbélyeg + \".\" + törzs). Az 5 percnél régebbi időbélyeget utasítsd el.",
+            "previousUntil": "A régi titokkal készült aláírás az X-VentMail-Signature-Previous fejlécben eddig érkezik: {at}.",
+            "test": "Teszt-esemény küldése",
+            "send": "Küldés",
+            "testHint": "Szintetikus, \"test\": true jelölésű payload; levél nem megy ki. A kézbesítés ugyanazzal az aláírással és SSRF-védelemmel történik, mint élesben.",
+            "log": "Kézbesítési napló",
+            "resend": "Újraküldés",
+            "rotateTitle": "Aláíró titok rotálása",
+            "rotateText": "Új titkot generálunk; egyszer látod. A művelet auditált.",
+            "grace": "A régi titok még {hours} óráig érvényes (második aláírás) — szivárgásnál kapcsold ki.",
+            "deleteConfirm": "A(z) „{name}” végpont törlődik; több eseményt nem kap. A művelet auditált."
         }
     }
 }

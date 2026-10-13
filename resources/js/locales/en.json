@@ -2032,7 +2032,7 @@
             "verified": "OK",
             "active": "Active",
             "rotating": "Rotating",
-            "pending": "Propagating…",
+            "pending": "Pending",
             "failed": "Failed",
             "revoked": "Revoked",
             "dead_letter": "Dead-letter",
@@ -2041,12 +2041,15 @@
             "listed": "Listed",
             "clean": "Clean",
             "quarantined": "Quarantined",
-            "warming": "Warming up"
+            "warming": "Warming up",
+            "test": "test",
+            "propagating": "Propagating…"
         },
         "eyebrow": {
             "domains": "Platform · Domains",
             "apiKeys": "Platform · API keys",
-            "smtp": "Platform · SMTP"
+            "smtp": "Platform · SMTP",
+            "webhooks": "Platform · Webhooks"
         },
         "domains": {
             "title": "Sending domains",
@@ -2104,6 +2107,36 @@
             "perDomain": "A domain-bound credential can only send from that domain. There is no plaintext auth; every submission passes the same PreSendGate as the API.",
             "rotateConfirm": "A new username and password will be issued for \"{name}\"; the old one stops working immediately. The action is audited.",
             "revokeConfirm": "The credential \"{name}\" stops working immediately. The action is audited."
+        },
+        "save": "Save",
+        "webhooks": {
+            "lead": "Signed (HMAC-SHA256) event notifications with retries, dead-lettering and resend.",
+            "add": "Add endpoint",
+            "secretTitle": "New signing secret",
+            "filterDelivered": "Successful",
+            "filterFailed": "Failed",
+            "response": "Response",
+            "latency": "Latency",
+            "attemptN": "Attempt {n}",
+            "immediately": "immediately",
+            "replayable": "resendable",
+            "rate7d": "7-day success: {rate}",
+            "schedule": "Retry schedule",
+            "eventTypes": "Event types",
+            "disable": "Disable",
+            "enable": "Enable",
+            "secret": "Signing secret",
+            "signatureHint": "Headers: X-VentMail-Timestamp and X-VentMail-Signature = HMAC-SHA256(secret, timestamp + \".\" + body). Reject timestamps older than 5 minutes.",
+            "previousUntil": "A signature made with the old secret is also sent in X-VentMail-Signature-Previous until {at}.",
+            "test": "Send a test event",
+            "send": "Send",
+            "testHint": "A synthetic payload marked \"test\": true; no email is sent. Delivery uses the same signing and SSRF protection as live events.",
+            "log": "Delivery log",
+            "resend": "Resend",
+            "rotateTitle": "Rotate signing secret",
+            "rotateText": "A new secret is generated and shown once. The action is audited.",
+            "grace": "Keep the old secret valid for {hours} hours (second signature) — turn off after a leak.",
+            "deleteConfirm": "The endpoint \"{name}\" will be deleted and receive no more events. The action is audited."
         }
     }
 }

@@ -34,7 +34,7 @@ final class WebhookEndpoint extends Model
      */
     protected $fillable = ['name', 'url', 'events', 'active'];
 
-    protected $hidden = ['secret'];
+    protected $hidden = ['secret', 'previous_secret'];
 
     /** A végpont ALAPÉRTELMEZÉSBEN aktív — a DB-alapérték a modellben nem látszana. */
     protected $attributes = ['active' => true, 'events' => '[]'];
@@ -62,6 +62,7 @@ final class WebhookEndpoint extends Model
             'active' => 'boolean',
             'last_success_at' => 'datetime',
             'last_failure_at' => 'datetime',
+            'previous_secret_expires_at' => 'datetime',
         ];
     }
 
@@ -79,6 +80,57 @@ final class WebhookEndpoint extends Model
     public function setSecretAttribute(string $value): void
     {
         $this->attributes['secret'] = Crypt::encryptString($value);
+    }
+
+    /**
+     * A RÉGI titok a rotációs türelmi ablakban (D171) — különben `null`.
+     *
+     * Az ablak alatt a kézbesítés a régi titokkal is aláír (`X-VentMail-Signature-Previous`),
+     * így a fogadó a saját tempójában cserélheti a titkot. Lejárat után a régi titok
+     * SEHOL nem használt (a tárolt alakot a következő rotáció felülírja).
+     */
+    public function previousSigningSecret(): ?string
+    {
+        $raw = $this->getAttributes()['previous_secret'] ?? null;
+
+        if ($raw === null || $this->previous_secret_expires_at === null || $this->previous_secret_expires_at->isPast()) {
+            return null;
+        }
+
+        return Crypt::decryptString((string) $raw);
+    }
+
+    /**
+     * Titok-csere — az új titok EGYSZER látszik (a visszatérési érték).
+     *
+     * `$graceHours = 0`: a régi titok AZONNAL érvénytelen (szivárgásnál ez kell; a `/v1`
+     * rotáció ezt használja, változatlan szerződéssel). `> 0`: a régi titok ennyi óráig a
+     * második aláírásban még szerepel.
+     */
+    public function rotateSecret(int $graceHours = 0): string
+    {
+        $secret = 'whsec_'.Str::random(40);
+        $current = $this->getAttributes()['secret'] ?? null;
+
+        // A régi titok TITKOSÍTOTT alakja költözik át — nyers alakban sosem kerül memóriába.
+        $this->forceFill([
+            'previous_secret' => $graceHours > 0 ? $current : null,
+            'previous_secret_expires_at' => $graceHours > 0 ? now()->addHours($graceHours) : null,
+        ]);
+        $this->secret = $secret;
+        $this->save();
+
+        return $secret;
+    }
+
+    /** A titok utolsó négy karaktere — a felület ebből ismeri fel, melyik titok él. */
+    public function secretHint(): string
+    {
+        try {
+            return substr($this->signingSecret(), -4);
+        } catch (\Throwable) {
+            return '????';
+        }
     }
 
     /**

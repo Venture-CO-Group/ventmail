@@ -2032,7 +2032,7 @@
             "verified": "OK",
             "active": "Actif",
             "rotating": "Renouvellement",
-            "pending": "Propagation…",
+            "pending": "En attente",
             "failed": "Échec",
             "revoked": "Révoqué",
             "dead_letter": "Dead-letter",
@@ -2041,12 +2041,15 @@
             "listed": "Listé",
             "clean": "Propre",
             "quarantined": "En quarantaine",
-            "warming": "Montée en charge"
+            "warming": "Montée en charge",
+            "test": "test",
+            "propagating": "Propagation…"
         },
         "eyebrow": {
             "domains": "Plateforme · Domaines",
             "apiKeys": "Plateforme · Clés API",
-            "smtp": "Plateforme · SMTP"
+            "smtp": "Plateforme · SMTP",
+            "webhooks": "Plateforme · Webhooks"
         },
         "domains": {
             "title": "Domaines d'envoi",
@@ -2104,6 +2107,36 @@
             "perDomain": "Un identifiant lié à un domaine ne peut envoyer que depuis ce domaine. Pas d'authentification en clair ; chaque soumission passe par le même PreSendGate que l'API.",
             "rotateConfirm": "Un nouvel identifiant et un nouveau mot de passe seront émis pour « {name} » ; l'ancien cesse immédiatement de fonctionner. L'action est auditée.",
             "revokeConfirm": "L'identifiant « {name} » cesse immédiatement de fonctionner. L'action est auditée."
+        },
+        "save": "Enregistrer",
+        "webhooks": {
+            "lead": "Notifications d'événements signées (HMAC-SHA256) avec nouvelles tentatives, dead-letter et renvoi.",
+            "add": "Ajouter un point de terminaison",
+            "secretTitle": "Nouveau secret de signature",
+            "filterDelivered": "Réussies",
+            "filterFailed": "Échouées",
+            "response": "Réponse",
+            "latency": "Latence",
+            "attemptN": "Tentative {n}",
+            "immediately": "immédiatement",
+            "replayable": "renvoyable",
+            "rate7d": "Réussite sur 7 jours : {rate}",
+            "schedule": "Calendrier des nouvelles tentatives",
+            "eventTypes": "Types d'événements",
+            "disable": "Désactiver",
+            "enable": "Activer",
+            "secret": "Secret de signature",
+            "signatureHint": "En-têtes : X-VentMail-Timestamp et X-VentMail-Signature = HMAC-SHA256(secret, horodatage + \".\" + corps). Rejetez les horodatages de plus de 5 minutes.",
+            "previousUntil": "Une signature avec l'ancien secret est aussi envoyée dans X-VentMail-Signature-Previous jusqu'au {at}.",
+            "test": "Envoyer un événement de test",
+            "send": "Envoyer",
+            "testHint": "Charge utile synthétique marquée \"test\": true ; aucun e-mail n'est envoyé. Livraison avec la même signature et la même protection SSRF qu'en production.",
+            "log": "Journal de livraison",
+            "resend": "Renvoyer",
+            "rotateTitle": "Renouveler le secret de signature",
+            "rotateText": "Un nouveau secret est généré et affiché une seule fois. L'action est auditée.",
+            "grace": "Garder l'ancien secret valide {hours} heures (seconde signature) — à désactiver en cas de fuite.",
+            "deleteConfirm": "Le point de terminaison « {name} » sera supprimé et ne recevra plus d'événements. L'action est auditée."
         }
     }
 }

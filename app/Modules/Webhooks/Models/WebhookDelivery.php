@@ -22,7 +22,7 @@ final class WebhookDelivery extends Model
     protected $fillable = [
         'webhook_endpoint_id', 'event_type', 'message_uuid', 'payload',
         'attempt', 'status', 'response_code', 'response_excerpt',
-        'next_attempt_at', 'delivered_at', 'dead_lettered_at', 'expires_at',
+        'next_attempt_at', 'delivered_at', 'dead_lettered_at', 'expires_at', 'is_test', 'duration_ms',
     ];
 
     public function uniqueIds(): array
@@ -39,6 +39,7 @@ final class WebhookDelivery extends Model
             'dead_lettered_at' => 'datetime',
             'expires_at' => 'datetime',
             'redacted_at' => 'datetime',
+            'is_test' => 'boolean',
         ];
     }
 

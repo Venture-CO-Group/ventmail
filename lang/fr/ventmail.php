@@ -241,5 +241,8 @@ return [
     'plat' => [
         'dkimRotated' => 'Nouvelle clé DKIM générée — ajoutez le nouvel enregistrement au DNS.',
         'invalidAllowlist' => 'La liste d\'IP autorisées ne peut contenir que des adresses IP ou plages CIDR valides (50 max).',
+        'webhookUpdated' => 'Point de terminaison enregistré.',
+        'webhookTestQueued' => 'Événement de test mis en file — le résultat apparaît dans le journal de livraison.',
+        'webhookTestThrottled' => 'Trop d\'événements de test ; réessayez dans une minute.',
     ],
 ];

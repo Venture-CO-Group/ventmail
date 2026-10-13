@@ -84,7 +84,9 @@ function recordLabel(key: string): string {
 function recordState(record: DnsRecordRow): string {
     if (record.status === 'verified' || record.status === 'rotating') return record.status;
 
-    return record.optional ? 'optional' : record.status;
+    if (record.optional) return 'optional';
+
+    return record.status === 'pending' ? 'propagating' : record.status;
 }
 
 function recheck(): void {

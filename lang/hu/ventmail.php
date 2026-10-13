@@ -239,5 +239,8 @@ return [
     'plat' => [
         'dkimRotated' => 'Új DKIM-kulcs generálva — vedd fel az új rekordot a DNS-be.',
         'invalidAllowlist' => 'Az IP-allowlist csak érvényes IP-címeket vagy CIDR-tartományokat tartalmazhat (max. 50).',
+        'webhookUpdated' => 'A végpont mentve.',
+        'webhookTestQueued' => 'A teszt-esemény sorba állítva — az eredmény a kézbesítési naplóban látszik.',
+        'webhookTestThrottled' => 'Túl sok teszt-esemény; próbáld újra egy perc múlva.',
     ],
 ];

@@ -23,6 +23,8 @@ const TONES: Record<string, VtBadgeTone> = {
     queued: 'accent',
     rotating: 'info',
     pending: 'warning',
+    propagating: 'warning',
+    test: 'accent-2',
     deferred: 'warning',
     failed: 'danger',
     rejected: 'danger',

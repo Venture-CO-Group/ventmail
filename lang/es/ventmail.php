@@ -239,5 +239,8 @@ return [
     'plat' => [
         'dkimRotated' => 'Nueva clave DKIM generada: añade el nuevo registro al DNS.',
         'invalidAllowlist' => 'La lista de IP permitidas solo puede contener direcciones IP o rangos CIDR válidos (máx. 50).',
+        'webhookUpdated' => 'Endpoint guardado.',
+        'webhookTestQueued' => 'Evento de prueba en cola: el resultado aparece en el registro de entregas.',
+        'webhookTestThrottled' => 'Demasiados eventos de prueba; inténtalo de nuevo en un minuto.',
     ],
 ];
