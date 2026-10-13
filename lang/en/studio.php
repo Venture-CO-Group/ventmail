@@ -27,6 +27,7 @@ return [
         'canceled' => 'Campaign canceled.',
         'unscheduled' => 'After the change the campaign no longer passes the checklist, so it was unscheduled — fix it and schedule again.',
         'unscheduledNoPublish' => 'The campaign was moved back to draft: a scheduled campaign can only be changed with publish rights. A publisher can schedule it again.',
+        'changed' => 'The campaign\'s status changed in the meantime. Reload the page and try again.',
     ],
     'hosted' => [
         'email' => 'Email address',
@@ -63,5 +64,8 @@ return [
     ],
     'fields' => [
         'updated' => 'Field setting saved.',
+    ],
+    'templates' => [
+        'publishLocked' => 'This template is used by an active campaign or journey (:uses) — it can only be changed with publish rights. Make a copy, or ask a publisher.',
     ],
 ];

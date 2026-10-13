@@ -63,11 +63,13 @@ final class StartCampaignJob implements ShouldBeUnique, ShouldQueue
     /** @return list<object> */
     public function middleware(): array
     {
-        // A zár lejárata a sor `retry_after`-éig tart: egy meghalt worker zárja nem ragad be.
+        // A zár a job TIMEOUTJA + 30 mp-ig él (review NIT), a `retry_after` (960) ELŐTT lejár. Ha a
+        // zár a `retry_after`-ig élne, a meghalt worker után újrakiadott job a `dontRelease` miatt
+        // csendben eldobódna, és a kampány `sending` + `materialized_at = NULL` állapotban ragadna.
         return [
             (new WithoutOverlapping($this->campaignUuid))
                 ->dontRelease()
-                ->expireAfter((int) config('queue.connections.redis_campaign_start.retry_after', 960)),
+                ->expireAfter($this->timeout + 30),
         ];
     }
 

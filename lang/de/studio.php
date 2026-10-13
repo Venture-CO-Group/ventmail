@@ -27,6 +27,7 @@ return [
         'canceled' => 'Kampagne abgebrochen.',
         'unscheduled' => 'Nach der Änderung erfüllt die Kampagne die Checkliste nicht mehr; die Planung wurde zurückgenommen — korrigiere sie und plane erneut.',
         'unscheduledNoPublish' => 'Die Kampagne wurde in den Entwurf zurückgesetzt: Eine geplante Kampagne darf nur mit Veröffentlichungsrecht geändert werden. Eine berechtigte Person kann sie erneut planen.',
+        'changed' => 'Der Status der Kampagne hat sich inzwischen geändert. Lade die Seite neu und versuche es erneut.',
     ],
     'hosted' => [
         'email' => 'E-Mail-Adresse',
@@ -63,5 +64,8 @@ return [
     ],
     'fields' => [
         'updated' => 'Feldeinstellung gespeichert.',
+    ],
+    'templates' => [
+        'publishLocked' => 'Diese Vorlage wird von einer aktiven Kampagne oder Journey verwendet (:uses) — sie kann nur mit Veröffentlichungsrecht geändert werden. Erstelle eine Kopie oder bitte eine berechtigte Person.',
     ],
 ];

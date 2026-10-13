@@ -11,6 +11,7 @@ use App\Modules\Campaign\Jobs\RefreshCampaignStats;
 use App\Modules\Campaign\Jobs\SendCampaignChunk;
 use App\Modules\Campaign\Jobs\StartCampaignJob;
 use App\Modules\Campaign\Models\Campaign;
+use App\Modules\Campaign\Services\CampaignBatchDispatcher;
 use App\Modules\Campaign\Services\CampaignLifecycle;
 use App\Modules\Consent\Services\ConsentRecorder;
 use App\Modules\Domains\Models\Domain;
@@ -341,7 +342,10 @@ it('BN1 · a materializáló job saját kapcsolaton fut: retry_after > a job tim
     expect($overlap)->not->toBeNull()
         ->and($overlap->key)->toBe('uuid')
         ->and($overlap->releaseAfter)->toBeNull()
-        ->and($overlap->expiresAfter)->toBeGreaterThanOrEqual($job->timeout);
+        // A zár a job timeoutja + 30 mp-ig él — a `retry_after` (960) ELŐTT lejár, így az
+        // újrakiadott (meghalt workerű) job nem csendben dobódik el (review NIT).
+        ->and($overlap->expiresAfter)->toBe($job->timeout + 30)
+        ->and($overlap->expiresAfter)->toBeLessThan(config('queue.connections.redis_campaign_start.retry_after'));
 });
 
 it('BN1 · a materializálás közben SZÜNETELTETETT kampányra nem indul köteg és nem jön új pending sor', function () {
@@ -483,4 +487,128 @@ it('NIT · a tárgyból a C1 vezérlőkarakterek és a sor-/bekezdés-elválaszt
 
     expect($subject)->not->toMatch('/[\x{0080}-\x{009F}\x{2028}\x{2029}]/u')
         ->and($subject)->toBe('Szia Anna Bcc x y z!');
+});
+
+/* ---------------------------------------------------------------- 3. review-kör: B1, S2, S3, R-S1 */
+
+function r3Scheduled(): Campaign
+{
+    $campaign = hardCampaign([], 'later');
+    $at = now('Europe/Budapest')->addDays(2)->setTime(9, 0)->format('Y-m-d H:i');
+    $campaign->forceFill(['scheduled_local' => $at])->save();
+
+    return app(CampaignLifecycle::class)->schedule($campaign, $at, 'Europe/Budapest');
+}
+
+function r3As($test, string $role)
+{
+    $user = StudioFixtures::user($test->workspace, $role);
+
+    return $test->actingAs($user)->withSession(['workspace_uuid' => $test->workspace->uuid]);
+}
+
+it('B1 · szerző az AKTÍV kampány sablonját nem írhatja át — kézi mentés, autosave és verzió-visszaállítás egyaránt tiltott', function () {
+    hardMember('a@pelda.hu');
+    r3Scheduled();
+    $template = $this->template;
+    $before = $template->fresh()->blocks;
+
+    r3As($this, 'author')->put('/templates/'.$template->uuid, [
+        'name' => $template->name, 'subject' => 'Jóváhagyatlan', 'blocks' => $before,
+    ])->assertSessionHas('error');
+
+    r3As($this, 'author')->putJson('/templates/'.$template->uuid.'/autosave', ['blocks' => $before, 'name' => $template->name])
+        ->assertForbidden()->assertJsonStructure(['message']);
+
+    r3As($this, 'author')->postJson('/templates/'.$template->uuid.'/versions/1/restore')->assertForbidden();
+
+    expect($template->fresh()->subject)->not->toBe('Jóváhagyatlan')
+        ->and($template->fresh()->blocks)->toEqual($before);
+});
+
+it('B1 · az aktív journey (send_email) sablonja is publikálási jogot kér', function () {
+    $journey = Journey::create(['name' => 'Üdvözlő', 'trigger_type' => TriggerType::FormSignup->value, 'trigger_config' => []]);
+    $step = JourneyStep::create(['journey_id' => $journey->getKey(), 'position' => 0, 'type' => 'send_email', 'config' => ['template' => (string) $this->template->uuid, 'from_email' => 'hirlevel@pelda.hu']]);
+    $journey->forceFill(['status' => 'active', 'first_step_id' => $step->getKey()])->save();
+
+    r3As($this, 'author')->putJson('/templates/'.$this->template->uuid.'/autosave', ['blocks' => $this->template->blocks, 'name' => $this->template->name])
+        ->assertForbidden();
+});
+
+it('B1 · publikálási joggal (editor) az aktív sablon menthető; a nem használt sablont a szerző is mentheti', function () {
+    hardMember('a@pelda.hu');
+    r3Scheduled();
+
+    r3As($this, 'editor')->putJson('/templates/'.$this->template->uuid.'/autosave', ['blocks' => $this->template->blocks, 'name' => $this->template->name])
+        ->assertOk();
+
+    $free = hardTemplate('Szabad', 'Nádor utca 1., 1051 Budapest');
+
+    r3As($this, 'author')->putJson('/templates/'.$free->uuid.'/autosave', ['blocks' => $free->blocks, 'name' => $free->name])
+        ->assertOk();
+});
+
+it('S2 · az elavult példányon indított unschedule / cancel nem írja felül a közben `sending`-re váltott állapotot', function () {
+    hardMember('a@pelda.hu');
+    $stale = r3Scheduled();
+
+    // Közben az ütemező elindította.
+    Campaign::query()->whereKey($stale->getKey())->update(['status' => 'sending']);
+
+    expect(fn () => app(CampaignLifecycle::class)->unschedule($stale))->toThrow(RuntimeException::class)
+        ->and(fn () => app(CampaignLifecycle::class)->cancel($stale))->toThrow(RuntimeException::class)
+        ->and($stale->fresh()->status)->toBe('sending')
+        ->and($stale->fresh()->finished_at)->toBeNull();
+});
+
+it('S2 · az elavult példányon indított pause nem ír a közben visszavont kampányra', function () {
+    hardMember('a@pelda.hu');
+    $stale = app(CampaignLifecycle::class)->start(hardCampaign());
+
+    Campaign::query()->whereKey($stale->getKey())->update(['status' => 'canceled']);
+
+    expect(fn () => app(CampaignLifecycle::class)->pause($stale))->toThrow(RuntimeException::class)
+        ->and($stale->fresh()->status)->toBe('canceled');
+});
+
+it('S3 · a kampány indítása auditált: felületről a felhasználóval, ütemezőből `system` aktorral', function () {
+    hardMember('a@pelda.hu');
+    Queue::fake();
+
+    $now = hardCampaign();
+    hardAs($this)->post('/campaigns/'.$now->uuid.'/transition', ['action' => 'send'])->assertSessionHas('success');
+
+    $row = AuditLog::query()->where('action', 'campaign.started')->where('auditable_id', $now->getKey())->firstOrFail();
+
+    expect($row->user_id)->toBe($this->user->getKey())
+        ->and($row->context['actor'] ?? null)->toBe('user');
+
+    $later = hardCampaign([], 'later');
+    app(CampaignLifecycle::class)->schedule($later, now()->addMinutes(5)->toDateTimeString(), 'UTC');
+    $this->travel(10)->minutes();
+    auth()->logout();
+
+    $this->artisan('campaigns:dispatch-scheduled')->assertSuccessful();
+
+    $row = AuditLog::query()->where('action', 'campaign.started')->where('auditable_id', $later->getKey())->firstOrFail();
+
+    expect($row->user_id)->toBeNull()
+        ->and($row->context['actor'] ?? null)->toBe('system');
+});
+
+it('R-S1 · ha a kötegek indítása KÖZBEN szüneteltetik, a batch_id nem íródik a kampányra, és a köteg törlődik', function () {
+    hardMember('a@pelda.hu');
+
+    $campaign = app(CampaignLifecycle::class)->start(hardCampaign());
+    $campaign->recipients()->create(['contact_id' => Contact::query()->value('id'), 'email' => 'a@pelda.hu']);
+
+    // A dispatcher a `sending` példánnyal indul — az adatbázisban közben szüneteltették.
+    Campaign::query()->whereKey($campaign->getKey())->update(['status' => 'paused']);
+
+    $batchId = app(CampaignBatchDispatcher::class)->dispatch($campaign);
+
+    expect($batchId)->not->toBeNull()
+        ->and(Bus::findBatch($batchId)?->cancelled())->toBeTrue()
+        ->and($campaign->fresh()->batch_id)->toBeNull()
+        ->and($campaign->fresh()->status)->toBe('paused');
 });

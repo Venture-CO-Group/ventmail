@@ -27,6 +27,7 @@ return [
         'canceled' => 'Campagne annulée.',
         'unscheduled' => 'Après la modification, la campagne ne satisfait plus la checklist ; la planification a été annulée — corrigez-la puis replanifiez.',
         'unscheduledNoPublish' => 'La campagne est repassée en brouillon : une campagne planifiée ne peut être modifiée qu\'avec le droit de publication. Une personne autorisée peut la replanifier.',
+        'changed' => 'Le statut de la campagne a changé entre-temps. Rechargez la page et réessayez.',
     ],
     'hosted' => [
         'email' => 'Adresse e-mail',
@@ -63,5 +64,8 @@ return [
     ],
     'fields' => [
         'updated' => 'Réglage du champ enregistré.',
+    ],
+    'templates' => [
+        'publishLocked' => 'Ce modèle est utilisé par une campagne ou un parcours actif (:uses) — il ne peut être modifié qu\'avec le droit de publication. Faites-en une copie ou demandez à une personne autorisée.',
     ],
 ];

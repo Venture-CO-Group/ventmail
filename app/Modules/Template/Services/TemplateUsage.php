@@ -9,6 +9,7 @@ use App\Modules\Campaign\Models\CampaignVariant;
 use App\Modules\Journey\Models\Journey;
 use App\Modules\Journey\Models\JourneyStep;
 use App\Modules\Template\Models\Template;
+use Illuminate\Support\Facades\Gate;
 
 /**
  * HOL HASZNÁLJÁK a sablont úgy, hogy a törlése egy FUTÓ küldést törne el (B2)?
@@ -26,6 +27,40 @@ final class TemplateUsage
     private const ACTIVE_CAMPAIGN = ['scheduled', 'sending', 'paused'];
 
     private const ACTIVE_JOURNEY = ['active', 'paused'];
+
+    /**
+     * ÍRHATÓ-E a sablon a jelenlegi felhasználónak? (review B1) — `null`, ha igen; különben a
+     * felhasználónak szóló indoklás.
+     *
+     * Az AKTÍV kampányhoz (ütemezett / küldés alatti / szüneteltetett, változattal együtt) vagy
+     * aktív journey-hez kötött sablon tartalma a JÓVÁHAGYOTT, kiküldés előtt álló levél: a küldés
+     * az élő `template->html`-t használja (nincs pillanatkép). Írása ezért `template.publish`
+     * képességet kér — a `template.create` (szerző) ezt nem kerülheti meg. A kézi mentés, az
+     * autosave és a verzió-visszaállítás egyaránt ezt kérdezi.
+     *
+     * Miért TILTÁS, és nem „vissza vázlatba" (D116 mintája): a D116 a kampány SAJÁT
+     * szerkesztőjében, kifejezett mentésre dolgozik, és a `scheduled → draft` érvényes átmenet.
+     * Itt egy sablon TÖBB kampányban és journey-ben is élhet, a `sending` / `paused` kampányt és
+     * az aktív journey-t nem lehet vázlatba venni, és egy másik képernyőn futó AUTOSAVE csendben
+     * vonna vissza (akár több) publikáló által ütemezett kampányt. Az egységes, kiszámítható
+     * szabály: publikálási jog nélkül az aktív sablon nem írható; a szerző másolatot készíthet.
+     */
+    public function writeDenial(Template $template): ?string
+    {
+        if (Gate::allows('template.publish')) {
+            return null;
+        }
+
+        $blockers = $this->blockers($template);
+
+        if ($blockers['campaigns'] === [] && $blockers['journeys'] === []) {
+            return null;
+        }
+
+        return __('studio.templates.publishLocked', [
+            'uses' => implode(', ', [...$blockers['campaigns'], ...$blockers['journeys']]),
+        ]);
+    }
 
     /** @return array{campaigns: list<string>, journeys: list<string>} a blokkoló hivatkozások nevei */
     public function blockers(Template $template): array

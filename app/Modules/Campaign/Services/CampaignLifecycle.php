@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Campaign\Services;
 
+use App\Modules\Audit\Services\AuditLogger;
 use App\Modules\Campaign\Enums\CampaignStatus;
 use App\Modules\Campaign\Jobs\StartCampaignJob;
 use App\Modules\Campaign\Models\Campaign;
@@ -12,7 +13,9 @@ use App\Modules\Template\Services\TemplateCompliance;
 use App\Support\QueryBudget;
 use App\Support\QueryTooExpensive;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Bus;
+use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 use RuntimeException;
 
@@ -57,26 +60,22 @@ final class CampaignLifecycle
             );
         }
 
-        $this->transition($campaign, CampaignStatus::Scheduled);
-
         // A `scheduled_at` UTC-ben (a `timestamptz` amúgy is azt tesz), a `timezone` a
         // MEGJELENÍTÉSHEZ és a nyári időszámítás miatti újraszámításhoz.
-        $campaign->forceFill([
-            'scheduled_at' => $at->utc(),
-            'timezone' => $timezone,
-        ])->save();
-
-        return $campaign->fresh();
+        return $this->change($campaign, CampaignStatus::Scheduled, static function (Campaign $locked) use ($at, $timezone): void {
+            $locked->forceFill([
+                'scheduled_at' => $at->utc(),
+                'timezone' => $timezone,
+            ]);
+        }, allowSame: true);
     }
 
     /** VISSZAVÉTEL vázlatba — a felhasználó még szerkeszt. */
     public function unschedule(Campaign $campaign): Campaign
     {
-        $this->transition($campaign, CampaignStatus::Draft);
-
-        $campaign->forceFill(['scheduled_at' => null])->save();
-
-        return $campaign->fresh();
+        return $this->change($campaign, CampaignStatus::Draft, static function (Campaign $locked): void {
+            $locked->forceFill(['scheduled_at' => null]);
+        });
     }
 
     /**
@@ -120,6 +119,14 @@ final class CampaignLifecycle
             );
         }
 
+        // EXPLICIT AUDIT (review S3): a feltételes UPDATE megkerüli a modell Auditable hookját,
+        // pedig az indítás a legsúlyosabb kampány-művelet. Felületről a bejelentkezett
+        // felhasználó, ütemezőből / háttérből `system` az aktor.
+        app(AuditLogger::class)->log('campaign.started', $campaign, context: [
+            'actor' => Auth::check() ? 'user' : 'system',
+            'from' => $from->value,
+        ]);
+
         return $campaign->fresh();
     }
 
@@ -133,12 +140,13 @@ final class CampaignLifecycle
      */
     public function pause(Campaign $campaign): Campaign
     {
-        $this->transition($campaign, CampaignStatus::Paused);
-        $campaign->save();
+        $paused = $this->change($campaign, CampaignStatus::Paused);
 
-        $this->cancelBatch($campaign);
+        // A köteg törlése a COMMIT UTÁN (a friss `batch_id`-vel): a futó chunk-jobok ekkor már a
+        // `paused` állapotot látják.
+        $this->cancelBatch($paused);
 
-        return $campaign->fresh();
+        return $paused;
     }
 
     /**
@@ -154,20 +162,22 @@ final class CampaignLifecycle
         // nem elég: egy félbehalt felírás első kötegei már ott vannak, és a folytatás a CSONKA
         // közönségre küldött volna. A `materialized_at` csak a TELJES felírás után íródik.
         if ($campaign->materialized_at === null) {
-            $this->transition($campaign, CampaignStatus::Sending);
-            $campaign->save();
+            $resumed = $this->change($campaign, CampaignStatus::Sending);
 
-            StartCampaignJob::dispatch((string) $campaign->uuid, (int) $campaign->workspace_id);
+            StartCampaignJob::dispatch((string) $resumed->uuid, (int) $resumed->workspace_id);
 
-            return $campaign->fresh();
+            // FRISS példány: szinkron sornál a job már le is futott (akár be is fejezte a kampányt).
+            return $resumed->fresh() ?? $resumed;
         }
 
         if ($campaign->recipients()->where('status', 'pending')->doesntExist()) {
             return $this->complete($campaign);
         }
 
-        $this->transition($campaign, CampaignStatus::Sending);
-        $campaign->save();
+        // Az állapot a zár alatt vált, a kötegek a COMMIT UTÁN indulnak: tranzakción belül
+        // indított chunk-job a még nem látható `sending` helyett `paused`-ot olvasna, és a
+        // köteget csendben elfogyasztaná.
+        $campaign = $this->change($campaign, CampaignStatus::Sending);
 
         // A FOLYTATÁS ÚJ KÖTEGEKET INDÍT. Ez korábban kimaradt: a `resume()` átírta az
         // állapotot `sending`-re, a `batch_id` VÁLTOZATLAN maradt, és egyetlen job sem
@@ -205,18 +215,18 @@ final class CampaignLifecycle
 
     public function complete(Campaign $campaign): Campaign
     {
-        $this->transition($campaign, CampaignStatus::Sent);
-
-        $campaign->forceFill(['finished_at' => now()])->save();
-
-        return $campaign->fresh();
+        return $this->change($campaign, CampaignStatus::Sent, static function (Campaign $locked): void {
+            $locked->forceFill(['finished_at' => now()]);
+        });
     }
 
     public function cancel(Campaign $campaign): Campaign
     {
-        $this->transition($campaign, CampaignStatus::Canceled);
+        $canceled = $this->change($campaign, CampaignStatus::Canceled, static function (Campaign $locked): void {
+            $locked->forceFill(['finished_at' => now()]);
+        });
 
-        $campaign->forceFill(['finished_at' => now()])->save();
+        $campaign = $canceled;
 
         $this->cancelBatch($campaign);
 
@@ -229,6 +239,50 @@ final class CampaignLifecycle
         ]);
 
         return $campaign->fresh();
+    }
+
+    /**
+     * ÁLLAPOTVÁLTÁS SOR-ZÁRRAL, összehasonlítás-és-csere szemantikával (review S2).
+     *
+     * A korábbi „beolvasás → átírás → mentés" egy ELAVULT példányból dolgozott: egy közben
+     * `sending`-re váltott kampányt egy késve érkező `unschedule` vagy `cancel` felülírt. Most a
+     * sor zárolva újra beolvasódik, és ha az állapota NEM az, amit a hívó látott (a példány
+     * eredeti állapota), az átmenet HANGOSAN elutasul — a felület „töltsd újra" hibát mutat.
+     *
+     * Ha a sor már a CÉLÁLLAPOTBAN van (két köteg egyszerre zárja a kampányt, dupla kattintás),
+     * a hívás idempotens no-op — kivéve, ha `allowSame` (az újraütemezés új időpontot ír).
+     *
+     * @param  (callable(Campaign): void)|null  $mutate  a zárolt példány további mezői (mentés előtt)
+     */
+    private function change(Campaign $campaign, CampaignStatus $target, ?callable $mutate = null, bool $allowSame = false): Campaign
+    {
+        $expected = (string) $campaign->getOriginal('status', $campaign->status);
+
+        return DB::transaction(function () use ($campaign, $target, $mutate, $allowSame, $expected): Campaign {
+            $locked = Campaign::query()->whereKey($campaign->getKey())->lockForUpdate()->firstOrFail();
+
+            if ((string) $locked->status === $target->value && ! $allowSame) {
+                return $locked;
+            }
+
+            if ((string) $locked->status !== $expected) {
+                throw new RuntimeException(sprintf(
+                    'A kampány állapota közben megváltozott (%s → %s). Töltsd újra az oldalt, és próbáld újra.',
+                    $expected,
+                    (string) $locked->status,
+                ));
+            }
+
+            $this->transition($locked, $target);
+
+            if ($mutate !== null) {
+                $mutate($locked);
+            }
+
+            $locked->save();
+
+            return $locked->fresh() ?? $locked;
+        });
     }
 
     /**

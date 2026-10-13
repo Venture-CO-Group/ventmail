@@ -7,6 +7,7 @@ namespace App\Modules\Template\Http\Controllers;
 use App\Modules\Template\Models\Template;
 use App\Modules\Template\Models\TemplateVersion;
 use App\Modules\Template\Services\TemplateEditorSaver;
+use App\Modules\Template\Services\TemplateUsage;
 use App\Modules\Template\Services\TemplateVersions;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Gate;
@@ -41,11 +42,16 @@ final class TemplateVersionController
         return response()->json(['versions' => $versions]);
     }
 
-    public function restore(string $uuid, int $number, TemplateVersions $versions, TemplateEditorSaver $saver): JsonResponse
+    public function restore(string $uuid, int $number, TemplateVersions $versions, TemplateEditorSaver $saver, TemplateUsage $usage): JsonResponse
     {
         Gate::authorize('template.create');
 
         $template = Template::query()->where('uuid', $uuid)->firstOrFail();
+
+        // B1 · a visszaállítás is írás: aktív sablonon publikálási jogot kér.
+        if (($denial = $usage->writeDenial($template)) !== null) {
+            return response()->json(['message' => $denial], 403);
+        }
         $version = TemplateVersion::query()
             ->where('template_id', $template->getKey())
             ->where('number', $number)

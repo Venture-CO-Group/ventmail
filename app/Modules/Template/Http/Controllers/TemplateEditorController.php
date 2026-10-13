@@ -12,6 +12,7 @@ use App\Modules\Template\Services\PlainTextWriter;
 use App\Modules\Template\Services\TemplateEditorSaver;
 use App\Modules\Template\Services\TemplateOptimizer;
 use App\Modules\Template\Services\TemplateTestSender;
+use App\Modules\Template\Services\TemplateUsage;
 use App\Modules\Template\Services\TemplateVersions;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -33,11 +34,17 @@ final class TemplateEditorController
     /**
      * AUTOMATIKUS MENTÉS (debounce-olt). Verzió csak időközönként (`TemplateVersions`).
      */
-    public function autosave(Request $request, string $uuid, TemplateEditorSaver $saver): JsonResponse
+    public function autosave(Request $request, string $uuid, TemplateEditorSaver $saver, TemplateUsage $usage): JsonResponse
     {
         Gate::authorize('template.create');
 
         $template = Template::query()->where('uuid', $uuid)->firstOrFail();
+
+        // B1 · aktív kampány / journey sablonja csak publikálási joggal írható. 403 + üzenet: a
+        // szerkesztő a mentési hibát (`message`) megjeleníti.
+        if (($denial = $usage->writeDenial($template)) !== null) {
+            return response()->json(['message' => $denial], 403);
+        }
         $data = $this->editorInput($request, $template);
 
         $version = $saver->save($template, $data, $request->boolean('manual') ? 'save' : 'autosave');

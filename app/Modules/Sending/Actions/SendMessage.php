@@ -352,11 +352,12 @@ final class SendMessage
             && $existing->request_fingerprint !== $this->fingerprint($attributes)) {
             return new SendResult(
                 $existing,
-                GateDecision::rejected(GateReason::IdempotencyKeyReused->value, [])
+                GateDecision::rejected(GateReason::IdempotencyKeyReused->value, []),
+                replayed: true,
             );
         }
 
-        return new SendResult($existing, $this->replayDecision($existing));
+        return new SendResult($existing, $this->replayDecision($existing), replayed: true);
     }
 
     /**

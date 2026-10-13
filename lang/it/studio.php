@@ -27,6 +27,7 @@ return [
         'canceled' => 'Campagna annullata.',
         'unscheduled' => 'Dopo la modifica la campagna non supera più la checklist, quindi la pianificazione è stata annullata — correggila e ripianificala.',
         'unscheduledNoPublish' => 'La campagna è tornata in bozza: una campagna pianificata può essere modificata solo con il permesso di pubblicazione. Chi ha il permesso può ripianificarla.',
+        'changed' => 'Nel frattempo lo stato della campagna è cambiato. Ricarica la pagina e riprova.',
     ],
     'hosted' => [
         'email' => 'Indirizzo email',
@@ -63,5 +64,8 @@ return [
     ],
     'fields' => [
         'updated' => 'Impostazione del campo salvata.',
+    ],
+    'templates' => [
+        'publishLocked' => 'Questo modello è usato da una campagna o un journey attivo (:uses) — può essere modificato solo con il permesso di pubblicazione. Creane una copia o chiedi a chi ha il permesso.',
     ],
 ];

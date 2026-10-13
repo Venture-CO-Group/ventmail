@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Support;
 
 use Illuminate\Support\Facades\DB;
+use InvalidArgumentException;
 
 /**
  * `CREATE INDEX CONCURRENTLY` — az INVALID maradvány kezelésével (v1.1 · 5. modul, review NIT).
@@ -25,6 +26,12 @@ final class ConcurrentIndex
      */
     public static function create(string $name, string $definition): void
     {
+        // A név SQL-be interpolálódik (azonosító nem köthető paraméterként): csak szabályos
+        // Postgres-azonosító fogadható el (review NIT). A definíció a migráció forráskódjából jön.
+        if (preg_match('/^[a-z_][a-z0-9_]{0,62}$/', $name) !== 1) {
+            throw new InvalidArgumentException("Érvénytelen index-név: {$name}");
+        }
+
         $concurrently = DB::transactionLevel() === 0 ? ' concurrently' : '';
 
         $valid = DB::selectOne(

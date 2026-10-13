@@ -27,6 +27,7 @@ return [
         'canceled' => 'A kampány megszakítva.',
         'unscheduled' => 'A módosítás után a kampány nem teljesíti a checklistet, ezért az ütemezést visszavontuk — javítsd, és ütemezd újra.',
         'unscheduledNoPublish' => 'A kampányt vázlatba vettük: ütemezett kampányt csak közzétételi joggal lehet módosítani. Egy közzétevő ütemezheti újra.',
+        'changed' => 'A kampány állapota közben megváltozott. Töltsd újra az oldalt, és próbáld újra.',
     ],
     'hosted' => [
         'email' => 'E-mail-cím',
@@ -63,5 +64,8 @@ return [
     ],
     'fields' => [
         'updated' => 'A mező beállítása mentve.',
+    ],
+    'templates' => [
+        'publishLocked' => 'Ezt a sablont aktív kampány vagy journey használja (:uses) — csak közzétételi joggal módosítható. Készíts másolatot, vagy kérj meg egy közzétevőt.',
     ],
 ];

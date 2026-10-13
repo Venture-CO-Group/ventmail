@@ -71,7 +71,29 @@ final class DispatchScheduledCampaignsCommand extends Command
 
                     foreach ($due as $campaign) {
                         try {
-                            $outcome = DB::transaction(function () use ($campaign, $checklist, $lifecycle, $audit): string {
+                            // A SZERVER-ELLENŐRZÉSEK az indítás pillanatában is (review RS1): az
+                            // ütemezés óta a domain hitelesítése lejárhatott, a sablon postai
+                            // címe helyőrzőre változhatott, a közönség elveszíthette a
+                            // megerősített hozzájárulást. A hiányos kampány VÁZLAT lesz, nem
+                            // indul el — és ez auditált.
+                            //
+                            // A ZÁR ELŐTT (review NIT): a keret nélküli consent-metszet egy nagy
+                            // célzáson sokáig fut — a sorzár alatt egy közben érkező szerkesztés
+                            // (`update()`) addig egy FPM-workert tartana várakozásban. A közbeni
+                            // szerkesztés így sem csúszik át: az `update()` maga újraértékeli a
+                            // checklistet, és a zár alatt itt a friss állapot / esedékesség dönt.
+                            $failing = $checklist->failingChecks($campaign);
+
+                            if ($failing !== []) {
+                                // Állapot-ellenőrzött váltás (review S2): ha közben megváltozott, kivétel.
+                                $lifecycle->unschedule($campaign);
+                                $audit->log('campaign.unscheduled_by_checklist', $campaign, context: ['failing' => $failing]);
+                                $failed++;
+
+                                continue;
+                            }
+
+                            $outcome = DB::transaction(function () use ($campaign, $lifecycle): string {
                                 // SOR-ZÁR + FRISS esedékesség (review BN2/NIT): a kiválasztás óta egy
                                 // szerkesztés átütemezhette vagy vázlatba vehette. A szerkesztés
                                 // ugyanezt a sort zárolja, tehát a kettő sorban fut, nem egymásba.
@@ -86,23 +108,9 @@ final class DispatchScheduledCampaignsCommand extends Command
                                     return 'skipped';
                                 }
 
-                                // A SZERVER-ELLENŐRZÉSEK az indítás pillanatában is (review RS1): az
-                                // ütemezés óta a domain hitelesítése lejárhatott, a sablon postai
-                                // címe helyőrzőre változhatott, a közönség elveszíthette a
-                                // megerősített hozzájárulást. A hiányos kampány VÁZLAT lesz, nem
-                                // indul el — és ez auditált.
-                                $failing = $checklist->failingChecks($locked);
-
-                                if ($failing !== []) {
-                                    $lifecycle->unschedule($locked);
-                                    $audit->log('campaign.unscheduled_by_checklist', $locked, context: ['failing' => $failing]);
-
-                                    return 'failed';
-                                }
-
                                 // LEFOGLALÁS + háttér-materializálás (review RB1): az ütemező sem
                                 // tart egy 300k-s felírást a percenkénti futásában. A job a commit
-                                // UTÁN kerül a sorba (`afterCommit`).
+                                // UTÁN kerül a sorba (`afterCommit`). Az indítás auditált (`system`).
                                 $claimed = $lifecycle->start($locked);
                                 StartCampaignJob::dispatch((string) $claimed->uuid, (int) $claimed->workspace_id);
 
@@ -111,8 +119,6 @@ final class DispatchScheduledCampaignsCommand extends Command
 
                             if ($outcome === 'started') {
                                 $started++;
-                            } elseif ($outcome === 'failed') {
-                                $failed++;
                             }
                         } catch (Throwable $e) {
                             report($e);

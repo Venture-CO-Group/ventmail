@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Campaign\Actions;
 
+use App\Modules\Audit\Services\AuditLogger;
 use App\Modules\Campaign\Enums\CampaignStatus;
 use App\Modules\Campaign\Models\Campaign;
 use App\Modules\Campaign\Models\CampaignRecipient;
@@ -151,7 +152,15 @@ final class StartCampaign
             return $this->abandon($campaign);
         }
 
-        return $this->dispatchBatch($campaign->fresh());
+        // AUDIT (review S3): a feltételes UPDATE megkerüli az Auditable hookot. A háttérben futó
+        // felírás aktora a `system`; a szám a TÉNYLEGESEN felírt címzetteké.
+        $fresh = $campaign->fresh();
+        app(AuditLogger::class)->log('campaign.materialized', $fresh, context: [
+            'actor' => 'system',
+            'recipients' => (int) $fresh->recipient_count,
+        ]);
+
+        return $this->dispatchBatch($fresh);
     }
 
     /** A kampány MOST (az adatbázisban) is `sending`? — a modell-példány állapota elavult lehet. */

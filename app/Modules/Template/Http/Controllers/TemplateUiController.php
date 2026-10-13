@@ -164,11 +164,16 @@ final class TemplateUiController
     /**
      * KÉZI mentés (Inertia űrlap). Mindig új verziót hoz, ha a tartalom változott.
      */
-    public function update(Request $request, string $uuid, TemplateEditorSaver $saver): RedirectResponse
+    public function update(Request $request, string $uuid, TemplateEditorSaver $saver, TemplateUsage $usage): RedirectResponse
     {
         Gate::authorize('template.create');
 
         $template = Template::query()->where('uuid', $uuid)->firstOrFail();
+
+        // B1 · aktív kampány / journey sablonja csak publikálási joggal írható (lásd `TemplateUsage`).
+        if (($denial = $usage->writeDenial($template)) !== null) {
+            return back()->with('error', $denial);
+        }
 
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:120', $this->uniqueName($template)],

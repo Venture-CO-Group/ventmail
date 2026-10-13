@@ -27,6 +27,7 @@ return [
         'canceled' => 'Campaña cancelada.',
         'unscheduled' => 'Tras el cambio la campaña ya no cumple la lista de comprobación, así que se canceló la programación: corrígela y vuelve a programarla.',
         'unscheduledNoPublish' => 'La campaña volvió a borrador: una campaña programada solo puede modificarse con permiso de publicación. Una persona con ese permiso puede volver a programarla.',
+        'changed' => 'El estado de la campaña cambió mientras tanto. Recarga la página y vuelve a intentarlo.',
     ],
     'hosted' => [
         'email' => 'Correo electrónico',
@@ -63,5 +64,8 @@ return [
     ],
     'fields' => [
         'updated' => 'Ajuste del campo guardado.',
+    ],
+    'templates' => [
+        'publishLocked' => 'Esta plantilla la usa una campaña o un journey activo (:uses): solo puede modificarse con permiso de publicación. Haz una copia o pide ayuda a una persona con ese permiso.',
     ],
 ];

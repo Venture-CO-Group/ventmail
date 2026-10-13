@@ -515,24 +515,48 @@ final class CampaignUiController
             $validated['timezone'] = $campaign->timezone;
         }
 
-        if (in_array($action, ['start', 'schedule'], true)) {
-            $state = $checklist->evaluate($campaign);
-
-            if (! $state['ready']) {
-                return back()->with('error', __('studio.checklist.notReady', ['blockers' => implode(', ', $state['blockers'])]));
-            }
-        }
-
+        // AZ INDÍTÁS ÉS AZ ÜTEMEZÉS SOR-ZÁR ALATT (review S2): a checklist a ZÁROLT, friss soron
+        // fut, és ugyanabban a tranzakcióban vált az állapot. A szerkesztés (`update()`) ugyanezt a
+        // sort zárolja — így egy közben mentett, ellenőrizetlen tartalom nem ütemeződhet be a
+        // korábbi checklist alapján. (A szüneteltetés / folytatás / visszavonás NEM itt zárol: a
+        // `CampaignLifecycle` állapotváltásai maguk zárolnak és összehasonlítanak, a folytatás
+        // kötegei pedig csak a commit után indulhatnak.)
         try {
-            match ($action) {
-                'schedule' => $lifecycle->schedule($campaign, (string) $validated['localTime'], (string) $validated['timezone']),
-                'unschedule' => $lifecycle->unschedule($campaign),
-                // LEFOGLALÁS a kérésben, materializálás + kötegek a `campaign` soron (RB1/S4).
-                'start' => StartCampaignJob::dispatch((string) $lifecycle->start($campaign)->uuid, (int) $campaign->workspace_id),
-                'pause' => $lifecycle->pause($campaign),
-                'resume' => $lifecycle->resume($campaign),
-                'cancel' => $lifecycle->cancel($campaign),
-            };
+            if (in_array($action, ['start', 'schedule'], true)) {
+                $blocked = DB::transaction(function () use ($campaign, $action, $validated, $checklist, $lifecycle): ?RedirectResponse {
+                    $locked = Campaign::query()->whereKey($campaign->getKey())->lockForUpdate()->firstOrFail();
+
+                    if ((string) $locked->status !== (string) $campaign->status) {
+                        throw new RuntimeException(__('studio.checklist.changed'));
+                    }
+
+                    $state = $checklist->evaluate($locked);
+
+                    if (! $state['ready']) {
+                        return back()->with('error', __('studio.checklist.notReady', ['blockers' => implode(', ', $state['blockers'])]));
+                    }
+
+                    match ($action) {
+                        'schedule' => $lifecycle->schedule($locked, (string) $validated['localTime'], (string) $validated['timezone']),
+                        // LEFOGLALÁS a kérésben, materializálás + kötegek a `campaign-start` soron (RB1/S4);
+                        // a job a commit UTÁN kerül a sorba (`afterCommit`).
+                        'start' => StartCampaignJob::dispatch((string) $lifecycle->start($locked)->uuid, (int) $locked->workspace_id),
+                    };
+
+                    return null;
+                });
+
+                if ($blocked !== null) {
+                    return $blocked;
+                }
+            } else {
+                match ($action) {
+                    'unschedule' => $lifecycle->unschedule($campaign),
+                    'pause' => $lifecycle->pause($campaign),
+                    'resume' => $lifecycle->resume($campaign),
+                    'cancel' => $lifecycle->cancel($campaign),
+                };
+            }
         } catch (\Throwable $e) {
             // Az állapotgép és a kapuk (hitelesített domain, consent, leiratkozó blokk)
             // hibáit UGYANÚGY jelezzük: a marketinges számára mindkettő ugyanaz a kérdés —

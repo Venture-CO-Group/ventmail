@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use App\Modules\Audience\Actions\SubmitForm;
+use App\Modules\Audience\Data\FormSubmission;
 use App\Modules\Audience\Models\Contact;
 use App\Modules\Audience\Models\ContactField;
 use App\Modules\Audience\Models\ContactList;
@@ -12,10 +14,12 @@ use App\Modules\Audience\Services\AudienceInsights;
 use App\Modules\Audience\Services\FormRenderTokens;
 use App\Modules\Audience\Services\SegmentEngine;
 use App\Modules\Audit\Models\AuditLog;
+use App\Modules\Audit\Services\KeyedHash;
 use App\Modules\Consent\Models\Consent;
 use App\Modules\Consent\Services\ConsentRecorder;
 use App\Modules\Consent\Services\PreferenceTokens;
 use App\Modules\Domains\Models\Domain;
+use App\Modules\Sending\Actions\SendMessage;
 use App\Modules\Sending\Drivers\FakeDriver;
 use App\Modules\Sending\Models\Message;
 use App\Modules\Tenancy\Models\Workspace;
@@ -192,6 +196,80 @@ it('SN1 · a plafon csak ELKÜLDÖTT levél után számol: feladó nélküli bek
     expect(Message::query()->count())->toBe(1);
 });
 
+it('S1(r3) · a DOI-számláló a küldés ELŐTT, atomikusan nő; kapu-elutasításnál visszacsökken', function () {
+    $keys = fn (string $email): array => [
+        'doi-mail:ws:'.$this->workspace->getKey().':'.KeyedHash::of('email', $email),
+        'doi-mail:'.KeyedHash::of('email', $email),
+    ];
+
+    // A küldés pillanatában a számláló MÁR foglalt (egy párhuzamos beküldés a növelt értéket látja).
+    $real = app(SendMessage::class);
+    $seen = [];
+    app()->instance(SendMessage::class, new class($real, $keys, $seen)
+    {
+        public function __construct(private $real, private $keys, public array &$seen) {}
+
+        public function __invoke(array $attributes)
+        {
+            [$ws, $global] = ($this->keys)($attributes['to'][0]);
+            $this->seen[] = [RateLimiter::attempts($ws), RateLimiter::attempts($global)];
+
+            return ($this->real)($attributes);
+        }
+    });
+
+    // Hitelesítetlen feladó-domain: a kapu elutasít → a foglalás visszacsökken.
+    $this->post('/f/'.hardeningForm()->slug, ['email' => 'p@pelda.hu', 'consent' => '1', '_elapsed' => 10])->assertOk();
+
+    [$ws, $global] = $keys('p@pelda.hu');
+
+    expect($seen)->toBe([[1, 1]])
+        ->and(RateLimiter::attempts($ws))->toBe(0)
+        ->and(RateLimiter::attempts($global))->toBe(0);
+});
+
+it('N2 · az idempotens visszajátszás (ugyanaz az űrlap, cím, óra) nem fogyasztja a plafont', function () {
+    Domain::create(['name' => 'pelda.hu', 'status' => 'verified', 'verified_at' => now()]);
+    $form = hardeningForm();
+
+    foreach (range(1, 3) as $i) {
+        $this->post('/f/'.$form->slug, ['email' => 'ujra@pelda.hu', 'consent' => '1', '_elapsed' => 10])->assertOk();
+    }
+
+    $ws = 'doi-mail:ws:'.$this->workspace->getKey().':'.KeyedHash::of('email', 'ujra@pelda.hu');
+
+    expect(Message::query()->where('channel', 'transactional')->count())->toBe(1)
+        ->and(RateLimiter::attempts($ws))->toBe(1);
+
+    // A plafon így nem telt be: egy MÁSIK űrlap levele még kimegy.
+    $this->post('/f/'.hardeningForm(['name' => 'Másik'])->slug, ['email' => 'ujra@pelda.hu', 'consent' => '1', '_elapsed' => 10])->assertOk();
+
+    expect(Message::query()->where('channel', 'transactional')->count())->toBe(2);
+});
+
+it('S4 · a nyilvános űrlap a LÉTEZŐ kontakt nevét és attribútumait nem írja felül — csak az üres mezőket tölti', function () {
+    $contact = Contact::create(['email' => 'anna@pelda.hu', 'status' => 'subscribed', 'first_name' => 'Anna', 'attributes' => ['plan' => 'pro']]);
+    $contact->lists()->attach($this->list, ['status' => 'subscribed', 'subscribed_at' => now()]);
+
+    app(SubmitForm::class)(hardeningForm(), new FormSubmission(
+        email: 'anna@pelda.hu',
+        firstName: 'Támadó',
+        lastName: 'Kovács',
+        attributes: ['plan' => 'free', 'city' => 'Pécs'],
+        elapsedSeconds: 10,
+    ));
+
+    $fresh = $contact->fresh();
+
+    expect($fresh->first_name)->toBe('Anna')
+        // Az ÜRES mező kitöltődik (a beküldő adata, ami nem ír felül semmit).
+        ->and($fresh->last_name)->toBe('Kovács')
+        ->and($fresh->attributes)->toEqual(['plan' => 'pro', 'city' => 'Pécs'])
+        // A megerősített listatagság nem romlik vissza `pending`-re.
+        ->and($fresh->lists()->first()->pivot->status)->toBe('subscribed')
+        ->and($fresh->status)->toBe('subscribed');
+});
+
 /* ---------------------------------------------------------------- S3 */
 
 it('S3 · a hozzájárulás jelölőnégyzete SZERVEROLDALON is kötelező', function () {
@@ -351,4 +429,9 @@ it('NIT · a CONCURRENTLY index INVALID maradványát a migrációs segéd eldob
     ConcurrentIndex::create('nit_idx_probe_v', 'on nit_idx_probe (v)');
 
     expect((bool) DB::selectOne("select indisvalid from pg_index where indexrelid = 'nit_idx_probe_v'::regclass")->indisvalid)->toBeTrue();
+});
+
+it('NIT · a ConcurrentIndex csak szabályos index-nevet fogad el', function () {
+    expect(fn () => ConcurrentIndex::create('x; drop table contacts', 'on contacts (email)'))
+        ->toThrow(InvalidArgumentException::class);
 });

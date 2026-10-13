@@ -66,7 +66,20 @@ final class CampaignBatchDispatcher
             ->allowFailures()
             ->dispatch();
 
-        $campaign->forceFill(['batch_id' => $batch->id])->save();
+        // FELTÉTELES ÍRÁS (review R-S1): 300k címzettnél a jobok felépítése és a batch indítása
+        // másodpercekig tart. Ha EZALATT szüneteltették vagy visszavonták, a `cancelBatch` még
+        // üres / régi `batch_id`-t látott — a most indult köteget senki nem állítaná le, a
+        // folytatás pedig egy második köteget indítana ugyanarra a `pending` halmazra (dupla
+        // számlálók). Ezért a `batch_id` csak `sending` állapotú kampányra íródik, különben a
+        // friss köteg azonnal törlődik.
+        $written = Campaign::query()
+            ->whereKey($campaign->getKey())
+            ->where('status', 'sending')
+            ->update(['batch_id' => $batch->id, 'updated_at' => now()]);
+
+        if ($written === 0) {
+            $batch->cancel();
+        }
 
         return $batch->id;
     }
