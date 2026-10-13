@@ -407,7 +407,13 @@ final class ImportFileInspector
             $carry = '';
             // A DTD-keresés farka: a `<!DOCTYPE` / `<!ENTITY` chunkhatáron kettévágva is megfogott.
             $declTail = '';
-            $isXmlPart = (bool) preg_match('/\.(xml|rels)$/i', (string) $stat['name']);
+            // SZÖVEG-RÉSZ (review r6 S4b): MINDEN bejegyzés, kivéve az ismert bináris helyeket (kép,
+            // nyomtatóbeállítás, beágyazott objektum, miniatűr). A név nem dönt (a `rels` Target bármi
+            // lehet, pl. `.bin` munkalap); hogy az XML-olvasó ne kaphasson bináris helyről részt, azt a
+            // ciklus utáni `assertWorkbookTargetsAreText()` biztosítja.
+            $isTextPart = ! self::isBinaryPart($lowerName);
+            // Az első nem-BOM / nem-szóköz bájt még hátravan (több chunkon át is követjük).
+            $awaitingFirstByte = true;
 
             try {
                 while (! feof($stream)) {
@@ -424,31 +430,43 @@ final class ImportFileInspector
                         throw new ImportLimitExceeded('zip');
                     }
 
-                    // DTD / ENTITÁS-deklaráció (review N2, mélységi védelem): egy XLSX-részben soha nem
-                    // legitim, és az XML-olvasók entitás-kezelésére épülő támadások (XXE, „billion
-                    // laughs") belépési pontja. MINDEN bejegyzésben, kis-nagybetűtől függetlenül.
-                    // UTF-16 KÓDOLÁSÚ XML-rész (review N-a): a fenti ASCII-alapú DTD-keresés (`<!DOCTYPE`)
-                    // UTF-16-ban vak lenne (`<\0!\0D\0…`). Az Excel UTF-8-at ír; az XML-részekben
-                    // (`.xml`, `.rels`) ezért a BOM-os vagy NUL-t tartalmazó tartalom formátum-hiba. A
-                    // bináris bejegyzések (`xl/media/*`) NUL-jai nem számítanak.
-                    if ($isXmlPart && (($entry === strlen($chunk) && (str_starts_with($chunk, "\xFF\xFE") || str_starts_with($chunk, "\xFE\xFF")))
-                        || str_contains($chunk, "\0"))) {
-                        throw new ImportLimitExceeded('format');
-                    }
-
-                    // KÓDOLÁS-ENGEDÉLYLISTA (review r5 N5): az XML-deklaráció csak UTF-8-at (vagy semmit)
-                    // mondhat. Egy más kódolású rész (ISO-8859-1, UTF-7, …) a fenti bájt-szintű
-                    // szűrőket (DTD, csomópont-számlálás) megkerülhetné.
-                    if ($isXmlPart && $entry === strlen($chunk)) {
-                        $head = ltrim(substr($chunk, 0, 512), "\xEF\xBB\xBF \t\r\n");
-
-                        if (str_starts_with($head, '<?xml')
-                            && preg_match('/^<\?xml[^>]*?\sencoding\s*=\s*["\']([^"\']*)["\']/i', $head, $declared) === 1
-                            && strtolower($declared[1]) !== 'utf-8') {
+                    // SZÖVEG-RÉSZ ELLENŐRZÉSEI (review N-a, r5 N5, r6 S4): az Excel UTF-8 XML-t ír.
+                    //  - UTF-16 BOM vagy NUL bájt: formátum-hiba (az ASCII-alapú DTD-keresés UTF-16-ban vak lenne);
+                    //  - az első nem-BOM / nem-szóköz bájt kötelezően `<` — ez zárja ki az EBCDIC-et és minden
+                    //    nem ASCII-kompatibilis kódolást, amelyben a `<?xml` fej nem is ismerhető fel;
+                    //  - a deklaráció kódolása csak UTF-8 (vagy hiányzik).
+                    if ($isTextPart) {
+                        if (str_contains($chunk, "\0")
+                            || ($entry === strlen($chunk) && (str_starts_with($chunk, "\xFF\xFE") || str_starts_with($chunk, "\xFE\xFF")))) {
                             throw new ImportLimitExceeded('format');
+                        }
+
+                        if ($awaitingFirstByte) {
+                            $head = $entry === strlen($chunk) && str_starts_with($chunk, "\xEF\xBB\xBF") ? substr($chunk, 3) : $chunk;
+                            $head = ltrim($head, " \t\r\n");
+
+                            if ($head !== '') {
+                                $awaitingFirstByte = false;
+
+                                if ($head[0] !== '<') {
+                                    throw new ImportLimitExceeded('format');
+                                }
+
+                                // A deklaráció kódolása (a fej első 512 bájtjából). KÜLÖN változónév: a
+                                // `$declared` a bejegyzés hirdetett mérete (a hazug fejléc elleni védelem) —
+                                // a felülírása a méret-ellenőrzést kapcsolta ki (review r6 B1).
+                                if (str_starts_with($head, '<?xml')
+                                    && preg_match('/^<\?xml[^>]*?\sencoding\s*=\s*["\']([^"\']*)["\']/i', substr($head, 0, 512), $encodingMatch) === 1
+                                    && strtolower($encodingMatch[1]) !== 'utf-8') {
+                                    throw new ImportLimitExceeded('format');
+                                }
+                            }
                         }
                     }
 
+                    // DTD / ENTITÁS-deklaráció (review N2, mélységi védelem): egy XLSX-részben soha nem
+                    // legitim, és az XML-olvasók entitás-kezelésére épülő támadások (XXE, „billion
+                    // laughs") belépési pontja. MINDEN bejegyzésben, kis-nagybetűtől függetlenül.
                     $scan = $declTail.$chunk;
 
                     if (stripos($scan, '<!DOCTYPE') !== false || stripos($scan, '<!ENTITY') !== false) {
@@ -515,7 +533,46 @@ final class ImportFileInspector
             }
         }
 
+        // A munkafüzet SZINTŰ hivatkozások (munkalap, sharedStrings, stílus, …) nem mutathatnak bináris
+        // helyre (review r6 S4b): az XML-olvasó ezeket olvassa, a bináris helyek viszont a szöveg-
+        // ellenőrzés alól mentesek.
+        $this->assertWorkbookTargetsAreText($zip);
+
         return $stats;
+    }
+
+    /** Az ismert BINÁRIS helyek (kis betűs bejegyzés-név) — ezek mentesek a szöveg-rész ellenőrzései alól. */
+    private static function isBinaryPart(string $lowerName): bool
+    {
+        return (bool) preg_match('#^(xl/media/|xl/printersettings/|xl/embeddings/|docprops/thumbnail\.)#', $lowerName);
+    }
+
+    /**
+     * A `xl/_rels/workbook.xml.rels` MINDEN Target-je szöveg-részre mutat (nem bináris helyre). A rels
+     * maga ekkor már átment a szöveg-ellenőrzéseken (UTF-8, `<`-kezdés, DTD nélkül).
+     */
+    private function assertWorkbookTargetsAreText(ZipArchive $zip): void
+    {
+        $rels = $zip->getFromName('xl/_rels/workbook.xml.rels', 1_048_576);
+
+        if ($rels === false) {
+            return;
+        }
+
+        $relationships = @simplexml_load_string((string) $rels, options: LIBXML_NONET);
+
+        if ($relationships === false) {
+            throw new ImportLimitExceeded('format');
+        }
+
+        foreach ($relationships->Relationship ?? [] as $relationship) {
+            $target = strtolower(ltrim((string) $relationship['Target'], '/'));
+            $target = str_starts_with($target, 'xl/') ? $target : 'xl/'.$target;
+
+            if (self::isBinaryPart($target)) {
+                throw new ImportLimitExceeded('format');
+            }
+        }
     }
 
     /**

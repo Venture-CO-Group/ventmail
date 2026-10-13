@@ -270,11 +270,13 @@ final class CampaignLifecycle
                 'failed_count' => $locked->recipients()->whereIn('status', ['failed', 'skipped'])->count(),
             ]);
 
-            // A tenant-szűrt modellen (global scope), nem nyers táblán.
+            // A tenant-szűrt modellen (global scope), nem nyers táblán. Az allekérdezés a `campaign_id`-t is
+            // köti (review r6 S2): a `campaign_recipients` indexe a kampányra szól, a variáns-id-re nincs —
+            // nélküle a sorzár alatt a teljes táblát olvasná.
             CampaignVariant::query()
                 ->where('campaign_id', $locked->getKey())
                 ->update(['sent_count' => DB::raw(
-                    "(select count(*) from campaign_recipients r where r.campaign_variant_id = campaign_variants.id and r.status = 'sent')"
+                    "(select count(*) from campaign_recipients r where r.campaign_id = campaign_variants.campaign_id and r.campaign_variant_id = campaign_variants.id and r.status = 'sent')"
                 )]);
         });
     }

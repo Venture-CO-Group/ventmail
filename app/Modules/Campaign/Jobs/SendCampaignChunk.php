@@ -457,16 +457,33 @@ final class SendCampaignChunk implements ShouldQueue
             }
         }
 
-        if ($update !== []) {
-            Campaign::query()->whereKey($campaign->getKey())->update([...$update, 'updated_at' => now()]);
+        if ($update === []) {
+            return;
         }
 
-        foreach ($variantSent as $variantId => $count) {
-            CampaignVariant::query()->whereKey($variantId)->update([
-                'sent_count' => DB::raw('sent_count + '.$count),
-                'updated_at' => now(),
-            ]);
-        }
+        // EGY TRANZAKCIÓ, és a lezárt (`sent`) kampányra NEM ír (review r6 S1): a `complete()` a
+        // lezáráskor a címzett-sorokból egyeztet — ebben a köteg már commitolt sorai benne vannak. Egy
+        // utána érkező relatív `+n` dupla számlálás lenne. A feltételt a Postgres (READ COMMITTED) a
+        // sorzár megszerzése után ÚJRAÉRTÉKELI, tehát egy közben lezárt kampányon 0 sor íródik.
+        // A visszavont kampány továbbra is kap (a `cancel()` nem egyeztet). A variáns csak akkor nő, ha a
+        // kampány-sor is nőtt.
+        DB::transaction(function () use ($campaign, $update, $variantSent): void {
+            $written = Campaign::query()
+                ->whereKey($campaign->getKey())
+                ->where('status', '!=', 'sent')
+                ->update([...$update, 'updated_at' => now()]);
+
+            if ($written === 0) {
+                return;
+            }
+
+            foreach ($variantSent as $variantId => $count) {
+                CampaignVariant::query()->whereKey($variantId)->update([
+                    'sent_count' => DB::raw('sent_count + '.$count),
+                    'updated_at' => now(),
+                ]);
+            }
+        });
     }
 
     /**

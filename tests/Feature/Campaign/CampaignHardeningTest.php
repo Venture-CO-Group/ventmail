@@ -949,3 +949,95 @@ it('N3(r5) · a kép törlése az AKTÍV sablon korábbi VERZIÓJÁBAN vagy ment
     r3As($this, 'author')->deleteJson('/template-assets/'.$inBlock->uuid)->assertForbidden();
     r3As($this, 'editor')->deleteJson('/template-assets/'.$inBlock->uuid)->assertOk();
 });
+
+/* ---------------------------------------------------------------- 6. review-kör */
+
+it('S1(r6) · a lezárás (egyeztetés) UTÁN érkező köteg-számlálás nem ír rá a számlálókra', function () {
+    hardMember('a@pelda.hu');
+    $campaign = app(CampaignLifecycle::class)->start(hardCampaign());
+    $variant = $campaign->variants()->create(['label' => 'A', 'subject' => 'A tárgy', 'weight' => 100]);
+    $campaign->recipients()->create(['contact_id' => Contact::query()->value('id'), 'email' => 'a@pelda.hu', 'campaign_variant_id' => $variant->getKey()]);
+    DB::table('campaign_recipients')->where('campaign_id', $campaign->getKey())->update(['status' => 'sent']);
+
+    app(CampaignLifecycle::class)->complete($campaign->fresh());
+
+    // Egy lassú köteg a címzett-sorait még a lezárás ELŐTT commitolta, a számlálóit csak most írná.
+    $chunk = new SendCampaignChunk((string) $campaign->uuid, (int) $this->workspace->getKey(), []);
+    $bump = new ReflectionMethod($chunk, 'bumpCounters');
+    $bump->invoke($chunk, $campaign->fresh(), ['sent_count' => 1, 'failed_count' => 0], [(int) $variant->getKey() => 1]);
+
+    expect($campaign->fresh()->sent_count)->toBe(1)
+        ->and((int) $variant->fresh()->sent_count)->toBe(1);
+});
+
+it('S1(r6) · küldés alatt (és visszavont kampányon) a köteg-számlálás továbbra is összeadódik', function () {
+    hardMember('a@pelda.hu');
+    $campaign = app(CampaignLifecycle::class)->start(hardCampaign());
+    $chunk = new SendCampaignChunk((string) $campaign->uuid, (int) $this->workspace->getKey(), []);
+    $bump = new ReflectionMethod($chunk, 'bumpCounters');
+
+    $bump->invoke($chunk, $campaign->fresh(), ['sent_count' => 2, 'failed_count' => 1], []);
+    app(CampaignLifecycle::class)->cancel($campaign->fresh());
+    $bump->invoke($chunk, $campaign->fresh(), ['sent_count' => 1, 'failed_count' => 0], []);
+
+    expect($campaign->fresh()->sent_count)->toBe(3)
+        ->and($campaign->fresh()->failed_count)->toBe(1);
+});
+
+it('S2(r6) · a variáns-egyeztetés a kampányra szűkít (a lekérdezés a campaign_id-t is köti)', function () {
+    hardMember('a@pelda.hu');
+    $campaign = app(CampaignLifecycle::class)->start(hardCampaign());
+    $sql = [];
+    DB::listen(function ($query) use (&$sql): void {
+        $sql[] = strtolower($query->sql);
+    });
+
+    app(CampaignLifecycle::class)->complete($campaign->fresh());
+
+    expect(collect($sql)->contains(fn (string $q) => str_contains($q, 'update "campaign_variants"')
+        && str_contains($q, 'r.campaign_id = campaign_variants.campaign_id')))->toBeTrue();
+});
+
+it('N3(r6) · a VISSZAVONÁS közben épülő köteg veszít és törlődik', function () {
+    hardMember('a@pelda.hu');
+    Queue::fake();
+    $campaign = app(CampaignLifecycle::class)->start(hardCampaign());
+    $campaign->recipients()->create(['contact_id' => Contact::query()->value('id'), 'email' => 'a@pelda.hu']);
+    $building = $campaign->fresh();
+
+    r4After(['from "campaign_recipients"', 'order by "id"'], fn () => app(CampaignLifecycle::class)->cancel($campaign->fresh()));
+
+    $batchId = app(CampaignBatchDispatcher::class)->dispatch($building);
+
+    expect($campaign->fresh()->status)->toBe('canceled')
+        ->and($campaign->fresh()->batch_id)->toBeNull()
+        ->and(Bus::findBatch((string) $batchId)?->cancelled())->toBeTrue();
+});
+
+it('N3(r6) · a materializáló job kötege a közbeni pause + resume után veszít; a folytatás kötege él', function () {
+    hardMember('a@pelda.hu');
+    hardMember('b@pelda.hu');
+    Queue::fake();
+    $campaign = app(CampaignLifecycle::class)->start(hardCampaign());
+    $live = null;
+
+    // A materializálás a felírás után indítja a kötegét; a pending-sorok beolvasása után a felhasználó
+    // szüneteltet és folytat (a folytatás teljesen lefut, a saját kötegével).
+    r4After(['from "campaign_recipients"', 'order by "id"'], function () use ($campaign, &$live): void {
+        app(CampaignLifecycle::class)->pause($campaign->fresh());
+        app(CampaignLifecycle::class)->resume($campaign->fresh());
+        $live = (string) $campaign->fresh()->batch_id;
+    });
+
+    app(StartCampaign::class)->materialize($campaign->fresh());
+
+    $fresh = $campaign->fresh();
+
+    expect($fresh->status)->toBe('sending')
+        ->and((string) $fresh->batch_id)->toBe((string) $live)
+        ->and(Bus::findBatch((string) $live)?->cancelled())->toBeFalse()
+        ->and(Bus::findBatch((string) $live)?->totalJobs)->toBe(1)
+        ->and($fresh->recipients()->where('status', 'pending')->count())->toBe(2)
+        // A job_batches-ban a materializálás kötege (a másik) törölt.
+        ->and(DB::table('job_batches')->where('name', 'campaign:'.$campaign->uuid)->where('id', '!=', $live)->whereNull('cancelled_at')->exists())->toBeFalse();
+});

@@ -7,7 +7,6 @@ use App\Modules\Tenancy\Models\Workspace;
 use App\Modules\Tenancy\Services\WorkspaceContext;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 /*
@@ -21,9 +20,10 @@ use Illuminate\Support\Str;
  */
 
 beforeEach(function () {
-    if (! Schema::hasTable('templates')) {
-        $this->artisan('migrate', ['--force' => true]);
-    }
+    // FELTÉTEL NÉLKÜLI, idempotens migrálás (review r6 S3): a trait nélküli fájl a séma bármely
+    // állapotát (hiányzó tábla, hiányzó új oszlop) a futás elején rendbe teszi — `--parallel` alatt is
+    // a saját teszt-adatbázisán. Ha nincs függő migráció, ez egy lekérdezés.
+    $this->artisan('migrate', ['--force' => true]);
 
     config(['database.connections.lockprobe' => config('database.connections.'.config('database.default'))]);
 
@@ -45,8 +45,15 @@ afterEach(function () {
     DB::rollBack(0);
     app(WorkspaceContext::class)->forget();
     DB::connection('lockprobe')->disconnect();
-    DB::table('templates')->where('id', $this->templateId)->delete();
-    DB::table('workspaces')->where('id', $this->workspaceId)->delete();
+
+    // NULL-BIZTOS takarítás (review r6 N2): ha a beforeEach félúton bukott, csak a létrejött sor törlődik.
+    if (($this->templateId ?? null) !== null) {
+        DB::table('templates')->where('id', $this->templateId)->delete();
+    }
+
+    if (($this->workspaceId ?? null) !== null) {
+        DB::table('workspaces')->where('id', $this->workspaceId)->delete();
+    }
 });
 
 /** A másik kapcsolat `NOWAIT`-tel próbál zárat szerezni — `true`, ha a zárunk blokkolná. */

@@ -63,6 +63,13 @@ final class TemplateAssetController
 
             // A hivatkozó sablonok: a mostani tartalom ÉS a korábbi verziók (egy visszaállítás a képet
             // visszahozná). A global scope a tenant-határ.
+            //
+            // A LISTA a sablon-zárak ELŐTT olvasódik (review r6 N1, dokumentált): a zárolandó sorokat csak
+            // így ismerjük. Ami a zár alatt dönt, az a használat (`writeDenial()` — aktív kampány /
+            // journey), tehát egy közben ÉLESÍTETT hivatkozó sablon nem csúszik át. Egy sablon, amely a
+            // lista után KEZDI hivatkozni a képet, nincs a listán — a mentés a kép létezését nem ellenőrzi;
+            // ez a maradék ablak a kép-hivatkozás természetéből (URL a blokkfában) adódik, és a küldés
+            // legfeljebb egy törött képet hozhat, jóváhagyatlan tartalmat nem.
             $ids = Template::query()->where($refers)->pluck('id')
                 ->merge(TemplateVersion::query()->where($refers)->pluck('template_id'))
                 ->unique()->sort()->values()->all();

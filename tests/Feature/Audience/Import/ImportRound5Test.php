@@ -336,3 +336,83 @@ it('N5(r5) · az XML-rész kódolása csak UTF-8 (vagy deklaráció nélküli) l
     'ISO-8859-1' => ['<?xml version="1.0" encoding="ISO-8859-1"?>', false],
     'UTF-7' => ['<?xml version="1.0" encoding="UTF-7"?>', false],
 ]);
+
+/* ---------------------------------------------------------------- 6. kör: B1, S4 */
+
+/** Zip, amelyben egy bejegyzés központi jegyzékbeli méretét `$forged`-ra hamisítjuk („hazug fejléc"). */
+function r6Forged(array $entries, string $name, int $forged): string
+{
+    $path = r5Zip($entries);
+    $real = strlen($entries[$name]);
+    $raw = (string) file_get_contents($path);
+    $offset = 0;
+
+    while (($at = strpos($raw, "PK\x01\x02", $offset)) !== false) {
+        if (unpack('V', substr($raw, $at + 24, 4))[1] === $real) {
+            $raw = substr_replace($raw, pack('V', $forged), $at + 24, 4);
+        }
+
+        $offset = $at + 4;
+    }
+
+    file_put_contents($path, $raw);
+
+    return $path;
+}
+
+it('B1(r6) · XML-deklarációs részen is érvényes a hazug fejléc elleni védelem (hirdetett 100 KB, valós 2 MB → zip)', function () {
+    // Kevés `<` (a csomópont-plafon nem foghatja meg előbb), a meta bájt-plafon (16 MB) alatt.
+    $xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet x="'.str_repeat('a', 2 * 1024 * 1024).'"/>';
+    $path = r6Forged(array_merge(r5Base([]), ['xl/styles.xml' => $xml]), 'xl/styles.xml', 100 * 1024);
+
+    $zip = new ZipArchive;
+    $zip->open($path);
+    expect($zip->statName('xl/styles.xml')['size'])->toBe(100 * 1024);
+    $zip->close();
+
+    expect(fn () => app(ImportFileInspector::class)->guard($path, 'xlsx'))
+        ->toThrow(fn (ImportLimitExceeded $e) => expect($e->reason)->toBe('zip'));
+});
+
+it('S4(r6) · az XML-részben a BOM / szóköz utáni első bájt kötelezően `<` (EBCDIC és más kódolás kizárva)', function (string $bytes, bool $ok) {
+    $path = r5Zip(array_merge(r5Base([]), ['xl/styles.xml' => $bytes]));
+    $guard = fn () => app(ImportFileInspector::class)->guard($path, 'xlsx');
+
+    $ok ? expect($guard)->not->toThrow(ImportLimitExceeded::class)
+        : expect($guard)->toThrow(fn (ImportLimitExceeded $e) => expect($e->reason)->toBe('format'));
+})->with([
+    'EBCDIC (IBM037) <?xml' => ["\x4C\x6F\xA7\x94\x93\x40\xA5\x85\x99\xA2\x89\x96\x95\x7E\x7F\xF1\x4B\xF0\x7F\x6F\x6E", false],
+    'szöveg előtte' => ['abc<styleSheet/>', false],
+    'UTF-8 BOM + <' => ["\xEF\xBB\xBF<styleSheet/>", true],
+    'szóköz + <' => ["\n  <styleSheet/>", true],
+]);
+
+it('S4(r6) · a nem `.xml` nevű, de XML-ként olvasott rész (pl. `.bin` munkalap) is a szöveg-ellenőrzésen megy át', function () {
+    $entries = array_merge(r5Base([]), [
+        'xl/_rels/workbook.xml.rels' => '<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.bin"/></Relationships>',
+        'xl/worksheets/sheet1.bin' => "\xFF\xFE".mb_convert_encoding('<worksheet><sheetData/></worksheet>', 'UTF-16LE', 'UTF-8'),
+    ]);
+    unset($entries['xl/worksheets/sheet1.xml']);
+
+    expect(fn () => app(ImportFileInspector::class)->guard(r5Zip($entries), 'xlsx'))
+        ->toThrow(fn (ImportLimitExceeded $e) => expect($e->reason)->toBe('format'));
+});
+
+it('S4(r6) · a valódi bináris részek (nyomtatóbeállítás, kép) átmennek; de a munkafüzet nem hivatkozhat beléjük', function () {
+    $printer = mb_convert_encoding('HP LaserJet', 'UTF-16LE', 'UTF-8').str_repeat("\0", 64);
+    $legit = r5Zip(array_merge(r5Base([]), [
+        'xl/printerSettings/printerSettings1.bin' => $printer,
+        'xl/media/image1.png' => "\x89PNG\r\n\x1a\n".str_repeat("\0", 32),
+    ]));
+
+    expect(fn () => app(ImportFileInspector::class)->guard($legit, 'xlsx'))->not->toThrow(ImportLimitExceeded::class);
+
+    // A sharedStrings a nyomtatóbeállítás „bináris" helyére mutat → a szöveg-ellenőrzés megkerülhető lenne.
+    $smuggled = r5Zip(array_merge(r5Base([]), [
+        'xl/_rels/workbook.xml.rels' => '<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings" Target="printerSettings/ss.bin"/></Relationships>',
+        'xl/printerSettings/ss.bin' => "\x4C\x6F\xA7\x94\x93",
+    ]));
+
+    expect(fn () => app(ImportFileInspector::class)->guard($smuggled, 'xlsx'))
+        ->toThrow(fn (ImportLimitExceeded $e) => expect($e->reason)->toBe('format'));
+});
