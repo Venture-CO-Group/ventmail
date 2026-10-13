@@ -57,12 +57,14 @@
             "audit": "Search the audit log",
             "segments": "AND/OR conditions with a live count",
             "domainStats": "Sent, delivered, bounces, complaints, opens, clicks per domain",
-            "infrastructure": "IP pools, reputation, blocklists, rate limits"
+            "infrastructure": "IP pools, reputation, blocklists, rate limits",
+            "docs": "API reference with code samples, webhook payloads, sandbox"
         },
         "profile": "Profile settings",
         "segments": "Segments",
         "domainStats": "Sending statistics",
-        "infrastructure": "Sending infrastructure"
+        "infrastructure": "Sending infrastructure",
+        "docs": "Developer docs"
     },
     "shell": {
         "workspace": "Workspace",
@@ -2060,7 +2062,8 @@
             "logs": "Platform · Event log",
             "suppressions": "Platform · Suppression",
             "stats": "Platform · Statistics",
-            "infra": "Platform console · Infrastructure"
+            "infra": "Platform console · Infrastructure",
+            "docs": "Platform · Developer docs"
         },
         "domains": {
             "title": "Sending domains",
@@ -2239,7 +2242,39 @@
             "rate": {
                 "workspace": "Workspace limit",
                 "smtp": "SMTP credential limit"
-            }
+            },
+            "noIps": "No sending IPs registered yet."
+        },
+        "docs": {
+            "title": "API reference",
+            "lead": "Stable /v1 — no breaking changes. The sandbox works with the seed allowlist: no mail reaches real recipients.",
+            "start": "Getting started",
+            "later": "Later",
+            "guide": {
+                "auth": "Authentication",
+                "errors": "Errors and codes",
+                "sandbox": "Sandbox",
+                "webhooks": "Webhook payloads"
+            },
+            "guideText": {
+                "auth": "Every request authenticates with an API key in the Authorization: Bearer header. Keys are workspace-bound, their scopes decide what they may call, and an IP allowlist can be set.",
+                "errors": "Errors share one shape: error.code (stable, machine-readable) and error.message. A PreSendGate rejection is 422 with the gate's structured reason.",
+                "sandbox": "For testing use a test key or the o:testmode control: the message passes the PreSendGate and shows in the log, but is not delivered. Until sending is live, only seed-allowlisted recipients can receive real mail.",
+                "webhooks": "Every event arrives as a signed JSON POST to your endpoint. Verify the signature and timestamp, and process each X-VentMail-Delivery id only once."
+            },
+            "authBasic": "Compatibility: HTTP Basic also works with the username \"api\" and the key as password.",
+            "testKeys": "Test key prefix",
+            "payload": "Webhook payload",
+            "schema": "Schema",
+            "field": "Field",
+            "signatureNote": "Verify: compare HMAC-SHA256(secret, timestamp + \".\" + body) with X-VentMail-Signature; reject timestamps older than {seconds} seconds. During a secret rotation the signature made with the old secret arrives in X-VentMail-Signature-Previous.",
+            "language": "Language",
+            "scope": "Required scope",
+            "parameters": "Parameters",
+            "parameter": "Parameter",
+            "in": "In",
+            "description": "Description",
+            "responses": "Responses"
         }
     }
 }

@@ -57,12 +57,14 @@
             "audit": "Keresés az audit-naplóban",
             "segments": "ÉS/VAGY feltételek élő számlálóval",
             "domainStats": "Küldött, kézbesített, bounce, panasz, nyitás, kattintás domainenként",
-            "infrastructure": "IP-poolok, reputáció, feketelisták, rate limitek"
+            "infrastructure": "IP-poolok, reputáció, feketelisták, rate limitek",
+            "docs": "API-referencia kódmintákkal, webhook-payloadok, sandbox"
         },
         "profile": "Profilbeállítások",
         "segments": "Szegmensek",
         "domainStats": "Küldési statisztika",
-        "infrastructure": "Küldési infrastruktúra"
+        "infrastructure": "Küldési infrastruktúra",
+        "docs": "Fejlesztői dokumentáció"
     },
     "shell": {
         "workspace": "Workspace",
@@ -2060,7 +2062,8 @@
             "logs": "Platform · Eseménynapló",
             "suppressions": "Platform · Suppression",
             "stats": "Platform · Statisztika",
-            "infra": "Platform-konzol · Infrastruktúra"
+            "infra": "Platform-konzol · Infrastruktúra",
+            "docs": "Platform · Fejlesztői dokumentáció"
         },
         "domains": {
             "title": "Küldő domainek",
@@ -2239,7 +2242,39 @@
             "rate": {
                 "workspace": "Workspace-keret",
                 "smtp": "SMTP-hitelesítő keret"
-            }
+            },
+            "noIps": "Még nincs küldő IP regisztrálva."
+        },
+        "docs": {
+            "title": "API-referencia",
+            "lead": "Stabil /v1 — breaking change nincs. A sandbox a seed-allowlisttel működik: valódi címzettnek nem megy levél.",
+            "start": "Kezdés",
+            "later": "Később",
+            "guide": {
+                "auth": "Hitelesítés",
+                "errors": "Hibák és kódok",
+                "sandbox": "Sandbox",
+                "webhooks": "Webhook-payloadok"
+            },
+            "guideText": {
+                "auth": "Minden kérés API-kulccsal hitelesít: Authorization: Bearer fejléc. A kulcs workspace-hez kötött, a scope-jai döntik el, mit hívhat, és IP-allowlist is adható hozzá.",
+                "errors": "A hibák egységes alakúak: error.code (stabil, gépi) és error.message. A PreSendGate elutasítása 422, a kapu strukturált okával.",
+                "sandbox": "Teszteléshez használj teszt-kulcsot vagy az o:testmode vezérlőt: a levél végigmegy a PreSendGate-en és a naplóban látszik, de nem kézbesítődik. Amíg a küldés nem éles, csak a seed-allowlistes címzett kaphat valódi levelet.",
+                "webhooks": "Minden esemény aláírt JSON POST-ként érkezik a végpontodra. Ellenőrizd az aláírást és az időbélyeget, és az X-VentMail-Delivery azonosítót csak egyszer dolgozd fel."
+            },
+            "authBasic": "Kompatibilitás: HTTP Basic is működik \"api\" felhasználónévvel és a kulccsal jelszóként.",
+            "testKeys": "Teszt-kulcs előtag",
+            "payload": "Webhook-payload",
+            "schema": "Séma",
+            "field": "Mező",
+            "signatureNote": "Ellenőrzés: HMAC-SHA256(titok, időbélyeg + \".\" + törzs) összevetése az X-VentMail-Signature értékkel; {seconds} másodpercnél régebbi időbélyeget utasíts el. Titok-rotáció alatt a régi titokkal készült aláírás az X-VentMail-Signature-Previous fejlécben jön.",
+            "language": "Nyelv",
+            "scope": "Szükséges scope",
+            "parameters": "Paraméterek",
+            "parameter": "Paraméter",
+            "in": "Hely",
+            "description": "Leírás",
+            "responses": "Válaszok"
         }
     }
 }

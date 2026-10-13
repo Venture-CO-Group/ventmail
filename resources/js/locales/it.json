@@ -57,12 +57,14 @@
             "audit": "Cerca nel registro di audit",
             "segments": "Condizioni E/O con conteggio in tempo reale",
             "domainStats": "Inviati, consegnati, rimbalzi, reclami, aperture, clic per dominio",
-            "infrastructure": "Pool IP, reputazione, blocklist, limiti di velocità"
+            "infrastructure": "Pool IP, reputazione, blocklist, limiti di velocità",
+            "docs": "Riferimento API con esempi di codice, payload webhook, sandbox"
         },
         "profile": "Impostazioni del profilo",
         "segments": "Segmenti",
         "domainStats": "Statistiche di invio",
-        "infrastructure": "Infrastruttura di invio"
+        "infrastructure": "Infrastruttura di invio",
+        "docs": "Documentazione sviluppatori"
     },
     "shell": {
         "workspace": "Workspace",
@@ -2060,7 +2062,8 @@
             "logs": "Piattaforma · Registro eventi",
             "suppressions": "Piattaforma · Soppressione",
             "stats": "Piattaforma · Statistiche",
-            "infra": "Console piattaforma · Infrastruttura"
+            "infra": "Console piattaforma · Infrastruttura",
+            "docs": "Piattaforma · Documentazione"
         },
         "domains": {
             "title": "Domini di invio",
@@ -2239,7 +2242,39 @@
             "rate": {
                 "workspace": "Limite workspace",
                 "smtp": "Limite credenziale SMTP"
-            }
+            },
+            "noIps": "Nessun IP di invio ancora registrato."
+        },
+        "docs": {
+            "title": "Riferimento API",
+            "lead": "/v1 stabile — nessuna modifica incompatibile. La sandbox usa la allowlist seed: nessuna email arriva a destinatari reali.",
+            "start": "Per iniziare",
+            "later": "Più avanti",
+            "guide": {
+                "auth": "Autenticazione",
+                "errors": "Errori e codici",
+                "sandbox": "Sandbox",
+                "webhooks": "Payload webhook"
+            },
+            "guideText": {
+                "auth": "Ogni richiesta si autentica con una chiave API nell'header Authorization: Bearer. Le chiavi sono legate al workspace, gli scope decidono cosa possono chiamare ed è possibile impostare un'allowlist IP.",
+                "errors": "Gli errori hanno una forma unica: error.code (stabile, leggibile da macchina) ed error.message. Un rifiuto del PreSendGate è 422 con il motivo strutturato.",
+                "sandbox": "Per i test usa una chiave di test o il controllo o:testmode: il messaggio passa il PreSendGate e compare nel registro, ma non viene consegnato. Finché l'invio non è attivo, solo i destinatari nella allowlist seed ricevono email reali.",
+                "webhooks": "Ogni evento arriva come POST JSON firmato al tuo endpoint. Verifica firma e timestamp ed elabora ogni id X-VentMail-Delivery una sola volta."
+            },
+            "authBasic": "Compatibilità: funziona anche HTTP Basic con utente \"api\" e la chiave come password.",
+            "testKeys": "Prefisso chiavi di test",
+            "payload": "Payload webhook",
+            "schema": "Schema",
+            "field": "Campo",
+            "signatureNote": "Verifica: confronta HMAC-SHA256(segreto, timestamp + \".\" + corpo) con X-VentMail-Signature; rifiuta timestamp più vecchi di {seconds} secondi. Durante una rotazione la firma con il vecchio segreto arriva in X-VentMail-Signature-Previous.",
+            "language": "Linguaggio",
+            "scope": "Scope richiesto",
+            "parameters": "Parametri",
+            "parameter": "Parametro",
+            "in": "Posizione",
+            "description": "Descrizione",
+            "responses": "Risposte"
         }
     }
 }

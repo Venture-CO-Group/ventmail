@@ -101,26 +101,28 @@ const rows = computed<Row[]>(() =>
 
 <template>
     <AppLayout>
-        <VmPageHeader :eyebrow="t('plat.eyebrow.stats')" :title="t('plat.stats.title')" :lead="t('plat.stats.lead')">
+        <VmPageHeader :eyebrow="t('plat.eyebrow.stats')" :title="t('plat.stats.title')" :lead="t('plat.stats.lead')" />
+
             <div class="vm-filters">
-                <div class="vm-filters__domain">
-                <VtSelect
-                    :model-value="domain ?? ''"
-                    :options="domainOptions"
-                    data-testid="stats-domain"
-                    :aria-label="t('logs.domain')"
-                    @update:model-value="go(days, String($event) || null)"
-                />
-                </div>
-                <VtSegmented
-                    :model-value="String(days)"
-                    :options="rangeOptions"
-                    :label="t('plat.stats.range')"
-                    data-testid="stats-range"
-                    @update:model-value="go(Number($event), domain)"
-                />
+            <div class="vm-filters__domain">
+            <VtSelect
+                :model-value="domain ?? ''"
+                :options="domainOptions"
+                data-testid="stats-domain"
+                :aria-label="t('logs.domain')"
+                @update:model-value="go(days, String($event) || null)"
+            />
             </div>
-        </VmPageHeader>
+            <div class="vm-seg-scroll">
+            <VtSegmented
+                :model-value="String(days)"
+                :options="rangeOptions"
+                :label="t('plat.stats.range')"
+                data-testid="stats-range"
+                @update:model-value="go(Number($event), domain)"
+            />
+            </div>
+        </div>
 
         <p v-if="report === null" class="vm-banner vm-banner--warning" role="status" data-testid="stats-too-expensive">
             {{ t('plat.stats.tooExpensive') }}
@@ -157,10 +159,17 @@ const rows = computed<Row[]>(() =>
 
 <style scoped>
 .vm-filters {
+    max-width: 100%;
+    min-width: 0;
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: var(--vt-space-3);
+}
+
+.vm-seg-scroll {
+    max-width: 100%;
+    overflow-x: auto;
 }
 
 .vm-filters__domain {

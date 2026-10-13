@@ -348,8 +348,11 @@ onBeforeUnmount(() => {
 }
 
 .vm-scroll-x {
+    /* `relative`: a látássérült-csak felirat (abszolút) is a görgető dobozban marad. */
+    position: relative;
     overflow-x: auto;
     min-width: 0;
+    max-width: 100%;
 }
 
 .vm-dns {

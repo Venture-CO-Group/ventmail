@@ -194,3 +194,31 @@ test('statisztika: domainenként és időben, grafikonnal', async ({ page }) => 
     // A grafikon (ha van adat) canvas-ra rajzol; üres időszaknál magyarázó szöveg.
     await expect(page.getByTestId('stats-chart').or(page.getByTestId('stats-empty'))).toBeVisible();
 });
+
+test('fejlesztői dokumentáció: OpenAPI-ból generált referencia, négy nyelvű kódminta, webhook-séma', async ({ page }) => {
+    await page.goto('/developers');
+
+    await expect(page.getByTestId('docs-nav')).toBeVisible();
+    await expect(page.getByTestId('docs-soon-inbound')).toBeVisible();
+    await expect(page.getByTestId('docs-soon-validation')).toBeVisible();
+
+    // A `POST /messages` (operationId nélkül → generált azonosító).
+    await page.getByTestId('docs-op-post-messages').click();
+    await expect(page.getByTestId('docs-scope')).toContainText('messages:send');
+    await expect(page.getByTestId('docs-operation')).toBeVisible();
+
+    const code = page.getByTestId('docs-code');
+    await expect(code).toContainText('curl -X POST');
+    await expect(code).toContainText('Idempotency-Key');
+
+    for (const [index, needle] of [[1, 'curl_init'], [2, 'fetch('], [3, 'requests.request']] as const) {
+        await page.getByTestId('docs-language').getByRole('radio').nth(index).click();
+        await expect(code).toContainText(needle);
+    }
+
+    await page.getByTestId('docs-guide-webhooks').click();
+    await expect(page.getByTestId('docs-webhook-payload')).toContainText('"test": true');
+    await expect(page.getByTestId('docs-webhook-schema')).toContainText('delivery.code');
+    // A nyelvválasztás közös: az utoljára választott (Python) mintája látszik.
+    await expect(page.getByTestId('docs-verify-code')).toContainText('hmac.compare_digest');
+});

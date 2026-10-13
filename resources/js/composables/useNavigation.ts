@@ -94,6 +94,14 @@ export function useNavigation(): {
             { href: '/logs/statistics', testid: 'nav-statistics', key: 'statistics', icon: 'chart', show: can('logs.view') },
             // v1.1 · 7. modul: küldési statisztika domainenként és időben.
             { href: '/statistics', testid: 'nav-domain-stats', key: 'domainStats', icon: 'activity', show: can('analytics.view') },
+            // v1.1 · 7. modul: fejlesztői dokumentáció az appon belül (OpenAPI-ból generálva).
+            {
+                href: '/developers',
+                testid: 'nav-docs',
+                key: 'docs',
+                icon: 'file-code',
+                show: can('apiKey.manage') || can('webhook.manage') || can('logs.view'),
+            },
             { href: '/billing', testid: 'nav-billing', key: 'billing', icon: 'credit-card', show: can('billing.manage') },
             // D15: „hamarosan" jelzés — a meglévő képernyők a régi útvonalon elérhetők maradnak.
             { href: '/inbound', testid: 'nav-inbound', key: 'inbound', icon: 'inbox', show: can('domain.manage'), soon: true },

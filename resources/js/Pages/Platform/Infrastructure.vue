@@ -113,7 +113,7 @@ const listed = computed(() => props.addresses.filter((ip) => ip.blocklist.some((
 
         <VmCard>
             <h2>{{ t('plat.infra.ips') }}</h2>
-            <p v-if="!ipRows.length">{{ t('ipPools.empty') }}</p>
+            <p v-if="!ipRows.length">{{ t('plat.infra.noIps') }}</p>
             <VmTable v-else :columns="ipColumns" :rows="ipRows" :caption="t('plat.infra.ips')" data-testid="infra-ips">
                 <template #cell="{ row, column, value }">
                     <VmStateBadge v-if="column.key === 'status' || column.key === 'warmup'" :state="String(value)" />

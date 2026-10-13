@@ -333,13 +333,15 @@ function successRate(endpoint: Endpoint): string {
         <VmCard>
             <div class="vm-detail-head">
                 <h2>{{ t('plat.webhooks.log') }}</h2>
-                <VtSegmented
-                    :model-value="status"
-                    :options="statusOptions"
-                    :label="t('webhooks.status')"
-                    data-testid="delivery-filter"
-                    @update:model-value="filter($event)"
-                />
+                <div class="vm-seg-scroll">
+                    <VtSegmented
+                        :model-value="status"
+                        :options="statusOptions"
+                        :label="t('webhooks.status')"
+                        data-testid="delivery-filter"
+                        @update:model-value="filter($event)"
+                    />
+                </div>
             </div>
 
             <p v-if="!deliveryRows.length" data-testid="deliveries-empty">{{ t('webhooks.noDeliveries') }}</p>
@@ -520,6 +522,11 @@ function successRate(endpoint: Endpoint): string {
     border-radius: var(--vt-radius-md);
     background: var(--vt-bg-elevated);
     overflow-wrap: anywhere;
+}
+
+.vm-seg-scroll {
+    max-width: 100%;
+    overflow-x: auto;
 }
 
 .vm-nowrap {

@@ -57,6 +57,7 @@ const STATIC_PAGES = [
     '/logs',
     '/logs/statistics',
     '/statistics',
+    '/developers',
     '/billing',
     '/inbound',
     '/validation',
@@ -172,18 +173,20 @@ test.afterAll(async ({ browser }) => {
 
     await page.goto('/webhooks');
 
-    // CSAK a seedelt végpontot (név: LONG): a sor `endpoint-<uuid>` testid-t visel.
+    // CSAK a seedelt végpontot (név: LONG). v1.1: a végpontlista gombjai `endpoint-<uuid>`
+    // testid-t viselnek; a törlés a kiválasztott végpont részletezőjéből, megerősítéssel megy.
     const ids = await page
+        .getByTestId('endpoint-list')
         .locator('[data-testid^="endpoint-"]', { hasText: LONG })
-        .evaluateAll((rows) => rows.map((row) => (row.getAttribute('data-testid') ?? '').replace('endpoint-', '')));
+        .evaluateAll((rows) => rows.map((row) => (row.getAttribute('data-testid') ?? '').replace('endpoint-', '')))
+        .catch(() => [] as string[]);
 
     for (const id of ids) {
-        const button = page.getByTestId(`delete-${id}`);
-
-        await button.click();
-        // Az Inertia újrarenderelését megvárjuk: a régi gomb ELTŰNIK — különben a következő
-        // kör ugyanarra a (már törölt) sorra kattintana, és a szerver 404-et adna.
-        await expect(button).toHaveCount(0);
+        await page.getByTestId(`endpoint-${id}`).click();
+        await page.getByTestId(`delete-${id}`).click();
+        await page.getByTestId('delete-confirm').click();
+        // Az Inertia újrarenderelését megvárjuk: a törölt végpont ELTŰNIK a listából.
+        await expect(page.getByTestId(`endpoint-${id}`)).toHaveCount(0);
     }
 
     await context.close();

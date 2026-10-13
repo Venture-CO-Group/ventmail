@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Modules\Identity\Http\Controllers\ApiKeyController;
+use App\Modules\Api\Http\Controllers\DeveloperDocsController;
 use App\Modules\Identity\Http\Controllers\DevLoginController;
 use App\Modules\Identity\Http\Controllers\DevSeedController;
 use App\Modules\Identity\Http\Controllers\LocaleController;
@@ -74,6 +75,8 @@ Route::middleware(['auth', 'workspace'])
         Route::get('/api-keys', [ApiKeyController::class, 'index'])->name('api-keys.index');
         Route::post('/api-keys', [ApiKeyController::class, 'store'])->name('api-keys.store');
         Route::delete('/api-keys/{uuid}', [ApiKeyController::class, 'destroy'])->name('api-keys.destroy');
+        // v1.1 · 7. modul: az appon belüli fejlesztői dokumentáció (OpenAPI-ból generálva).
+        Route::get('/developers', DeveloperDocsController::class)->name('developers.docs');
     });
 
 // KIZÁRÓLAG fejlesztői/teszt környezetben: a Playwright nem tudja végigjátszani a ventSSO
