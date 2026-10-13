@@ -87,7 +87,8 @@ export function startImportWorker(): ChildProcess {
             cwd: process.cwd(),
             // A worker belső (nem import) jobjai szinkron futnak; a cache `array`, mint a webszervernél
             // (a `queue:work` a cache-be írja az újraindítás-jelzést, és a Redis-bővítmény nem kell).
-            env: { ...process.env, QUEUE_CONNECTION: 'sync', CACHE_STORE: 'array', AUDIENCE_IMPORT_QUEUE_CONNECTION: 'database', AUDIENCE_IMPORT_INSPECT_QUEUE_CONNECTION: 'database' },
+            // A `e2e/php.d` (JIT ki, mint élesben) a workerre is érvényes — a webszerverrel azonos PHP-beállítás.
+            env: { ...process.env, PHP_INI_SCAN_DIR: `:${process.cwd()}/e2e/php.d`, QUEUE_CONNECTION: 'sync', CACHE_STORE: 'array', AUDIENCE_IMPORT_QUEUE_CONNECTION: 'database', AUDIENCE_IMPORT_INSPECT_QUEUE_CONNECTION: 'database' },
             stdio: 'ignore',
         },
     );

@@ -427,6 +427,23 @@ jobs:
           tail -n 300 storage/logs/laravel.log 2>/dev/null || echo "nincs napló"
           echo "::endgroup::"
 
+      # CI (PR #42) · A FOLYAMAT-SZINTŰ HALÁL NYOMAI. A `php -S` worker beragadása (100% CPU) vagy
+      # elhalása (szegmentálási hiba, OOM-kill) az alkalmazás-naplóba nem kerül — itt látszik: a
+      # futó PHP-folyamatok állapota/CPU-ideje és a kernel-napló vége, és a PHP effektív opcache/JIT
+      # beállítása (a webszerver ugyanazzal az `e2e/php.d`-vel fut).
+      - name: 'folyamatok és kernel-napló bukás esetén'
+        if: failure()
+        run: |
+          echo "::group::PHP-folyamatok"
+          ps -eo pid,ppid,stat,etime,pcpu,rss,args | grep -E '[p]hp' || echo "nincs futó PHP-folyamat"
+          echo "::endgroup::"
+          echo "::group::kernel-napló (utolsó 80 sor)"
+          sudo dmesg -T 2>/dev/null | tail -n 80 || echo "dmesg nem olvasható"
+          echo "::endgroup::"
+          echo "::group::PHP opcache/JIT (e2e/php.d-vel)"
+          PHP_INI_SCAN_DIR=":$PWD/e2e/php.d" php -i | grep -E '^(opcache\.enable_cli|opcache\.jit |JIT)' || true
+          echo "::endgroup::"
+
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: failure()
         with:

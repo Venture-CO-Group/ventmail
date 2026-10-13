@@ -59,8 +59,10 @@ it('egyedi időszak: érvénytelen vagy 366 napnál hosszabb → 30 napos alapé
     $tz = 'Europe/Budapest';
 
     expect(AnalyticsRange::resolve('custom', '2026-01-01', '2026-01-10', $tz)->days())->toBe(10)
-        ->and(AnalyticsRange::resolve('custom', now()->subDays(400)->toDateString(), now()->toDateString(), $tz)->key)->toBe('30')
-        ->and(AnalyticsRange::resolve('custom', now()->toDateString(), now()->addDay()->toDateString(), $tz)->key)->toBe('30')
+        // A „ma" a TARTOMÁNY időzónájában értendő (a kód is így számol): UTC-ben 22:00 után Budapesten
+        // már holnap van, és az UTC-holnap ott „ma" — a teszt e nélkül éjfél körül ingadozott (CI, PR #42).
+        ->and(AnalyticsRange::resolve('custom', now($tz)->subDays(400)->toDateString(), now($tz)->toDateString(), $tz)->key)->toBe('30')
+        ->and(AnalyticsRange::resolve('custom', now($tz)->toDateString(), now($tz)->addDay()->toDateString(), $tz)->key)->toBe('30')
         ->and(AnalyticsRange::resolve('custom', '2026-02-30', '2026-03-01', $tz)->key)->toBe('30')
         ->and(AnalyticsRange::resolve('999', null, null, $tz)->key)->toBe('30');
 });
