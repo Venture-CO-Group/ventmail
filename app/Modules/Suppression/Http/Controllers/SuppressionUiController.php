@@ -38,10 +38,19 @@ final class SuppressionUiController
         Gate::authorize('suppression.manage');
 
         $search = $request->string('search')->toString();
-        $page = $store->listForWorkspace(50, $request->string('cursor')->toString() ?: null, $search);
+        $categories = SuppressionReason::categories();
+        $list = $request->string('list')->toString();
+        $list = array_key_exists($list, $categories) ? $list : 'bounces';
+
+        $page = $store->listForWorkspace(50, $request->string('cursor')->toString() ?: null, $search, $categories[$list]);
+        $byReason = $store->countsByReason();
 
         return Inertia::render('Suppression/Index', [
             'search' => $search,
+            'list' => $list,
+            'counts' => collect($categories)->map(
+                static fn (array $reasons): int => array_sum(array_map(static fn ($reason) => $byReason[$reason] ?? 0, $reasons))
+            )->all(),
             'suppressions' => [
                 'items' => collect($page->items())->map(fn (Suppression $suppression) => [
                     'uuid' => (string) $suppression->uuid,
@@ -49,6 +58,7 @@ final class SuppressionUiController
                     'reason' => (string) $suppression->reason,
                     'appliesTo' => (string) $suppression->applies_to,
                     'source' => (string) $suppression->source,
+                    'detail' => $suppression->detail === null ? null : mb_substr((string) $suppression->detail, 0, 160),
                     'expiresAt' => $suppression->expires_at?->toIso8601String(),
                     'createdAt' => $suppression->created_at?->toIso8601String(),
                     // A FELÜLETNEK tudnia kell, mit NEM lehet feloldani — különben a gomb
@@ -74,17 +84,25 @@ final class SuppressionUiController
 
         $store->addFromUi($validated['email'], $validated['reason'], $validated['appliesTo']);
 
-        return back()->with('success', __('ventmail.suppressions.added'));
+        // A felvett cím a SAJÁT listáján jelenik meg (különben a felhasználó nem látná).
+        $list = collect(SuppressionReason::categories())->search(fn (array $reasons) => in_array($validated['reason'], $reasons, true)) ?: 'manual';
+
+        return redirect()->route('suppressions.index', ['list' => $list])->with('success', __('ventmail.suppressions.added'));
     }
 
     public function destroy(Request $request, SuppressionStore $store): RedirectResponse
     {
         Gate::authorize('suppression.manage');
 
-        $validated = $request->validate(['email' => ['required', 'string', 'max:320']]);
+        // Az INDOKLÁS kötelező (v1.1 · 7. modul): a törlés újra küldhetővé teszi a címet, és
+        // egy későbbi reputáció-vizsgálatnál ez mondja meg, miért.
+        $validated = $request->validate([
+            'email' => ['required', 'string', 'max:320'],
+            'justification' => ['required', 'string', 'min:3', 'max:500'],
+        ]);
 
         try {
-            $removed = $store->removeForWorkspace($validated['email']);
+            $removed = $store->removeWithJustification($validated['email'], $validated['justification'], 'ui');
         } catch (AuthorizationException) {
             // A SZABÁLY OKÁT kimondjuk: enélkül a felhasználó a felületet hibáztatná, és
             // legközelebb az API-n próbálná meg ugyanezt.

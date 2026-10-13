@@ -2050,7 +2050,8 @@
             "apiKeys": "Piattaforma · Chiavi API",
             "smtp": "Piattaforma · SMTP",
             "webhooks": "Piattaforma · Webhook",
-            "logs": "Piattaforma · Registro eventi"
+            "logs": "Piattaforma · Registro eventi",
+            "suppressions": "Piattaforma · Soppressione"
         },
         "domains": {
             "title": "Domini di invio",
@@ -2159,6 +2160,29 @@
                 "gate_rejected": "PreSendGate: respinto",
                 "attempt": "tentativo di consegna"
             }
+        },
+        "suppressions": {
+            "title": "Liste di soppressione",
+            "lead": "Non inviamo a questi indirizzi. I reclami non si possono eliminare; ogni eliminazione richiede un motivo ed è registrata.",
+            "list": {
+                "bounces": "Rimbalzi",
+                "complaints": "Reclami",
+                "unsubscribes": "Disiscrizioni",
+                "manual": "Blocchi manuali"
+            },
+            "searchPlaceholder": "Cerca per indirizzo email",
+            "note": {
+                "bounces": "Indirizzi che rimbalzano: aggiunti automaticamente dal motore di invio. Eliminabili con un motivo.",
+                "complaints": "Reclamo spam (feedback loop). I reclami non si possono eliminare — non invieremo mai più all'indirizzo.",
+                "unsubscribes": "Disiscrizione: volontà dell'interessato, quindi non eliminabile. Le email transazionali restano possibili se l'ambito è solo marketing.",
+                "manual": "Blocchi manuali e di policy. Eliminabili con un motivo; l'azione è registrata."
+            },
+            "delete": "Elimina",
+            "notDeletable": "Non eliminabile",
+            "deleteTitle": "Rimuovi dalla lista",
+            "deleteWarning": "Dopo l'eliminazione si potrà di nuovo inviare a {email}. L'azione è registrata.",
+            "justification": "Motivo (obbligatorio)",
+            "deleteAndLog": "Elimina e registra"
         }
     }
 }

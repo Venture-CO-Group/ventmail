@@ -2050,7 +2050,8 @@
             "apiKeys": "Plataforma · Claves API",
             "smtp": "Plataforma · SMTP",
             "webhooks": "Plataforma · Webhooks",
-            "logs": "Plataforma · Registro de eventos"
+            "logs": "Plataforma · Registro de eventos",
+            "suppressions": "Plataforma · Supresión"
         },
         "domains": {
             "title": "Dominios de envío",
@@ -2159,6 +2160,29 @@
                 "gate_rejected": "PreSendGate: rechazado",
                 "attempt": "intento de entrega"
             }
+        },
+        "suppressions": {
+            "title": "Listas de supresión",
+            "lead": "No enviamos a estas direcciones. Las quejas no se pueden eliminar; cada eliminación requiere un motivo y queda auditada.",
+            "list": {
+                "bounces": "Rebotes",
+                "complaints": "Quejas",
+                "unsubscribes": "Bajas",
+                "manual": "Bloqueos manuales"
+            },
+            "searchPlaceholder": "Buscar por dirección de correo",
+            "note": {
+                "bounces": "Direcciones que rebotan: el motor de envío las añade automáticamente. Se pueden eliminar con un motivo.",
+                "complaints": "Queja de spam (feedback loop). Las quejas no se pueden eliminar: nunca más enviaremos a esa dirección.",
+                "unsubscribes": "Baja: es la voluntad del destinatario, por eso no se puede eliminar. El correo transaccional sigue saliendo si el alcance es solo marketing.",
+                "manual": "Bloqueos manuales y de política. Se pueden eliminar con un motivo; la acción queda auditada."
+            },
+            "delete": "Eliminar",
+            "notDeletable": "No se puede eliminar",
+            "deleteTitle": "Quitar de la lista",
+            "deleteWarning": "Tras eliminarla, se podrá volver a enviar a {email}. La acción queda auditada.",
+            "justification": "Motivo (obligatorio)",
+            "deleteAndLog": "Eliminar y registrar"
         }
     }
 }

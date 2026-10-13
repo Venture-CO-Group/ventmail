@@ -49,6 +49,7 @@ const STATIC_PAGES = [
     '/api-keys',
     '/smtp-credentials',
     '/suppressions',
+    '/suppressions?list=manual',
     '/webhooks',
     '/stored-templates',
     '/ip-pools',
@@ -113,7 +114,7 @@ test.beforeAll(async ({ browser }) => {
     await page.goto('/dev/seed-logs');
     await seedOnce('/domains', LONG_DOMAIN, '/domains', { name: LONG_DOMAIN });
     await seedOnce('/api-keys', LONG, '/api-keys', { name: LONG, scopes: ['messages:send'], channels: [], testmode: false });
-    await seedOnce('/suppressions', LONG_EMAIL, '/suppressions', { email: LONG_EMAIL, reason: 'manual', appliesTo: 'all' });
+    await seedOnce('/suppressions?list=manual', LONG_EMAIL, '/suppressions', { email: LONG_EMAIL, reason: 'manual', appliesTo: 'all' });
     await seedOnce('/webhooks', LONG, '/webhooks', { name: LONG, url: LONG_URL, events: ['delivered', 'bounced'] });
     await seedOnce('/audience', LONG_WORDS, '/audience/lists', { name: LONG_WORDS });
     await seedOnce('/forms', LONG_WORDS, '/forms', {
@@ -355,7 +356,7 @@ async function settle(page: Page): Promise<void> {
 test('a seed hosszú adatot ad a képernyőknek', async ({ page }) => {
     for (const [path, needle] of [
         ['/api-keys', LONG],
-        ['/suppressions', LONG_EMAIL],
+        ['/suppressions?list=manual', LONG_EMAIL],
         ['/webhooks', LONG_URL],
         ['/domains', LONG_DOMAIN],
         ['/members', LONG_EMAIL],

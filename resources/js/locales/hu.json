@@ -2050,7 +2050,8 @@
             "apiKeys": "Platform · API-kulcsok",
             "smtp": "Platform · SMTP",
             "webhooks": "Platform · Webhookok",
-            "logs": "Platform · Eseménynapló"
+            "logs": "Platform · Eseménynapló",
+            "suppressions": "Platform · Suppression"
         },
         "domains": {
             "title": "Küldő domainek",
@@ -2159,6 +2160,29 @@
                 "gate_rejected": "PreSendGate: elutasítva",
                 "attempt": "kézbesítési kísérlet"
             }
+        },
+        "suppressions": {
+            "title": "Suppression listák",
+            "lead": "Erre a címre nem küldünk. A panaszt nem lehet törölni; minden törlés indoklást kér és auditált.",
+            "list": {
+                "bounces": "Bounce-ok",
+                "complaints": "Panaszok",
+                "unsubscribes": "Leiratkozások",
+                "manual": "Kézi tiltások"
+            },
+            "searchPlaceholder": "Keresés e-mail-cím szerint",
+            "note": {
+                "bounces": "Visszapattanó címek: a küldőmotor automatikusan felveszi. Törlés indoklással lehetséges.",
+                "complaints": "Spam-panasz (feedback loop). A panaszt nem lehet törölni — a címre soha többé nem küldünk.",
+                "unsubscribes": "Leiratkozás: az érintett akarata, ezért nem törölhető. Tranzakciós levél továbbra is mehet, ha a hatókör csak marketing.",
+                "manual": "Kézi és szabály-alapú tiltások. Törlés indoklással lehetséges; a művelet auditált."
+            },
+            "delete": "Törlés",
+            "notDeletable": "Nem törölhető",
+            "deleteTitle": "Törlés a listáról",
+            "deleteWarning": "A(z) {email} címre a törlés után újra mehet levél. A művelet auditált.",
+            "justification": "Indoklás (kötelező)",
+            "deleteAndLog": "Törlés és naplózás"
         }
     }
 }

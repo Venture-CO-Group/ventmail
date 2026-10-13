@@ -2050,7 +2050,8 @@
             "apiKeys": "Plateforme · Clés API",
             "smtp": "Plateforme · SMTP",
             "webhooks": "Plateforme · Webhooks",
-            "logs": "Plateforme · Journal d'événements"
+            "logs": "Plateforme · Journal d'événements",
+            "suppressions": "Plateforme · Suppression"
         },
         "domains": {
             "title": "Domaines d'envoi",
@@ -2159,6 +2160,29 @@
                 "gate_rejected": "PreSendGate : rejeté",
                 "attempt": "tentative de livraison"
             }
+        },
+        "suppressions": {
+            "title": "Listes de suppression",
+            "lead": "Nous n'envoyons pas à ces adresses. Les plaintes ne peuvent pas être supprimées ; chaque suppression exige un motif et est auditée.",
+            "list": {
+                "bounces": "Rebonds",
+                "complaints": "Plaintes",
+                "unsubscribes": "Désabonnements",
+                "manual": "Blocages manuels"
+            },
+            "searchPlaceholder": "Rechercher par adresse e-mail",
+            "note": {
+                "bounces": "Adresses en rebond : ajoutées automatiquement par le moteur d'envoi. Suppression possible avec un motif.",
+                "complaints": "Plainte pour spam (boucle de rétroaction). Une plainte ne peut pas être supprimée — nous n'enverrons plus jamais à cette adresse.",
+                "unsubscribes": "Désabonnement : choix de la personne, donc non supprimable. Les e-mails transactionnels restent possibles si la portée est marketing uniquement.",
+                "manual": "Blocages manuels et de politique. Suppression possible avec un motif ; l'action est auditée."
+            },
+            "delete": "Supprimer",
+            "notDeletable": "Non supprimable",
+            "deleteTitle": "Retirer de la liste",
+            "deleteWarning": "Après suppression, des e-mails pourront de nouveau être envoyés à {email}. L'action est auditée.",
+            "justification": "Motif (obligatoire)",
+            "deleteAndLog": "Supprimer et journaliser"
         }
     }
 }

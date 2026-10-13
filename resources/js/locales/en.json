@@ -2050,7 +2050,8 @@
             "apiKeys": "Platform · API keys",
             "smtp": "Platform · SMTP",
             "webhooks": "Platform · Webhooks",
-            "logs": "Platform · Event log"
+            "logs": "Platform · Event log",
+            "suppressions": "Platform · Suppression"
         },
         "domains": {
             "title": "Sending domains",
@@ -2159,6 +2160,29 @@
                 "gate_rejected": "PreSendGate: rejected",
                 "attempt": "delivery attempt"
             }
+        },
+        "suppressions": {
+            "title": "Suppression lists",
+            "lead": "We do not send to these addresses. Complaints cannot be deleted; every deletion needs a reason and is audited.",
+            "list": {
+                "bounces": "Bounces",
+                "complaints": "Complaints",
+                "unsubscribes": "Unsubscribes",
+                "manual": "Manual blocks"
+            },
+            "searchPlaceholder": "Search by email address",
+            "note": {
+                "bounces": "Bouncing addresses: added automatically by the sending engine. Can be deleted with a reason.",
+                "complaints": "Spam complaint (feedback loop). Complaints cannot be deleted — we never send to the address again.",
+                "unsubscribes": "Unsubscribe: the recipient's own choice, so it cannot be deleted. Transactional mail still goes out if the scope is marketing only.",
+                "manual": "Manual and policy blocks. Can be deleted with a reason; the action is audited."
+            },
+            "delete": "Delete",
+            "notDeletable": "Not deletable",
+            "deleteTitle": "Remove from list",
+            "deleteWarning": "Mail can be sent to {email} again after deletion. The action is audited.",
+            "justification": "Reason (required)",
+            "deleteAndLog": "Delete and log"
         }
     }
 }

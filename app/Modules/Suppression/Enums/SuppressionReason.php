@@ -45,4 +45,21 @@ enum SuppressionReason: string
     {
         return in_array($this, [self::Complaint, self::Policy, self::Blocked], true);
     }
+
+    /**
+     * A felület KÜLÖN LISTÁI (v1.1 · 7. modul): bounce-ok, panaszok, leiratkozások, kézi
+     * tiltások. A `blocked` (fogadó-oldali tiltás) a bounce-okhoz, a `policy` (platform-
+     * szabály) a kézi tiltásokhoz tartozik.
+     *
+     * @return array<string, list<string>>
+     */
+    public static function categories(): array
+    {
+        return [
+            'bounces' => [self::Bounce->value, self::Blocked->value],
+            'complaints' => [self::Complaint->value],
+            'unsubscribes' => [self::Unsubscribe->value],
+            'manual' => [self::Manual->value, self::Policy->value],
+        ];
+    }
 }

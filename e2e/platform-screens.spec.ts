@@ -61,14 +61,20 @@ test('az API-kulcs kiállításkor EGYSZER látszik', async ({ page }) => {
 test('a tiltólista felvesz, és a PANASZT nem engedi feloldani', async ({ page }) => {
     await page.goto('/suppressions');
 
+    // v1.1: a felvétel modalban; a felvett cím a SAJÁT listáján (kézi tiltások) jelenik meg.
+    await page.getByTestId('suppression-new').click();
     await page.getByTestId('suppression-email').fill('e2e-tiltott@pelda.hu');
     await page.getByTestId('suppression-submit').click();
 
+    await expect(page).toHaveURL(/list=manual/);
     await expect(page.getByTestId('suppressions-table')).toContainText('e2e-tiltott@pelda.hu');
 
-    // A kézi tiltás feloldható…
+    // A kézi tiltás feloldható — de csak INDOKLÁSSAL (auditált).
     await expect(page.getByTestId('remove-e2e-tiltott@pelda.hu')).toBeVisible();
     await page.getByTestId('remove-e2e-tiltott@pelda.hu').click();
+    await expect(page.getByTestId('suppression-delete-confirm')).toBeDisabled();
+    await page.getByTestId('suppression-justification').fill('E2E: tévesen felvett cím');
+    await page.getByTestId('suppression-delete-confirm').click();
     await expect(page.getByTestId('flash-success')).toBeVisible();
 });
 

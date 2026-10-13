@@ -161,3 +161,22 @@ test('napló: Message-ID szűrő, idővonal, CSV-export (maszkolt címzettel)', 
     expect(csv).toContain('d***@example.test');
     expect(csv).not.toContain('demo@example.test');
 });
+
+test('suppression: külön listák, a panasz nem törölhető', async ({ page }) => {
+    await page.goto('/suppressions');
+
+    await page.getByTestId('suppression-new').click();
+    await page.getByTestId('suppression-email').fill(`panasz-${run}@pelda.hu`);
+    await page.getByTestId('suppression-reason').locator('select').selectOption('complaint');
+    await page.getByTestId('suppression-submit').click();
+
+    await expect(page).toHaveURL(/list=complaints/);
+    await expect(page.getByTestId('list-note-complaints')).toBeVisible();
+    await expect(page.getByTestId(`locked-panasz-${run}@pelda.hu`)).toBeVisible();
+    await expect(page.getByTestId(`remove-panasz-${run}@pelda.hu`)).toHaveCount(0);
+
+    // A fülek között váltva a lista a szerveren szűrődik.
+    await page.getByRole('tab').nth(3).click();
+    await expect(page).toHaveURL(/list=manual/);
+    await expect(page.getByTestId('suppression-tabs')).not.toContainText(`panasz-${run}@pelda.hu`);
+});

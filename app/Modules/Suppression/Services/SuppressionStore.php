@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Suppression\Services;
 
+use App\Modules\Audit\Services\AuditLogger;
 use App\Modules\Identity\Models\ApiKey;
 use App\Modules\Sending\Services\DomainNormalizer;
 use App\Modules\Suppression\Enums\SuppressionReason;
@@ -162,11 +163,13 @@ final class SuppressionStore
      *
      * @return CursorPaginator<Suppression>
      */
-    public function listForWorkspace(int $perPage = 100, ?string $cursor = null, ?string $search = null): CursorPaginator
+    public function listForWorkspace(int $perPage = 100, ?string $cursor = null, ?string $search = null, ?array $reasons = null): CursorPaginator
     {
         // Lapozás KÖTELEZŐ: a tábla természeténél fogva milliós, a teljes betöltés
         // memóriára futna — és nyílt e-mail-címeket öntene egy válaszba.
         return Suppression::query()
+            // A KÜLÖN LISTÁK (v1.1): okra szűrve, a `(workspace_id, reason, id)` index mentén.
+            ->when($reasons !== null, fn ($query) => $query->whereIn('reason', $reasons))
             ->when($search !== null && $search !== '', function ($query) use ($search): void {
                 // A `like` metakaraktereit escape-eljük: a `%` különben MINDENT adna, és a
                 // felhasználó azt hinné, a szűrője nem működik.
@@ -174,6 +177,55 @@ final class SuppressionStore
             })
             ->orderByDesc('id')
             ->cursorPaginate(min($perPage, 1000), ['*'], 'cursor', $cursor);
+    }
+
+    /**
+     * Darabszám okonként — EGY csoportosító lekérdezés a saját sorokra (a fülek számaihoz).
+     *
+     * @return array<string, int>
+     */
+    public function countsByReason(): array
+    {
+        return Suppression::query()
+            ->whereNotNull('workspace_id')
+            ->selectRaw('reason, count(*) as total')
+            ->groupBy('reason')
+            ->pluck('total', 'reason')
+            ->map(static fn ($total): int => (int) $total)
+            ->all();
+    }
+
+    /**
+     * TÖRLÉS INDOKLÁSSAL (v1.1 · 7. modul) — a felület és a `/v1` közös útja.
+     *
+     * Az indok kötelező, és a tény auditált (`suppression.removed`: ok, forrás, indoklás);
+     * a panasz és a leiratkozás továbbra sem törölhető (`AuthorizationException`).
+     *
+     * @throws AuthorizationException|InvalidArgumentException
+     */
+    public function removeWithJustification(string $email, string $justification, string $via): bool
+    {
+        $justification = trim($justification);
+
+        if (mb_strlen($justification) < 3) {
+            throw new InvalidArgumentException('A törléshez indoklás kötelező.');
+        }
+
+        $email = DomainNormalizer::listKey(trim($email));
+        $existing = Suppression::query()->whereNotNull('workspace_id')->where('email', $email)->first();
+        $reason = $existing?->reason;
+
+        $removed = $this->removeForWorkspace($email);
+
+        if ($removed && $existing !== null) {
+            app(AuditLogger::class)->log('suppression.removed', $existing, context: [
+                'reason' => (string) $reason,
+                'justification' => mb_substr($justification, 0, 500),
+                'via' => $via,
+            ]);
+        }
+
+        return $removed;
     }
 
     public function remove(ApiKey $key, string $email): bool
