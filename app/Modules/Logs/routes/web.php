@@ -14,4 +14,6 @@ Route::get('/logs', [LogController::class, 'index'])->name('logs.index');
 // A statisztika ELŐBB, mint a `{uuid}`: különben a „statistics" szó üzenet-azonosítónak
 // látszana, és a képernyő 404-et adna.
 Route::get('/logs/statistics', [LogController::class, 'statistics'])->name('logs.statistics');
+// Az EXPORT is a `{uuid}` ELŐTT (ugyanaz az ok).
+Route::get('/logs/export', [LogController::class, 'export'])->name('logs.export');
 Route::get('/logs/{uuid}', [LogController::class, 'show'])->name('logs.show');

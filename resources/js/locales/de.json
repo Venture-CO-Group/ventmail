@@ -2049,7 +2049,8 @@
             "domains": "Plattform · Domains",
             "apiKeys": "Plattform · API-Schlüssel",
             "smtp": "Plattform · SMTP",
-            "webhooks": "Plattform · Webhooks"
+            "webhooks": "Plattform · Webhooks",
+            "logs": "Plattform · Ereignisprotokoll"
         },
         "domains": {
             "title": "Absender-Domains",
@@ -2137,6 +2138,27 @@
             "rotateText": "Ein neues Geheimnis wird erzeugt und einmal angezeigt. Die Aktion wird protokolliert.",
             "grace": "Altes Geheimnis {hours} Stunden gültig lassen (zweite Signatur) — bei einem Leck deaktivieren.",
             "deleteConfirm": "Der Endpunkt „{name}\" wird gelöscht und erhält keine Ereignisse mehr. Die Aktion wird protokolliert."
+        },
+        "logs": {
+            "lead": "Jede Nachricht von der Annahme bis zum Klick, mit den SMTP-Antworten.",
+            "anyStatus": "Status: alle",
+            "anyDomain": "Domain: alle",
+            "anyChannel": "Kanal: alle",
+            "includePii": "Mit vollständigen Adressen und Betreff",
+            "export": "Exportieren (CSV)",
+            "messageIdHint": "Die Nachrichten-ID, auch aus dem Message-ID-Header eingefügt.",
+            "last24h": "Letzte 24 Stunden",
+            "lastDays": "Letzte {days} Tage",
+            "footer": "{count} Zeilen auf dieser Seite · Aufbewahrung: {days} Tage"
+        },
+        "trace": {
+            "timeline": "Zeitleiste",
+            "kind": {
+                "queued": "eingereiht",
+                "gate_passed": "PreSendGate: bestanden",
+                "gate_rejected": "PreSendGate: abgelehnt",
+                "attempt": "Zustellversuch"
+            }
         }
     }
 }

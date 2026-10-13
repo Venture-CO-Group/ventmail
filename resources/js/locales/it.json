@@ -2049,7 +2049,8 @@
             "domains": "Piattaforma · Domini",
             "apiKeys": "Piattaforma · Chiavi API",
             "smtp": "Piattaforma · SMTP",
-            "webhooks": "Piattaforma · Webhook"
+            "webhooks": "Piattaforma · Webhook",
+            "logs": "Piattaforma · Registro eventi"
         },
         "domains": {
             "title": "Domini di invio",
@@ -2137,6 +2138,27 @@
             "rotateText": "Viene generato un nuovo segreto, mostrato una sola volta. L'azione è registrata.",
             "grace": "Mantieni valido il vecchio segreto per {hours} ore (seconda firma) — disattiva in caso di fuga.",
             "deleteConfirm": "L'endpoint \"{name}\" verrà eliminato e non riceverà più eventi. L'azione è registrata."
+        },
+        "logs": {
+            "lead": "Ogni messaggio dall'accettazione al clic, con le risposte SMTP.",
+            "anyStatus": "Stato: tutti",
+            "anyDomain": "Dominio: tutti",
+            "anyChannel": "Canale: tutti",
+            "includePii": "Con indirizzi completi e oggetto",
+            "export": "Esporta (CSV)",
+            "messageIdHint": "L'ID del messaggio, anche incollato dall'header Message-ID.",
+            "last24h": "Ultime 24 ore",
+            "lastDays": "Ultimi {days} giorni",
+            "footer": "{count} righe in questa pagina · conservazione: {days} giorni"
+        },
+        "trace": {
+            "timeline": "Cronologia",
+            "kind": {
+                "queued": "in coda",
+                "gate_passed": "PreSendGate: superato",
+                "gate_rejected": "PreSendGate: respinto",
+                "attempt": "tentativo di consegna"
+            }
         }
     }
 }

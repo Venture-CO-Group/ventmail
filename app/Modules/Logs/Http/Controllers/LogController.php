@@ -4,14 +4,20 @@ declare(strict_types=1);
 
 namespace App\Modules\Logs\Http\Controllers;
 
+use App\Modules\Domains\Models\Domain;
+use App\Modules\Logs\Services\LogExport;
 use App\Modules\Logs\Services\MessageLogQuery;
 use App\Modules\Logs\Services\MessageTrace;
 use App\Modules\Logs\Services\TagStatistics;
 use App\Modules\Sending\Models\Message;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 /**
@@ -33,12 +39,16 @@ final class LogController
     {
         Gate::authorize('logs.view');
 
-        $filters = $request->only(['recipient', 'tag', 'channel', 'status', 'domain', 'since', 'until']);
+        $filters = self::filters($request);
 
         $messages = $query->paginate($filters, 50, $request->string('cursor')->toString() ?: null);
 
         return Inertia::render('Logs/Index', [
             'filters' => $filters,
+            'domains' => Domain::query()->orderBy('name')->limit(500)->pluck('name')->values()->all(),
+            'statuses' => ['queued', 'accepted', 'delivered', 'deferred', 'bounced', 'rejected'],
+            'retentionDays' => (int) config('sending.delivery_attempt_retention_days', 90),
+            'exportMaxRows' => LogExport::maxRows(),
             'messages' => [
                 'items' => collect($messages->items())->map(fn (Message $message) => [
                     'uuid' => $message->uuid,
@@ -54,6 +64,70 @@ final class LogController
                 'next_cursor' => $messages->nextCursor()?->encode(),
             ],
         ]);
+    }
+
+    /**
+     * CSV-EXPORT (v1.1 · 7. modul, D173) — streamelt, korlátos, retenció-tudatos,
+     * PII-tudatos (alapból maszkolt címzett, tárgy nélkül), auditált és fékezett.
+     */
+    public function export(Request $request, LogExport $export): StreamedResponse|RedirectResponse
+    {
+        Gate::authorize('logs.view');
+
+        $key = 'logs-export:'.$request->user()?->getAuthIdentifier();
+
+        if (RateLimiter::tooManyAttempts($key, (int) config('logs.export_per_minute', 5))) {
+            return back()->with('error', __('ventmail.plat.exportThrottled'));
+        }
+
+        RateLimiter::hit($key, 60);
+
+        $filters = self::filters($request);
+        $pii = $request->boolean('pii');
+
+        $export->audit($filters, $pii);
+
+        return response()->streamDownload(function () use ($export, $filters, $pii): void {
+            $out = fopen('php://output', 'wb');
+            $export->write($filters, $pii, $out);
+            fclose($out);
+        }, 'ventmail-log-'.now()->format('Ymd-His').'.csv', [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Cache-Control' => 'no-store',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
+    }
+
+    /**
+     * A szűrők — az idő-paramétereket ÉRVÉNYES dátummá alakítva (egy elgépelt `since` ne
+     * adatbázis-hibát adjon, hanem ne szűrjön).
+     *
+     * @return array<string, string>
+     */
+    private static function filters(Request $request): array
+    {
+        $filters = array_map(
+            static fn ($value) => is_string($value) ? mb_substr(trim($value), 0, 320) : '',
+            $request->only(['recipient', 'tag', 'channel', 'status', 'domain', 'since', 'until', 'message_id']),
+        );
+
+        foreach (['since', 'until'] as $key) {
+            if (($filters[$key] ?? '') === '') {
+                continue;
+            }
+
+            try {
+                $date = Carbon::parse($filters[$key]);
+                // Csak dátum az „eddig"-ben: az a NAP VÉGÉIG értendő (különben a nap kimaradna).
+                $filters[$key] = ($key === 'until' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $filters[$key]) === 1
+                    ? $date->endOfDay()
+                    : $date)->toIso8601String();
+            } catch (\Throwable) {
+                unset($filters[$key]);
+            }
+        }
+
+        return $filters;
     }
 
     /**

@@ -2049,7 +2049,8 @@
             "domains": "Plateforme · Domaines",
             "apiKeys": "Plateforme · Clés API",
             "smtp": "Plateforme · SMTP",
-            "webhooks": "Plateforme · Webhooks"
+            "webhooks": "Plateforme · Webhooks",
+            "logs": "Plateforme · Journal d'événements"
         },
         "domains": {
             "title": "Domaines d'envoi",
@@ -2137,6 +2138,27 @@
             "rotateText": "Un nouveau secret est généré et affiché une seule fois. L'action est auditée.",
             "grace": "Garder l'ancien secret valide {hours} heures (seconde signature) — à désactiver en cas de fuite.",
             "deleteConfirm": "Le point de terminaison « {name} » sera supprimé et ne recevra plus d'événements. L'action est auditée."
+        },
+        "logs": {
+            "lead": "Chaque message, de l'acceptation au clic, avec les réponses SMTP.",
+            "anyStatus": "Statut : tous",
+            "anyDomain": "Domaine : tous",
+            "anyChannel": "Canal : tous",
+            "includePii": "Avec adresses complètes et objet",
+            "export": "Exporter (CSV)",
+            "messageIdHint": "L'identifiant du message, y compris collé depuis l'en-tête Message-ID.",
+            "last24h": "Dernières 24 heures",
+            "lastDays": "{days} derniers jours",
+            "footer": "{count} lignes sur cette page · rétention : {days} jours"
+        },
+        "trace": {
+            "timeline": "Chronologie",
+            "kind": {
+                "queued": "mis en file",
+                "gate_passed": "PreSendGate : accepté",
+                "gate_rejected": "PreSendGate : rejeté",
+                "attempt": "tentative de livraison"
+            }
         }
     }
 }

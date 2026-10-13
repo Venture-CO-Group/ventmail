@@ -242,5 +242,6 @@ return [
         'webhookUpdated' => 'Endpoint guardado.',
         'webhookTestQueued' => 'Evento de prueba en cola: el resultado aparece en el registro de entregas.',
         'webhookTestThrottled' => 'Demasiados eventos de prueba; inténtalo de nuevo en un minuto.',
+        'exportThrottled' => 'Demasiadas exportaciones; inténtalo de nuevo en un minuto.',
     ],
 ];

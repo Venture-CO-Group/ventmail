@@ -132,3 +132,32 @@ test('webhook: eseménytípusok, titok-rotáció türelmi ablakkal, teszt-esemé
     await page.getByTestId('delete-confirm').click();
     await expect(page.getByTestId('endpoint-list').getByText(`hook-${run}`)).toHaveCount(0);
 });
+
+test('napló: Message-ID szűrő, idővonal, CSV-export (maszkolt címzettel)', async ({ page }) => {
+    await page.goto('/dev/seed-logs');
+    await page.goto('/logs?recipient=demo%40example.test');
+
+    const firstId = (await page.getByTestId('log-table').locator('[data-message-id]').first().getAttribute('data-message-id')) ?? '';
+    expect(firstId).toMatch(/^[0-9a-f-]{36}$/);
+
+    await page.goto('/logs');
+    await page.getByTestId('filter-message-id').fill(`<${firstId}@mail.example.test>`);
+    await page.getByTestId('log-search').click();
+    await expect(page.getByTestId('log-table').locator('tbody tr')).toHaveCount(1);
+
+    await page.getByTestId('log-trace').click();
+    await expect(page.getByTestId('trace-timeline')).toBeVisible();
+    await expect(page.getByTestId('trace-timeline').locator('[data-kind="delivered"]')).toHaveCount(1);
+    await expect(page.getByTestId('trace-timeline').locator('[data-kind="clicked"]').first()).toBeVisible();
+
+    await page.goto('/logs?recipient=demo%40example.test');
+    const [download] = await Promise.all([page.waitForEvent('download'), page.getByTestId('log-export').click()]);
+    expect(download.suggestedFilename()).toMatch(/^ventmail-log-.*\.csv$/);
+
+    const path = await download.path();
+    const fs = await import('node:fs');
+    const csv = fs.readFileSync(path, 'utf8');
+    expect(csv.split('\n')[0]).toContain('message_id');
+    expect(csv).toContain('d***@example.test');
+    expect(csv).not.toContain('demo@example.test');
+});

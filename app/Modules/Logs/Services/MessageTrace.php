@@ -47,7 +47,7 @@ final class MessageTrace
             return null;
         }
 
-        return [
+        $trace = [
             'message' => [
                 'uuid' => $message->uuid,
                 'status' => $message->status,
@@ -118,5 +118,58 @@ final class MessageTrace
                     'body_sha256' => $event->payload['body_sha256'] ?? null,
                 ])->all(),
         ];
+
+        $trace['timeline'] = self::timeline($trace);
+
+        return $trace;
+    }
+
+    /**
+     * Az IDŐVONAL (v1.1 · 7. modul): accepted → queued → gate → kísérletek (SMTP-válasszal) →
+     * delivered/bounced → opened → clicked, időrendben, egy listában.
+     *
+     * Nem új adat: a fenti darabok összefésülése, hogy a „mi történt ezzel a levéllel?"
+     * kérdésre egy pillantással lehessen válaszolni.
+     *
+     * @param  array<string, mixed>  $trace
+     * @return list<array{kind: string, at: ?string, recipient: ?string, detail: ?string}>
+     */
+    private static function timeline(array $trace): array
+    {
+        $items = [];
+
+        if ($trace['message']['queued_at'] !== null) {
+            $items[] = ['kind' => 'queued', 'at' => $trace['message']['queued_at'], 'recipient' => null, 'detail' => $trace['routing']['ip_address']];
+        }
+
+        if ($trace['gate']['decided_at'] !== null) {
+            $items[] = [
+                'kind' => $trace['gate']['decision'] === 'allowed' ? 'gate_passed' : 'gate_rejected',
+                'at' => $trace['gate']['decided_at'],
+                'recipient' => null,
+                'detail' => $trace['message']['reason'],
+            ];
+        }
+
+        foreach ($trace['attempts'] as $attempt) {
+            $items[] = [
+                'kind' => 'attempt',
+                'at' => $attempt['at'],
+                'recipient' => $attempt['recipient'],
+                'detail' => trim(($attempt['code'] ?? '').' '.($attempt['response'] ?? '')) ?: null,
+            ];
+        }
+
+        foreach ($trace['events'] as $event) {
+            $items[] = ['kind' => (string) $event['type'], 'at' => $event['occurred_at'], 'recipient' => $event['recipient'], 'detail' => $event['reason']];
+        }
+
+        // Azonos időbélyegnél a LÁNC sorrendje dönt (accepted → … → clicked), nem a véletlen.
+        $rank = ['queued' => 0, 'gate_passed' => 1, 'gate_rejected' => 1, 'rejected' => 2, 'accepted' => 2, 'attempt' => 3,
+            'deferred' => 4, 'delivered' => 5, 'bounced' => 5, 'opened' => 6, 'clicked' => 7, 'complained' => 8, 'unsubscribed' => 8];
+
+        usort($items, static fn (array $a, array $b): int => [(string) $a['at'], $rank[$a['kind']] ?? 9] <=> [(string) $b['at'], $rank[$b['kind']] ?? 9]);
+
+        return array_slice($items, 0, self::MAX_ROWS);
     }
 }

@@ -244,5 +244,6 @@ return [
         'webhookUpdated' => 'Point de terminaison enregistré.',
         'webhookTestQueued' => 'Événement de test mis en file — le résultat apparaît dans le journal de livraison.',
         'webhookTestThrottled' => 'Trop d\'événements de test ; réessayez dans une minute.',
+        'exportThrottled' => 'Trop d\'exports ; réessayez dans une minute.',
     ],
 ];

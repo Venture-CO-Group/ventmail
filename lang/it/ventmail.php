@@ -242,5 +242,6 @@ return [
         'webhookUpdated' => 'Endpoint salvato.',
         'webhookTestQueued' => 'Evento di prova in coda — il risultato è nel registro consegne.',
         'webhookTestThrottled' => 'Troppi eventi di prova; riprova tra un minuto.',
+        'exportThrottled' => 'Troppe esportazioni; riprova tra un minuto.',
     ],
 ];

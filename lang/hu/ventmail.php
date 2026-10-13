@@ -242,5 +242,6 @@ return [
         'webhookUpdated' => 'A végpont mentve.',
         'webhookTestQueued' => 'A teszt-esemény sorba állítva — az eredmény a kézbesítési naplóban látszik.',
         'webhookTestThrottled' => 'Túl sok teszt-esemény; próbáld újra egy perc múlva.',
+        'exportThrottled' => 'Túl sok export; próbáld újra egy perc múlva.',
     ],
 ];

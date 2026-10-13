@@ -242,5 +242,6 @@ return [
         'webhookUpdated' => 'Endpunkt gespeichert.',
         'webhookTestQueued' => 'Testereignis eingereiht — das Ergebnis steht im Zustellprotokoll.',
         'webhookTestThrottled' => 'Zu viele Testereignisse; versuche es in einer Minute erneut.',
+        'exportThrottled' => 'Zu viele Exporte; versuche es in einer Minute erneut.',
     ],
 ];

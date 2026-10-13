@@ -36,11 +36,12 @@ interface Trace {
     smtp: { recipient: string; remote_host: string | null; code: number | null; enhanced_code: string | null; text: string | null; lines: { direction: string; line: string }[]; started_at: string | null }[];
     attempts: { attempt: number; recipient: string; code: number | null; classification: string | null; response: string | null; at: string | null }[];
     events: { type: string; recipient: string | null; reason: string | null; occurred_at: string | null; body_sha256: string | null }[];
+    timeline: { kind: string; at: string | null; recipient: string | null; detail: string | null }[];
 }
 
 const props = defineProps<{ trace: Trace }>();
 
-const { t, locale } = useI18n({ useScope: 'global' });
+const { t, te, locale } = useI18n({ useScope: 'global' });
 
 type GateRow = { gate: string; result: string; detail: string };
 
@@ -100,7 +101,7 @@ const attemptRows = (): AttemptRow[] =>
             <h1>{{ t('trace.title') }}</h1>
             <VtGlowLine />
 
-            <dl data-testid="trace-summary">
+            <dl class="vm-summary" data-testid="trace-summary">
                 <dt>{{ t('trace.id') }}</dt>
                 <dd>{{ props.trace.message.uuid }}</dd>
 
@@ -123,10 +124,25 @@ const attemptRows = (): AttemptRow[] =>
                 <dd>{{ props.trace.message.attempts }}</dd>
 
                 <!-- Az aláíratlanul kiment levél DMARC-bukást okoz: a supportnak látnia kell. -->
-                <dd v-if="props.trace.message.dkim_unsigned" data-testid="trace-dkim-warning">
+                <dd v-if="props.trace.message.dkim_unsigned" class="vm-summary__full" data-testid="trace-dkim-warning">
                     {{ t('trace.dkimWarning', { reason: props.trace.message.dkim_unsigned }) }}
                 </dd>
             </dl>
+
+            <!-- AZ IDŐVONAL (v1.1 · 7. modul): a lánc egy pillantásra, időrendben. -->
+            <h2>{{ t('plat.trace.timeline') }}</h2>
+            <ol class="vm-timeline" data-testid="trace-timeline">
+                <li v-for="(item, index) in props.trace.timeline" :key="index" class="vm-timeline__item" :data-kind="item.kind">
+                    <span class="vm-timeline__dot" aria-hidden="true" />
+                    <div class="vm-timeline__body">
+                        <strong>{{ te(`plat.trace.kind.${item.kind}`) ? t(`plat.trace.kind.${item.kind}`) : item.kind }}</strong>
+                        <span class="vm-timeline__meta vt-text-mono">
+                            {{ item.at ? new Date(item.at).toLocaleString(locale) : '—' }}<template v-if="item.recipient"> · {{ item.recipient }}</template>
+                        </span>
+                        <code v-if="item.detail" class="vm-timeline__detail">{{ item.detail }}</code>
+                    </div>
+                </li>
+            </ol>
 
             <h2>{{ t('trace.gates') }}</h2>
             <VmTable :columns="gateColumns()" :rows="gateRows()" data-testid="trace-gates" />
@@ -149,3 +165,90 @@ const attemptRows = (): AttemptRow[] =>
         </VmCard>
     </AppLayout>
 </template>
+
+<style scoped>
+.vm-summary {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: var(--vt-space-2) var(--vt-space-6);
+    margin: 0;
+}
+
+.vm-summary dt {
+    color: var(--vt-text-muted);
+}
+
+.vm-summary dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+}
+
+.vm-summary__full {
+    grid-column: 1 / -1;
+}
+
+.vm-timeline {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--vt-space-4);
+    border-left: thin solid var(--vt-border-strong);
+    padding-left: var(--vt-space-4);
+}
+
+.vm-timeline__item {
+    position: relative;
+    display: flex;
+    gap: var(--vt-space-3);
+}
+
+.vm-timeline__dot {
+    position: absolute;
+    left: calc(var(--vt-space-4) * -1 - var(--vt-space-1));
+    top: var(--vt-space-1);
+    width: var(--vt-space-2);
+    height: var(--vt-space-2);
+    border-radius: 50%;
+    background: var(--vt-color-accent-500);
+}
+
+.vm-timeline__item[data-kind='bounced'] .vm-timeline__dot,
+.vm-timeline__item[data-kind='gate_rejected'] .vm-timeline__dot,
+.vm-timeline__item[data-kind='rejected'] .vm-timeline__dot,
+.vm-timeline__item[data-kind='complained'] .vm-timeline__dot {
+    background: var(--vt-color-danger);
+}
+
+.vm-timeline__item[data-kind='deferred'] .vm-timeline__dot {
+    background: var(--vt-color-warning);
+}
+
+.vm-timeline__item[data-kind='delivered'] .vm-timeline__dot {
+    background: var(--vt-color-success);
+}
+
+.vm-timeline__body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--vt-space-1);
+    min-width: 0;
+}
+
+.vm-timeline__meta {
+    color: var(--vt-text-muted);
+    font-size: var(--vt-fs-body-sm);
+    overflow-wrap: anywhere;
+}
+
+.vm-timeline__detail {
+    font-family: var(--vt-font-mono);
+    font-size: var(--vt-fs-body-sm);
+    padding: var(--vt-space-2) var(--vt-space-3);
+    border: thin solid var(--vt-border);
+    border-radius: var(--vt-radius-md);
+    background: var(--vt-bg-elevated);
+    overflow-wrap: anywhere;
+}
+</style>

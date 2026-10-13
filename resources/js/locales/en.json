@@ -2049,7 +2049,8 @@
             "domains": "Platform · Domains",
             "apiKeys": "Platform · API keys",
             "smtp": "Platform · SMTP",
-            "webhooks": "Platform · Webhooks"
+            "webhooks": "Platform · Webhooks",
+            "logs": "Platform · Event log"
         },
         "domains": {
             "title": "Sending domains",
@@ -2137,6 +2138,27 @@
             "rotateText": "A new secret is generated and shown once. The action is audited.",
             "grace": "Keep the old secret valid for {hours} hours (second signature) — turn off after a leak.",
             "deleteConfirm": "The endpoint \"{name}\" will be deleted and receive no more events. The action is audited."
+        },
+        "logs": {
+            "lead": "Every message from acceptance to click, with the SMTP responses.",
+            "anyStatus": "Status: all",
+            "anyDomain": "Domain: all",
+            "anyChannel": "Channel: all",
+            "includePii": "Include full addresses and subject",
+            "export": "Export (CSV)",
+            "messageIdHint": "The message ID, also pasted from the Message-ID header.",
+            "last24h": "Last 24 hours",
+            "lastDays": "Last {days} days",
+            "footer": "{count} rows on this page · retention: {days} days"
+        },
+        "trace": {
+            "timeline": "Timeline",
+            "kind": {
+                "queued": "queued",
+                "gate_passed": "PreSendGate: passed",
+                "gate_rejected": "PreSendGate: rejected",
+                "attempt": "delivery attempt"
+            }
         }
     }
 }

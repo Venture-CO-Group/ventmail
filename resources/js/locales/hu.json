@@ -2049,7 +2049,8 @@
             "domains": "Platform · Domainek",
             "apiKeys": "Platform · API-kulcsok",
             "smtp": "Platform · SMTP",
-            "webhooks": "Platform · Webhookok"
+            "webhooks": "Platform · Webhookok",
+            "logs": "Platform · Eseménynapló"
         },
         "domains": {
             "title": "Küldő domainek",
@@ -2137,6 +2138,27 @@
             "rotateText": "Új titkot generálunk; egyszer látod. A művelet auditált.",
             "grace": "A régi titok még {hours} óráig érvényes (második aláírás) — szivárgásnál kapcsold ki.",
             "deleteConfirm": "A(z) „{name}” végpont törlődik; több eseményt nem kap. A művelet auditált."
+        },
+        "logs": {
+            "lead": "Minden üzenet útja az elfogadástól a kattintásig, az SMTP-válaszokkal.",
+            "anyStatus": "Státusz: mind",
+            "anyDomain": "Domain: mind",
+            "anyChannel": "Csatorna: mind",
+            "includePii": "Teljes címekkel és tárggyal",
+            "export": "Exportálás (CSV)",
+            "messageIdHint": "Az üzenet azonosítója, akár a Message-ID fejlécből bemásolva.",
+            "last24h": "Elmúlt 24 óra",
+            "lastDays": "Elmúlt {days} nap",
+            "footer": "{count} sor ezen az oldalon · retenció: {days} nap"
+        },
+        "trace": {
+            "timeline": "Idővonal",
+            "kind": {
+                "queued": "sorba állítva",
+                "gate_passed": "PreSendGate: átengedve",
+                "gate_rejected": "PreSendGate: elutasítva",
+                "attempt": "kézbesítési kísérlet"
+            }
         }
     }
 }
