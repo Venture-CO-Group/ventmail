@@ -164,17 +164,34 @@
     ugyanaz a worker írja és olvassa, a purge (1 óránál régebbi) a volume-on takarít; a konténer-lokális
     `/tmp`-n egy OOM-maradék a konténer élettartamáig foglalna. A `storage/framework` (cache, view)
     konténer-lokális marad.
-    **Átállás (D254, v1.1 modul 8 review):** a D227 előtti színek a sablon-képeket és a privát fájlokat
-    a SAJÁT konténer-rétegükben tartják. A `deploy.sh` 7. lépése ezért a régi szín `down`-ja ELŐTT
-    (a drain után) egyszer átmásolja a régi `app` konténer `/app/storage/app` tartalmát a két volume-ra:
-    `docker cp` → root segédkonténer (a kiadás image-e) → staging a volume-on → bejegyzésenként csak ami
-    még NINCS ott (az új szín által írt fájl nem íródik felül), tulajdonos és jogosultság megőrizve →
-    ellenőrzés (minden fájl a helyén, az újonnan másolt mérete egyezik) → `.d227-migrated` jelölő
-    (`migrated=… files=… bytes=…`). A jelölővel a lépés no-op; ha a régi színnek nincs `app` konténere,
-    nincs mit másolni. **Hiba esetén** a régi szín FUT marad (nincs `down` — a fájljai egyetlen
-    példánya), a `.d227-pending` minden további deployt tilt, és a javítás után a
-    `./deploy.sh --migrate-storage` fejezi be (ellenőrzés → `down`). Ellenőrzés: a jelölő tartalma
-    (`docker run --rm -v ventmail-storage:/d alpine cat /d/.d227-migrated`).
+    **Átállás (D254; a 2. biztonsági kör után D277–D281):** a D227 előtti színek a sablon-képeket és a
+    privát fájlokat a SAJÁT konténer-rétegükben tartják. A `deploy.sh` 7. lépése ezért: drain →
+    a régi szín **`stop`**-ja (a workerei és a schedulere nem futnak tovább — nincs dupla ütemezett
+    job, nincs új queue-felvétel; a leállított konténer rétege megmarad, a `docker cp` olvassa) →
+    egyszeri másolás → ellenőrzés → `down`. A másolás:
+    - a forrás szigorúan keresett: hibás `docker ps` vagy „van konténer, de nincs `app`" → hiba;
+    - **szabadhely-ellenőrzés** a staging előtt: a volume-on legalább 2× a forrás + 64 MB
+      (`D227_MIN_FREE_FACTOR`, `D227_MIN_FREE_MARGIN_KB`); különben semmi nem íródik;
+    - a már ott lévő (az új szín által írt) fájlok listája (`.d227-preexisting`) CSAK az első kísérletben
+      készül, a stagingen kívül, és újrapróbáláskor nem számolódik újra;
+    - minden fájl **atomian** másolódik (`<név>.d227-part` → `mv`), az újrapróbálás előbb törli a
+      maradék `*.d227-part`-okat — csonka fájl soha nem kerül a végleges névre;
+    - ütközésnél (más tartalom ugyanazon az úton) az új szín változata marad, a régi a
+      `.d227-conflicts/` alá kerül (naplózva); a kihagyott szimlinkek száma naplózva;
+    - az ellenőrzés a migrált fájlokat **bájtra** (`cmp`) veti össze; maradék `*.d227-part` = hiba;
+      csak ezután íródik a `.d227-migrated` jelölő (`migrated=… files=… bytes=…`), és csak ezután `down`.
+    - Hibánál a staging azonnal törlődik, a régi szín **leállítva, de nem eltávolítva** marad
+      (a fájljai egyetlen példánya), a `.d227-pending` minden deployt tilt; javítás után
+      `./deploy.sh --migrate-storage` fejezi be. Ha közben a régi színt ideiglenesen vissza kell
+      indítani (pl. kiszolgálásra): `docker compose -p ventmail-<szín> -f compose.prod.yml start` a
+      `/srv/apps/ventmail`-ből — a `--migrate-storage` ilyenkor is működik (előtte újra leállítja).
+    - Élesítés előtt: `docker exec <app> du -s /app/storage/app` és `df` a docker-gyökéren.
+    Ellenőrzés: `docker run --rm -v ventmail-storage:/d alpine cat /d/.d227-migrated`.
+    **Rollback:** egy D227 előtti tagre visszalépéskor is a mostani (D227-es) `compose.prod.yml`,
+    `compose.data.yml`, `compose.render.yml` maradjon a boxon (a volume-ok és a render-háló nélkül a
+    régi kiadás fájljai újra konténer-lokálisak lennének). **Renderer-env:** egy elgépelt vagy élesben
+    `fake` `ANALYTICS_PDF_RENDERER` az alkalmazás indulását állítja meg (D263) — minden szerepkörét;
+    a deploy preflightja (`config:cache`) ezt a váltás ELŐTT kiszűri.
 
 17. **PDF-renderer sidecar (v1.1 modul 8, D238).** `deploy/compose.render.yml` (projekt `ventmail-render`,
     színfüggetlen, a `deploy.sh` 2. lépése indítja és health-re vár): Gotenberg `8.37.0-chromium`, tag ÉS

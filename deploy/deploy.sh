@@ -111,12 +111,27 @@ colour() { # colour <name> <tag> <compose args...>
 data() { docker compose -p ventmail-data -f compose.data.yml "$@"; }
 
 # migrate_d227 <old colour> <helper image>: copy the old colour's /app/storage/app onto the shared
-# volumes (ventmail-storage, with ventmail-storage-public nested at public/), NEVER overwriting a
-# file the new colour already wrote, preserving owner and mode (root helper, `tar -p`, `cp -p`); verify every copied file (present; same size unless it pre-existed); write the
-# `.d227-migrated` marker. Idempotent: with the marker present it does nothing. Non-zero on any
-# failure (the caller then keeps the colour running).
+# volumes (ventmail-storage, with ventmail-storage-public nested at public/). D254, hardened in the
+# module 8 security review round 2 (D277-D281):
+#   - the source container is looked up strictly: a failing `docker ps` is an error, and a colour
+#     that has containers but no `app` container is an error too (never "nothing to migrate");
+#   - free space is checked first: the volume needs >= D227_MIN_FREE_FACTOR x the source (staging +
+#     copy) plus a margin, otherwise it fails BEFORE anything is staged;
+#   - `.d227-preexisting` (what the new colour had already written) is recorded ONCE, by the first
+#     attempt, outside the staging dir, and never recomputed: a retry cannot mistake a file of its
+#     own failed attempt for one the new colour wrote;
+#   - every file is copied atomically (`<name>.d227-part`, then `mv`); a retry first removes such
+#     leftovers. A file that exists with different content is never overwritten: the old version is
+#     kept under `.d227-conflicts/` and logged; skipped symlinks are counted;
+#   - verification compares every migrated file byte for byte (`cmp`); a pre-existing or conflicting
+#     file must exist; no `.d227-part` may be left. Only then is the `.d227-migrated` marker written.
+# A failure removes the staging dir at once (space) and returns non-zero; the caller keeps the old
+# colour (stopped) and blocks deploys until `deploy.sh --migrate-storage` succeeds.
+D227_MIN_FREE_FACTOR="${D227_MIN_FREE_FACTOR:-2}"
+D227_MIN_FREE_MARGIN_KB="${D227_MIN_FREE_MARGIN_KB:-65536}"
+
 migrate_d227() {
-    local old="$1" helper="$2" cid
+    local old="$1" helper="$2" all cid source_kb free_kb need_kb
     local mounts=(-v ventmail-storage:/dst -v ventmail-storage-public:/dst/public)
 
     if docker run --rm --label vm.step=d227-marker-check --user 0 --entrypoint sh "${mounts[@]}" "$helper" -c 'test -f /dst/.d227-migrated'; then
@@ -124,70 +139,115 @@ migrate_d227() {
         return 0
     fi
 
-    cid="$(docker ps -aq --filter "label=com.docker.compose.project=ventmail-$old" --filter "label=com.docker.compose.service=app" | head -1)"
+    all="$(docker ps -aq --filter "label=com.docker.compose.project=ventmail-$old")" || { log "storage: cannot list the containers of $old"; return 1; }
+    cid="$(docker ps -aq --filter "label=com.docker.compose.project=ventmail-$old" --filter "label=com.docker.compose.service=app")" || { log "storage: cannot look up the app container of $old"; return 1; }
+    cid="$(head -1 <<<"$cid")"
     if [ -z "$cid" ]; then
-        log "storage: colour $old has no app container; nothing to migrate"
+        if [ -n "$all" ]; then
+            log "storage: colour $old has containers but no app container; refusing to guess"
+            return 1
+        fi
+        log "storage: colour $old has no containers; nothing to migrate"
         return 0
     fi
 
-    # 1. copy: the old container's storage/app as a tar stream into a staging dir on the volume,
-    #    then into place without overwriting; the files that already existed are listed first.
+    # 0. free space: the source size (tar stream) against the volume's free space.
+    source_kb="$(docker cp "$cid:/app/storage/app" - | wc -c | awk '{ print int(($1 + 1023) / 1024) }')" || { log "storage: cannot measure the source"; return 1; }
+    free_kb="$(docker run --rm --label vm.step=d227-space --user 0 --entrypoint sh "${mounts[@]}" "$helper" -c 'df -Pk /dst | awk "NR == 2 { print \$4 }"')" || { log "storage: cannot measure the free space"; return 1; }
+    need_kb=$((source_kb * D227_MIN_FREE_FACTOR + D227_MIN_FREE_MARGIN_KB))
+    if ! [[ "$free_kb" =~ ^[0-9]+$ ]] || [ "$free_kb" -lt "$need_kb" ]; then
+        log "storage: not enough free space on ventmail-storage (free ${free_kb:-?} KB, need $need_kb KB for $source_kb KB of files)"
+        return 1
+    fi
+
+    # 1. copy: stage the tar stream on the volume, then copy entry by entry (atomic, no overwrite).
     docker cp "$cid:/app/storage/app" - | docker run --rm -i --label vm.step=d227-copy --user 0 --entrypoint sh "${mounts[@]}" "$helper" -c '
         set -eu
+        ok=0
+        trap '"'"'if [ "$ok" != 1 ] && [ -d /dst/.d227-staging ]; then rm -r /dst/.d227-staging; fi'"'"' EXIT
         if [ -d /dst/.d227-staging ]; then rm -r /dst/.d227-staging; fi
+        find /dst -name "*.d227-part" -type f -exec rm {} +
+        if [ ! -f /dst/.d227-preexisting ]; then
+            find /dst -path /dst/.d227-conflicts -prune -o -type f -print > /dst/.d227-preexisting.tmp
+            mv /dst/.d227-preexisting.tmp /dst/.d227-preexisting
+        fi
         mkdir -p /dst/.d227-staging
-        find /dst -path /dst/.d227-staging -prune -o -type f -print > /dst/.d227-staging/.preexisting
         tar -x -p -C /dst/.d227-staging -f -
-        # Entry by entry (busybox `cp -n` skips whole existing directories, `tar -k` fails on them):
-        # a missing directory is created with the source owner/mode, a missing file copied with
-        # `cp -p`; anything that already exists (the new colour wrote it) is left untouched.
         cd /dst/.d227-staging/app
+        echo "skipped symlinks: $(find . -type l | wc -l)"
         find . -mindepth 1 -type d | sort | while IFS= read -r d; do
             if [ ! -e "/dst/$d" ]; then
                 mkdir "/dst/$d"; chown "$(stat -c %u:%g "$d")" "/dst/$d"; chmod "$(stat -c %a "$d")" "/dst/$d"
             fi
         done
-        find . -type f | while IFS= read -r f; do
-            if [ ! -e "/dst/$f" ]; then cp -p "$f" "/dst/$f"; fi
-        done
+        conflicts=0
+        find . -type f > /tmp/staged
+        while IFS= read -r f; do
+            if [ -e "/dst/$f" ]; then
+                if ! cmp -s "$f" "/dst/$f"; then
+                    mkdir -p "/dst/.d227-conflicts/$(dirname "$f")"
+                    cp -p "$f" "/dst/.d227-conflicts/$f"
+                    echo "conflict kept: $f" >&2
+                    conflicts=$((conflicts + 1))
+                fi
+                continue
+            fi
+            cp -p "$f" "/dst/$f.d227-part"
+            mv "/dst/$f.d227-part" "/dst/$f"
+        done < /tmp/staged
+        echo "conflicts: $conflicts"
+        ok=1
     ' || return 1
 
-    # 2. verify: every staged file is in place; a newly copied file has the staged size.
+    # 2. verify: a migrated file is byte-identical; a pre-existing or conflicting one exists.
     docker run --rm --label vm.step=d227-verify --user 0 --entrypoint sh "${mounts[@]}" "$helper" -c '
         set -eu
+        ok=0
+        trap '"'"'if [ "$ok" != 1 ] && [ -d /dst/.d227-staging ]; then rm -r /dst/.d227-staging; fi'"'"' EXIT
         cd /dst/.d227-staging/app
         files=0; bytes=0; bad=0
         find . -type f > /tmp/staged
         while IFS= read -r f; do
             rel="${f#./}"; files=$((files + 1))
-            size="$(stat -c %s "$f")"; bytes=$((bytes + size))
+            bytes=$((bytes + $(stat -c %s "$f")))
             if [ ! -f "/dst/$rel" ]; then echo "missing: $rel" >&2; bad=$((bad + 1)); continue; fi
-            if ! grep -qxF "/dst/$rel" /dst/.d227-staging/.preexisting && [ "$(stat -c %s "/dst/$rel")" != "$size" ]; then
-                echo "size mismatch: $rel" >&2; bad=$((bad + 1))
-            fi
+            if grep -qxF "/dst/$rel" /dst/.d227-preexisting || [ -f "/dst/.d227-conflicts/$rel" ]; then continue; fi
+            if ! cmp -s "$f" "/dst/$rel"; then echo "content mismatch: $rel" >&2; bad=$((bad + 1)); fi
         done < /tmp/staged
+        leftovers="$(find /dst -name "*.d227-part" -type f | wc -l)"
+        [ "$leftovers" -eq 0 ] || { echo "$leftovers partial file(s) left" >&2; bad=$((bad + 1)); }
         [ "$bad" -eq 0 ] || { echo "$bad file(s) failed verification" >&2; exit 1; }
-        printf "migrated=%s files=%s bytes=%s\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$files" "$bytes" > /dst/.d227-migrated
+        printf "migrated=%s files=%s bytes=%s\\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$files" "$bytes" > /dst/.d227-migrated
         chown 10001:10001 /dst/.d227-migrated
         cd /
         rm -r /dst/.d227-staging
+        rm /dst/.d227-preexisting
+        ok=1
         echo "files=$files bytes=$bytes"
     ' || return 1
 
     log "storage: D227 migration from $old verified, marker written"
 }
 
-# retire <old colour> <old tag> <helper image>: migrate the storage, then stop the colour. A
-# failed migration keeps the colour running and blocks further deploys (.d227-pending).
+# retire <old colour> <old tag> <helper image>: stop the (drained) colour first - its workers and
+# scheduler must not keep running (duplicate scheduled jobs, new queue jobs) while it waits; a
+# stopped container keeps its layer, and `docker cp` reads it - then migrate the storage, then
+# remove the colour. A failed migration leaves it STOPPED (not removed) and blocks further deploys
+# (.d227-pending) until `deploy.sh --migrate-storage` succeeds.
 retire() {
     local old="$1" old_tag="$2" helper="$3"
 
-    if ! migrate_d227 "$old" "$helper"; then
+    if ! colour "$old" "$old_tag" stop; then
         printf '%s\n' "$old" >.d227-pending
-        die "storage migration from $old FAILED; $old keeps running (drained) and holds the only copy of its files. Fix the cause, then run ./deploy.sh --migrate-storage (do NOT deploy again before that)"
+        die "could not stop $old; it was NOT removed. Stop it by hand (docker compose -p ventmail-$old stop), then run ./deploy.sh --migrate-storage"
     fi
 
-    colour "$old" "$old_tag" down --remove-orphans || log "warning: could not stop $old; stop it by hand"
+    if ! migrate_d227 "$old" "$helper"; then
+        printf '%s\n' "$old" >.d227-pending
+        die "storage migration from $old FAILED; $old is stopped (not removed) and holds the only copy of its files. Fix the cause, then run ./deploy.sh --migrate-storage (do NOT deploy again before that)"
+    fi
+
+    colour "$old" "$old_tag" down --remove-orphans || log "warning: could not remove $old; remove it by hand"
     rm -f .d227-pending
     log "retired $old ($old_tag)"
 }

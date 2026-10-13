@@ -64,11 +64,12 @@
       „Első telepítés” fájllistájába is fel kell venni), és a meglévő
       `.env`-be `set-env.sh`-val: `ANALYTICS_PDF_RENDERER=gotenberg`, `GOTENBERG_URL=http://gotenberg:3000`,
       `ANALYTICS_PDF_TIMEOUT=60`. Deploy után: `php artisan analytics:render-smoke` (ops) → `OK … oldal`.
-- [ ] **D227-átállás ellenőrzése (automatikus, D254):** az első D227-es deploy a régi szín leállítása
-      előtt maga másolja át a sablon-képeket és a privát fájlokat a volume-okra. Utána ellenőrizd a
-      jelölőt: `docker run --rm -v ventmail-storage:/d alpine cat /d/.d227-migrated` (fájlszám, bájt). Ha a
-      deploy `storage migration … FAILED`-del állt meg: a régi szín fut, ne deployolj újra — javítás után
-      `./deploy.sh --migrate-storage`.
+- [ ] **D227-átállás ellenőrzése (automatikus, D254/D277–D281):** élesítés ELŐTT `docker exec <app> du -s
+      /app/storage/app` és `df` a docker-gyökéren (a volume-on ≥ 2× + 64 MB kell). Az első D227-es deploy a
+      régi színt drain után leállítja, a fájljait atomian átmásolja és bájtra ellenőrzi, csak utána távolítja
+      el. Utána: `docker run --rm -v ventmail-storage:/d alpine cat /d/.d227-migrated` (fájlszám, bájt), és
+      ha van `/d/.d227-conflicts/`, annak átnézése. Ha a deploy `storage migration … FAILED`-del állt meg: a
+      régi szín LEÁLLÍTVA, de megvan — ne deployolj újra; javítás után `./deploy.sh --migrate-storage`.
 - [ ] **Memória-keret:** +1 GB a Gotenbergnek (mem_limit 1g) + a worker `reports` supervisora (256 MB a
       2g-n belül). A deploy-ovh 12. pont költségvetését jóvá kell hagyni.
 - [ ] **ventVault:** a riport-PDF (`reports/…`) és a workspace-logó (`branding/…`) ma a privát helyi
