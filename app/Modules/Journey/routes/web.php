@@ -25,4 +25,9 @@ Route::middleware(['auth', 'workspace'])->group(function (): void {
         Route::post('/journeys/{uuid}/publish', [JourneyCanvasController::class, 'publish'])->whereUuid('uuid')->name('journeys.publish');
         Route::post('/journeys/{uuid}/pause', [JourneyCanvasController::class, 'pause'])->whereUuid('uuid')->name('journeys.pause');
     });
+
+    Route::post('/journeys/{uuid}/test-run', [JourneyCanvasController::class, 'testRun'])
+        ->whereUuid('uuid')
+        ->middleware('throttle:journey-test-run')
+        ->name('journeys.test-run');
 });

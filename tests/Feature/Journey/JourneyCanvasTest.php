@@ -23,6 +23,7 @@ use App\Modules\Journey\Models\JourneyStep;
 use App\Modules\Journey\Models\JourneyVersion;
 use App\Modules\Journey\Services\JourneyEngine;
 use App\Modules\Journey\Services\JourneyGraphInvalid;
+use App\Modules\Journey\Services\JourneyNodeStats;
 use App\Modules\Journey\Services\JourneyPublisher;
 use App\Modules\Journey\Services\JourneyTrigger;
 use App\Modules\Sending\Drivers\FakeDriver;
@@ -555,4 +556,73 @@ it('az új triggerek tüzelnek: lista-feliratkozás, kampány-interakció, évfo
     app(WorkspaceContext::class)->set($this->workspace);
 
     expect(JourneyRun::query()->where('journey_id', $birthday->getKey())->count())->toBe(1);
+});
+
+/*
+ | STATISZTIKA ÉS TESZT-FUTTATÁS — valódi küldés NÉLKÜL
+ */
+
+it('a CSOMÓPONT-STATISZTIKA: belépett · vár · továbblépett — a vár a wait csomóponton', function () {
+    canvasContact();
+    [$nodes, $edges] = welcomeGraph((string) $this->template->uuid);
+    $journey = canvasJourney($nodes, $edges);
+    app(JourneyPublisher::class)->publish($journey);
+
+    $run = app(JourneyTrigger::class)->fire(TriggerType::ApiEvent, 'anna@pelda.hu', ['event' => 'signup'])[0];
+    app(JourneyEngine::class)->tick($run);
+
+    $journey->refresh();
+    $stats = app(JourneyNodeStats::class)->forJourney($journey, JourneyGraph::fromArray($journey->graph));
+
+    expect($stats['available'])->toBeTrue()
+        ->and($stats['nodes']['t'])->toBe(['entered' => 1, 'waiting' => 0, 'movedOn' => 1])
+        ->and($stats['nodes']['send'])->toBe(['entered' => 1, 'waiting' => 0, 'movedOn' => 1])
+        ->and($stats['nodes']['wait'])->toBe(['entered' => 1, 'waiting' => 1, 'movedOn' => 0]);
+
+    // A várakozás alatti tickek NEM lépnek, és nem égetik a lépés-korlátot.
+    app(JourneyEngine::class)->tick($run->fresh());
+    expect((int) $run->fresh()->steps_taken)->toBe(1);
+
+    $this->travel(2)->days();
+    $this->travel(1)->minute();
+    app(JourneyEngine::class)->tick($run->fresh());
+
+    $stats = app(JourneyNodeStats::class)->forJourney($journey, JourneyGraph::fromArray($journey->graph));
+
+    expect($run->fresh()->status)->toBe('exited')
+        ->and($run->fresh()->exit_reason)->toBe('step_exit')
+        ->and($stats['nodes']['wait'])->toBe(['entered' => 1, 'waiting' => 0, 'movedOn' => 1])
+        ->and($stats['nodes']['end']['movedOn'])->toBe(1)
+        ->and(Message::query()->count())->toBe(1);
+});
+
+it('a TESZT-FUTTATÁS nem küld, nem hoz létre futást, és a kapu-döntést csak olvassa', function () {
+    canvasContact('anna@pelda.hu');
+    canvasContact('bela@pelda.hu', confirmed: false);
+
+    [$nodes, $edges] = welcomeGraph((string) $this->template->uuid);
+    $journey = canvasJourney($nodes, $edges);
+    $user = canvasUser($this->workspace, Role::Author->value);
+
+    $response = $this->actingAs($user)->withSession(['workspace_uuid' => $this->workspace->uuid])
+        ->postJson('/journeys/'.$journey->uuid.'/test-run', ['email' => 'anna@pelda.hu'])
+        ->assertOk()
+        ->json();
+
+    expect(array_column($response['steps'], 'outcome'))->toBe(['entered', 'would_send', 'waited', 'exit'])
+        ->and($response['realSends'])->toBe(0)
+        ->and($response['simulatedMinutes'])->toBe(2 * 24 * 60);
+
+    $blocked = $this->actingAs($user)->withSession(['workspace_uuid' => $this->workspace->uuid])
+        ->postJson('/journeys/'.$journey->uuid.'/test-run', ['email' => 'bela@pelda.hu'])
+        ->assertOk()
+        ->json();
+
+    expect($blocked['steps'][1]['outcome'])->toBe('blocked')
+        ->and($blocked['steps'][1]['detail'])->toBe('NO_CONSENT');
+
+    // SEMMI nem íródott: se üzenet, se futás, se driver-hívás.
+    expect(Message::query()->count())->toBe(0)
+        ->and(JourneyRun::query()->count())->toBe(0)
+        ->and(FakeDriver::$sent)->toBe([]);
 });

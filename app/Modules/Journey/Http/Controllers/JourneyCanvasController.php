@@ -8,9 +8,11 @@ use App\Models\User;
 use App\Modules\Audit\Services\AuditLogger;
 use App\Modules\Journey\Graph\JourneyGraph;
 use App\Modules\Journey\Graph\JourneyGraphValidator;
+use App\Modules\Journey\Graph\LegacyChainGraph;
 use App\Modules\Journey\Models\Journey;
 use App\Modules\Journey\Services\JourneyGraphInvalid;
 use App\Modules\Journey\Services\JourneyPublisher;
+use App\Modules\Journey\Services\JourneySimulator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -21,7 +23,7 @@ use InvalidArgumentException;
  * A JOURNEY VÁSZON (v1.1 · 6. modul).
  *
  * Képességek (a kampány mintája — az `author` szerkeszt, nem indít):
- * - szerkesztés, validálás: `campaign.create` (a meglévő journey-szerkesztés
+ * - szerkesztés, validálás, teszt-futtatás: `campaign.create` (a meglévő journey-szerkesztés
  *   képessége);
  * - PUBLIKÁLÁS (aktiválás / új verzió) és SZÜNETELTETÉS: `journey.publish` — ez küldést indít
  *   vagy állít le, ugyanaz a felelősség, mint a kampány kiküldése. Mindkettő auditált.
@@ -126,5 +128,48 @@ final class JourneyCanvasController
         return $request->expectsJson()
             ? response()->json(['message' => __('ventmail.journeys.paused'), 'status' => 'paused'])
             : back()->with('success', __('ventmail.journeys.paused'));
+    }
+
+    /**
+     * TESZT-FUTTATÁS: egy kontakt útja, gyorsított időben, VALÓDI KÜLDÉS NÉLKÜL (a szimulátor
+     * csak olvas — lásd `JourneySimulator`).
+     */
+    public function testRun(Request $request, string $uuid, JourneySimulator $simulator, AuditLogger $audit): JsonResponse
+    {
+        Gate::authorize('campaign.create');
+
+        $validated = $request->validate([
+            'email' => ['required', 'string', 'email', 'max:254'],
+            'graph' => ['sometimes', 'array'],
+        ]);
+
+        $journey = Journey::query()->where('uuid', $uuid)->firstOrFail();
+
+        try {
+            $graph = isset($validated['graph']) ? JourneyGraph::fromArray($validated['graph']) : $this->graphOf($journey);
+        } catch (InvalidArgumentException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        $result = $simulator->run($graph, (string) $validated['email']);
+
+        $audit->log('journey.test_run', $journey, context: [
+            'steps' => count($result['steps']),
+            'would_send' => $result['sends'],
+            'stopped' => $result['stopped'],
+        ]);
+
+        return response()->json($result);
+    }
+
+    private function graphOf(Journey $journey): JourneyGraph
+    {
+        if (is_array($journey->graph)) {
+            return JourneyGraph::fromArray($journey->graph);
+        }
+
+        // A v1.1 ELŐTTI, láncolt journey a vásznon is megnyílik: a lánc gráffá alakul. A
+        // publikálásig a régi lépések futnak tovább.
+        return LegacyChainGraph::from($journey);
     }
 }
