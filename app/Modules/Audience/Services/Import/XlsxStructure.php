@@ -141,6 +141,13 @@ final class XlsxStructure
 
         self::walk($xml, function (XMLReader $reader) use (&$found): bool {
             if ($reader->nodeType === XMLReader::ELEMENT && $reader->localName === 'Relationship') {
+                // A Target NÉLKÜLI hivatkozás formátum-hiba (review r9 S2): az openspout `null`-t tárolna, és
+                // a típusos feloldás a `??` miatt a MÁSIK (szigorú) célra esne — csak egy `assert()` védene,
+                // ami élesben (`zend.assertions=-1`) nem fut.
+                if ($reader->getAttribute('Target') === null) {
+                    throw new ImportLimitExceeded('format');
+                }
+
                 $found[] = [
                     'id' => (string) $reader->getAttribute('Id'),
                     'type' => (string) $reader->getAttribute('Type'),

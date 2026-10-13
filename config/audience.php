@@ -64,6 +64,11 @@ return [
         // csomópont-plafonja: a sharedStrings legfeljebb ennyi, a többi (meta) kevesebb.
         'xlsx_max_part_nodes' => (int) env('AUDIENCE_IMPORT_XLSX_MAX_PART_NODES', 8_000_000),
         'xlsx_max_meta_nodes' => (int) env('AUDIENCE_IMPORT_XLSX_MAX_META_NODES', 1_000_000),
+        // A STYLES (az openspout teljesen beolvassa) saját, MÉRT plafonja (review r9 N1, D204): mérve
+        // +0,37 KB openspout-memória / <xf>; az Excel 64 000 formátumos maximuma (<xf> + <alignment>)
+        // ≈ 192 k csomópont, +22 MB; a plafon legrosszabb esete (300 k csupasz <xf/>) +112 MB — az
+        // 512 MB-os workerben bőven. A korábbi 1 M-s meta-plafon alatt egy styles ~377 MB-ot vitt el.
+        'xlsx_max_styles_nodes' => (int) env('AUDIENCE_IMPORT_XLSX_MAX_STYLES_NODES', 300_000),
         // A háttér-felmérés belső időkerete. FIGYELEM: az openspout XML-előtöltése (a
         // sharedStrings teljes beolvasása) közben ez a keret NEM érvényesül (nincs hova ellenőrizni);
         // a VALÓS határ a job 60 mp-es timeoutja (worker-kill → `failed()` → takarítás), és a

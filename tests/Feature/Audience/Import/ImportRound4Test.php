@@ -68,25 +68,43 @@ function r4In($test, Closure $c): mixed
 
 /* ---------------------------------------------------------------- B2: név-független őr */
 
-it('a `.bin` / nagybetűs kiterjesztésű sharedStrings- és munkalap-áradatot is megfogja a guard', function (string $name) {
+/**
+ * ÉRVÉNYES munkafüzet, amelyben a `$name` bejegyzés a rels szerint VALÓBAN a sharedStrings (vagy maga
+ * a munkalap) — így a teszt a PLAFONON bukik, nem egy hiányzó munkalapon (review r9 S4).
+ */
+function r4Flood(string $name, string $content): array
+{
+    if ($name === 'xl/worksheets/sheet1.bin') {
+        return r4Base([$name => $content]);
+    }
+
+    return array_merge(r4Base(['xl/worksheets/sheet1.bin' => '<worksheet><sheetData><row r="1"><c><v>1</v></c></row></sheetData></worksheet>']), [
+        'xl/_rels/workbook.xml.rels' => '<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.bin"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings" Target="'.substr($name, 3).'"/></Relationships>',
+        $name => $content,
+    ]);
+}
+
+it('a `.bin` / nagybetűs kiterjesztésű sharedStrings- és munkalap-áradatot is megfogja a guard — a PLAFONON', function (string $name) {
     config()->set('audience.import.xlsx_max_meta_nodes', 1000);
     config()->set('audience.import.xlsx_max_part_nodes', 1000);
     // A `worksheets/sheet1.bin` a rels szerint a MUNKALAP (review r8 S1: szerep, nem név) — rá a
     // munkalap-plafon (az első adatsor előtti csomópontok) vonatkozik.
     config()->set('audience.import.xlsx_max_nodes_before_data', 1000);
 
-    $path = r4Zip(r4Base([$name => '<sst>'.str_repeat('<si/>', 20_000).'</sst>']));
+    $path = r4Zip(r4Flood($name, '<sst>'.str_repeat('<si/>', 20_000).'</sst>'));
 
-    expect(fn () => app(ImportFileInspector::class)->guard($path, 'xlsx'))->toThrow(ImportLimitExceeded::class);
+    expect(fn () => app(ImportFileInspector::class)->guard($path, 'xlsx'))
+        ->toThrow(fn (ImportLimitExceeded $e) => expect($e->reason)->toBe('zip'));
 })->with(['xl/sharedStrings.bin', 'xl/SharedStrings.XML', 'xl/worksheets/sheet1.bin', 'xl/anything.dat']);
 
-it('a plafon ALATTI, de drága sharedStrings a (alacsony) konfigurált plafonnal gyorsan elbukik', function () {
+it('a plafon ALATTI, de drága sharedStrings a (alacsony) konfigurált plafonnal gyorsan elbukik — a PLAFONON', function () {
     config()->set('audience.import.xlsx_max_part_nodes', 5000);
 
-    $path = r4Zip(r4Base(['xl/sharedStrings.xml' => '<sst>'.str_repeat('<si><t>x</t></si>', 10_000).'</sst>']));
+    $path = r4Zip(r4Flood('xl/sharedStrings.xml', '<sst>'.str_repeat('<si><t>x</t></si>', 10_000).'</sst>'));
     $started = microtime(true);
 
-    expect(fn () => app(ImportFileInspector::class)->guard($path, 'xlsx'))->toThrow(ImportLimitExceeded::class)
+    expect(fn () => app(ImportFileInspector::class)->guard($path, 'xlsx'))
+        ->toThrow(fn (ImportLimitExceeded $e) => expect($e->reason)->toBe('zip'))
         ->and(microtime(true) - $started)->toBeLessThan(3);
 });
 

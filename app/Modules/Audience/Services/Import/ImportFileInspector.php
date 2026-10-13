@@ -401,9 +401,13 @@ final class ImportFileInspector
             // munkalap 1 GB-os plafonját, és egy átnevezett sharedStrings sem kerüli meg a sajátját.
             $isSheet = in_array($stat['name'], $roles['sheets'], true);
             $isShared = $roles['shared'] !== null && $stat['name'] === $roles['shared'];
-            $partCap = $isShared
-                ? (int) config('audience.import.xlsx_max_part_nodes')
-                : (int) config('audience.import.xlsx_max_meta_nodes');
+            $isStyles = $roles['styles'] !== null && $stat['name'] === $roles['styles'];
+            // A styles saját, MÉRT plafont kap (review r9 N1, D204) — az openspout teljesen beolvassa.
+            $partCap = match (true) {
+                $isShared => (int) config('audience.import.xlsx_max_part_nodes'),
+                $isStyles => (int) config('audience.import.xlsx_max_styles_nodes'),
+                default => (int) config('audience.import.xlsx_max_meta_nodes'),
+            };
             // BÁJT-plafon a nem-munkalap bejegyzésekre: a bájt-nehéz, kevés `<`-t tartalmazó sharedStrings
             // (nagy `<t>` szövegek) a csomópont-plafont nem érinti, de az openspout a memóriába
             // olvassa (mérve: 950 MB-ra nyíló fájl OOM-ot okozott). A sharedStrings 64 MB, a többi 16 MB.
@@ -591,6 +595,12 @@ final class ImportFileInspector
         $exists = static fn (string $entry): bool => $zip->locateName($entry) !== false;
 
         foreach ($relationships as $relationship) {
+            // A `/`-re végződő cél (könyvtár-szerű név) formátum-hiba (review r9 S3): az openspout az ilyen
+            // nevű bejegyzést is megnyitja, a szerkezeti szkennelés viszont könyvtárnak nézhetné.
+            if (str_ends_with($relationship['target'], '/')) {
+                throw new ImportLimitExceeded('format');
+            }
+
             $asPart = XlsxStructure::partPathFor($relationship['target']);
             $asSheet = XlsxStructure::sheetPathFor($relationship['target']);
 
@@ -632,6 +642,12 @@ final class ImportFileInspector
             $typed[$role] = $file;
         }
 
+        // A sharedStrings és a styles NEM lehet ugyanaz a bejegyzés (review r9 S1): a styles különben a
+        // sharedStrings (nagyobb) plafonját kapná — mérve 37,7 MB átment, az openspout csúcs ~3 GB.
+        if ($typed['shared'] !== null && $typed['shared'] === $typed['styles']) {
+            throw new ImportLimitExceeded('format');
+        }
+
         return ['shared' => $typed['shared'], 'styles' => $typed['styles'], 'sheets' => array_values(array_unique($sheets))];
     }
 
@@ -656,9 +672,13 @@ final class ImportFileInspector
         $maxNodes = (int) config('audience.import.xlsx_max_part_nodes');
 
         for ($i = 0; $i < $zip->numFiles; $i++) {
-            $name = (string) $zip->getNameIndex($i);
+            $stat = $zip->statIndex($i);
+            $name = (string) ($stat['name'] ?? '');
 
-            if ($name === '' || str_ends_with($name, '/') || XlsxStructure::isBinaryPart($name)) {
+            // CSAK a 0 bájtos könyvtár-bejegyzés marad ki (review r9 S3): egy `/`-re végződő, tartalommal
+            // bíró bejegyzést az openspout megnyitna — a szkennelésnek is látnia kell.
+            if ($name === '' || (str_ends_with($name, '/') && (int) ($stat['size'] ?? 0) === 0)
+                || XlsxStructure::isBinaryPart($name)) {
                 continue;
             }
 

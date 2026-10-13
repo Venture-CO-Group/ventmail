@@ -219,3 +219,62 @@ it('N1(r8) · az xl/activeX/*.bin bináris; az activeX*.xml szövegrész ellenő
 
     r7Rejects(r7Zip(r7Book(null, ['xl/activeX/activeX1.xml' => r8Payload('ax:ocx')])));
 });
+
+/* ---------------------------------------------------------------- 9. kör: S1–S3, N1 */
+
+it('S1(r9) · a sharedStrings és a styles nem lehet ugyanaz a bejegyzés', function () {
+    $rels = '<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="'.R7_SHARED.'" Target="shared.xml"/><Relationship Id="rId3" Type="'.R8_STYLES.'" Target="/xl/shared.xml"/></Relationships>';
+
+    r7Rejects(r7Zip(r7Book($rels, ['xl/shared.xml' => '<sst><si><t>x</t></si></sst>'])));
+});
+
+it('S2(r9) · a Target attribútum nélküli Relationship formátum-hiba (nem az assert() véd)', function (string $relationship) {
+    $rels = '<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/>'.$relationship.'</Relationships>';
+
+    r7Rejects(r7Zip(r7Book($rels)));
+
+    expect(fn () => XlsxStructure::relationshipsFrom($rels))
+        ->toThrow(fn (ImportLimitExceeded $e) => expect($e->reason)->toBe('format'));
+})->with([
+    'styles Target nélkül' => ['<Relationship Id="rId2" Type="'.R8_STYLES.'"/>'],
+    'sharedStrings Target nélkül' => ['<Relationship Id="rId2" Type="'.R7_SHARED.'"/>'],
+]);
+
+it('S3(r9) · a `/`-re végződő feloldott cél formátum-hiba', function (string $rels, array $extra) {
+    r7Rejects(r7Zip(r7Book($rels, $extra)));
+})->with([
+    'munkalap' => ['<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml/"/></Relationships>', ['xl/worksheets/sheet1.xml/' => '<worksheet><sheetData/></worksheet>']],
+    'sharedStrings' => ['<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="'.R7_SHARED.'" Target="sharedStrings.xml/"/></Relationships>', ['xl/sharedStrings.xml/' => '<sst/>']],
+]);
+
+it('S3(r9) · a szerkezeti szkennelés csak a 0 bájtos könyvtár-bejegyzést hagyja ki', function () {
+    // Nem hivatkozott, `/`-re végződő, NEM üres bejegyzés DTD-vel: a szkennelés nem hagyja ki.
+    r7Rejects(r7Zip(r7Book(null, ['xl/rejtett.xml/' => '<?xml version="1.0"?><!DOCTYPE x [<!ENTITY a "b">]><x>&a;</x>'])));
+
+    // A valódi (üres) könyvtár-bejegyzés továbbra is rendben.
+    $zip = new ZipArchive;
+    $path = r7Zip(r7Book());
+    $zip->open($path);
+    $zip->addEmptyDir('xl/media');
+    $zip->close();
+
+    expect(fn () => app(ImportFileInspector::class)->guard($path, 'xlsx'))->not->toThrow(ImportLimitExceeded::class);
+});
+
+it('N1(r9) · a styles saját, MÉRT csomópont-plafont kap (az Excel 64 000 formátumos maximuma bőven belefér)', function () {
+    // Mérés (2026-10-13, openspout 4.x): +0,37 KB / <xf>; 64 000 <xf> + <alignment> ≈ 192 k csomópont,
+    // +22 MB; 300 000 csupasz <xf/> (a plafon legrosszabb esete) +112 MB — az 512 MB-os workerben bőven.
+    expect((int) config('audience.import.xlsx_max_styles_nodes'))->toBe(300_000);
+
+    config()->set('audience.import.xlsx_max_styles_nodes', 1000);
+    $rels = '<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="'.R8_STYLES.'" Target="styles.xml"/></Relationships>';
+
+    r7Rejects(r7Zip(r7Book($rels, ['xl/styles.xml' => '<styleSheet>'.str_repeat('<xf/>', 5000).'</styleSheet>'])), 'zip');
+
+    // A plafon ALATT (a meta-plafon fölött volna egy 1000-es meta-értéknél) a styles átmegy.
+    config()->set('audience.import.xlsx_max_styles_nodes', 10_000);
+    config()->set('audience.import.xlsx_max_meta_nodes', 1000);
+
+    expect(fn () => app(ImportFileInspector::class)->guard(r7Zip(r7Book($rels, ['xl/styles.xml' => '<styleSheet>'.str_repeat('<xf/>', 5000).'</styleSheet>'])), 'xlsx'))
+        ->not->toThrow(ImportLimitExceeded::class);
+});

@@ -40,14 +40,25 @@ function d71In($test, Closure $c): mixed
     return app(WorkspaceContext::class)->runFor($test->ws, $c);
 }
 
-function d71Xlsx(int $nodes): UploadedFile
+/**
+ * ÉRVÉNYES munkafüzet (munkalap + rels), amelynek a `$role` szerepű része (sharedStrings / styles) a
+ * csomópont-áradat — így a kérés a PLAFONON bukik, nem egy hiányzó munkalapon (review r9 S4).
+ */
+function d71Xlsx(int $nodes, string $role = 'sharedStrings'): UploadedFile
 {
     $path = sys_get_temp_dir().'/vm-ss-'.uniqid().'.xlsx';
+    $part = $role === 'styles' ? 'xl/styles.xml' : 'xl/sharedStrings.xml';
+    $content = $role === 'styles'
+        ? '<styleSheet>'.str_repeat('<xf/>', $nodes).'</styleSheet>'
+        : '<sst>'.str_repeat('<si/>', $nodes).'</sst>';
+
     $zip = new ZipArchive;
     $zip->open($path, ZipArchive::CREATE);
     $zip->addFromString('[Content_Types].xml', '<Types/>');
-    $zip->addFromString('xl/workbook.xml', '<workbook/>');
-    $zip->addFromString('xl/sharedStrings.xml', '<sst>'.str_repeat('<si/>', $nodes).'</sst>');
+    $zip->addFromString('xl/workbook.xml', '<workbook xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="S" sheetId="1" r:id="rId1"/></sheets></workbook>');
+    $zip->addFromString('xl/_rels/workbook.xml.rels', '<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/'.$role.'" Target="'.substr($part, 3).'"/></Relationships>');
+    $zip->addFromString('xl/worksheets/sheet1.xml', '<worksheet><sheetData><row r="1"><c r="A1" t="inlineStr"><is><t>email</t></is></c></row></sheetData></worksheet>');
+    $zip->addFromString($part, $content);
     $zip->close();
 
     return new UploadedFile($path, 'ss.xlsx', null, null, true);
@@ -83,25 +94,20 @@ it('a sharedStrings-áradat a kérésben, olcsón elbukik, fájl és rekord nél
 
     $started = microtime(true);
 
-    d71Post($this, '/audience/import', ['mode' => 'file', 'file' => d71Xlsx(50_000)])->assertSessionHasErrors('file');
+    // A PLAFON a hiba oka (nem egy hiányzó munkalap — review r9 S4).
+    d71Post($this, '/audience/import', ['mode' => 'file', 'file' => d71Xlsx(50_000)])
+        ->assertSessionHasErrors(['file' => __('ventmail.audience.import.limit.zip')]);
 
     expect(microtime(true) - $started)->toBeLessThan(5)
         ->and(d71In($this, fn () => ContactImport::query()->count()))->toBe(0)
         ->and(Storage::disk('local')->allFiles('imports'))->toBe([]);
 });
 
-it('a styles/workbook XML-részekre is van (kisebb) csomópont-plafon', function () {
-    config()->set('audience.import.xlsx_max_meta_nodes', 500);
+it('a styles/workbook XML-részekre is van (kisebb) csomópont-plafon — a styles a SAJÁT, mért plafonját kapja', function () {
+    config()->set('audience.import.xlsx_max_styles_nodes', 500);
 
-    $path = sys_get_temp_dir().'/vm-st-'.uniqid().'.xlsx';
-    $zip = new ZipArchive;
-    $zip->open($path, ZipArchive::CREATE);
-    $zip->addFromString('[Content_Types].xml', '<Types/>');
-    $zip->addFromString('xl/workbook.xml', '<workbook/>');
-    $zip->addFromString('xl/styles.xml', '<styleSheet>'.str_repeat('<xf/>', 5000).'</styleSheet>');
-    $zip->close();
-
-    d71Post($this, '/audience/import', ['mode' => 'file', 'file' => new UploadedFile($path, 's.xlsx', null, null, true)])->assertSessionHasErrors('file');
+    d71Post($this, '/audience/import', ['mode' => 'file', 'file' => d71Xlsx(5000, 'styles')])
+        ->assertSessionHasErrors(['file' => __('ventmail.audience.import.limit.zip')]);
 });
 
 it('a worker-kill (failed) a felmérés közben is mindent töröl: fájl, minta, státusz', function () {
