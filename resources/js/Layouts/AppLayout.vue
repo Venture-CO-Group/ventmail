@@ -11,7 +11,7 @@ import VmUserMenu from '../Components/Shell/VmUserMenu.vue';
 import VmWorkspaceSwitcher from '../Components/Shell/VmWorkspaceSwitcher.vue';
 import { useCompactNav } from '../composables/useCompactNav';
 import { useLocaleSync } from '../composables/useLocaleSync';
-import { activeMenuId, asTrigger, closeAllMenus } from '../composables/useMenuState';
+import { activeMenuId, asTrigger, closeAllMenus, setMenuOpen } from '../composables/useMenuState';
 import { useNavigation, type NavGroupId } from '../composables/useNavigation';
 import { readStoredList, writeStoredList } from '../composables/useStoredState';
 import { useFormat } from '../composables/useFormat';
@@ -56,12 +56,6 @@ const STORAGE_KEY = 'vm.nav.expanded';
 
 const mobileOpen = ref(false);
 const expanded = ref<string[]>([]);
-
-/** A nav-csoport legördülők „egyszerre egy" koordinációja (lásd `useMenuState`). */
-function setMenu(id: string, value: boolean): void {
-    if (value) activeMenuId.value = id;
-    else if (activeMenuId.value === id) activeMenuId.value = null;
-}
 
 let stopNavigate: (() => void) | undefined;
 
@@ -145,7 +139,7 @@ function onMobileKeydown(event: KeyboardEvent): void {
                             hover
                             :label="iconOnly ? group.label : undefined"
                             :open="activeMenuId === `group-${group.id}`"
-                            @update:open="setMenu(`group-${group.id}`, $event)"
+                            @update:open="setMenuOpen(`group-${group.id}`, $event)"
                         >
                             <template #trigger="{ open, ...trigger }">
                                 <button

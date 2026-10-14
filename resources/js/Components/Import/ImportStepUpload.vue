@@ -52,7 +52,7 @@ const delimiterLabel = computed(() => {
     return t(`audience.import.delimiter.${map[profile.value?.delimiter ?? ','] ?? 'comma'}`);
 });
 
-function submit(payload: Record<string, string | File>, forceFormData = false): void {
+function submit(payload: Record<string, string | File>, forceFormData = false, onCreated?: () => void): void {
     busy.value = true;
 
     router.post('/audience/import', payload, {
@@ -61,6 +61,7 @@ function submit(payload: Record<string, string | File>, forceFormData = false): 
         onSuccess: () => {
             emit('errors', {});
             emit('created');
+            onCreated?.();
         },
         onError: (errors) => emit('errors', errors),
         onFinish: () => (busy.value = false),
@@ -82,18 +83,7 @@ function uploadFile(chosen: File | null): void {
 
     if (!chosen) return;
 
-    busy.value = true;
-    router.post('/audience/import', { mode: 'file', file: chosen }, {
-        forceFormData: true,
-        preserveScroll: true,
-        onSuccess: () => {
-            emit('errors', {});
-            emit('created');
-            file.value = null;
-        },
-        onError: (errors) => emit('errors', errors),
-        onFinish: () => (busy.value = false),
-    });
+    submit({ mode: 'file', file: chosen }, true, () => (file.value = null));
 }
 
 function replace(): void {

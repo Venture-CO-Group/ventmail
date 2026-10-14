@@ -448,7 +448,6 @@
                 "hint": "Une adresse par ligne, ou séparées par des virgules ou des points-virgules."
             },
             "drop": {
-                "title": "Déposez le fichier ici ou choisissez-le",
                 "hint": "CSV ou XLSX · jusqu’à {rows} lignes · {mb} Mo maximum"
             },
             "fact": {
@@ -666,7 +665,6 @@
                 "source": "Source",
                 "status": "Statut"
             },
-            "tooLarge": "Le fichier est trop volumineux ({mb} Mo maximum).",
             "inspecting": {
                 "title": "Analyse du fichier…",
                 "hint": "Le fichier est analysé en arrière-plan — les colonnes apparaissent dans quelques secondes. Inutile d’actualiser la page.",
@@ -2572,7 +2570,8 @@
         "footerHint": "Le numéro de page est ajouté automatiquement à droite du pied de page.",
         "company": "Nom de l’entreprise sur la couverture",
         "preview": "Aperçu en direct — couverture",
-        "previewSample": "Campagne exemple"
+        "previewSample": "Campagne exemple",
+        "uploading": "Envoi en cours…"
     },
     "pager": {
         "label": "Pagination",

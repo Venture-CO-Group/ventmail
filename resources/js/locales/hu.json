@@ -448,7 +448,6 @@
                 "hint": "Soronként egy cím, vagy vesszővel, pontosvesszővel elválasztva."
             },
             "drop": {
-                "title": "Húzd ide a fájlt, vagy válaszd ki",
                 "hint": "CSV vagy XLSX · akár {rows} sor · legfeljebb {mb} MB"
             },
             "fact": {
@@ -666,7 +665,6 @@
                 "source": "Forrás",
                 "status": "Státusz"
             },
-            "tooLarge": "A fájl túl nagy (legfeljebb {mb} MB).",
             "inspecting": {
                 "title": "Fájl elemzése…",
                 "hint": "A fájl felmérése a háttérben fut — az oszlopok pár másodperc múlva megjelennek. Az oldalt nem kell frissíteni.",
@@ -2572,7 +2570,8 @@
         "footerHint": "Az oldalszám automatikusan a lábléc jobb szélére kerül.",
         "company": "Cégnév a borítón",
         "preview": "Élő előnézet — borítólap",
-        "previewSample": "Minta kampány"
+        "previewSample": "Minta kampány",
+        "uploading": "Feltöltés folyamatban…"
     },
     "pager": {
         "label": "Lapozás",

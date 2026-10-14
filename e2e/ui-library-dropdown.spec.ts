@@ -58,3 +58,36 @@ test.describe('8. legördülők', () => {
         await expect(page.getByTestId('nav-domains')).toBeHidden();
     });
 });
+
+test('egyszerre egy nyitott — HOVERREL is: A fölé, majd B fölé húzva csak B marad nyitva', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/dashboard');
+
+    const studio = page.getByTestId('nav-group-studio');
+    const platform = page.getByTestId('nav-group-platform');
+
+    await studio.hover();
+    await expect(studio).toHaveAttribute('aria-expanded', 'true');
+
+    await platform.hover();
+    await expect(platform).toHaveAttribute('aria-expanded', 'true');
+    await expect(studio).toHaveAttribute('aria-expanded', 'false');
+    await expect(page.getByTestId('nav-campaigns')).toBeHidden();
+});
+
+test('egyszerre egy nyitott — BILLENTYŰZETTEL: A-t, majd B-t nyitva csak B marad nyitva', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/dashboard');
+
+    const studio = page.getByTestId('nav-group-studio');
+    const platform = page.getByTestId('nav-group-platform');
+
+    await studio.focus();
+    await page.keyboard.press('Enter');
+    await expect(studio).toHaveAttribute('aria-expanded', 'true');
+
+    await platform.focus();
+    await page.keyboard.press('Enter');
+    await expect(platform).toHaveAttribute('aria-expanded', 'true');
+    await expect(studio).toHaveAttribute('aria-expanded', 'false');
+});

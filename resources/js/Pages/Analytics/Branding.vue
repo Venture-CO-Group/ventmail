@@ -120,7 +120,10 @@ const maxMb = computed(() => Math.round(props.limits.maxBytes / 1024 / 1024));
                                         data-testid="branding-upload"
                                         @update:model-value="upload"
                                     />
-                                    <VtButton v-if="branding.logo" variant="ghost" data-testid="branding-remove" @click="removeLogo">{{ t('branding.remove') }}</VtButton>
+                                    <p v-if="uploading" class="vm-brand__uploading" role="status" data-testid="branding-uploading">
+                                        <span class="vm-brand__spinner" aria-hidden="true" />{{ t('branding.uploading') }}
+                                    </p>
+                                    <VtButton v-if="branding.logo" variant="ghost" :disabled="uploading" data-testid="branding-remove" @click="removeLogo">{{ t('branding.remove') }}</VtButton>
                                 </div>
                             </div>
                         </VtField>
@@ -281,5 +284,35 @@ const maxMb = computed(() => Math.round(props.limits.maxBytes / 1024 / 1024));
     margin: var(--vt-space-2) 0 0;
     color: var(--vt-text-muted);
     font-size: var(--vt-fs-caption);
+}
+.vm-brand__uploading {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--vt-space-2);
+    margin: 0;
+    color: var(--vt-text-muted);
+    font-size: var(--vt-fs-body-sm);
+}
+
+/* Feltöltés közben forgó jelző (D318) — tokenekből; csökkentett mozgásnál áll. */
+.vm-brand__spinner {
+    inline-size: var(--vt-space-4);
+    block-size: var(--vt-space-4);
+    border: thin solid var(--vt-border-strong);
+    border-block-start-color: var(--vt-accent);
+    border-radius: var(--vt-radius-full);
+    animation: vm-brand-spin calc(var(--vt-duration-slow) * 2) linear infinite;
+}
+
+@keyframes vm-brand-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .vm-brand__spinner {
+        animation: none;
+    }
 }
 </style>

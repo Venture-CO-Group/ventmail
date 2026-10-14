@@ -149,6 +149,7 @@ function create(): void {
                     >
                         <VtAvatar :name="row.name" size="sm" />
                         <span class="vm-switcher__name">{{ row.name }}</span>
+                        <VmIcon v-if="row.uuid === current?.uuid" name="check" class="vm-switcher__check" data-testid="workspace-current-check" />
                         <VtBadge :tone="primaryRole(row) === 'owner' ? 'accent' : 'neutral'" size="sm">
                             {{ roleLabel(primaryRole(row)) }}
                         </VtBadge>

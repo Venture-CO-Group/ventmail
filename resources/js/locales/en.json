@@ -448,7 +448,6 @@
                 "hint": "One address per line, or separated by commas or semicolons."
             },
             "drop": {
-                "title": "Drop the file here, or choose it",
                 "hint": "CSV or XLSX · up to {rows} rows · at most {mb} MB"
             },
             "fact": {
@@ -666,7 +665,6 @@
                 "source": "Source",
                 "status": "Status"
             },
-            "tooLarge": "The file is too large (at most {mb} MB).",
             "inspecting": {
                 "title": "Analysing the file…",
                 "hint": "The file is being analysed in the background — the columns appear in a few seconds. You do not need to refresh the page.",
@@ -2572,7 +2570,8 @@
         "footerHint": "The page number is added to the right of the footer automatically.",
         "company": "Company name on the cover",
         "preview": "Live preview — cover page",
-        "previewSample": "Sample campaign"
+        "previewSample": "Sample campaign",
+        "uploading": "Uploading…"
     },
     "pager": {
         "label": "Pagination",

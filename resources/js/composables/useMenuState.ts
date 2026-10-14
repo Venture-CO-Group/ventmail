@@ -11,18 +11,17 @@ import { computed, ref, type ComputedRef } from 'vue';
  */
 export const activeMenuId = ref<string | null>(null);
 
-export function useShellMenu(id: string): { open: ComputedRef<boolean>; setOpen: (value: boolean) => void } {
-    const open = computed(() => activeMenuId.value === id);
-
-    function setOpen(value: boolean): void {
-        if (value) {
-            activeMenuId.value = id;
-        } else if (activeMenuId.value === id) {
-            activeMenuId.value = null;
-        }
+/** Egy legördülő nyitása / zárása a koordinációban — az EGYETLEN író (a `useShellMenu` is ezt hívja). */
+export function setMenuOpen(id: string, value: boolean): void {
+    if (value) {
+        activeMenuId.value = id;
+    } else if (activeMenuId.value === id) {
+        activeMenuId.value = null;
     }
+}
 
-    return { open, setOpen };
+export function useShellMenu(id: string): { open: ComputedRef<boolean>; setOpen: (value: boolean) => void } {
+    return { open: computed(() => activeMenuId.value === id), setOpen: (value: boolean) => setMenuOpen(id, value) };
 }
 
 /** Navigáció után minden legördülő zár (a következő oldalon egy sem maradhat nyitva). */

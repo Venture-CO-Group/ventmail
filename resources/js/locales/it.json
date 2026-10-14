@@ -448,7 +448,6 @@
                 "hint": "Un indirizzo per riga, oppure separati da virgole o punti e virgola."
             },
             "drop": {
-                "title": "Trascina qui il file o sceglilo",
                 "hint": "CSV o XLSX · fino a {rows} righe · al massimo {mb} MB"
             },
             "fact": {
@@ -666,7 +665,6 @@
                 "source": "Fonte",
                 "status": "Stato"
             },
-            "tooLarge": "Il file è troppo grande (al massimo {mb} MB).",
             "inspecting": {
                 "title": "Analisi del file…",
                 "hint": "Il file viene analizzato in background — le colonne compaiono tra pochi secondi. Non serve aggiornare la pagina.",
@@ -2572,7 +2570,8 @@
         "footerHint": "Il numero di pagina viene aggiunto automaticamente a destra del piè di pagina.",
         "company": "Nome dell’azienda in copertina",
         "preview": "Anteprima dal vivo — copertina",
-        "previewSample": "Campagna di esempio"
+        "previewSample": "Campagna di esempio",
+        "uploading": "Caricamento in corso…"
     },
     "pager": {
         "label": "Paginazione",

@@ -162,6 +162,16 @@ for (const [dir, viewport] of Object.entries(VIEWPORTS)) {
             // Kijelölt elem: a jobb (beállítások) panel kinyílik (az „utána" állapotban; előtte mindig látszott).
             await page.getByTestId('block-1-0-0').click();
             await shot(page, dir, '09-editor-selected', false);
+
+            // Kép-blokk kijelölve: a képválasztó a @venture/ui VtFileUpload-dal (D317).
+            if (PHASE === 'after') {
+                await page.locator('[data-testid="editor-canvas"] [data-type="image"]').first().click();
+                await expect(page.getByTestId('prop-src-upload').or(page.getByTestId('rail-properties')).first()).toBeVisible();
+
+                if ((await page.getByTestId('prop-src-upload').count()) === 0) await page.getByTestId('rail-properties').click();
+                await page.getByTestId('prop-src-upload').scrollIntoViewIfNeeded();
+                await shot(page, dir, '10-editor-image-picker', false);
+            }
         });
 
         test('fejlesztői doksi', async ({ page }) => {

@@ -448,7 +448,6 @@
                 "hint": "Eine Adresse pro Zeile oder durch Komma bzw. Semikolon getrennt."
             },
             "drop": {
-                "title": "Datei hierher ziehen oder auswählen",
                 "hint": "CSV oder XLSX · bis zu {rows} Zeilen · höchstens {mb} MB"
             },
             "fact": {
@@ -666,7 +665,6 @@
                 "source": "Quelle",
                 "status": "Status"
             },
-            "tooLarge": "Die Datei ist zu groß (höchstens {mb} MB).",
             "inspecting": {
                 "title": "Datei wird analysiert…",
                 "hint": "Die Datei wird im Hintergrund analysiert — die Spalten erscheinen in wenigen Sekunden. Die Seite muss nicht neu geladen werden.",
@@ -2572,7 +2570,8 @@
         "footerHint": "Die Seitenzahl wird automatisch rechts in der Fußzeile ergänzt.",
         "company": "Firmenname auf dem Deckblatt",
         "preview": "Live-Vorschau — Deckblatt",
-        "previewSample": "Beispielkampagne"
+        "previewSample": "Beispielkampagne",
+        "uploading": "Wird hochgeladen …"
     },
     "pager": {
         "label": "Seitennavigation",

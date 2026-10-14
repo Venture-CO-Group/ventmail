@@ -47,12 +47,12 @@
     flex: 0 0 auto;
 }
 
-.vm-topbar__row > .vt-dropdown {
+.vm-topbar__row > .vm-switcher-dd {
     flex: 0 1 auto;
     min-width: 0;
 }
 
-.vm-topbar__row > .vt-dropdown > .vm-chip {
+.vm-topbar__row > .vm-switcher-dd > .vm-chip {
     min-width: 0;
     max-inline-size: 100%;
 }
@@ -347,9 +347,19 @@
     cursor: pointer;
 }
 
-.vm-switcher__row:hover,
+.vm-switcher__row:hover {
+    background: var(--vt-surface-2);
+}
+
+/* A JELENLEGI workspace (D318): háttérkitöltés nincs — accent szöveg + pipa-ikon. */
 .vm-switcher__row[aria-current='true'] {
-    background: var(--vt-glass-thin-fill);
+    color: var(--vt-accent-hover);
+    font-weight: var(--vt-weight-medium);
+}
+
+.vm-switcher__check {
+    flex: none;
+    color: var(--vt-accent-hover);
 }
 
 .vm-switcher__name {

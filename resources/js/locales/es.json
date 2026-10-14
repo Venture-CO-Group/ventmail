@@ -448,7 +448,6 @@
                 "hint": "Una dirección por línea, o separadas por comas o punto y coma."
             },
             "drop": {
-                "title": "Suelta el archivo aquí o elígelo",
                 "hint": "CSV o XLSX · hasta {rows} filas · como máximo {mb} MB"
             },
             "fact": {
@@ -666,7 +665,6 @@
                 "source": "Fuente",
                 "status": "Estado"
             },
-            "tooLarge": "El archivo es demasiado grande (como máximo {mb} MB).",
             "inspecting": {
                 "title": "Analizando el archivo…",
                 "hint": "El archivo se analiza en segundo plano — las columnas aparecen en unos segundos. No hace falta recargar la página.",
@@ -2572,7 +2570,8 @@
         "footerHint": "El número de página se añade automáticamente a la derecha del pie.",
         "company": "Nombre de la empresa en la portada",
         "preview": "Vista previa en directo — portada",
-        "previewSample": "Campaña de ejemplo"
+        "previewSample": "Campaña de ejemplo",
+        "uploading": "Subiendo…"
     },
     "pager": {
         "label": "Paginación",

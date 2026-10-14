@@ -38,11 +38,14 @@ test.describe('3. aktív menüpont', () => {
         expect(parseFloat(width)).toBeGreaterThan(0);
         expect(transparent(color)).toBe(false);
 
-        // Egy NEM aktív elem nem kap jelölőt.
+        // Egy NEM aktív elem nem kap jelölőt: a ::before nincs vagy átlátszó, a szín más.
         const other = page.getByTestId('nav-logs');
         const otherStyle = await activeNavStyle(other);
+        const [otherContent, , otherColor] = otherStyle.indicator.split('|');
 
+        expect(otherContent === 'none' || transparent(otherColor), `inaktív jelölő: ${otherStyle.indicator}`).toBe(true);
         expect(otherStyle.color).not.toBe(style.color);
+        expect(transparent(otherStyle.bg)).toBe(true);
     });
 
     test('mobil harmonika: ugyanaz az aktív állapot', async ({ page }) => {
@@ -65,3 +68,27 @@ test.describe('3. aktív menüpont', () => {
     });
 });
 
+
+test('workspace-váltó: a jelenlegi workspace sora háttérkitöltés nélkül, accent szöveggel és pipával', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/dashboard');
+    await page.getByTestId('workspace-switch').click();
+
+    const list = page.getByTestId('workspace-list');
+    const current = list.locator('button[aria-current="true"]');
+
+    await expect(current).toHaveCount(1);
+    await expect(current.getByTestId('workspace-current-check')).toBeVisible();
+    await expect(list.getByTestId('workspace-current-check')).toHaveCount(1);
+    await page.mouse.move(0, 0);
+
+    const style = await current.evaluate((node) => ({ bg: getComputedStyle(node).backgroundColor, color: getComputedStyle(node).color }));
+
+    expect(transparent(style.bg), `háttér: ${style.bg}`).toBe(true);
+
+    // A keresés és a lista működése változatlan.
+    await page.getByTestId('workspace-search').fill('nincs-ilyen-workspace');
+    await expect(list.locator('button')).toHaveCount(0);
+    await page.getByTestId('workspace-search').fill('');
+    await expect(current).toBeVisible();
+});

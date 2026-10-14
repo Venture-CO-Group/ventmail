@@ -92,3 +92,78 @@ test('helyes CSV: a kiválasztott fájl neve megjelenik, és az import elindul',
     await page.goto('/audience/import');
     await expect(page.getByTestId('import-step-upload')).toBeVisible();
 });
+
+async function pngBytes(page: import('@playwright/test').Page, side: number): Promise<Buffer> {
+    const base64 = await page.evaluate((size) => {
+        const canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        const context = canvas.getContext('2d') as CanvasRenderingContext2D;
+        context.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--vt-color-accent-500');
+        context.fillRect(0, 0, size, size);
+
+        return canvas.toDataURL('image/png').split(',')[1];
+    }, side);
+
+    return Buffer.from(base64, 'base64');
+}
+
+test('szerkesztő képválasztó: PNG feltöltés kitölti a kép URL-jét; rossz típus hibát ad, kérés nélkül', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/templates');
+    await page.getByTestId('starter-newsletter').click();
+    await page.getByTestId('template-name').fill(`E2E képfeltöltés ${Date.now().toString(36)}`);
+    await page.getByTestId('template-submit').click();
+    await page.waitForURL(/\/templates\/[0-9a-f-]{36}$/);
+
+    await page.locator('[data-testid="editor-canvas"] [data-type="image"]').first().click();
+    await expect(page.getByTestId('editor-props')).toBeVisible();
+
+    const upload = page.getByTestId('prop-src-upload');
+    const url = page.getByTestId('prop-src-url');
+    const before = await url.inputValue();
+
+    let posted = 0;
+
+    page.on('request', (request) => {
+        if (request.method() === 'POST' && new URL(request.url()).pathname === '/template-assets') posted++;
+    });
+
+    // Rossz típus: a kiválasztáskor elutasítva, kérés nincs.
+    await upload.locator('input[type="file"]').setInputFiles({ name: 'kep.txt', mimeType: 'text/plain', buffer: Buffer.from('nem kép') });
+    await expect(upload.getByRole('alert')).toBeVisible();
+    await page.waitForTimeout(300);
+    expect(posted).toBe(0);
+
+    // PNG: feltöltés az asset-tárba, az URL a feltöltött képre áll.
+    const [response] = await Promise.all([
+        page.waitForResponse((r) => new URL(r.url()).pathname === '/template-assets' && r.request().method() === 'POST'),
+        upload.locator('input[type="file"]').setInputFiles({ name: 'kep.png', mimeType: 'image/png', buffer: await pngBytes(page, 120) }),
+    ]);
+
+    expect(response.ok()).toBe(true);
+    const asset = (await response.json()) as { url: string };
+
+    await expect(url).toHaveValue(asset.url);
+    expect(asset.url).not.toBe(before);
+    // Siker után a mező üres (v-model null).
+    await expect(upload.locator('.vt-upload__name')).not.toHaveText('kep.png');
+});
+
+test('branding: feltöltés közben látható folyamatjelző', async ({ page }) => {
+    await page.goto('/settings/branding');
+
+    await page.route('**/settings/branding/logo', async (route) => {
+        if (route.request().method() === 'POST') await new Promise((resolve) => setTimeout(resolve, 1000));
+        await route.continue();
+    });
+
+    await page.getByTestId('branding-upload').locator('input[type="file"]').setInputFiles({ name: 'logo.png', mimeType: 'image/png', buffer: await pngBytes(page, 80) });
+    await expect(page.getByTestId('branding-uploading')).toBeVisible();
+    await expect(page.getByTestId('branding-logo')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId('branding-uploading')).toHaveCount(0);
+
+    // Takarítás: a logó eltávolítása (a többi spec alapállapotot vár).
+    await page.getByTestId('branding-remove').click();
+    await expect(page.getByTestId('branding-logo')).toHaveCount(0);
+});
