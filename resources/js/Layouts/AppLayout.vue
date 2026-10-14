@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Link, router, usePage } from '@inertiajs/vue3';
-import { VtDropdown } from '@venture/ui';
+import { VtDropdown, VtNavItem } from '@venture/ui';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import BrandLogo from '../Components/BrandLogo.vue';
@@ -11,7 +11,7 @@ import VmUserMenu from '../Components/Shell/VmUserMenu.vue';
 import VmWorkspaceSwitcher from '../Components/Shell/VmWorkspaceSwitcher.vue';
 import { useCompactNav } from '../composables/useCompactNav';
 import { useLocaleSync } from '../composables/useLocaleSync';
-import { activeMenuId, asTrigger, closeAllMenus, setMenuOpen } from '../composables/useMenuState';
+import { activeMenuId, closeAllMenus, setMenuOpen } from '../composables/useMenuState';
 import { useNavigation, type NavGroupId } from '../composables/useNavigation';
 import { readStoredList, writeStoredList } from '../composables/useStoredState';
 import { useFormat } from '../composables/useFormat';
@@ -119,48 +119,55 @@ function onMobileKeydown(event: KeyboardEvent): void {
                 <VmWorkspaceSwitcher :compact="isEditor" />
 
                 <nav v-if="!compact" class="vm-topbar__nav" :aria-label="t('nav.main')">
-                    <Link
-                        class="vm-toplink"
-                        :class="{ 'vm-toplink--icon': iconOnly }"
+                    <!-- D319: a felső sáv elemei @venture/ui `VtNavItem` (orientation="horizontal"): az AKTÍV
+                         elem accent szöveg + jelölő ALATTA, háttérkitöltés nélkül. -->
+                    <VtNavItem
+                        :as="Link"
                         href="/dashboard"
+                        orientation="horizontal"
+                        class="vm-toplink"
+                        :active="isOverviewActive"
                         data-testid="nav-overview"
                         :aria-label="iconOnly ? t('nav.dashboard') : undefined"
                         :title="iconOnly ? t('nav.dashboard') : undefined"
-                        :aria-current="isOverviewActive ? 'page' : undefined"
                     >
-                        <VmIcon name="home" />
-                        <span v-if="!iconOnly">{{ t('nav.dashboard') }}</span>
-                    </Link>
+                        <template #icon><VmIcon name="home" /></template>
+                        <template v-if="!iconOnly">{{ t('nav.dashboard') }}</template>
+                    </VtNavItem>
 
                     <div v-for="group in groups" :key="group.id" class="vm-topbar__group" :data-testid="`nav-${group.id}`">
                         <!-- D315: @venture/ui `VtDropdown` (hover + kattintásra rögzít, Esc, ütközés-figyelés),
-                             VEZÉRELT módban az „egyszerre egy nyitott" koordinációhoz. -->
+                             VEZÉRELT módban az „egyszerre egy nyitott" koordinációhoz. D320: a sok pontos csoport
+                             (Platform) széles, KÉThasábos panel — görgetés és levágás nélkül. -->
                         <VtDropdown
                             hover
                             :label="iconOnly ? group.label : undefined"
+                            :width="group.items.length > 6 ? 'wide' : 'auto'"
+                            :panel-class="`vm-navmenu vm-navmenu--${group.id}${group.items.length > 6 ? ' vm-navmenu--two' : ''}`"
+                            :panel-label="group.label"
+                            :panel-testid="`nav-panel-${group.id}`"
                             :open="activeMenuId === `group-${group.id}`"
                             @update:open="setMenuOpen(`group-${group.id}`, $event)"
                         >
                             <template #trigger="{ open, ...trigger }">
-                                <button
-                                    type="button"
+                                <VtNavItem
+                                    orientation="horizontal"
                                     class="vm-toplink"
-                                    v-bind="asTrigger(trigger)"
+                                    v-bind="trigger"
+                                    :active="groupActive(group.id)"
                                     :title="iconOnly ? group.label : undefined"
                                     :data-testid="`nav-group-${group.id}`"
                                     :data-open="open ? 'true' : undefined"
                                 >
-                                    <span class="vm-toplink__inner" :data-active="groupActive(group.id) ? 'true' : undefined">
-                                        <VmIcon :name="group.icon" />
-                                        <span v-if="!iconOnly">{{ group.label }}</span>
+                                    <template #icon><VmIcon :name="group.icon" /></template>
+                                    <template v-if="!iconOnly">{{ group.label }}</template>
+                                    <template #trailing>
                                         <VmIcon name="chevron" class="vm-toplink__chevron" :class="{ 'vm-toplink__chevron--open': open }" />
-                                    </span>
-                                </button>
+                                    </template>
+                                </VtNavItem>
                             </template>
 
-                            <div :class="`vm-navmenu vm-navmenu--${group.id}`">
-                                <VmNavPanel :items="group.items" :active-href="activeHref" />
-                            </div>
+                            <VmNavPanel :items="group.items" :active-href="activeHref" />
                         </VtDropdown>
                     </div>
                 </nav>

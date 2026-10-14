@@ -49,7 +49,7 @@ test.describe('8. legördülők', () => {
         await expect(page.getByTestId('nav-domains')).toBeVisible();
         await expect(page.getByTestId('nav-campaigns')).toBeHidden();
 
-        const panel = page.locator(`[id="${await page.getByTestId('nav-group-platform').getAttribute('aria-controls')}"]`);
+        const panel = page.getByTestId('nav-panel-platform');
         const box = (await panel.boundingBox())!;
 
         expect(box.y + box.height).toBeLessThanOrEqual(800);
@@ -91,3 +91,71 @@ test('egyszerre egy nyitott — BILLENTYŰZETTEL: A-t, majd B-t nyitva csak B ma
     await expect(platform).toHaveAttribute('aria-expanded', 'true');
     await expect(studio).toHaveAttribute('aria-expanded', 'false');
 });
+
+/*
+ | D320 (@venture/ui 0.3.1): a Platform-panel széles, KÉThasábos — minden pont látszik, belső
+ | görgetés / levágott túlcsordulás nincs, és a panel a nézetben marad. Mobilon harmonika.
+ */
+for (const [width, height] of [
+    [1440, 900],
+    [1280, 800],
+    [390, 844],
+] as const) {
+    test(`Platform-panel ${width}×${height}: minden pont látszik, nincs rejtett túlcsordulás, a nézetben marad`, async ({ page }) => {
+        await page.setViewportSize({ width, height });
+        await page.goto('/dashboard');
+
+        if (width < 600) {
+            // Mobil: harmonika (nincs legördülő panel) — a csoport minden pontja a lapon.
+            await page.getByTestId('nav-hamburger').click();
+            const group = page.getByTestId('nav-mobile').getByTestId('nav-group-platform');
+
+            if ((await group.getAttribute('aria-expanded')) !== 'true') await group.click();
+            await expect(page.getByTestId('nav-panel-platform')).toHaveCount(0);
+
+            const items = page.getByTestId('nav-mobile').locator('#nav-mobile-platform a');
+
+            expect(await items.count()).toBeGreaterThan(10);
+            for (const item of await items.all()) await expect(item).toBeVisible();
+
+            return;
+        }
+
+        await page.getByTestId('nav-group-platform').click();
+        const panel = page.getByTestId('nav-panel-platform');
+
+        await expect(panel).toBeVisible();
+        await expect(panel).toHaveAttribute('role', 'group');
+        await expect(panel).toHaveAccessibleName(/.+/);
+
+        const metrics = await panel.evaluate((node) => {
+            const rect = node.getBoundingClientRect();
+            const links = Array.from(node.querySelectorAll('a'));
+            const lefts = new Set(links.map((link) => Math.round(link.getBoundingClientRect().left)));
+
+            return {
+                scroll: node.scrollHeight - node.clientHeight,
+                top: rect.top,
+                bottom: rect.bottom,
+                left: rect.left,
+                right: rect.right,
+                links: links.length,
+                columns: lefts.size,
+                hidden: links.filter((link) => {
+                    const box = link.getBoundingClientRect();
+
+                    return box.bottom > rect.bottom + 1 || box.top < rect.top - 1;
+                }).length,
+            };
+        });
+
+        expect(metrics.scroll).toBeLessThanOrEqual(1);
+        expect(metrics.hidden).toBe(0);
+        expect(metrics.columns).toBe(2);
+        expect(metrics.links).toBeGreaterThan(10);
+        expect(metrics.top).toBeGreaterThanOrEqual(0);
+        expect(metrics.bottom).toBeLessThanOrEqual(height);
+        expect(metrics.left).toBeGreaterThanOrEqual(0);
+        expect(metrics.right).toBeLessThanOrEqual(width);
+    });
+}

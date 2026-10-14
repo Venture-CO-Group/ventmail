@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { VtDropdown, VtDropdownItem } from '@venture/ui';
 import { useI18n } from 'vue-i18n';
-import { asTrigger, useShellMenu } from '../../composables/useMenuState';
+import { useShellMenu } from '../../composables/useMenuState';
 import VmIcon from '../Shell/VmIcon.vue';
 import type { ExportBackground } from './chartTheme';
 
@@ -27,7 +27,7 @@ const menu = useShellMenu(`export-${props.id}`);
         @update:open="menu.setOpen"
     >
         <template #trigger="{ open, ...trigger }">
-            <button type="button" class="vm-export__trigger" v-bind="asTrigger(trigger)" :data-testid="testid ?? `export-${props.id}`" :data-open="open ? 'true' : undefined">
+            <button type="button" class="vm-export__trigger" v-bind="trigger" :data-testid="testid ?? `export-${props.id}`" :data-open="open ? 'true' : undefined">
                 <VmIcon name="download" />
                 <span>{{ t('analytics.export.menu') }}</span>
             </button>

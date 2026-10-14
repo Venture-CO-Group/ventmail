@@ -11,7 +11,7 @@ import { router, usePage } from '@inertiajs/vue3';
 import { VtAvatar, VtBadge, VtButton, VtDropdown, VtInput } from '@venture/ui';
 import { computed, nextTick, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { asTrigger, useShellMenu } from '../../composables/useMenuState';
+import { useShellMenu } from '../../composables/useMenuState';
 import VmIcon from './VmIcon.vue';
 
 interface WorkspaceRow {
@@ -115,7 +115,7 @@ function create(): void {
 <template>
     <VtDropdown class="vm-switcher-dd" :label="t('shell.workspaceSwitcher')" :open="menu.open.value" @update:open="menu.setOpen" @open="onOpen">
         <template #trigger="{ open, ...trigger }">
-            <button type="button" class="vm-chip" v-bind="asTrigger(trigger)" data-testid="workspace-switch" :data-open="open ? 'true' : undefined">
+            <button type="button" class="vm-chip" v-bind="trigger" data-testid="workspace-switch" :data-open="open ? 'true' : undefined">
                 <VtAvatar :name="current?.name ?? ''" size="xs" class="vm-chip__avatar" />
                 <span v-if="!compact" class="vm-chip__label" data-testid="workspace-current">{{ current?.name }}</span>
                 <VmIcon v-if="!compact" name="chevron" class="vm-chip__chevron" />

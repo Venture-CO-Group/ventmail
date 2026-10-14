@@ -92,3 +92,54 @@ test('workspace-váltó: a jelenlegi workspace sora háttérkitöltés nélkül,
     await page.getByTestId('workspace-search').fill('');
     await expect(current).toBeVisible();
 });
+
+test('felső sáv (D319): az aktív elem háttérkitöltés nélkül, jelölő ALATTA; az inaktívnak nincs jelölője', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/dashboard');
+    await page.mouse.move(0, 0);
+
+    const overview = page.getByTestId('nav-overview');
+
+    await expect(overview).toHaveAttribute('aria-current', 'page');
+
+    const active = await overview.evaluate((node) => {
+        const style = getComputedStyle(node);
+        const before = getComputedStyle(node, '::before');
+        const rect = node.getBoundingClientRect();
+
+        return {
+            bg: style.backgroundColor,
+            content: before.content,
+            color: before.backgroundColor,
+            height: parseFloat(before.height),
+            width: parseFloat(before.width),
+            bottomGap: rect.bottom - (rect.top + parseFloat(before.top) + parseFloat(before.height)),
+        };
+    });
+
+    expect(transparent(active.bg), `háttér: ${active.bg}`).toBe(true);
+    expect(active.content).not.toBe('none');
+    expect(transparent(active.color)).toBe(false);
+    // Vízszintes csík a doboz ALJÁN (szélesebb, mint magas; az alsó élhez tapad).
+    expect(active.width).toBeGreaterThan(active.height);
+    expect(Math.abs(active.bottomGap)).toBeLessThanOrEqual(1);
+
+    // Inaktív sáv-elem (egy csoport, amelyben nincs az aktuális oldal): nincs jelölő, nincs kitöltés.
+    const studio = page.getByTestId('nav-group-studio');
+
+    await expect(studio).not.toHaveAttribute('aria-current', 'page');
+    const inactive = await studio.evaluate((node) => ({
+        bg: getComputedStyle(node).backgroundColor,
+        content: getComputedStyle(node, '::before').content,
+        color: getComputedStyle(node, '::before').backgroundColor,
+    }));
+
+    expect(transparent(inactive.bg)).toBe(true);
+    expect(inactive.content === 'none' || transparent(inactive.color)).toBe(true);
+
+    // Egy csoporton belüli oldalon a CSOPORT a sáv aktív eleme.
+    await page.goto('/domains');
+    await page.mouse.move(0, 0);
+    await expect(page.getByTestId('nav-group-platform')).toHaveAttribute('aria-current', 'page');
+    await expect(page.getByTestId('nav-overview')).not.toHaveAttribute('aria-current', 'page');
+});

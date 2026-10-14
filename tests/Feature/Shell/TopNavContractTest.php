@@ -71,7 +71,7 @@ it('a legördülők a @venture/ui VtDropdown-ra épülnek (ARIA, Esc, fókusz-vi
 
         expect($source)->toContain('<VtDropdown')
             // A könyvtár trigger-attribútumai (aria-expanded, aria-controls, onClick) a saját gombon.
-            ->and($source)->toContain('v-bind="asTrigger(trigger)"')
+            ->and($source)->toContain('v-bind="trigger"')
             // Egyszerre egy nyitott: vezérelt mód.
             ->and($source)->toMatch('/:open="/');
 

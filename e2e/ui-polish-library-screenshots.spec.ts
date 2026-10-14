@@ -91,6 +91,23 @@ for (const [dir, viewport] of Object.entries(VIEWPORTS)) {
             await shot(page, dir, 'L5-upload-branding', true);
         });
 
+        test('8b: a Platform-panel (0.3.1: széles, kéthasábos)', async ({ page }) => {
+            await page.goto('/dashboard');
+
+            if (mobile) {
+                await page.getByTestId('nav-hamburger').click();
+                const group = page.getByTestId('nav-group-platform');
+
+                if ((await group.getAttribute('aria-expanded')) !== 'true') await group.click();
+            } else {
+                await page.getByTestId('nav-group-platform').click();
+                await page.mouse.move(viewport.width - 4, viewport.height - 4);
+            }
+
+            await expect(page.getByTestId('nav-domains')).toBeVisible();
+            await shot(page, dir, 'L8b-platform-panel');
+        });
+
         test('8: legördülő a lap alján (export-menü az analitikán)', async ({ page }) => {
             await page.goto('/analytics');
             await settle(page);

@@ -28,12 +28,3 @@ export function useShellMenu(id: string): { open: ComputedRef<boolean>; setOpen:
 export function closeAllMenus(): void {
     activeMenuId.value = null;
 }
-
-/**
- * A `VtDropdown` trigger-slotjának attribútumai a SAJÁT gombunkra (`v-bind`). A könyvtár az
- * `aria-haspopup`-ot `string`-ként típusozza, a Vue gomb-típusa szűkebb — a futásidejű érték
- * helyes (`"menu"` vagy hiányzik), ezért itt egy általános attribútum-objektumként adjuk tovább.
- */
-export function asTrigger(attrs: Record<string, unknown>): Record<string, unknown> {
-    return attrs;
-}

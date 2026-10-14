@@ -11,7 +11,7 @@ import { Link, router, usePage } from '@inertiajs/vue3';
 import { VtAvatar, VtDropdown, VtDropdownItem } from '@venture/ui';
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { asTrigger, useShellMenu } from '../../composables/useMenuState';
+import { useShellMenu } from '../../composables/useMenuState';
 import VmIcon from './VmIcon.vue';
 
 defineProps<{ avatarUrl?: string }>();
@@ -43,7 +43,7 @@ function logout(): void {
     <!-- D315: @venture/ui `VtDropdown` menü-módban; a tételek `VtDropdownItem` (menuitem). -->
     <VtDropdown mode="menu" align="end" :label="t('shell.userMenu')" :open="menu.open.value" @update:open="menu.setOpen">
         <template #trigger="{ open, ...trigger }">
-            <button type="button" class="vm-avatarbtn" v-bind="asTrigger(trigger)" data-testid="user-menu" :data-open="open ? 'true' : undefined">
+            <button type="button" class="vm-avatarbtn" v-bind="trigger" data-testid="user-menu" :data-open="open ? 'true' : undefined">
                 <VtAvatar :name="user?.name ?? ''" :src="avatarUrl" size="md" />
             </button>
         </template>

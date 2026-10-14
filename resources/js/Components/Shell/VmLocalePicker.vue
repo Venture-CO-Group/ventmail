@@ -13,7 +13,7 @@ import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { loadLocaleMessages } from '../../i18n';
 import { VtDropdown, VtDropdownItem } from '@venture/ui';
-import { asTrigger, useShellMenu } from '../../composables/useMenuState';
+import { useShellMenu } from '../../composables/useMenuState';
 import VmIcon from './VmIcon.vue';
 
 /** `menu` (legördülő) vagy `inline` (a hamburger-panel gombsora). */
@@ -42,7 +42,7 @@ async function choose(code: string): Promise<void> {
     <!-- D315: @venture/ui `VtDropdown` menü-módban; a tételek `VtDropdownItem` (menuitemradio). -->
     <VtDropdown v-if="variant === 'menu'" mode="menu" align="end" :label="t('shell.languageMenu')" :open="menu.open.value" @update:open="menu.setOpen">
         <template #trigger="{ open, ...trigger }">
-            <button type="button" class="vm-tool" v-bind="asTrigger(trigger)" data-testid="locale-switch" :data-open="open ? 'true' : undefined">
+            <button type="button" class="vm-tool" v-bind="trigger" data-testid="locale-switch" :data-open="open ? 'true' : undefined">
                 <VmIcon name="globe" />
                 <span class="vm-tool__code vt-text-mono" data-testid="locale-current">{{ current.toUpperCase() }}</span>
             </button>

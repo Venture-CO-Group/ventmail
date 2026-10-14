@@ -92,7 +92,6 @@
  | egységes belső térköz), a menüpontok (`VtDropdownItem`) és a nav-pontok (`VtNavItem`) stílusa
  | a könyvtáré. Itt csak a TRIGGEREK és a panel-TARTALMAK (szélesség, fej, kereső) állnak.
  */
-.vm-toplink:focus-visible,
 .vm-switcher__row:focus-visible,
 .vm-switcher__new:focus-visible,
 .vm-mobilenav__top:focus-visible,
@@ -106,50 +105,13 @@
 
 /* ---------------------------------------------------------- sáv-elemek */
 
-.vm-toplink {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--vt-space-2);
-    min-block-size: var(--vt-control-height);
-    padding: var(--vt-space-2) var(--vt-space-3);
-    border: 0;
-    border-radius: var(--vt-radius-md);
-    background: none;
-    color: var(--vt-text-muted);
-    font-family: var(--vt-font-body);
-    font-size: var(--vt-fs-body);
-    text-decoration: none;
-    white-space: nowrap;
-}
-
-.vm-toplink__inner {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--vt-space-2);
-}
-
 /*
- | AKTÍV ÁLLAPOT (D316, a `VtNavItem` szabálya a sávon): háttérkitöltés NINCS — accent szöveg és
- | ikon; a hover és a nyitott csoport kap finom hátteret.
+ | A SÁV ELEMEI (D319): @venture/ui `VtNavItem` `orientation="horizontal"` — az aktív elem accent
+ | szöveg + jelölő ALATTA, háttérkitöltés nélkül; a hover a könyvtáré. Itt csak a nyitott csoport
+ | finom háttere és a nyíl forgása él.
  */
-.vm-toplink {
-    cursor: pointer;
-}
-
-.vm-toplink:hover,
 .vm-toplink[data-open='true'] {
-    background: var(--vt-surface-2);
-    color: var(--vt-text);
-}
-
-.vm-toplink[aria-current='page'],
-.vm-toplink__inner[data-active='true'] {
-    color: var(--vt-accent-hover);
-    font-weight: var(--vt-weight-medium);
-}
-
-.vm-toplink--icon {
-    padding-inline: var(--vt-space-3);
+    background-color: var(--vt-surface-2);
 }
 
 .vm-toplink__chevron {
@@ -244,6 +206,21 @@
 .vm-navmenu {
     inline-size: calc(var(--vt-space-32) * 3.25);
     max-inline-size: 100%;
+}
+
+/*
+ | KÉTHASÁBOS nav-panel (D320, @venture/ui 0.3.1 `width="wide"` + `panelClass`): a panel a
+ | `body`-ba teleportált, ezért ez GLOBÁLIS szabály; a könyvtár flex-oszlopa nulla specificitású,
+ | így ez nyer. Görgetés és levágás nincs — minden pont látszik.
+ */
+.vm-navmenu--two {
+    inline-size: auto;
+}
+
+.vm-navmenu--two .vm-navpanel {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: var(--vt-space-2);
 }
 
 .vm-navpanel {
