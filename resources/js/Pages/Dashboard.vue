@@ -218,10 +218,16 @@ const rows = computed<Row[]>(() =>
             {{ t('dashboard.unverifiedWarning') }}
         </p>
 
-        <!-- KPI-SOR -->
-        <div class="vm-dash-kpis" data-testid="dashboard-metrics">
-            <template v-if="kpiCards.length">
-                <VmCard v-for="card in kpiCards" :key="card.key" glass :data-testid="`kpi-${card.key}`">
+        <!--
+         | A KÁRTYARÁCS (UI-polírozás · 4. pont): EGYETLEN determinisztikus CSS grid, 4 / 2 / 1
+         | oszlop, token-gap. Minden kártya egy cella (`data-dash-cell`); egy sor kártyái azonos
+         | tetővel és aljjal állnak (a grid nyújtja őket). A széles kártyák PÁRBAN állnak
+         | (`vm-dash-pair`, teljes sor, saját 2 / 1 oszlopos rácsa) — a párfelek éle a külső rács
+         | 1. és 3. oszlopának élére esik, és 1 oszlopnál sem keletkezik implicit oszlop.
+         -->
+        <div class="vm-dash-grid" data-testid="dashboard-grid">
+            <div class="vm-dash-metrics" data-testid="dashboard-metrics">
+                <VmCard v-for="card in kpiCards" :key="card.key" glass :data-testid="`kpi-${card.key}`" :data-dash-cell="`kpi-${card.key}`">
                     <div class="vm-dash-kpi">
                         <span class="vm-dash-kpi__label">{{ card.label }}</span>
                         <strong class="vm-dash-kpi__value" :data-testid="`kpi-${card.key}-value`">{{ card.value }}</strong>
@@ -233,58 +239,72 @@ const rows = computed<Row[]>(() =>
                         <VmSparkline :values="card.series" :testid="`kpi-${card.key}-spark`" />
                     </div>
                 </VmCard>
-            </template>
 
-            <!-- A KPI-blokk nélkül (szerep / keret-túllépés) a küldést megállító számok maradnak. -->
-            <VmCard v-if="kpis && !kpis.available" glass data-testid="kpis-unavailable">
-                <p class="vm-dash-muted">{{ t('dashboard.kpi.unavailable') }}</p>
-            </VmCard>
+                <!-- A KPI-blokk nélkül (szerep / keret-túllépés) a küldést megállító számok maradnak. -->
+                <VmCard v-if="kpis && !kpis.available" glass class="vm-dash-full" data-testid="kpis-unavailable" data-dash-cell="kpis-unavailable">
+                    <p class="vm-dash-muted">{{ t('dashboard.kpi.unavailable') }}</p>
+                </VmCard>
 
-            <VmCard glass>
-                <div class="vm-dash-kpi">
-                    <span class="vm-dash-kpi__label">{{ t('dashboard.quota') }}</span>
-                    <strong class="vm-dash-kpi__value" data-testid="metric-quota">{{ format.number(quota.remaining) }}</strong>
-                </div>
-            </VmCard>
+                <VmCard glass data-dash-cell="quota">
+                    <div class="vm-dash-kpi">
+                        <span class="vm-dash-kpi__label">{{ t('dashboard.quota') }}</span>
+                        <strong class="vm-dash-kpi__value" data-testid="metric-quota">{{ format.number(quota.remaining) }}</strong>
+                    </div>
+                </VmCard>
 
-            <VmCard glass>
-                <div class="vm-dash-kpi">
-                    <span class="vm-dash-kpi__label">{{ t('dashboard.domains') }}</span>
-                    <strong class="vm-dash-kpi__value" data-testid="metric-domains">{{ format.number(domains.verified) }} / {{ format.number(domains.total) }}</strong>
-                </div>
-            </VmCard>
+                <VmCard glass data-dash-cell="domains">
+                    <div class="vm-dash-kpi">
+                        <span class="vm-dash-kpi__label">{{ t('dashboard.domains') }}</span>
+                        <strong class="vm-dash-kpi__value" data-testid="metric-domains">{{ format.number(domains.verified) }} / {{ format.number(domains.total) }}</strong>
+                    </div>
+                </VmCard>
 
-            <VmCard glass>
-                <div class="vm-dash-kpi">
-                    <span class="vm-dash-kpi__label">{{ t('dashboard.suppressions') }}</span>
-                    <strong class="vm-dash-kpi__value" data-testid="metric-suppressions">{{ format.number(suppressions) }}</strong>
-                </div>
-            </VmCard>
-        </div>
+                <VmCard glass data-dash-cell="suppressions">
+                    <div class="vm-dash-kpi">
+                        <span class="vm-dash-kpi__label">{{ t('dashboard.suppressions') }}</span>
+                        <strong class="vm-dash-kpi__value" data-testid="metric-suppressions">{{ format.number(suppressions) }}</strong>
+                    </div>
+                </VmCard>
 
-        <div class="vm-dash-grid">
-            <!-- LEGUTÓBBI KAMPÁNYOK -->
-            <VmCard v-if="campaigns !== null" glass data-testid="dashboard-campaigns">
-                <div class="vm-dash-head">
-                    <h2>{{ t('dashboard.campaigns.title') }}</h2>
-                    <Link href="/campaigns" class="vm-dash-link" data-testid="dashboard-campaigns-all">
-                        {{ t('dashboard.campaigns.all') }} <VmIcon name="chevron" class="vm-dash-link__chevron" />
-                    </Link>
-                </div>
+                <!-- TEENDŐK — a metrika-sor negyedik cellája (a sor így tele van). -->
+                <VmCard glass data-testid="dashboard-todos" data-dash-cell="todos">
+                    <h3>{{ t('dashboard.todos.title') }}</h3>
+                    <ul class="vm-dash-todos">
+                        <li v-for="todo in todos" :key="todo.key" :data-testid="`todo-${todo.key}`" :data-count="todo.count">
+                            <VmIcon :name="todo.tone === 'warning' ? 'warning' : 'check'" class="vm-dash-todo__icon" :class="`vm-dash-todo__icon--${todo.tone}`" />
+                            <span class="vm-dash-todo__text">
+                                {{ todo.count > 0 ? t(`dashboard.todos.${todo.key}`, { count: format.number(todo.count) }) : t(`dashboard.todos.${todo.key}None`) }}
+                            </span>
+                            <VtButton v-if="todo.count > 0" variant="ghost" size="sm" :data-testid="`todo-${todo.key}-action`" @click="router.visit(todo.href)">
+                                {{ t(`dashboard.todos.action.${todo.key}`) }}
+                            </VtButton>
+                        </li>
+                    </ul>
+                </VmCard>
+            </div>
 
-                <p v-if="!campaignRows.length" class="vm-dash-muted" data-testid="dashboard-campaigns-empty">{{ t('dashboard.campaigns.empty') }}</p>
-                <VmTable v-else :columns="campaignColumns" :rows="campaignRows" :caption="t('dashboard.campaigns.title')">
-                    <template #cell="{ row, column, value }">
-                        <Link v-if="column.key === 'name'" :href="`/campaigns/${row.uuid}`" class="vm-dash-campaign" :title="String(value)">{{ value }}</Link>
-                        <VmStatusBadge v-else-if="column.key === 'status'" :status="String(value)" />
-                        <span v-else class="vm-dash-num">{{ value }}</span>
-                    </template>
-                </VmTable>
-            </VmCard>
+            <div v-if="campaigns !== null || deliverability" class="vm-dash-pair" :class="{ 'vm-dash-pair--single': campaigns === null || !deliverability }">
+                <!-- LEGUTÓBBI KAMPÁNYOK -->
+                <VmCard v-if="campaigns !== null" glass data-testid="dashboard-campaigns" data-dash-cell="campaigns">
+                    <div class="vm-dash-head">
+                        <h2>{{ t('dashboard.campaigns.title') }}</h2>
+                        <Link href="/campaigns" class="vm-dash-link" data-testid="dashboard-campaigns-all">
+                            {{ t('dashboard.campaigns.all') }} <VmIcon name="chevron" class="vm-dash-link__chevron" />
+                        </Link>
+                    </div>
 
-            <div class="vm-dash-side">
+                    <p v-if="!campaignRows.length" class="vm-dash-muted" data-testid="dashboard-campaigns-empty">{{ t('dashboard.campaigns.empty') }}</p>
+                    <VmTable v-else :columns="campaignColumns" :rows="campaignRows" :caption="t('dashboard.campaigns.title')">
+                        <template #cell="{ row, column, value }">
+                            <Link v-if="column.key === 'name'" :href="`/campaigns/${row.uuid}`" class="vm-dash-campaign" :title="String(value)">{{ value }}</Link>
+                            <VmStatusBadge v-else-if="column.key === 'status'" :status="String(value)" />
+                            <span v-else class="vm-dash-num">{{ value }}</span>
+                        </template>
+                    </VmTable>
+                </VmCard>
+
                 <!-- KÉZBESÍTHETŐSÉG -->
-                <VmCard v-if="deliverability" glass glow data-testid="dashboard-deliverability">
+                <VmCard v-if="deliverability" glass glow data-testid="dashboard-deliverability" data-dash-cell="deliverability">
                     <div class="vm-dash-head">
                         <h2>{{ t('dashboard.deliverability.title') }}</h2>
                         <VtBadge :tone="deliverability.healthy ? 'success' : 'warning'" size="sm" data-testid="deliverability-health">
@@ -319,40 +339,24 @@ const rows = computed<Row[]>(() =>
                         {{ t('dashboard.deliverability.openDomains') }}
                     </VtButton>
                 </VmCard>
-
-                <!-- TEENDŐK -->
-                <VmCard glass data-testid="dashboard-todos">
-                    <h3>{{ t('dashboard.todos.title') }}</h3>
-                    <ul class="vm-dash-todos">
-                        <li v-for="todo in todos" :key="todo.key" :data-testid="`todo-${todo.key}`" :data-count="todo.count">
-                            <VmIcon :name="todo.tone === 'warning' ? 'warning' : 'check'" class="vm-dash-todo__icon" :class="`vm-dash-todo__icon--${todo.tone}`" />
-                            <span class="vm-dash-todo__text">
-                                {{ todo.count > 0 ? t(`dashboard.todos.${todo.key}`, { count: format.number(todo.count) }) : t(`dashboard.todos.${todo.key}None`) }}
-                            </span>
-                            <VtButton v-if="todo.count > 0" variant="ghost" size="sm" :data-testid="`todo-${todo.key}-action`" @click="router.visit(todo.href)">
-                                {{ t(`dashboard.todos.action.${todo.key}`) }}
-                            </VtButton>
-                        </li>
-                    </ul>
-                </VmCard>
             </div>
+
+            <!-- LEGUTÓBBI ÜZENETEK (napló) — teljes sor -->
+            <VmCard class="vm-dash-full" data-dash-cell="recent">
+                <h2>{{ t('dashboard.recent') }}</h2>
+
+                <!-- A JOGOSULTSÁG HIÁNYA SZÖVEG, nem üres doboz: az `author` szerep szándékosan
+                     nem kap `logs.view`-t, és ezt meg kell mondani, nem elhallgatni. -->
+                <p v-if="delivery === null" data-testid="logs-forbidden">{{ t('dashboard.noAccess') }}</p>
+                <p v-else-if="!rows.length" data-testid="recent-empty">{{ t('dashboard.empty') }}</p>
+                <VmTable v-else :columns="columns" :rows="rows" :caption="t('dashboard.recent')" data-testid="recent-table">
+                    <template #cell="{ column, value }">
+                        <VmStateBadge v-if="column.key === 'status'" :state="String(value)" />
+                        <span v-else class="vm-truncate" :title="String(value ?? '')">{{ value }}</span>
+                    </template>
+                </VmTable>
+            </VmCard>
         </div>
-
-        <!-- LEGUTÓBBI ÜZENETEK (napló) -->
-        <VmCard>
-            <h2>{{ t('dashboard.recent') }}</h2>
-
-            <!-- A JOGOSULTSÁG HIÁNYA SZÖVEG, nem üres doboz: az `author` szerep szándékosan
-                 nem kap `logs.view`-t, és ezt meg kell mondani, nem elhallgatni. -->
-            <p v-if="delivery === null" data-testid="logs-forbidden">{{ t('dashboard.noAccess') }}</p>
-            <p v-else-if="!rows.length" data-testid="recent-empty">{{ t('dashboard.empty') }}</p>
-            <VmTable v-else :columns="columns" :rows="rows" :caption="t('dashboard.recent')" data-testid="recent-table">
-                <template #cell="{ column, value }">
-                    <VmStateBadge v-if="column.key === 'status'" :state="String(value)" />
-                    <span v-else class="vm-truncate" :title="String(value ?? '')">{{ value }}</span>
-                </template>
-            </VmTable>
-        </VmCard>
     </AppLayout>
 </template>
 
@@ -364,10 +368,61 @@ const rows = computed<Row[]>(() =>
     border-color: var(--vt-accent);
 }
 
-.vm-dash-kpis {
+/*
+ | A KÁRTYARÁCS — 4 / 2 / 1 oszlop, töréspont-literál és media query NÉLKÜL (lásd D18: a media
+ | query nem olvas `var()`-t, breakpoint-token nincs). A sáv minimális szélessége a TARTÓ
+ | szélességéből (`100%`) számolt, három állású kapcsoló:
+ |
+ |   tartó ≥ T4  → negyed (− ε) → pontosan 4 sáv
+ |   T2 ≤ … < T4 → fél (− ε)    → pontosan 2 sáv
+ |   tartó < T2  → 100%         → 1 sáv
+ |
+ | A kapcsoló a `(T − 100%) * 999` előjelén fordul (negatív → a `max` a másik ágat választja).
+ | Az ε (`gap / 4`) a kerekítés ellen van: a pontos negyed lebegőpontos hibával 3 sávra eshetne.
+ | A sávok `1fr`-rel töltik ki a sort, tehát a kártyák széle minden sorban egy vonalba esik.
+ */
+.vm-dash-grid {
+    --vm-dash-gap: var(--vt-space-6);
+    --vm-dash-t4: calc(var(--vt-space-32) * 7);
+    --vm-dash-t2: calc(var(--vt-space-32) * 4);
+    --vm-dash-q: calc((100% - 3 * var(--vm-dash-gap)) / 4 - var(--vm-dash-gap) / 4);
+    --vm-dash-h: calc((100% - var(--vm-dash-gap)) / 2 - var(--vm-dash-gap) / 4);
+
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(var(--vt-space-24) * 2.5)), 1fr));
-    gap: var(--vt-space-4);
+    grid-template-columns: repeat(
+        auto-fill,
+        minmax(max(max(var(--vm-dash-q), min(var(--vm-dash-h), calc((var(--vm-dash-t4) - 100%) * 999))), min(100%, calc((var(--vm-dash-t2) - 100%) * 999))), 1fr)
+    );
+    gap: var(--vm-dash-gap);
+    align-items: stretch;
+}
+
+/* A metrika-sor a külső rács SÁVJAIT használja (subgrid): a kártyák a rács oszlopaiba esnek. */
+.vm-dash-metrics {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: subgrid;
+    gap: var(--vm-dash-gap);
+    align-items: stretch;
+}
+
+/* A széles kártyák párja: teljes sor, saját 2 / 1 oszlopos rács — a fél él a külső rács 3. oszlopára esik. */
+.vm-dash-pair {
+    --vm-dash-h: calc((100% - var(--vm-dash-gap)) / 2 - var(--vm-dash-gap) / 4);
+
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(max(var(--vm-dash-h), min(100%, calc((var(--vm-dash-t2) - 100%) * 999))), 1fr));
+    gap: var(--vm-dash-gap);
+    align-items: stretch;
+}
+
+.vm-dash-pair--single {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.vm-dash-full {
+    grid-column: 1 / -1;
 }
 
 .vm-dash-kpi {
@@ -401,27 +456,6 @@ const rows = computed<Row[]>(() =>
 
 .vm-dash-kpi__trend--down {
     color: var(--vt-color-danger);
-}
-
-.vm-dash-grid {
-    /* 2 : 1 hasáb, keskeny képernyőn egymás alá tördelve (töréspont-literál nélkül). */
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--vt-space-6);
-    align-items: flex-start;
-}
-
-.vm-dash-grid > :first-child {
-    flex: 2 1 calc(var(--vt-space-24) * 5);
-    min-width: 0;
-}
-
-.vm-dash-side {
-    flex: 1 1 calc(var(--vt-space-24) * 3);
-    display: flex;
-    flex-direction: column;
-    gap: var(--vt-space-6);
-    min-width: 0;
 }
 
 .vm-dash-head {
