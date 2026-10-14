@@ -65,6 +65,9 @@ const props = defineProps<{
         displayStatus: string;
         editable: boolean;
         templateUuid: string | null;
+        /** UI-polírozás · 6: „new" = a kampány saját, helyben készült tartalma; „existing" = könyvtári sablon. */
+        contentMode: 'new' | 'existing';
+        ownTemplateUuid: string | null;
         targetLists: string[];
         targetSegments: string[];
         excludeLists: string[];
@@ -151,6 +154,39 @@ watch(
     },
 );
 
+/* ---------- tartalom: új (helyben) vagy meglévő (könyvtár) ---------- */
+
+const contentMode = ref<'new' | 'existing'>(props.campaign.contentMode);
+/** D308: a tartalom FORRÁSA (új saját / meglévő) csak vázlatnál váltható — a szerver is így dönt. */
+const contentSourceLocked = computed(() => readonly.value || props.campaign.status !== 'draft');
+
+watch(
+    () => props.campaign,
+    () => {
+        contentMode.value = props.campaign.contentMode;
+    },
+);
+
+function chooseContent(mode: 'new' | 'existing'): void {
+    contentMode.value = mode;
+    // Az „új" ág a saját tartalomra áll vissza (ha már van); a „meglévő" ág választásra vár.
+    form.value.templateUuid = mode === 'new' ? (props.campaign.ownTemplateUuid ?? '') : props.campaign.contentMode === 'existing' ? (props.campaign.templateUuid ?? '') : '';
+}
+
+/** A saját tartalom szerkesztője: előbb a nem mentett kampány-adat, aztán a szerkesztő. */
+function openOwnContent(): void {
+    const go = (): void => router.post(`/campaigns/${props.campaign.uuid}/content`);
+
+    if (!dirty.value) {
+        go();
+
+        return;
+    }
+
+    saving.value = true;
+    router.put(`/campaigns/${props.campaign.uuid}`, payload() as never, { preserveScroll: true, onSuccess: go, onFinish: () => (saving.value = false) });
+}
+
 const showExclude = ref(props.campaign.excludeLists.length + props.campaign.excludeSegments.length > 0);
 const readonly = computed(() => !props.campaign.editable);
 
@@ -222,7 +258,7 @@ const summary = computed<Record<Section['key'], string>>(() => {
     const content = section('content');
     const schedule = section('schedule');
     const ab = section('ab');
-    const template = content.template as { name: string } | null;
+    const template = content.template as { name: string; owned?: boolean } | null;
 
     return {
         recipients: [
@@ -235,7 +271,7 @@ const summary = computed<Record<Section['key'], string>>(() => {
             ? `${props.campaign.fromName ? `${props.campaign.fromName} ` : ''}<${sender.fromEmail}> · ${sender.verified ? t('checklist.domainVerified') : t('checklist.domainUnverified')}`
             : t('checklist.senderMissing'),
         subject: props.campaign.subject || t('checklist.subjectMissing'),
-        content: template ? `${template.name}${(content.missing as string[]).length ? ` · ${t('checklist.complianceMissing')}` : ''}` : t('checklist.contentMissing'),
+        content: template ? `${template.owned ? t('checklist.ownContent') : template.name}${(content.missing as string[]).length ? ` · ${t('checklist.complianceMissing')}` : ''}` : t('checklist.contentMissing'),
         schedule:
             schedule.mode === 'now'
                 ? t('checklist.sendNowSummary')
@@ -516,27 +552,66 @@ const sectionTitle = (key: string): string => t(`checklist.section.${key}`);
                             </VmFormSection>
                         </template>
 
-                        <!-- 4. TARTALOM -->
+                        <!-- 4. TARTALOM — UI-polírozás · 6: két ág, az ÚJ (helyben készülő) az alapértelmezett. -->
                         <template v-else-if="item.key === 'content'">
-                            <VmFormSection>
-                                <VtField :label="t('campaigns.template')" :hint="t('checklist.templateHint')">
-                                    <VtSelect
-                                        v-model="form.templateUuid"
-                                        :options="[{ value: '', label: t('campaigns.noTemplate') }, ...templates.map((tpl) => ({ value: tpl.uuid, label: tpl.name }))]"
-                                        :disabled="readonly"
-                                        data-testid="edit-template"
-                                    />
-                                </VtField>
-                            </VmFormSection>
-                            <ul v-if="(item.missing as string[]).length" class="vm-cl-missing" data-testid="content-missing">
+                            <VmFieldGroup :legend="t('checklist.contentMode.legend')">
+                                <VtRadio
+                                    :model-value="contentMode"
+                                    value="new"
+                                    name="content-mode"
+                                    :disabled="contentSourceLocked"
+                                    data-testid="content-mode-new"
+                                    @update:model-value="chooseContent('new')"
+                                >
+                                    {{ t('checklist.contentMode.new') }}
+                                </VtRadio>
+                                <VtRadio
+                                    :model-value="contentMode"
+                                    value="existing"
+                                    name="content-mode"
+                                    :disabled="contentSourceLocked"
+                                    data-testid="content-mode-existing"
+                                    @update:model-value="chooseContent('existing')"
+                                >
+                                    {{ t('checklist.contentMode.existing') }}
+                                </VtRadio>
+                            </VmFieldGroup>
+                            <p v-if="!readonly && campaign.status !== 'draft'" class="vm-cl-hint" role="note" data-testid="content-draft-only">{{ t('checklist.contentMode.draftOnly') }}</p>
+
+                            <template v-if="contentMode === 'new'">
+                                <p class="vm-cl-hint">{{ t('checklist.contentMode.newHint') }}</p>
+                                <div class="vm-cluster">
+                                    <VtButton v-if="!contentSourceLocked" :disabled="saving" data-testid="content-create" @click="openOwnContent">
+                                        <VmIcon :name="campaign.ownTemplateUuid ? 'layout' : 'plus'" />
+                                        {{ campaign.ownTemplateUuid ? t('checklist.contentMode.edit') : t('checklist.contentMode.create') }}
+                                    </VtButton>
+                                    <Link v-else-if="campaign.ownTemplateUuid" :href="`/campaigns/${campaign.uuid}/content`" data-testid="content-open-own">{{ t('checklist.openEditor') }}</Link>
+                                </div>
+                            </template>
+
+                            <template v-else>
+                                <p v-if="!templates.length" class="vm-cl-hint" data-testid="content-library-empty">{{ t('checklist.contentMode.libraryEmpty') }}</p>
+                                <VmFormSection v-else>
+                                    <VtField :label="t('campaigns.template')" :hint="t('checklist.templateHint')">
+                                        <VtSelect
+                                            v-model="form.templateUuid"
+                                            :options="[{ value: '', label: t('campaigns.noTemplate') }, ...templates.map((tpl) => ({ value: tpl.uuid, label: tpl.name }))]"
+                                            :disabled="readonly"
+                                            data-testid="edit-template"
+                                        />
+                                    </VtField>
+                                </VmFormSection>
+                                <div class="vm-cluster">
+                                    <Link v-if="campaign.templateUuid && campaign.contentMode === 'existing'" :href="`/templates/${campaign.templateUuid}`" data-testid="content-open-editor">
+                                        {{ t('checklist.openEditor') }}
+                                    </Link>
+                                    <Link href="/templates" data-testid="content-new-template">{{ t('checklist.newTemplate') }}</Link>
+                                </div>
+                            </template>
+
+                            <ul v-if="(item.missing as string[]).length && item.template" class="vm-cl-missing" data-testid="content-missing">
                                 <li v-for="missing in item.missing as string[]" :key="missing">{{ t(`checklist.missing.${missing}`) }}</li>
                             </ul>
-                            <div class="vm-cluster">
-                                <Link v-if="campaign.templateUuid" :href="`/templates/${campaign.templateUuid}`" data-testid="content-open-editor">
-                                    {{ t('checklist.openEditor') }}
-                                </Link>
-                                <Link href="/templates" data-testid="content-new-template">{{ t('checklist.newTemplate') }}</Link>
-                            </div>
                         </template>
 
                         <!-- 5. ÜTEMEZÉS -->
@@ -972,6 +1047,12 @@ const sectionTitle = (key: string): string => t(`checklist.section.${key}`);
 
 .vm-cl-inbox__text small {
     color: var(--vt-text-muted);
+}
+
+.vm-cl-hint {
+    margin: 0;
+    color: var(--vt-text-muted);
+    font-size: var(--vt-fs-body-sm);
 }
 
 .vm-cl-exclude {

@@ -318,7 +318,8 @@ final class JourneyCanvasController
             ->all();
 
         return [
-            'templates' => $pick(Template::query()),
+            // Csak könyvtári sablon: a kampány helyben készült tartalma a kampányé (UI-polírozás · 6).
+            'templates' => $pick(Template::query()->library()),
             'lists' => $pick(ContactList::query()),
             'tags' => $pick(ContactTag::query()),
             'segments' => $pick(Segment::query()),

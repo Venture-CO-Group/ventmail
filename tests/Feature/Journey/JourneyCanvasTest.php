@@ -9,6 +9,7 @@ use App\Modules\Audience\Models\ContactList;
 use App\Modules\Audience\Models\ContactTag;
 use App\Modules\Audit\Models\AuditLog;
 use App\Modules\Audit\Services\KeyedHash;
+use App\Modules\Campaign\Models\Campaign;
 use App\Modules\Consent\Services\ConfirmationTokens;
 use App\Modules\Consent\Services\ConsentRecorder;
 use App\Modules\Domains\Models\Domain;
@@ -218,6 +219,19 @@ it('az IDEGEN tenant sablonja „nem létezik", az A/B arány 100 kell legyen, �
     expect($codes)->toContain('reference_missing@send')
         ->and($codes)->toContain('ab_weights_invalid@ab')
         ->and($codes)->toContain('multiple_triggers@t2');
+});
+
+it('D310: kampány SAJÁT tartalma journey-lépésben nem használható (validáció + futás)', function () {
+    $campaign = Campaign::create(['name' => 'Saját tartalmas', 'subject' => '']);
+    $owned = canvasTemplate('Kampány saját tartalma');
+    $owned->forceFill(['owner_campaign_id' => $campaign->getKey()])->save();
+
+    $graph = JourneyGraph::fromArray(['nodes' => [
+        cnode('t', 'api_event', ['event' => 'x']),
+        cnode('send', 'send_email', ['template' => (string) $owned->uuid, 'from_email' => 'no-reply@pelda.hu']),
+    ], 'edges' => [cedge('t', 'send')]]);
+
+    expect(issueCodes(app(JourneyGraphValidator::class)->validate($graph)))->toContain('reference_missing@send');
 });
 
 it('a gráf szerkezete korlátos — túl sok csomópont, rossz azonosító elutasítva', function () {

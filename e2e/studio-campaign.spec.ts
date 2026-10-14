@@ -68,6 +68,9 @@ test('checklist-flow: a gomb csak zöld ellenőrzéseknél él, és a kapu okkó
 
     // 4. TARTALOM — HELYŐRZŐ postai cím: a szerver-ellenőrzés piros, a gomb letiltva.
     await page.getByTestId('section-toggle-content').click();
+    // UI-polírozás · 6: az alapértelmezett ág az „Új template készítése" — itt a KÖNYVTÁRI ágat választjuk.
+    await expect(page.getByTestId('content-mode-new').locator('input')).toBeChecked();
+    await page.getByTestId('content-mode-existing').click();
     await page.getByTestId('edit-template').locator('select').selectOption(seed.templates.placeholder.uuid);
     await save(page, 'content');
     await expect(page.getByTestId('check-compliance')).toHaveAttribute('data-ok', 'false');

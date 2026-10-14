@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { router, usePage } from '@inertiajs/vue3';
-import { VtButton, VtField, VtInput, VtTextarea } from '@venture/ui';
+import { VtButton, VtField, VtFileUpload, VtInput, VtTextarea } from '@venture/ui';
 import { computed, onMounted, reactive, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { isHexColor, verdict, type ContrastVerdict } from '../../Components/Analytics/brandContrast';
@@ -13,6 +13,7 @@ import VmIcon from '../../Components/Shell/VmIcon.vue';
 import VmPageHeader from '../../Components/Studio/VmPageHeader.vue';
 import AppLayout from '../../Layouts/AppLayout.vue';
 import { useFormat } from '../../composables/useFormat';
+import { uploadLabels } from '../../composables/uploadLabels';
 
 /**
  * WORKSPACE-BRANDING (v1.1 · 8. modul, D233, D236) — Settings ▾ Branding.
@@ -40,7 +41,6 @@ const form = reactive({
 
 const saving = ref(false);
 const uploading = ref(false);
-const fileInput = ref<HTMLInputElement | null>(null);
 const errors = computed(() => page.props.errors ?? {});
 
 // A swatch-ok a Venture paletta TOKENJEI; az értékük a mount után olvasódik.
@@ -65,19 +65,23 @@ function save(): void {
     router.put('/settings/branding', { ...form }, { preserveScroll: true, onFinish: () => (saving.value = false) });
 }
 
-function pick(): void {
-    fileInput.value?.click();
-}
+/*
+ | LOGÓ-FELTÖLTÉS — @venture/ui `VtFileUpload` (0.3.0, D317): típus (PNG/JPEG/WebP) és méret
+ | (a szerver `limits.maxBytes`-a) a kiválasztáskor; a képméretet és a tartalmat a szerver
+ | ellenőrzi. A választás rögtön feltölt; utána a mező `null`-ra áll (a logó az előnézetben él).
+ */
+const logoFile = ref<File | null>(null);
+const logoLabels = computed(() => uploadLabels(t, 'PNG, JPEG, WebP', props.limits.maxBytes));
 
-function upload(event: Event): void {
-    const file = (event.target as HTMLInputElement).files?.[0];
+function upload(file: File | null): void {
+    logoFile.value = file;
 
     if (!file) return;
 
     uploading.value = true;
     router.post('/settings/branding/logo', { logo: file }, { forceFormData: true, preserveScroll: true, onFinish: () => {
         uploading.value = false;
-        if (fileInput.value) fileInput.value.value = '';
+        logoFile.value = null;
     } });
 }
 
@@ -107,9 +111,19 @@ const maxMb = computed(() => Math.round(props.limits.maxBytes / 1024 / 1024));
                                     <span v-else aria-hidden="true">{{ (form.company_name || workspaceName).trim()[0]?.toUpperCase() ?? 'V' }}</span>
                                 </div>
                                 <div class="vm-brand__logoactions">
-                                    <VtButton variant="glass" :loading="uploading" data-testid="branding-upload" @click="pick"><VmIcon name="upload" /> {{ t('branding.upload') }}</VtButton>
-                                    <VtButton v-if="branding.logo" variant="ghost" data-testid="branding-remove" @click="removeLogo">{{ t('branding.remove') }}</VtButton>
-                                    <input ref="fileInput" type="file" class="vm-visually-hidden" accept="image/png,image/jpeg,image/webp" data-testid="branding-file" @change="upload" />
+                                    <VtFileUpload
+                                        :model-value="logoFile"
+                                        accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp"
+                                        v-bind="logoLabels"
+                                        :button-label="t('branding.upload')"
+                                        :disabled="uploading"
+                                        data-testid="branding-upload"
+                                        @update:model-value="upload"
+                                    />
+                                    <p v-if="uploading" class="vm-brand__uploading" role="status" data-testid="branding-uploading">
+                                        <span class="vm-brand__spinner" aria-hidden="true" />{{ t('branding.uploading') }}
+                                    </p>
+                                    <VtButton v-if="branding.logo" variant="ghost" :disabled="uploading" data-testid="branding-remove" @click="removeLogo">{{ t('branding.remove') }}</VtButton>
                                 </div>
                             </div>
                         </VtField>
@@ -270,5 +284,35 @@ const maxMb = computed(() => Math.round(props.limits.maxBytes / 1024 / 1024));
     margin: var(--vt-space-2) 0 0;
     color: var(--vt-text-muted);
     font-size: var(--vt-fs-caption);
+}
+.vm-brand__uploading {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--vt-space-2);
+    margin: 0;
+    color: var(--vt-text-muted);
+    font-size: var(--vt-fs-body-sm);
+}
+
+/* Feltöltés közben forgó jelző (D318) — tokenekből; csökkentett mozgásnál áll. */
+.vm-brand__spinner {
+    inline-size: var(--vt-space-4);
+    block-size: var(--vt-space-4);
+    border: thin solid var(--vt-border-strong);
+    border-block-start-color: var(--vt-accent);
+    border-radius: var(--vt-radius-full);
+    animation: vm-brand-spin calc(var(--vt-duration-slow) * 2) linear infinite;
+}
+
+@keyframes vm-brand-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .vm-brand__spinner {
+        animation: none;
+    }
 }
 </style>

@@ -8,10 +8,10 @@
  | (`/workspaces`): a szerver ellenőriz, a kliens csak kér.
  */
 import { router, usePage } from '@inertiajs/vue3';
-import { VtAvatar, VtBadge, VtButton, VtInput } from '@venture/ui';
+import { VtAvatar, VtBadge, VtButton, VtDropdown, VtInput } from '@venture/ui';
 import { computed, nextTick, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import VmDropdown from './VmDropdown.vue';
+import { useShellMenu } from '../../composables/useMenuState';
 import VmIcon from './VmIcon.vue';
 
 interface WorkspaceRow {
@@ -29,7 +29,7 @@ const page = usePage<{
 }>();
 const { t } = useI18n({ useScope: 'global' });
 
-const dropdown = ref<InstanceType<typeof VmDropdown> | null>(null);
+const menu = useShellMenu('workspace');
 const search = ref('');
 // A `VtInput` gyökéreleme maga az `<input>` — a komponens-ref `$el`-je a mező.
 const searchField = ref<{ $el: HTMLElement } | null>(null);
@@ -99,7 +99,7 @@ function create(): void {
             onSuccess: () => {
                 newName.value = '';
                 creating.value = false;
-                dropdown.value?.close();
+                menu.setOpen(false);
             },
             onError: (errors) => {
                 error.value = errors.name ?? Object.values(errors)[0] ?? null;
@@ -113,22 +113,17 @@ function create(): void {
 </script>
 
 <template>
-    <VmDropdown
-        id="workspace"
-        ref="dropdown"
-        testid="workspace-switch"
-        :label="t('shell.workspaceSwitcher')"
-        trigger-class="vm-chip"
-        panel-class="vm-switcher"
-        @open="onOpen"
-    >
-        <template #trigger>
-            <VtAvatar :name="current?.name ?? ''" size="xs" class="vm-chip__avatar" />
-            <span v-if="!compact" class="vm-chip__label" data-testid="workspace-current">{{ current?.name }}</span>
-            <VmIcon v-if="!compact" name="chevron" class="vm-chip__chevron" />
+    <VtDropdown class="vm-switcher-dd" :label="t('shell.workspaceSwitcher')" :open="menu.open.value" @update:open="menu.setOpen" @open="onOpen">
+        <template #trigger="{ open, ...trigger }">
+            <button type="button" class="vm-chip" v-bind="trigger" data-testid="workspace-switch" :data-open="open ? 'true' : undefined">
+                <VtAvatar :name="current?.name ?? ''" size="xs" class="vm-chip__avatar" />
+                <span v-if="!compact" class="vm-chip__label" data-testid="workspace-current">{{ current?.name }}</span>
+                <VmIcon v-if="!compact" name="chevron" class="vm-chip__chevron" />
+            </button>
         </template>
 
         <template #default="{ close }">
+          <div class="vm-switcher">
             <div class="vm-switcher__search">
                 <VmIcon name="search" />
                 <VtInput
@@ -154,6 +149,7 @@ function create(): void {
                     >
                         <VtAvatar :name="row.name" size="sm" />
                         <span class="vm-switcher__name">{{ row.name }}</span>
+                        <VmIcon v-if="row.uuid === current?.uuid" name="check" class="vm-switcher__check" data-testid="workspace-current-check" />
                         <VtBadge :tone="primaryRole(row) === 'owner' ? 'accent' : 'neutral'" size="sm">
                             {{ roleLabel(primaryRole(row)) }}
                         </VtBadge>
@@ -186,6 +182,7 @@ function create(): void {
                     </div>
                 </form>
             </div>
+          </div>
         </template>
-    </VmDropdown>
+    </VtDropdown>
 </template>

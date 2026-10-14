@@ -12,6 +12,7 @@ use App\Modules\Template\Services\MjmlCompiler;
 use App\Modules\Template\Services\MjmlWriter;
 use App\Modules\Template\Services\PlainTextWriter;
 use App\Modules\Tenancy\Concerns\BelongsToWorkspace;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -59,6 +60,17 @@ final class Template extends Model
         return $this->compactAudit;
     }
 
+    /**
+     * A SABLONKÖNYVTÁR sablonjai (UI-polírozás · 6): a kampány helyben készült tartalma
+     * (`owner_campaign_id`) nem könyvtári sablon — a választók és a könyvtár ezt kérdezik.
+     *
+     * @param  Builder<self>  $query
+     */
+    public function scopeLibrary(Builder $query): void
+    {
+        $query->whereNull('owner_campaign_id');
+    }
+
     public function uniqueIds(): array
     {
         return ['uuid'];
@@ -72,6 +84,7 @@ final class Template extends Model
             'marketing' => 'boolean',
             'rendered_at' => 'datetime',
             'published_at' => 'datetime',
+            'owner_campaign_id' => 'integer',
         ];
     }
 

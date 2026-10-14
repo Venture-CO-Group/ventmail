@@ -86,17 +86,20 @@ final class DevStudioSeedController
             ],
         ]);
 
-        $compliant = $template("E2E Studio sablon {$run}", 'Nádor utca 1., 1051 Budapest');
-        $placeholder = $template("E2E helyőrző sablon {$run}", (string) __('editor.defaults.footerAddress'));
+        // `templates=0` (UI-polírozás · 6): ÜRES sablonkönyvtár — a kampány tartalma helyben készül.
+        $withTemplates = $request->query('templates', '1') !== '0';
+
+        $compliant = $withTemplates ? $template("E2E Studio sablon {$run}", 'Nádor utca 1., 1051 Budapest') : null;
+        $placeholder = $withTemplates ? $template("E2E helyőrző sablon {$run}", (string) __('editor.defaults.footerAddress')) : null;
 
         return response()->json([
             'run' => $run,
             'list' => ['uuid' => (string) $list->uuid, 'name' => (string) $list->name],
             'emails' => $emails,
-            'templates' => [
-                'compliant' => ['uuid' => (string) $compliant->uuid, 'name' => (string) $compliant->name],
-                'placeholder' => ['uuid' => (string) $placeholder->uuid, 'name' => (string) $placeholder->name],
-            ],
+            'templates' => $withTemplates ? [
+                'compliant' => ['uuid' => (string) $compliant?->uuid, 'name' => (string) $compliant?->name],
+                'placeholder' => ['uuid' => (string) $placeholder?->uuid, 'name' => (string) $placeholder?->name],
+            ] : null,
             'preferenceUrl' => '/p/'.$tokens->issue((int) $workspace->getKey(), $emails['confirmed']),
         ]);
     }

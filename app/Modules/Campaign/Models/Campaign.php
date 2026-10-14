@@ -92,7 +92,42 @@ final class Campaign extends Model
                 }
             }
         });
+
+        /*
+         | A KAMPÁNY SAJÁT TARTALMA (UI-polírozás · 6, D312) a kampánnyal együtt él: a kampány soft-
+         | delete-je a saját tartalmat is soft-delete-eli, a visszaállítás az EGYÜTT törölteket
+         | visszahozza. A végleges törlést az FK (`cascadeOnDelete`) intézi — a gazdátlan sor
+         | különben könyvtári sablonná válna (NULL gazda = könyvtár), és D310 csendben sérülne.
+         */
+        self::deleted(function (self $campaign): void {
+            if ($campaign->isForceDeleting()) {
+                return;
+            }
+
+            Template::query()->where('owner_campaign_id', $campaign->getKey())->get()->each(fn (Template $template) => $template->delete());
+        });
+
+        self::restoring(function (self $campaign): void {
+            $campaign->restoringFrom = $campaign->deleted_at?->copy();
+        });
+
+        self::restored(function (self $campaign): void {
+            if ($campaign->restoringFrom === null) {
+                return;
+            }
+
+            Template::onlyTrashed()
+                ->where('owner_campaign_id', $campaign->getKey())
+                // Csak az EGYÜTT törölteket (a kampány törlésének pillanatától): egy korábban
+                // külön törölt tartalom törölve marad.
+                ->where('deleted_at', '>=', $campaign->restoringFrom->copy()->subSeconds(5))
+                ->get()
+                ->each(fn (Template $template) => $template->restore());
+        });
     }
+
+    /** A visszaállítás előtti `deleted_at` (a `restoring` → `restored` között). */
+    public ?Carbon $restoringFrom = null;
 
     public function statusEnum(): CampaignStatus
     {

@@ -448,7 +448,6 @@
                 "hint": "One address per line, or separated by commas or semicolons."
             },
             "drop": {
-                "title": "Drop the file here, or choose it",
                 "hint": "CSV or XLSX · up to {rows} rows · at most {mb} MB"
             },
             "fact": {
@@ -666,7 +665,6 @@
                 "source": "Source",
                 "status": "Status"
             },
-            "tooLarge": "The file is too large (at most {mb} MB).",
             "inspecting": {
                 "title": "Analysing the file…",
                 "hint": "The file is being analysed in the background — the columns appear in a few seconds. You do not need to refresh the page.",
@@ -1711,6 +1709,16 @@
         "locked": {
             "title": "Read-only.",
             "copy": "Make a copy"
+        },
+        "panels": {
+            "collapsePalette": "Collapse panel",
+            "expandPalette": "Expand panel",
+            "collapseProps": "Collapse settings",
+            "expandProps": "Settings"
+        },
+        "campaign": {
+            "context": "Campaign content",
+            "back": "Back to the campaign"
         }
     },
     "library": {
@@ -2027,7 +2035,18 @@
             "sent": "Sent",
             "failed": "Failed",
             "skipped": "Skipped (gate)"
-        }
+        },
+        "contentMode": {
+            "legend": "Where does the content come from?",
+            "new": "Create a new template",
+            "existing": "Load an existing template",
+            "newHint": "You build the content right here in the campaign. It only goes to the library if you also save it as a template in the editor.",
+            "create": "Create content",
+            "edit": "Edit content",
+            "libraryEmpty": "The template library is still empty — build the content right here.",
+            "draftOnly": "The content source can only be changed while the campaign is a draft. Unschedule a scheduled campaign first."
+        },
+        "ownContent": "Own content"
     },
     "journeyCanvas": {
         "top": {
@@ -2503,24 +2522,10 @@
             "lead": "Stable /v1 — no breaking changes. The sandbox works with the seed allowlist: no mail reaches real recipients.",
             "start": "Getting started",
             "later": "Later",
-            "guide": {
-                "auth": "Authentication",
-                "errors": "Errors and codes",
-                "sandbox": "Sandbox",
-                "webhooks": "Webhook payloads"
-            },
-            "guideText": {
-                "auth": "Every request authenticates with an API key in the Authorization: Bearer header. Keys are workspace-bound, their scopes decide what they may call, and an IP allowlist can be set.",
-                "errors": "Errors share one shape: error.code (stable, machine-readable) and error.message. A PreSendGate rejection is 422 with the gate's structured reason.",
-                "sandbox": "For testing use a test key or the o:testmode control: the message passes the PreSendGate and shows in the log, but is not delivered. Until sending is live, only seed-allowlisted recipients can receive real mail.",
-                "webhooks": "Every event arrives as a signed JSON POST to your endpoint. Verify the signature and timestamp, and process each X-VentMail-Delivery id only once."
-            },
-            "authBasic": "Compatibility: HTTP Basic also works with the username \"api\" and the key as password.",
             "testKeys": "Test key prefix",
             "payload": "Webhook payload",
             "schema": "Schema",
             "field": "Field",
-            "signatureNote": "Verify: compare HMAC-SHA256(secret, timestamp + \".\" + body) with X-VentMail-Signature; reject timestamps older than {seconds} seconds. During a secret rotation the signature made with the old secret arrives in X-VentMail-Signature-Previous.",
             "language": "Language",
             "scope": "Required scope",
             "parameters": "Parameters",
@@ -2528,7 +2533,17 @@
             "in": "In",
             "description": "Description",
             "responses": "Responses",
-            "testField": "true — test events only"
+            "testField": "true — test events only",
+            "guides": "Guides",
+            "search": "Search the documentation",
+            "searchEmpty": "No results.",
+            "scopes": "Scopes and their endpoints",
+            "scopeNone": "no /v1 endpoint — UI permission",
+            "controls": "Control parameters (from the contract)",
+            "errorCodes": "Stable error codes",
+            "soonBanner": "Coming soon: the endpoint is part of the contract, but the feature is not generally available yet — do not build production integrations on it.",
+            "soonEndpoints": "Contract endpoints",
+            "source": "Source"
         }
     },
     "branding": {
@@ -2555,7 +2570,8 @@
         "footerHint": "The page number is added to the right of the footer automatically.",
         "company": "Company name on the cover",
         "preview": "Live preview — cover page",
-        "previewSample": "Sample campaign"
+        "previewSample": "Sample campaign",
+        "uploading": "Uploading…"
     },
     "pager": {
         "label": "Pagination",
@@ -2704,5 +2720,13 @@
         "yes": "yes",
         "no": "no",
         "nullSender": "(bounce – null sender)"
+    },
+    "upload": {
+        "choose": "Choose file",
+        "none": "No file chosen",
+        "drop": "or drop it here",
+        "clear": "Remove",
+        "typeError": "This file type is not allowed ({types}).",
+        "sizeError": "The file is too large (at most {mb} MB)."
     }
 }

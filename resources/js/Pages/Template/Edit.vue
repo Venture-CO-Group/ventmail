@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Head, router } from '@inertiajs/vue3';
+import { Head, Link, router } from '@inertiajs/vue3';
 import { VtButton, VtDrawer, VtModal } from '@venture/ui';
 import axios, { AxiosError } from 'axios';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
@@ -65,7 +65,11 @@ const props = defineProps<{
     senderDomains: string[];
     /** CSAK OLVASHATÓ MÓD oka (review R4-S3): aktív kampány / journey sablonja, publikálási jog nélkül. */
     writeDenial: string | null;
+    /** UI-polírozás · 6: a KAMPÁNY saját tartalma — ugyanez a szerkesztő, kampány-kontextusban. */
+    campaign?: { uuid: string; name: string } | null;
 }>();
+
+const exitUrl = computed(() => (props.campaign ? `/campaigns/${props.campaign.uuid}` : '/templates'));
 
 const { t } = useI18n();
 const locked = computed(() => props.writeDenial !== null);
@@ -86,6 +90,17 @@ const versionsOpen = ref(false);
 const testOpen = ref(false);
 const panelSheet = ref(false);
 const propsSheet = ref(false);
+
+/*
+ | A PANELEK (UI-polírozás · 7. pont): a bal panel összecsukható; a jobb (beállítások) panel
+ | alapból REJTETT — elem kijelölésekor nyílik, a kijelölés megszűnésekor csukódik, és saját
+ | gombjával összecsukható (a kijelölés marad). A levél beállításai (tárgy, preheader)
+ | kijelölés nélkül a felső sáv gombjáról nyílnak.
+ */
+const paletteOpen = ref(true);
+const propsCollapsed = ref(false);
+const mailSettings = ref(false);
+const propsVisible = computed(() => !propsAsSheet.value && !propsCollapsed.value && (editor.selection.value !== null || mailSettings.value));
 const notice = ref<string | null>(null);
 const optimizer = ref<InstanceType<typeof OptimizePanel> | null>(null);
 
@@ -113,11 +128,74 @@ watch(
     () => {
         const block = selectedTarget.value;
 
+        if (editor.selection.value !== null) {
+            propsCollapsed.value = false;
+            mailSettings.value = false;
+        }
+
         if (propsAsSheet.value && editor.selection.value !== null && !['heading', 'text'].includes(block?.type ?? '')) {
             propsSheet.value = true;
         }
+
+        // A kijelölés megszűnése a fiókot is becsukja.
+        if (editor.selection.value === null && !mailSettings.value) propsSheet.value = false;
     },
 );
+
+/** Kijelölés a vászonról: a `null` (máshová kattintás) a levél-beállításokat is becsukja. */
+function select(selection: typeof editor.selection.value): void {
+    if (selection === null) mailSettings.value = false;
+    editor.selection.value = selection;
+}
+
+function openMailSettings(): void {
+    editor.selection.value = null;
+    propsCollapsed.value = false;
+    mailSettings.value = true;
+
+    if (propsAsSheet.value) propsSheet.value = true;
+}
+
+/** A vászon melletti ÜRES területre kattintás = a kijelölés megszűnése. */
+function onStageClick(event: MouseEvent): void {
+    if (event.target === event.currentTarget) select(null);
+}
+
+/*
+ | A RAGADÓS fejléc és panelek eltolása: a héj sávja és a szerkesztő felső sávja ragad, a
+ | panelek alattuk. A magasságot mérjük (a sáv tördelhet), nem beégetjük.
+ */
+const editorRoot = ref<HTMLElement | null>(null);
+const offsets = ref({ nav: 0, top: 0 });
+let observer: ResizeObserver | null = null;
+
+function measureOffsets(): void {
+    const nav = document.querySelector<HTMLElement>('[data-testid="app-nav"]');
+    const top = editorRoot.value?.querySelector<HTMLElement>('.vm-ed-top');
+
+    offsets.value = { nav: nav?.getBoundingClientRect().height ?? 0, top: top?.getBoundingClientRect().height ?? 0 };
+}
+
+const stickyStyle = computed(() => ({
+    '--vm-ed-nav': `${offsets.value.nav}px`,
+    '--vm-ed-sticky': `${offsets.value.nav + offsets.value.top}px`,
+}));
+
+onMounted(() => {
+    measureOffsets();
+
+    if (typeof ResizeObserver !== 'undefined') {
+        observer = new ResizeObserver(measureOffsets);
+
+        const nav = document.querySelector<HTMLElement>('[data-testid="app-nav"]');
+        const top = editorRoot.value?.querySelector<HTMLElement>('.vm-ed-top');
+
+        if (nav) observer.observe(nav);
+        if (top) observer.observe(top);
+    }
+});
+
+onBeforeUnmount(() => observer?.disconnect());
 
 /* ------------------------------------------------------------------ beszúrás */
 
@@ -308,7 +386,7 @@ async function saveAndExit(): Promise<void> {
     menuOpen.value = false;
 
     if (await editor.save(true)) {
-        router.visit('/templates');
+        router.visit(exitUrl.value);
     }
 }
 
@@ -323,7 +401,7 @@ const nameInitial = computed(() => {
 
     if (mode === 'saveBlock') return t('editor.saveBlock.defaultName');
 
-    return t('editor.save.copyName', { name: editor.name.value });
+    return t('editor.save.copyName', { name: props.campaign?.name ?? editor.name.value });
 });
 
 async function submitName(name: string): Promise<void> {
@@ -386,7 +464,7 @@ function onKey(event: KeyboardEvent): void {
         event.preventDefault();
         void editor.save(true);
     } else if (event.key === 'Escape' && !editingText()) {
-        editor.selection.value = null;
+        select(null);
     } else if ((event.key === 'Delete' || event.key === 'Backspace') && !editingText()) {
         const selection = editor.selection.value;
 
@@ -427,6 +505,7 @@ const railItems = computed(() => [
 
 function pickPanel(id: 'add' | 'styles' | 'optimize'): void {
     panel.value = id;
+    paletteOpen.value = true;
 
     if (compact.value) panelSheet.value = true;
 }
@@ -443,11 +522,21 @@ function openTest(): void {
     <Head :title="editor.name.value" />
 
     <AppLayout editor-mode>
-        <div class="vm-editor" data-testid="editor">
+        <div ref="editorRoot" class="vm-editor" :class="{ 'vm-editor--compact': compact }" :style="stickyStyle" data-testid="editor">
             <!-- FELSŐ SÁV -->
             <header class="vm-ed-top">
                 <div class="vm-ed-top__name">
-                    <input v-model="editor.name.value" :aria-label="t('editor.top.name')" maxlength="120" :readonly="locked" data-testid="editor-name" />
+                    <!-- A kampány saját tartalmának neve belső: a fejléc a KAMPÁNYT mutatja, visszalinkkel. -->
+                    <template v-if="campaign">
+                        <Link :href="exitUrl" class="vm-ed-iconbtn" :aria-label="t('editor.campaign.back')" :title="t('editor.campaign.back')" data-testid="editor-campaign-back">
+                            <VmIcon name="chevron" class="vm-ed-chevron vm-ed-chevron--start" />
+                        </Link>
+                        <span class="vm-ed-context" data-testid="editor-campaign-context">
+                            <small>{{ t('editor.campaign.context') }}</small>
+                            <strong class="vm-truncate" :title="campaign.name">{{ campaign.name }}</strong>
+                        </span>
+                    </template>
+                    <input v-else v-model="editor.name.value" :aria-label="t('editor.top.name')" maxlength="120" :readonly="locked" data-testid="editor-name" />
                     <span class="vm-ed-status" :class="`vm-ed-status--${editor.saveState.value}`" role="status" data-testid="save-status" :data-state="editor.saveState.value">
                         <span class="vm-ed-status__dot" aria-hidden="true" />{{ statusLabel }}
                     </span>
@@ -459,6 +548,17 @@ function openTest(): void {
                     </button>
                     <button type="button" class="vm-ed-iconbtn" :aria-label="t('editor.top.versions')" :title="t('editor.top.versions')" data-testid="editor-versions" @click="versionsOpen = true">
                         <VmIcon name="history" />
+                    </button>
+                    <button
+                        type="button"
+                        class="vm-ed-iconbtn"
+                        :aria-pressed="mailSettings"
+                        :aria-label="t('editor.props.settings')"
+                        :title="t('editor.props.settings')"
+                        data-testid="editor-mail-settings"
+                        @click="mailSettings ? (mailSettings = false) : openMailSettings()"
+                    >
+                        <VmIcon name="sliders" />
                     </button>
                 </div>
 
@@ -479,7 +579,7 @@ function openTest(): void {
                             <VmIcon name="chevron" />
                         </button>
                         <div v-if="menuOpen" class="vm-ed-split__menu" role="menu" @keydown.esc="menuOpen = false">
-                            <button type="button" role="menuitem" class="vm-ed-menuitem" data-testid="menu-save-as" @click="openName('saveAs')">{{ t('editor.top.saveAs') }}</button>
+                            <button v-if="!campaign" type="button" role="menuitem" class="vm-ed-menuitem" data-testid="menu-save-as" @click="openName('saveAs')">{{ t('editor.top.saveAs') }}</button>
                             <button type="button" role="menuitem" class="vm-ed-menuitem" data-testid="menu-save-template" @click="openName('saveTemplate')">{{ t('editor.top.saveTemplate') }}</button>
                             <button type="button" role="menuitem" class="vm-ed-menuitem" data-testid="menu-test-send" @click="openTest">{{ t('editor.top.sendTest') }}</button>
                         </div>
@@ -497,7 +597,14 @@ function openTest(): void {
             </header>
 
             <!-- CSAK OLVASHATÓ: az `inert` a vásznat, a sínt és a paneleket egyszerre teszi kezelhetetlenné. -->
-            <div class="vm-ed-body" :class="{ 'vm-ed-body--compact': compact, 'vm-ed-body--narrow': narrow && !compact, 'vm-ed-body--locked': locked }" :inert="locked" data-testid="editor-body">
+            <div
+                class="vm-ed-body"
+                :class="{ 'vm-ed-body--compact': compact, 'vm-ed-body--narrow': narrow && !compact, 'vm-ed-body--locked': locked }"
+                :inert="locked"
+                data-testid="editor-body"
+                :data-palette="paletteOpen && !compact ? 'open' : 'closed'"
+                :data-props="propsVisible ? 'open' : 'closed'"
+            >
                 <!-- SÍN -->
                 <nav class="vm-ed-rail" :aria-label="t('editor.rail.label')">
                     <button
@@ -514,10 +621,33 @@ function openTest(): void {
                     <button v-if="propsAsSheet" type="button" class="vm-ed-rail__btn" data-testid="rail-properties" @click="propsSheet = true">
                         <VmIcon name="sliders" />{{ t('editor.rail.properties') }}
                     </button>
+                    <button
+                        v-if="!compact && !paletteOpen"
+                        type="button"
+                        class="vm-ed-rail__btn vm-ed-rail__toggle"
+                        :aria-label="t('editor.panels.expandPalette')"
+                        :title="t('editor.panels.expandPalette')"
+                        aria-expanded="false"
+                        data-testid="palette-expand"
+                        @click="paletteOpen = true"
+                    >
+                        <VmIcon name="chevron" class="vm-ed-chevron vm-ed-chevron--end" />
+                    </button>
                 </nav>
 
                 <!-- BAL PANEL -->
-                <aside v-if="!compact" class="vm-ed-panel" :aria-label="railItems.find((item) => item.id === panel)?.label">
+                <aside v-if="!compact && paletteOpen" class="vm-ed-panel vm-ed-palette-panel" :aria-label="railItems.find((item) => item.id === panel)?.label" data-testid="editor-palette">
+                    <button
+                        type="button"
+                        class="vm-ed-iconbtn vm-ed-panel__toggle"
+                        :aria-label="t('editor.panels.collapsePalette')"
+                        :title="t('editor.panels.collapsePalette')"
+                        aria-expanded="true"
+                        data-testid="palette-collapse"
+                        @click="paletteOpen = false"
+                    >
+                        <VmIcon name="chevron" class="vm-ed-chevron vm-ed-chevron--start" />
+                    </button>
                     <PalettePanel v-if="panel === 'add'" :catalog="catalog" :saved-blocks="saved" @add="add" @dragend="onDragEnd" />
                     <StylesPanel v-else-if="panel === 'styles'" :styles="styles" :catalog="catalog" @update="editor.setStyles($event)" />
                     <OptimizePanel
@@ -536,8 +666,19 @@ function openTest(): void {
                 </aside>
 
                 <!-- VÁSZON -->
-                <main class="vm-ed-stage" @dragend="onDragEnd">
-                    <EdSegment v-model="device" :options="deviceOptions" :label="t('editor.device.label')" testid="canvas-device" />
+                <main class="vm-ed-stage" data-testid="editor-stage" @dragend="onDragEnd" @click="onStageClick">
+                    <div class="vm-ed-stage__tools">
+                        <EdSegment v-model="device" :options="deviceOptions" :label="t('editor.device.label')" testid="canvas-device" />
+                        <VtButton
+                            v-if="!propsAsSheet && propsCollapsed && (editor.selection.value !== null || mailSettings)"
+                            variant="ghost"
+                            size="sm"
+                            data-testid="props-expand"
+                            @click="propsCollapsed = false"
+                        >
+                            <VmIcon name="sliders" /> {{ t('editor.panels.expandProps') }}
+                        </VtButton>
+                    </div>
                     <EditorCanvas
                         :blocks="editor.blocks.value"
                         :selection="editor.selection.value"
@@ -546,7 +687,7 @@ function openTest(): void {
                         :saved-blocks="saved"
                         :device="device"
                         :target="target"
-                        @select="editor.selection.value = $event"
+                        @select="select"
                         @update="updateBlock"
                         @block-action="blockAction"
                         @section-action="sectionAction"
@@ -556,7 +697,18 @@ function openTest(): void {
                 </main>
 
                 <!-- TULAJDONSÁGOK -->
-                <aside v-if="!propsAsSheet" class="vm-ed-panel vm-ed-props" :aria-label="t('editor.props.label')">
+                <aside v-if="propsVisible" class="vm-ed-panel vm-ed-props" :aria-label="t('editor.props.label')" data-testid="editor-props">
+                    <button
+                        type="button"
+                        class="vm-ed-iconbtn vm-ed-panel__toggle"
+                        :aria-label="t('editor.panels.collapseProps')"
+                        :title="t('editor.panels.collapseProps')"
+                        aria-expanded="true"
+                        data-testid="props-collapse"
+                        @click="propsCollapsed = true"
+                    >
+                        <VmIcon name="chevron" class="vm-ed-chevron vm-ed-chevron--end" />
+                    </button>
                     <PropertiesPanel
                         :selection="editor.selection.value"
                         :target="selectedTarget"

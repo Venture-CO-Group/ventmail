@@ -158,6 +158,7 @@ function sectionStyle(section: Block): Record<string, string | undefined> {
         :class="{ 'vm-ed-canvas--mobile': device === 'mobile', 'vm-ed-canvas--dark': device === 'dark' }"
         :style="{ maxInlineSize: device === 'mobile' ? undefined : `${styles.width}px`, background: styles.background, fontFamily }"
         data-testid="editor-canvas"
+        :data-width="styles.width"
         @dragover="overEnd"
         @drop="onDrop"
         @click="emit('select', null)"

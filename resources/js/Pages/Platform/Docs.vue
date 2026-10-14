@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { VtBadge, VtSegmented, type VtColumn } from '@venture/ui';
+import { VtBadge, VtInput, VtNavItem, VtSegmented, type VtColumn } from '@venture/ui';
 import { computed, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import VmCard from '../../Components/Form/VmCard.vue';
@@ -11,11 +11,17 @@ import VmPageHeader from '../../Components/Studio/VmPageHeader.vue';
 import AppLayout from '../../Layouts/AppLayout.vue';
 
 /**
- * FEJLESZTŐI DOKUMENTÁCIÓ (v1.1 · 7. modul, D177).
+ * FEJLESZTŐI DOKUMENTÁCIÓ (v1.1 · 7. modul, D177; UI-polírozás · 9. pont, D305–D307).
  *
- * A referencia az OpenAPI-szerződésből jön (a szerver dolgozza fel), a kódmintákat a kliens
- * generálja a végpontból és a példa-törzsből. A bejövő routing és a címellenőrzési API
- * „hamarosan" (D15): a menüben jelezzük, részletes referenciát nem adunk — nem félkész funkció.
+ * KÉT forrás, mindkettő EGY fájl:
+ *  - a REFERENCIA (végpontok, scope-ok, hibakódok, `o:`/`h:`/`v:` vezérlők) a
+ *    `docs/openapi/ventmail-v1.yaml` szerződésből — a szerver dolgozza fel, a scope a route-ból;
+ *  - a PRÓZAI útmutatók (hitelesítés, Messages API, SMTP, webhook-aláírás, hibák, rate-limit,
+ *    sandbox) a `docs/developer/guides.yaml`-ból, a számok a futó kódból kitöltve.
+ *
+ * A kódmintákat a kliens generálja a végpontból és a példa-törzsből. A bejövő routing és a
+ * címellenőrzés „hamarosan" (D15): a szerződés végpontjai jelölve látszanak (drift = 0), új
+ * végpontot a felület nem talál ki.
  */
 interface Operation {
     id: string;
@@ -25,6 +31,7 @@ interface Operation {
     summary: string;
     description: string;
     scope: string | null;
+    soon: boolean;
     parameters: Array<{ name: string; in: string; required: boolean; type: string; description: string }>;
     body: Array<{ name: string; type: string; required: boolean; description: string }>;
     example: unknown;
@@ -32,31 +39,59 @@ interface Operation {
     responses: Array<{ code: string; description: string }>;
 }
 
+interface Guide {
+    key: string;
+    soon: boolean;
+    title: string;
+    html: string;
+    text: string;
+}
+
 const props = defineProps<{
-    reference: { title: string; version: string; baseUrl: string; tags: Array<{ name: string; description: string }>; operations: Operation[] };
+    reference: {
+        title: string;
+        version: string;
+        baseUrl: string;
+        tags: Array<{ name: string; description: string }>;
+        operations: Operation[];
+        errorCodes: string[];
+        controls: Array<{ name: string; type: string; description: string }>;
+    };
+    guides: Guide[];
+    scopes: string[];
     webhook: { events: string[]; sample: Record<string, unknown>; toleranceSeconds: number };
     sandbox: { live: boolean; allowlistEnforced: boolean; testKeyPrefix: string };
 }>();
 
 const { t } = useI18n();
 
-/* D15: ezek a felületek „hamarosan" — a menüben jelezve, részletes referencia nélkül. */
-const SOON_PREFIXES = ['/routes', '/inbound', '/validate'];
-const isSoon = (operation: Operation): boolean => SOON_PREFIXES.some((prefix) => operation.path.startsWith(prefix));
+/* ---------- keresés ---------- */
 
-const available = computed(() => props.reference.operations.filter((operation) => !isSoon(operation)));
+const query = ref('');
+const needle = computed(() => query.value.trim().toLowerCase());
+const matches = (...fields: string[]): boolean => needle.value === '' || fields.some((field) => field.toLowerCase().includes(needle.value));
+
+const guideMatches = (guide: Guide): boolean => matches(guide.title, guide.text);
+const operationMatches = (operation: Operation): boolean => matches(operation.method, operation.path, operation.summary, operation.tag, operation.scope ?? '');
+
+/* ---------- navigáció ---------- */
+
+const mainGuides = computed(() => props.guides.filter((guide) => !guide.soon && guideMatches(guide)));
+const soonGuides = computed(() => props.guides.filter((guide) => guide.soon && guideMatches(guide)));
 
 const groups = computed(() => {
     const map = new Map<string, Operation[]>();
-    for (const operation of available.value) {
+
+    for (const operation of props.reference.operations.filter((item) => !item.soon && operationMatches(item))) {
         map.set(operation.tag, [...(map.get(operation.tag) ?? []), operation]);
     }
 
     return [...map.entries()].map(([tag, operations]) => ({ tag, operations }));
 });
 
-const GUIDES = ['auth', 'errors', 'sandbox', 'webhooks'] as const;
-type Guide = (typeof GUIDES)[number];
+const soonOperations = computed(() => props.reference.operations.filter((item) => item.soon && operationMatches(item)));
+
+const nothingFound = computed(() => !mainGuides.value.length && !soonGuides.value.length && !groups.value.length && !soonOperations.value.length);
 
 const selected = ref<string>('guide:auth');
 const language = ref<SampleLanguage>('curl');
@@ -64,13 +99,13 @@ const language = ref<SampleLanguage>('curl');
 const languages = [
     { value: 'curl', label: 'curl' },
     { value: 'php', label: 'PHP' },
-    { value: 'node', label: 'Node' },
+    { value: 'node', label: 'JavaScript' },
     { value: 'python', label: 'Python' },
 ];
 
 onMounted(() => {
     const hash = window.location.hash.slice(1);
-    if (hash && (hash.startsWith('guide:') || available.value.some((operation) => operation.id === hash))) selected.value = hash;
+    if (hash && (props.guides.some((guide) => `guide:${guide.key}` === hash) || props.reference.operations.some((operation) => operation.id === hash))) selected.value = hash;
 });
 
 function select(id: string): void {
@@ -78,8 +113,19 @@ function select(id: string): void {
     history.replaceState(null, '', `#${id}`);
 }
 
-const operation = computed(() => available.value.find((item) => item.id === selected.value) ?? null);
-const guide = computed<Guide | null>(() => (selected.value.startsWith('guide:') ? (selected.value.slice(6) as Guide) : null));
+/** A „hamarosan" útmutatók testid-je a régi menüpontoké (a meglévő tesztek ezt keresik). */
+const guideTestid = (guide: Guide): string => (guide.soon ? `docs-soon-${guide.key}` : `docs-guide-${guide.key}`);
+
+const operation = computed(() => props.reference.operations.find((item) => item.id === selected.value) ?? null);
+const guide = computed<Guide | null>(() => (selected.value.startsWith('guide:') ? (props.guides.find((item) => `guide:${item.key}` === selected.value) ?? null) : null));
+
+/** A „hamarosan" útmutató alatti végpontok: a bejövő a `/routes` + `/inbound`, a címellenőrzés a `/validate`. */
+const guideOperations = computed(() => {
+    const prefixes: Record<string, string[]> = { inbound: ['/routes', '/inbound'], validation: ['/validate'] };
+    const own = prefixes[guide.value?.key ?? ''] ?? [];
+
+    return props.reference.operations.filter((item) => own.some((prefix) => item.path.startsWith(prefix)));
+});
 
 const url = computed(() => (operation.value ? `${props.reference.baseUrl}${operation.value.path}` : ''));
 
@@ -94,8 +140,11 @@ const code = computed(() =>
         : '',
 );
 
+const authSample = computed(() => `curl ${props.reference.baseUrl}/events \\\n  -H "Authorization: Bearer $VENTMAIL_API_KEY"`);
 const verifyCode = computed(() => verifySample(language.value));
 const payloadJson = computed(() => JSON.stringify(props.webhook.sample, null, 2));
+
+/* ---------- táblák ---------- */
 
 type ParamRow = { name: string; where: string; type: string; description: string };
 
@@ -123,6 +172,32 @@ const paramRows = computed<ParamRow[]>(() => [
         description: plain(field.description),
     })),
 ]);
+
+type ScopeRow = { scope: string; endpoints: string };
+
+const scopeColumns = computed<VtColumn<ScopeRow>[]>(() => [
+    { key: 'scope', label: t('plat.docs.scope'), mono: true },
+    { key: 'endpoints', label: t('plat.docs.soonEndpoints') },
+]);
+
+/* A scope → végpontok párosítás a referenciából (a scope-ot a route adja). */
+const scopeRows = computed<ScopeRow[]>(() =>
+    props.scopes.map((scope) => {
+        const endpoints = props.reference.operations.filter((item) => item.scope === scope).map((item) => `${item.method} ${item.path}`);
+
+        return { scope, endpoints: endpoints.length ? endpoints.join(' · ') : scope === 'messages:send:marketing' ? 'POST /messages (o:channel=marketing)' : t('plat.docs.scopeNone') };
+    }),
+);
+
+type ControlRow = { name: string; type: string; description: string };
+
+const controlColumns = computed<VtColumn<ControlRow>[]>(() => [
+    { key: 'name', label: t('plat.docs.parameter'), mono: true },
+    { key: 'type', label: t('plat.infra.type'), mono: true },
+    { key: 'description', label: t('plat.docs.description') },
+]);
+
+const controlRows = computed<ControlRow[]>(() => props.reference.controls.map((control) => ({ ...control, description: plain(control.description) })));
 
 const schemaRows = computed(() => [
     { field: 'event', type: props.webhook.events.join(' | ') },
@@ -156,65 +231,103 @@ const methodTone = (method: string): 'success' | 'accent' | 'warning' | 'danger'
 
         <VmSplit>
             <template #side>
-                <nav class="vm-docnav" :aria-label="t('plat.docs.title')" data-testid="docs-nav">
-                    <p class="vm-docnav__group">{{ t('plat.docs.start') }}</p>
-                    <button
-                        v-for="item in GUIDES"
-                        :key="item"
-                        type="button"
-                        class="vm-docnav__item"
-                        :class="{ 'vm-docnav__item--active': selected === `guide:${item}` }"
-                        :aria-current="selected === `guide:${item}` ? 'page' : undefined"
-                        :data-testid="`docs-guide-${item}`"
-                        @click="select(`guide:${item}`)"
-                    >
-                        {{ t(`plat.docs.guide.${item}`) }}
-                    </button>
+                <nav class="vm-docnav" :aria-label="t('plat.docs.title')" data-testid="docs-nav" :data-operation-count="reference.operations.length">
+                    <VtInput v-model="query" type="search" :placeholder="t('plat.docs.search')" :aria-label="t('plat.docs.search')" data-testid="docs-search" />
+                    <p v-if="nothingFound" class="vm-muted" role="status" data-testid="docs-search-empty">{{ t('plat.docs.searchEmpty') }}</p>
+
+                    <template v-if="mainGuides.length">
+                        <p class="vm-docnav__group">{{ t('plat.docs.guides') }}</p>
+                        <VtNavItem
+                            v-for="item in mainGuides"
+                            :key="item.key"
+                            :label="item.title"
+                            :active="selected === `guide:${item.key}`"
+                            :data-testid="guideTestid(item)"
+                            @click="select(`guide:${item.key}`)"
+                        />
+                    </template>
 
                     <template v-for="group in groups" :key="group.tag">
                         <p class="vm-docnav__group">{{ group.tag }}</p>
-                        <button
+                        <VtNavItem
                             v-for="item in group.operations"
                             :key="item.id"
-                            type="button"
-                            class="vm-docnav__item"
-                            :class="{ 'vm-docnav__item--active': selected === item.id }"
-                            :aria-current="selected === item.id ? 'page' : undefined"
+                            :active="selected === item.id"
                             :data-testid="`docs-op-${item.id}`"
                             @click="select(item.id)"
                         >
-                            <span class="vm-docnav__method">{{ item.method }}</span>
-                            <span class="vm-truncate">{{ item.path }}</span>
-                        </button>
+                            <span class="vm-docnav__op"><span class="vm-docnav__method">{{ item.method }}</span><span class="vm-truncate">{{ item.path }}</span></span>
+                        </VtNavItem>
                     </template>
 
-                    <p class="vm-docnav__group">{{ t('plat.docs.later') }}</p>
-                    <span class="vm-docnav__item vm-docnav__item--soon" data-testid="docs-soon-inbound">
-                        {{ t('nav.inbound') }} <VtBadge tone="accent-2" size="sm">{{ t('nav.soon') }}</VtBadge>
-                    </span>
-                    <span class="vm-docnav__item vm-docnav__item--soon" data-testid="docs-soon-validation">
-                        {{ t('nav.validationApi') }} <VtBadge tone="accent-2" size="sm">{{ t('nav.soon') }}</VtBadge>
-                    </span>
+                    <!-- D15: „hamarosan" — a szerződés végpontjai jelölve (drift = 0), új végpont nincs. -->
+                    <template v-if="soonGuides.length || soonOperations.length">
+                        <p class="vm-docnav__group">{{ t('plat.docs.later') }}</p>
+                        <VtNavItem
+                            v-for="item in soonGuides"
+                            :key="item.key"
+                            class="vm-docnav__soon"
+                            :label="item.title"
+                            :active="selected === `guide:${item.key}`"
+                            :data-testid="guideTestid(item)"
+                            @click="select(`guide:${item.key}`)"
+                        >
+                            <template #trailing><VtBadge tone="accent-2" size="sm">{{ t('nav.soon') }}</VtBadge></template>
+                        </VtNavItem>
+                        <VtNavItem
+                            v-for="item in soonOperations"
+                            :key="item.id"
+                            class="vm-docnav__soon"
+                            :active="selected === item.id"
+                            :data-testid="`docs-op-${item.id}`"
+                            @click="select(item.id)"
+                        >
+                            <span class="vm-docnav__op"><span class="vm-docnav__method">{{ item.method }}</span><span class="vm-truncate">{{ item.path }}</span></span>
+                        </VtNavItem>
+                    </template>
                 </nav>
             </template>
 
-            <!-- ÚTMUTATÓK -->
+            <!-- ÚTMUTATÓK (docs/developer/guides.yaml) + a szerződésből generált kiegészítők -->
             <template v-if="guide">
-                <VmCard :data-testid="`docs-guide-body-${guide}`">
-                    <h2>{{ t(`plat.docs.guide.${guide}`) }}</h2>
-                    <p>{{ t(`plat.docs.guideText.${guide}`) }}</p>
+                <VmCard :data-testid="`docs-guide-body-${guide.key}`">
+                    <h2>
+                        {{ guide.title }}
+                        <VtBadge v-if="guide.soon" tone="accent-2" size="sm">{{ t('nav.soon') }}</VtBadge>
+                    </h2>
+                    <!-- A törzs a szerveren készült HTML: CommonMark, NYERS HTML nélkül (DeveloperGuides). -->
+                    <div class="vm-prose" data-testid="docs-guide-prose" v-html="guide.html" />
 
-                    <template v-if="guide === 'auth'">
-                        <pre class="vm-code" data-testid="docs-auth-sample">curl {{ reference.baseUrl }}/events \
-  -H "Authorization: Bearer $VENTMAIL_API_KEY"</pre>
-                        <p class="vm-muted">{{ t('plat.docs.authBasic') }}</p>
+                    <template v-if="guide.key === 'auth'">
+                        <div class="vm-codehead">
+                            <h3>curl</h3>
+                            <VmCopyButton :value="authSample" testid="docs-auth-copy" />
+                        </div>
+                        <pre class="vm-code" data-testid="docs-auth-sample">{{ authSample }}</pre>
+                        <VmTable :columns="scopeColumns" :rows="scopeRows" :caption="t('plat.docs.scopes')" data-testid="docs-scopes">
+                            <template #cell="{ column, value }">
+                                <span v-if="column.key === 'endpoints'" class="vm-desc">{{ value }}</span>
+                                <span v-else>{{ value }}</span>
+                            </template>
+                        </VmTable>
                     </template>
 
-                    <template v-if="guide === 'errors'">
-                        <pre class="vm-code">{ "error": { "code": "SUPPRESSED", "message": "…" } }</pre>
+                    <template v-if="guide.key === 'messages'">
+                        <VmTable :columns="controlColumns" :rows="controlRows" :caption="t('plat.docs.controls')" data-testid="docs-controls">
+                            <template #cell="{ column, value }">
+                                <span v-if="column.key === 'description'" class="vm-desc">{{ value }}</span>
+                                <span v-else>{{ value }}</span>
+                            </template>
+                        </VmTable>
                     </template>
 
-                    <template v-if="guide === 'sandbox'">
+                    <template v-if="guide.key === 'errors'">
+                        <ul class="vm-codes" :aria-label="t('plat.docs.errorCodes')" data-testid="docs-error-codes">
+                            <li v-for="item in reference.errorCodes" :key="item"><code>{{ item }}</code></li>
+                        </ul>
+                    </template>
+
+                    <template v-if="guide.key === 'sandbox'">
                         <dl class="vm-kv" data-testid="docs-sandbox">
                             <dt>{{ t('plat.infra.mode.live') }}</dt>
                             <dd>{{ sandbox.live ? t('plat.infra.on') : t('plat.infra.off') }}</dd>
@@ -223,22 +336,32 @@ const methodTone = (method: string): 'success' | 'accent' | 'warning' | 'danger'
                             <dt>{{ t('plat.docs.testKeys') }}</dt>
                             <dd class="vt-text-mono">{{ sandbox.testKeyPrefix }}…</dd>
                         </dl>
-                        <pre class="vm-code">{ "o:testmode": true }</pre>
                     </template>
 
-                    <template v-if="guide === 'webhooks'">
+                    <template v-if="guide.key === 'webhooks'">
                         <div class="vm-codehead">
                             <h3>{{ t('plat.docs.payload') }}</h3>
                             <VmCopyButton :value="payloadJson" testid="docs-payload-copy" />
                         </div>
                         <pre class="vm-code" data-testid="docs-webhook-payload">{{ payloadJson }}</pre>
                         <VmTable :columns="schemaColumns" :rows="schemaRows" :caption="t('plat.docs.schema')" data-testid="docs-webhook-schema" />
-                        <p class="vm-banner" role="note">{{ t('plat.docs.signatureNote', { seconds: webhook.toleranceSeconds }) }}</p>
                         <div class="vm-codehead">
                             <VtSegmented v-model="language" :options="languages" :label="t('plat.docs.language')" data-testid="docs-verify-language" />
                             <VmCopyButton :value="verifyCode" testid="docs-verify-copy" />
                         </div>
                         <pre class="vm-code" data-testid="docs-verify-code">{{ verifyCode }}</pre>
+                    </template>
+
+                    <template v-if="guideOperations.length">
+                        <h3>{{ t('plat.docs.soonEndpoints') }}</h3>
+                        <ul class="vm-responses" data-testid="docs-soon-operations">
+                            <li v-for="item in guideOperations" :key="item.id">
+                                <button type="button" class="vm-linkbtn" @click="select(item.id)">
+                                    <code>{{ item.method }} {{ item.path }}</code>
+                                </button>
+                                <span class="vm-muted">{{ item.summary }}</span>
+                            </li>
+                        </ul>
                     </template>
                 </VmCard>
             </template>
@@ -248,6 +371,7 @@ const methodTone = (method: string): 'success' | 'accent' | 'warning' | 'danger'
                 <VmCard data-testid="docs-operation">
                     <p class="vm-eyebrow">{{ operation.tag }}</p>
                     <h2>{{ operation.summary }}</h2>
+                    <p v-if="operation.soon" class="vm-banner vm-banner--warning" role="note" data-testid="docs-soon-banner">{{ t('plat.docs.soonBanner') }}</p>
                     <div class="vm-endpoint">
                         <VtBadge :tone="methodTone(operation.method)">{{ operation.method }}</VtBadge>
                         <code class="vm-truncate" data-testid="docs-url">{{ url }}</code>
@@ -301,29 +425,15 @@ const methodTone = (method: string): 'success' | 'accent' | 'warning' | 'danger'
     text-transform: uppercase;
 }
 
-.vm-docnav__item {
-    display: flex;
-    align-items: center;
-    gap: var(--vt-space-2);
-    width: 100%;
-    padding: var(--vt-space-2) var(--vt-space-3);
-    border: none;
-    border-radius: var(--vt-radius-md);
-    background: transparent;
-    color: var(--vt-text);
-    font: inherit;
-    text-align: left;
-    cursor: pointer;
-    min-width: 0;
-}
-
-.vm-docnav__item--active {
-    background: var(--vt-bg-elevated);
-}
-
-.vm-docnav__item--soon {
+.vm-docnav__soon {
     color: var(--vt-text-muted);
-    cursor: default;
+}
+
+.vm-docnav__op {
+    display: flex;
+    align-items: baseline;
+    gap: var(--vt-space-2);
+    min-width: 0;
 }
 
 .vm-docnav__method {
@@ -401,5 +511,99 @@ const methodTone = (method: string): 'success' | 'accent' | 'warning' | 'danger'
 
 .vm-kv dd {
     margin: 0;
+}
+
+/* A prózai útmutató (szerveren készült CommonMark HTML) — tokenekből. */
+.vm-prose {
+    display: flex;
+    flex-direction: column;
+    gap: var(--vt-space-3);
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.vm-prose :deep(p),
+.vm-prose :deep(ul),
+.vm-prose :deep(ol),
+.vm-prose :deep(pre),
+.vm-prose :deep(table) {
+    margin: 0;
+}
+
+.vm-prose :deep(ul),
+.vm-prose :deep(ol) {
+    display: flex;
+    flex-direction: column;
+    gap: var(--vt-space-1);
+    padding-left: var(--vt-space-6);
+}
+
+.vm-prose :deep(code) {
+    font-family: var(--vt-font-mono);
+    font-size: var(--vt-fs-body-sm);
+}
+
+.vm-prose :deep(pre) {
+    padding: var(--vt-space-4);
+    border: thin solid var(--vt-border);
+    border-radius: var(--vt-radius-md);
+    background: var(--vt-bg);
+    overflow-x: auto;
+    overflow-wrap: normal;
+}
+
+.vm-prose :deep(table) {
+    display: block;
+    max-inline-size: 100%;
+    overflow-x: auto;
+    border-collapse: collapse;
+}
+
+.vm-prose :deep(th),
+.vm-prose :deep(td) {
+    padding: var(--vt-space-2) var(--vt-space-3);
+    border-block-end: thin solid var(--vt-border);
+    text-align: start;
+    vertical-align: top;
+}
+
+/* A kulcs-oszlop (beállítás / keret neve) nem törik szó közben. */
+.vm-prose :deep(td:first-child) {
+    overflow-wrap: normal;
+    white-space: nowrap;
+}
+
+.vm-prose :deep(th) {
+    color: var(--vt-text-muted);
+    font-size: var(--vt-fs-caption);
+    letter-spacing: var(--vt-tracking-wider);
+    text-transform: uppercase;
+}
+
+.vm-codes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--vt-space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.vm-codes code {
+    display: inline-block;
+    padding: var(--vt-space-1) var(--vt-space-2);
+    border: thin solid var(--vt-border);
+    border-radius: var(--vt-radius-sm);
+    font-family: var(--vt-font-mono);
+    font-size: var(--vt-fs-caption);
+}
+
+.vm-linkbtn {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--vt-accent);
+    font: inherit;
+    cursor: pointer;
 }
 </style>

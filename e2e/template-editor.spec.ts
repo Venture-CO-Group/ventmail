@@ -106,7 +106,9 @@ test('a szöveg HELYBEN szerkeszthető (félkövér, merge-tag), és a mentés u
     await page.getByTestId('rich-bold').click();
 
     // Merge-tag a saját szintaxisunkkal, alapértékkel.
-    await page.keyboard.press('End');
+    // A kijelölés VÉGÉRE: az `ArrowRight` minden platformon összecsukja a kijelölést (macOS-en az
+    // `End` csak görget, a kurzort nem mozdítja — a merge-tag akkor a teljes szöveget cserélné).
+    await page.keyboard.press('ArrowRight');
     await page.getByTestId('rich-merge').click();
     await page.getByTestId('merge-tag-contact.first_name').click();
 

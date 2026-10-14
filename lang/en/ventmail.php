@@ -91,6 +91,8 @@ return [
         'saved' => 'Template saved.',
     ],
     'campaigns' => [
+        'contentLocked' => 'New content can only be created for a draft campaign — unschedule a scheduled campaign first.',
+        'templateNotAssignable' => 'This template is another campaign\'s own content and cannot be attached here.',
         'saved' => 'Campaign saved.',
         'schedule' => 'Campaign scheduled.',
         'unschedule' => 'Schedule removed.',

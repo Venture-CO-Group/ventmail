@@ -52,15 +52,35 @@ it('minden meglévő menüpont megmarad a testid-jával, képesség-szűréssel'
         ->and($nav)->toMatch("/testid: 'nav-validation'.*soon: true/s");
 });
 
-it('a legördülők ARIA-mintát követnek, Esc zár, a fókusz visszatér', function () {
-    $dropdown = shellSource('Components/Shell/VmDropdown.vue');
+it('a legördülők a @venture/ui VtDropdown-ra épülnek (ARIA, Esc, fókusz-visszatérés a könyvtárban), lokális pótlás nincs', function () {
+    // D315: a lokális legördülő kivezetve — az ARIA-mintát (aria-expanded / aria-controls /
+    // aria-haspopup, role="menu"), az Esc-zárást és a fókusz-visszatérést a könyvtár adja (a
+    // venture-ui saját tesztjei + e2e/ui-library-dropdown.spec.ts, e2e/shell-nav.spec.ts).
+    expect(file_exists(resource_path('js/Components/Shell/VmDropdown.vue')))->toBeFalse();
 
-    expect($dropdown)->toContain(':aria-expanded')
-        ->and($dropdown)->toContain(':aria-controls')
-        ->and($dropdown)->toContain("event.key === 'Escape'")
-        ->and($dropdown)->toContain('trigger.value?.focus()')
-        ->and($dropdown)->toContain('role="menu"') // menü-minta (avatar, nyelv)
-        ->and($dropdown)->toContain("'ArrowDown'");
+    $menus = [
+        'Layouts/AppLayout.vue' => 'disclosure',
+        'Components/Shell/VmWorkspaceSwitcher.vue' => 'disclosure',
+        'Components/Shell/VmLocalePicker.vue' => 'menu',
+        'Components/Shell/VmUserMenu.vue' => 'menu',
+        'Components/Charts/VmChartExportMenu.vue' => 'menu',
+    ];
+
+    foreach ($menus as $path => $mode) {
+        $source = shellSource($path);
+
+        expect($source)->toContain('<VtDropdown')
+            // A könyvtár trigger-attribútumai (aria-expanded, aria-controls, onClick) a saját gombon.
+            ->and($source)->toContain('v-bind="trigger"')
+            // Egyszerre egy nyitott: vezérelt mód.
+            ->and($source)->toMatch('/:open="/');
+
+        if ($mode === 'menu') {
+            expect($source)->toContain('mode="menu"')->and($source)->toContain('role="menuitem');
+        } else {
+            expect($source)->not->toContain('mode="menu"');
+        }
+    }
 });
 
 it('a localStorage minden elérése try/catch-ben van, és a töréspont nem beégetett', function () {

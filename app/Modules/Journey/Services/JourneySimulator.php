@@ -165,7 +165,7 @@ final class JourneySimulator
     private function send(array $config, string $email): array
     {
         $uuid = (string) ($config['template'] ?? '');
-        $template = Str::isUuid($uuid) ? Template::query()->where('uuid', $uuid)->first() : null;
+        $template = Str::isUuid($uuid) ? Template::query()->library()->where('uuid', $uuid)->first() : null;
 
         if ($template === null) {
             return ['blocked', 'out', 'template_missing'];

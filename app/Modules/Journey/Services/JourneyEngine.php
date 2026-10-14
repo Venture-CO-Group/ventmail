@@ -894,7 +894,7 @@ final class JourneyEngine
         $uuid = (string) ($config['template'] ?? '');
 
         $template = Str::isUuid($uuid)
-            ? Template::query()->where('uuid', $uuid)->first()
+            ? Template::query()->library()->where('uuid', $uuid)->first()
             : null;
 
         if ($template === null) {

@@ -465,6 +465,8 @@ test('a mérő megtalálja az átfedést, a túlcsordulást és az oldal-görget
 
 for (const width of WIDTHS) {
     test(`nincs átfedés és túlcsordulás — ${width}px`, async ({ page }) => {
+        // ~40 képernyő egy tesztben: helyben ~29 s volt, a 30 s-os alapkeret határán (UI-polírozás).
+        test.setTimeout(120_000);
         await page.setViewportSize({ width, height: 900 });
 
         const failures: string[] = [];

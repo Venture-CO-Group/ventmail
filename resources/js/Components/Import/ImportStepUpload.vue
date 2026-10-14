@@ -1,15 +1,15 @@
 <script setup lang="ts">
 import { router } from '@inertiajs/vue3';
-import { VtButton, VtField, VtInput, VtTabs, VtTextarea, type VtTab } from '@venture/ui';
+import { VtButton, VtField, VtFileUpload, VtInput, VtTabs, VtTextarea, type VtTab } from '@venture/ui';
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import VmDropzone from '../Form/VmDropzone.vue';
 import VmForm from '../Form/VmForm.vue';
 import VmFormActions from '../Form/VmFormActions.vue';
 import VmFormRow from '../Form/VmFormRow.vue';
 import VmFormSection from '../Form/VmFormSection.vue';
 import type { ImportErrors, ImportState } from './types';
 import { useFormat } from '../../composables/useFormat';
+import { uploadLabels } from '../../composables/uploadLabels';
 
 /**
  * 1. LÉPÉS — feltöltés vagy bevitel: kézi egyedi, beillesztett lista, CSV, XLSX.
@@ -52,7 +52,7 @@ const delimiterLabel = computed(() => {
     return t(`audience.import.delimiter.${map[profile.value?.delimiter ?? ','] ?? 'comma'}`);
 });
 
-function submit(payload: Record<string, string | File>, forceFormData = false): void {
+function submit(payload: Record<string, string | File>, forceFormData = false, onCreated?: () => void): void {
     busy.value = true;
 
     router.post('/audience/import', payload, {
@@ -61,25 +61,29 @@ function submit(payload: Record<string, string | File>, forceFormData = false): 
         onSuccess: () => {
             emit('errors', {});
             emit('created');
+            onCreated?.();
         },
         onError: (errors) => emit('errors', errors),
         onFinish: () => (busy.value = false),
     });
 }
 
-const clientError = ref<string | null>(null);
+/*
+ | FÁJLVÁLASZTÁS — @venture/ui `VtFileUpload` (0.3.0, D317): rejtett natív mező, stílusos gomb,
+ | a fájlnév egy blokkban, húzás-ejtés, típus- és méret-ellenőrzés a kiválasztáskor. A méret-
+ | korlát a SZERVER konfigurációja (`maxMegabytes`); a szerver a végső ellenőrző. A választás
+ | rögtön feltölt (a régi folyam), siker után a mező `null`-ra áll.
+ */
+const file = ref<File | null>(null);
+const csvLabels = computed(() => uploadLabels(t, 'CSV, TXT', props.maxMegabytes * 1048576));
+const xlsxLabels = computed(() => uploadLabels(t, 'XLSX', props.maxMegabytes * 1048576));
 
-function uploadFile(file: File): void {
-    // A szerver a végső ellenőrző; a böngésző előre szól, hogy ne egy fél perces feltöltés
-    // után derüljön ki, hogy a fájl túl nagy.
-    if (file.size > props.maxMegabytes * 1048576) {
-        clientError.value = t('audience.import.tooLarge', { mb: props.maxMegabytes });
+function uploadFile(chosen: File | null): void {
+    file.value = chosen;
 
-        return;
-    }
+    if (!chosen) return;
 
-    clientError.value = null;
-    submit({ mode: 'file', file }, true);
+    submit({ mode: 'file', file: chosen }, true, () => (file.value = null));
 }
 
 function replace(): void {
@@ -175,25 +179,33 @@ function sizeLabel(bytes: number | null): string {
                 </template>
 
                 <template #csv>
-                    <VmDropzone
-                        :title="t('audience.import.drop.title')"
-                        :hint="t('audience.import.drop.hint', { rows: n(maxRows), mb: maxMegabytes })"
-                        accept=".csv,.txt,text/csv,text/plain"
-                        :input-label="t('audience.import.tab.csv')"
-                        @select="uploadFile"
-                    />
-                    <p v-if="errors.file || clientError" class="vm-banner vm-banner--danger" role="alert" data-testid="import-file-error">{{ errors.file ?? clientError }}</p>
+                    <VtField :label="t('audience.import.tab.csv')">
+                        <VtFileUpload
+                            :model-value="file"
+                            accept=".csv,.txt"
+                            v-bind="csvLabels"
+                            :hint="t('audience.import.drop.hint', { rows: n(maxRows), mb: maxMegabytes })"
+                            :disabled="busy"
+                            data-testid="import-upload"
+                            @update:model-value="uploadFile"
+                        />
+                    </VtField>
+                    <p v-if="errors.file" class="vm-banner vm-banner--danger" role="alert" data-testid="import-file-error">{{ errors.file }}</p>
                 </template>
 
                 <template #xlsx>
-                    <VmDropzone
-                        :title="t('audience.import.drop.title')"
-                        :hint="t('audience.import.drop.hint', { rows: n(maxRows), mb: maxMegabytes })"
-                        accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                        :input-label="t('audience.import.tab.xlsx')"
-                        @select="uploadFile"
-                    />
-                    <p v-if="errors.file || clientError" class="vm-banner vm-banner--danger" role="alert" data-testid="import-file-error">{{ errors.file ?? clientError }}</p>
+                    <VtField :label="t('audience.import.tab.xlsx')">
+                        <VtFileUpload
+                            :model-value="file"
+                            accept=".xlsx"
+                            v-bind="xlsxLabels"
+                            :hint="t('audience.import.drop.hint', { rows: n(maxRows), mb: maxMegabytes })"
+                            :disabled="busy"
+                            data-testid="import-upload"
+                            @update:model-value="uploadFile"
+                        />
+                    </VtField>
+                    <p v-if="errors.file" class="vm-banner vm-banner--danger" role="alert" data-testid="import-file-error">{{ errors.file }}</p>
                 </template>
             </VtTabs>
         </template>

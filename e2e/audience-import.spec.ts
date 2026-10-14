@@ -183,7 +183,7 @@ test('CSV (Windows-1250, pontosvessző): egyéni mező helyben, hibariport, kép
     await openWizard(page);
 
     await page.getByRole('tab').nth(2).click();
-    await page.getByTestId('import-file-input').setInputFiles(file);
+    await page.getByTestId('import-upload').locator('input[type="file"]').setInputFiles(file);
 
     // A felmérés a háttérben fut: az „Elemzés…” állapot után az oszlopok lépés következik.
     await expect(page.getByTestId('import-step-columns')).toBeVisible({ timeout: 60_000 });
@@ -250,7 +250,7 @@ test('XLSX: munkalap-választás, majd ugyanaz a folyamat', async ({ page }) => 
     await openWizard(page);
 
     await page.getByRole('tab').nth(3).click();
-    await page.getByTestId('import-file-input').setInputFiles(file);
+    await page.getByTestId('import-upload').locator('input[type="file"]').setInputFiles(file);
 
     await expect(page.getByTestId('import-step-columns')).toBeVisible({ timeout: 60_000 });
 
@@ -292,7 +292,7 @@ test('300 000 soros CSV háttérben, folyamatjelzővel', async ({ page }) => {
     await openWizard(page);
 
     await page.getByRole('tab').nth(2).click();
-    await page.getByTestId('import-file-input').setInputFiles(file);
+    await page.getByTestId('import-upload').locator('input[type="file"]').setInputFiles(file);
 
     await acceptMapping(page);
     await chooseBasis(page, 'verified_consent');

@@ -21,11 +21,18 @@ use Symfony\Component\Yaml\Yaml;
  */
 final class ApiReference
 {
+    /**
+     * „HAMAROSAN" felületek (D15): a végpontjaik a szerződés részei, a referenciában is ott
+     * vannak (drift = 0), de jelölve — a funkció még nem általánosan elérhető.
+     */
+    public const SOON_PREFIXES = ['/routes', '/inbound', '/validate'];
+
     /** @return array{title: string, version: string, baseUrl: string, tags: list<array{name: string, description: string}>, operations: list<array<string, mixed>>} */
     public function build(): array
     {
         $path = base_path('docs/openapi/ventmail-v1.yaml');
-        $key = 'api-reference:'.(string) @filemtime($path);
+        // A `v2` a feldolgozott ALAK verziója (UI-polírozás · 9: soon / errorCodes / controls).
+        $key = 'api-reference:v2:'.(string) @filemtime($path);
 
         return Cache::remember($key, 3600, fn (): array => $this->parse(Yaml::parseFile($path)));
     }
@@ -52,6 +59,7 @@ final class ApiReference
                     'summary' => (string) ($operation['summary'] ?? ''),
                     'description' => trim((string) ($operation['description'] ?? '')),
                     'scope' => $scopes[strtoupper((string) $method).' '.$path] ?? null,
+                    'soon' => self::isSoon((string) $path),
                     'parameters' => $this->parameters($spec, (array) ($operation['parameters'] ?? [])),
                     'body' => $body['fields'],
                     'example' => $body['example'],
@@ -74,7 +82,52 @@ final class ApiReference
                 array_filter((array) ($spec['tags'] ?? []), 'is_array'),
             )),
             'operations' => $operations,
+            // A STABIL hibakódok — a szerződés `ErrorCode` enumjából (UI-polírozás · 9).
+            'errorCodes' => array_values(array_map('strval', (array) data_get($spec, 'components.schemas.ErrorCode.enum', []))),
+            // A Mailgun-paritású VEZÉRLŐK (`o:` / `t:` / `recipient-variables`, és a `h:` / `v:` minta)
+            // a strukturált küldés kérés-sémájából.
+            'controls' => $this->controls($spec),
         ];
+    }
+
+    public static function isSoon(string $path): bool
+    {
+        foreach (self::SOON_PREFIXES as $prefix) {
+            if (str_starts_with($path, $prefix)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param  array<string, mixed>  $spec
+     * @return list<array{name: string, type: string, description: string}>
+     */
+    private function controls(array $spec): array
+    {
+        $schema = $this->flatten($spec, (array) data_get($spec, 'components.schemas.SendMessageRequest', []));
+        $out = [];
+
+        foreach ((array) ($schema['properties'] ?? []) as $name => $property) {
+            $name = (string) $name;
+
+            if (! preg_match('/^(o:|t:|recipient-variables$)/', $name)) {
+                continue;
+            }
+
+            $property = $this->flatten($spec, (array) $property);
+            $out[] = ['name' => $name, 'type' => $this->typeOf($spec, $property), 'description' => trim((string) ($property['description'] ?? ''))];
+        }
+
+        $extra = trim((string) data_get($schema, 'additionalProperties.description', ''));
+
+        if ($extra !== '') {
+            $out[] = ['name' => 'h:X-* · v:*', 'type' => 'string', 'description' => $extra];
+        }
+
+        return $out;
     }
 
     /** `METHOD /path` → az `api.scope:*` middleware scope-ja. @return array<string, string> */

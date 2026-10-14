@@ -563,6 +563,8 @@ final class JourneyGraphValidator
                         ->whereIn('uuid', array_keys($wanted[$kind]))
                         // A KIKAPCSOLT webhook-végpont nem cél: a kézbesítés úgyis elmaradna.
                         ->when($kind === 'endpoint', fn ($query) => $query->where('active', true))
+                        // D310: a kampány SAJÁT (helyben készült) tartalma a kampányon kívül nem használható.
+                        ->when($kind === 'template', fn ($query) => $query->whereNull('owner_campaign_id'))
                         ->get()
                         // A végpontnak a `journey.step` eseményre FEL KELL iratkoznia (review SEC-S2).
                         ->filter(fn ($row) => $kind !== 'endpoint' || $row->listensTo('journey.step'))

@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Modules\Campaign\Http\Controllers\CampaignContentController;
 use App\Modules\Campaign\Http\Controllers\CampaignUiController;
 use Illuminate\Support\Facades\Route;
 
@@ -18,6 +19,9 @@ Route::get('/campaigns/targets/{kind}', [CampaignUiController::class, 'targets']
     ->whereIn('kind', ['lists', 'segments'])->name('campaigns.targets');
 Route::get('/campaigns/{uuid}', [CampaignUiController::class, 'show'])->name('campaigns.show');
 Route::put('/campaigns/{uuid}', [CampaignUiController::class, 'update'])->name('campaigns.update');
+// UI-polírozás · 6: a kampány tartalma HELYBEN (új saját tartalom + a szerkesztő kampány-kontextusban).
+Route::post('/campaigns/{uuid}/content', [CampaignContentController::class, 'store'])->name('campaigns.content.store');
+Route::get('/campaigns/{uuid}/content', [CampaignContentController::class, 'show'])->name('campaigns.content');
 Route::post('/campaigns/{uuid}/variants', [CampaignUiController::class, 'addVariant'])->name('campaigns.variants.store');
 Route::delete('/campaigns/{uuid}/variants/{variant}', [CampaignUiController::class, 'deleteVariant'])
     ->where('variant', '[0-9a-fA-F\-]{36}')->name('campaigns.variants.destroy');

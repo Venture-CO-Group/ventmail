@@ -448,7 +448,6 @@
                 "hint": "Una dirección por línea, o separadas por comas o punto y coma."
             },
             "drop": {
-                "title": "Suelta el archivo aquí o elígelo",
                 "hint": "CSV o XLSX · hasta {rows} filas · como máximo {mb} MB"
             },
             "fact": {
@@ -666,7 +665,6 @@
                 "source": "Fuente",
                 "status": "Estado"
             },
-            "tooLarge": "El archivo es demasiado grande (como máximo {mb} MB).",
             "inspecting": {
                 "title": "Analizando el archivo…",
                 "hint": "El archivo se analiza en segundo plano — las columnas aparecen en unos segundos. No hace falta recargar la página.",
@@ -1711,6 +1709,16 @@
         "locked": {
             "title": "Solo lectura.",
             "copy": "Hacer una copia"
+        },
+        "panels": {
+            "collapsePalette": "Contraer panel",
+            "expandPalette": "Expandir panel",
+            "collapseProps": "Contraer ajustes",
+            "expandProps": "Ajustes"
+        },
+        "campaign": {
+            "context": "Contenido de la campaña",
+            "back": "Volver a la campaña"
         }
     },
     "library": {
@@ -2027,7 +2035,18 @@
             "sent": "Enviado",
             "failed": "Error",
             "skipped": "Omitido (puerta)"
-        }
+        },
+        "contentMode": {
+            "legend": "¿De dónde viene el contenido?",
+            "new": "Crear una plantilla nueva",
+            "existing": "Cargar una plantilla existente",
+            "newHint": "Creas el contenido aquí mismo, en la campaña. Solo pasa a la biblioteca si también lo guardas como plantilla en el editor.",
+            "create": "Crear contenido",
+            "edit": "Editar contenido",
+            "libraryEmpty": "La biblioteca de plantillas aún está vacía: crea el contenido aquí.",
+            "draftOnly": "El origen del contenido solo se puede cambiar con la campaña en borrador. Primero desprograma la campaña."
+        },
+        "ownContent": "Contenido propio"
     },
     "journeyCanvas": {
         "top": {
@@ -2503,24 +2522,10 @@
             "lead": "/v1 estable: sin cambios incompatibles. La sandbox funciona con la lista seed: ningún correo llega a destinatarios reales.",
             "start": "Primeros pasos",
             "later": "Más adelante",
-            "guide": {
-                "auth": "Autenticación",
-                "errors": "Errores y códigos",
-                "sandbox": "Sandbox",
-                "webhooks": "Payloads de webhook"
-            },
-            "guideText": {
-                "auth": "Cada solicitud se autentica con una clave API en la cabecera Authorization: Bearer. Las claves están vinculadas al espacio de trabajo, sus scopes deciden qué pueden llamar y se puede definir una lista de IP permitidas.",
-                "errors": "Los errores tienen una forma única: error.code (estable, legible por máquina) y error.message. Un rechazo del PreSendGate devuelve 422 con el motivo estructurado.",
-                "sandbox": "Para probar usa una clave de prueba o el control o:testmode: el mensaje pasa el PreSendGate y aparece en el registro, pero no se entrega. Mientras el envío no esté activo, solo los destinatarios de la lista seed reciben correo real.",
-                "webhooks": "Cada evento llega como un POST JSON firmado a tu endpoint. Verifica la firma y la marca de tiempo, y procesa cada id X-VentMail-Delivery una sola vez."
-            },
-            "authBasic": "Compatibilidad: HTTP Basic también funciona con el usuario \"api\" y la clave como contraseña.",
             "testKeys": "Prefijo de claves de prueba",
             "payload": "Payload de webhook",
             "schema": "Esquema",
             "field": "Campo",
-            "signatureNote": "Verificación: compara HMAC-SHA256(secreto, marca de tiempo + \".\" + cuerpo) con X-VentMail-Signature; rechaza marcas de más de {seconds} segundos. Durante una rotación, la firma con el secreto anterior llega en X-VentMail-Signature-Previous.",
             "language": "Lenguaje",
             "scope": "Scope necesario",
             "parameters": "Parámetros",
@@ -2528,7 +2533,17 @@
             "in": "Ubicación",
             "description": "Descripción",
             "responses": "Respuestas",
-            "testField": "true — solo en eventos de prueba"
+            "testField": "true — solo en eventos de prueba",
+            "guides": "Guías",
+            "search": "Buscar en la documentación",
+            "searchEmpty": "Sin resultados.",
+            "scopes": "Scopes y sus endpoints",
+            "scopeNone": "sin endpoint /v1 — permiso de la interfaz",
+            "controls": "Parámetros de control (del contrato)",
+            "errorCodes": "Códigos de error estables",
+            "soonBanner": "Próximamente: el endpoint forma parte del contrato, pero la función aún no está disponible para todos; no construyas todavía integraciones en producción.",
+            "soonEndpoints": "Endpoints del contrato",
+            "source": "Fuente"
         }
     },
     "branding": {
@@ -2555,7 +2570,8 @@
         "footerHint": "El número de página se añade automáticamente a la derecha del pie.",
         "company": "Nombre de la empresa en la portada",
         "preview": "Vista previa en directo — portada",
-        "previewSample": "Campaña de ejemplo"
+        "previewSample": "Campaña de ejemplo",
+        "uploading": "Subiendo…"
     },
     "pager": {
         "label": "Paginación",
@@ -2704,5 +2720,13 @@
         "yes": "sí",
         "no": "no",
         "nullSender": "(rebote – remitente vacío)"
+    },
+    "upload": {
+        "choose": "Elegir archivo",
+        "none": "Ningún archivo elegido",
+        "drop": "o arrástralo aquí",
+        "clear": "Quitar",
+        "typeError": "Este tipo de archivo no está permitido ({types}).",
+        "sizeError": "El archivo es demasiado grande (como máximo {mb} MB)."
     }
 }

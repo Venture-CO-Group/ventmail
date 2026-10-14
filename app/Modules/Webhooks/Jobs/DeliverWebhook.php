@@ -35,7 +35,8 @@ final class DeliverWebhook implements ShouldQueue
     /** A queue-worker nem próbálkozik: az újrapróbálást MI ütemezzük, láthatóan. */
     public int $tries = 1;
 
-    private const MAX_ATTEMPTS = 6;
+    /** Publikus: a fejlesztői doksi (`DeveloperGuides`) is ebből írja le az újrapróbálást. */
+    public const MAX_ATTEMPTS = 6;
 
     public function __construct(
         private readonly int $workspaceId,
@@ -224,7 +225,7 @@ final class DeliverWebhook implements ShouldQueue
             'attempt' => $attempt,
             'response_code' => $code,
             'response_excerpt' => $excerpt,
-            'next_attempt_at' => $dead ? null : now()->addSeconds($this->backoffSeconds($attempt)),
+            'next_attempt_at' => $dead ? null : now()->addSeconds(self::backoffSeconds($attempt)),
             'dead_lettered_at' => $dead ? now() : null,
         ])->save();
 
@@ -270,7 +271,8 @@ final class DeliverWebhook implements ShouldQueue
     }
 
     /** 1 perc → 2 → 4 → 8 → 16 perc; a hatodik után dead-letter. */
-    private function backoffSeconds(int $attempt): int
+    /** A visszalépés másodpercben az `attempt`-edik sikertelen kísérlet után (publikus: doksi). */
+    public static function backoffSeconds(int $attempt): int
     {
         return 60 * (2 ** max(0, $attempt - 1));
     }

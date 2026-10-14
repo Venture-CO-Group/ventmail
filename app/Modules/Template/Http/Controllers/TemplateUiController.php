@@ -18,6 +18,7 @@ use App\Modules\Template\Services\TemplatePublishLocked;
 use App\Modules\Template\Services\TemplateTestSender;
 use App\Modules\Template\Services\TemplateUsage;
 use App\Modules\Template\Services\TemplateVersions;
+use App\Modules\Tenancy\Models\Workspace;
 use App\Modules\Tenancy\Services\WorkspaceContext;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -50,7 +51,8 @@ final class TemplateUiController
         Gate::authorize('template.create');
 
         return Inertia::render('Template/Index', [
-            'templates' => Template::query()->withMax('versions', 'number')->orderByDesc('updated_at')->get()->map(fn (Template $template) => [
+            // CSAK az önálló sablonok: a kampány helyben készült tartalma nem könyvtári (UI-polírozás · 6).
+            'templates' => Template::query()->library()->withMax('versions', 'number')->orderByDesc('updated_at')->get()->map(fn (Template $template) => [
                 'uuid' => (string) $template->uuid,
                 'name' => (string) $template->name,
                 'subject' => (string) $template->subject,
@@ -114,7 +116,9 @@ final class TemplateUiController
             $content = StarterTemplates::build($validated['starter'], $workspace);
         } elseif (($validated['from_template'] ?? null) !== null) {
             // A SAJÁT sablon másolata — a global scope miatt idegen workspace sablonja 404.
-            $source = Template::query()->where('uuid', $validated['from_template'])->firstOrFail();
+            // D313: csak KÖNYVTÁRI sablon másolható így — más kampány (vázlat) tartalmának
+            // másolása nem támogatott út.
+            $source = Template::query()->library()->where('uuid', $validated['from_template'])->firstOrFail();
             $marketing = (bool) $source->marketing;
             $content = [
                 'subject' => (string) $source->subject,
@@ -123,26 +127,7 @@ final class TemplateUiController
                 'styles' => $source->styles,
             ];
         } else {
-            /*
-             | AZ ÜRES SABLON SEM ÜRES — a marketing sablon kötelező láblécet kap (postai cím,
-             | leiratkozó, beállítások), különben az első mentés elutasítana. Aki nem
-             | marketinget ír, kiveszi a jelölést, és akkor a lábléc sem kötelező.
-             */
-            $content = [
-                'subject' => '',
-                'preheader' => null,
-                'blocks' => $marketing ? [
-                    ['type' => 'section', 'children' => [['type' => 'column', 'children' => [
-                        ['type' => 'text', 'attrs' => ['content' => __('editor.defaults.paragraph')]],
-                    ]]]],
-                    ['type' => 'section', 'attrs' => ['background' => '#f1f5f9'], 'children' => [['type' => 'column', 'children' => [
-                        ['type' => 'footer', 'attrs' => EditorCatalog::footerDefaults($workspace)],
-                    ]]]],
-                ] : [['type' => 'section', 'children' => [['type' => 'column', 'children' => [
-                    ['type' => 'text', 'attrs' => ['content' => __('editor.defaults.paragraph')]],
-                ]]]]],
-                'styles' => null,
-            ];
+            $content = self::blankContent($workspace, $marketing);
         }
 
         $saver->assertValid($content['blocks'], $content['styles'], $marketing);
@@ -232,6 +217,33 @@ final class TemplateUiController
         });
 
         return redirect()->route('templates.index')->with('success', __('ventmail.editor.deleted'));
+    }
+
+    /**
+     * AZ ÜRES SABLON SEM ÜRES — a marketing sablon kötelező láblécet kap (postai cím,
+     * leiratkozó, beállítások), különben az első mentés elutasítana. Aki nem marketinget ír,
+     * kiveszi a jelölést: akkor cégnév + cím láblécet kap, leiratkozó nélkül (D303). A kampány
+     * helyben készülő tartalma (UI-polírozás · 6) is ezzel indul.
+     *
+     * @return array{subject: string, preheader: ?string, blocks: list<array<string, mixed>>, styles: null}
+     */
+    public static function blankContent(Workspace $workspace, bool $marketing): array
+    {
+        $paragraph = ['type' => 'section', 'children' => [['type' => 'column', 'children' => [
+            ['type' => 'text', 'attrs' => ['content' => __('editor.defaults.paragraph')]],
+        ]]]];
+
+        return [
+            'subject' => '',
+            'preheader' => null,
+            'blocks' => $marketing ? [
+                $paragraph,
+                ['type' => 'section', 'attrs' => ['background' => '#f1f5f9'], 'children' => [['type' => 'column', 'children' => [
+                    ['type' => 'footer', 'attrs' => EditorCatalog::footerDefaults($workspace)],
+                ]]]],
+            ] : [$paragraph, EditorCatalog::transactionalFooter($workspace)],
+            'styles' => null,
+        ];
     }
 
     /** @return array<string, mixed> */

@@ -47,12 +47,12 @@
     flex: 0 0 auto;
 }
 
-.vm-topbar__row > .vm-dd {
+.vm-topbar__row > .vm-switcher-dd {
     flex: 0 1 auto;
     min-width: 0;
 }
 
-.vm-topbar__row > .vm-dd > .vm-chip {
+.vm-topbar__row > .vm-switcher-dd > .vm-chip {
     min-width: 0;
     max-inline-size: 100%;
 }
@@ -87,112 +87,31 @@
 
 /* ------------------------------------------------------------ legördülő */
 
-.vm-dd {
-    position: relative;
-    display: inline-flex;
-}
-
-.vm-dd__trigger {
-    font: inherit;
-    cursor: pointer;
-}
-
-.vm-dd__trigger:focus-visible,
-.vm-toplink:focus-visible,
-.vm-navitem:focus-visible,
-.vm-menuitem:focus-visible,
+/*
+ | A LEGÖRDÜLŐ a @venture/ui `VtDropdown` (0.3.0, D315): a panel (teleport, ütközés-figyelés,
+ | egységes belső térköz), a menüpontok (`VtDropdownItem`) és a nav-pontok (`VtNavItem`) stílusa
+ | a könyvtáré. Itt csak a TRIGGEREK és a panel-TARTALMAK (szélesség, fej, kereső) állnak.
+ */
 .vm-switcher__row:focus-visible,
 .vm-switcher__new:focus-visible,
 .vm-mobilenav__top:focus-visible,
 .vm-mobilenav__head:focus-visible,
-.vm-langrow__btn:focus-visible {
+.vm-langrow__btn:focus-visible,
+.vm-chip:focus-visible,
+.vm-avatarbtn:focus-visible {
     outline: thin solid transparent; /* kényszerített színeknél (High Contrast) a fókusz így is látszik */
     box-shadow: 0 0 0 var(--vt-space-1) var(--vt-ring);
 }
 
-.vm-dd__panel {
-    position: absolute;
-    inset-block-start: calc(100% + var(--vt-space-2));
-    z-index: var(--vt-z-dropdown);
-    translate: var(--vm-dd-shift, 0) 0;
-    box-sizing: border-box;
-    padding: var(--vt-space-3);
-    border-radius: var(--vt-radius-xl);
-    max-inline-size: calc(100vw - var(--vt-space-4));
-    max-block-size: 80vh;
-    overflow-y: auto;
-    color: var(--vt-text);
-}
-
-.vm-dd__panel--start {
-    inset-inline-start: 0;
-}
-
-.vm-dd__panel--end {
-    inset-inline-end: 0;
-}
-
-/*
- | A PANEL OPAK-KÖZELI: a felső sáv maga is üveg (`backdrop-filter`), és egy üveg-gyermek
- | nem az OLDAL tartalmát mossa el, hanem a sávét — az átlátszó panel mögül átütne a
- | tartalom, és a szöveg olvashatatlan lenne. Ezért a panel háttere szinte tömör
- | (kontraszt-hiba = bug), a keret és az árnyék marad az üveg-nyelv.
- */
-.vm-dd__panel.vt-glass {
-    background-color: color-mix(in srgb, var(--vt-bg-elevated) 97%, transparent);
-}
-
-/* Hover-híd: a gomb és a panel közti rést a kurzor áthaladhatja. */
-.vm-dd__panel::before {
-    content: '';
-    position: absolute;
-    inset-inline: 0;
-    inset-block-end: 100%;
-    block-size: var(--vt-space-2);
-}
-
 /* ---------------------------------------------------------- sáv-elemek */
 
-.vm-toplink {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--vt-space-2);
-    min-block-size: var(--vt-control-height);
-    padding: var(--vt-space-2) var(--vt-space-3);
-    border: 0;
-    border-radius: var(--vt-radius-md);
-    background: none;
-    color: var(--vt-text-muted);
-    font-family: var(--vt-font-body);
-    font-size: var(--vt-fs-body);
-    text-decoration: none;
-    white-space: nowrap;
-}
-
-.vm-toplink__inner {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--vt-space-2);
-}
-
-.vm-toplink:hover,
-.vm-dd--open > .vm-toplink,
-.vm-toplink[aria-current='page'],
-.vm-toplink__inner[data-active='true'] {
-    background: var(--vt-glass-thin-fill);
-    color: var(--vt-text);
-}
-
-.vm-toplink__inner[data-active='true'] {
-    font-weight: var(--vt-weight-medium);
-}
-
-.vm-toplink__inner[data-active='true'] > .vm-icon:first-child {
-    color: var(--vt-accent-hover);
-}
-
-.vm-toplink--icon {
-    padding-inline: var(--vt-space-3);
+/*
+ | A SÁV ELEMEI (D319): @venture/ui `VtNavItem` `orientation="horizontal"` — az aktív elem accent
+ | szöveg + jelölő ALATTA, háttérkitöltés nélkül; a hover a könyvtáré. Itt csak a nyitott csoport
+ | finom háttere és a nyíl forgása él.
+ */
+.vm-toplink[data-open='true'] {
+    background-color: var(--vt-surface-2);
 }
 
 .vm-toplink__chevron {
@@ -206,6 +125,7 @@
 }
 
 .vm-chip {
+    cursor: pointer;
     display: inline-flex;
     align-items: center;
     gap: var(--vt-space-2);
@@ -221,7 +141,7 @@
 }
 
 .vm-chip:hover,
-.vm-dd--open > .vm-chip {
+.vm-chip[data-open='true'] {
     border-color: var(--vt-border-strong);
 }
 
@@ -253,7 +173,7 @@
 }
 
 .vm-tool:hover,
-.vm-dd--open > .vm-tool {
+.vm-tool[data-open='true'] {
     background: var(--vt-glass-thin-fill);
     color: var(--vt-text);
 }
@@ -271,6 +191,7 @@
 }
 
 .vm-avatarbtn {
+    cursor: pointer;
     display: inline-flex;
     padding: 0;
     border: thin solid var(--vt-border-strong);
@@ -281,110 +202,40 @@
 
 /* ---------------------------------------------------------- panelek */
 
+/* A nav-csoport panelje: a könyvtár panelje szélesség-korlátos — a csoport egy oszlopban. */
 .vm-navmenu {
-    inline-size: calc(var(--vt-space-32) * 4);
+    inline-size: calc(var(--vt-space-32) * 3.25);
+    max-inline-size: 100%;
+}
+
+/*
+ | KÉTHASÁBOS nav-panel (D320, @venture/ui 0.3.1 `width="wide"` + `panelClass`): a panel a
+ | `body`-ba teleportált, ezért ez GLOBÁLIS szabály; a könyvtár flex-oszlopa nulla specificitású,
+ | így ez nyer. Görgetés és levágás nincs — minden pont látszik.
+ */
+.vm-navmenu--two {
+    inline-size: auto;
+}
+
+.vm-navmenu--two .vm-navpanel {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: var(--vt-space-2);
 }
 
 .vm-navpanel {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(calc(var(--vt-space-32) * 1.75), 1fr));
+    display: flex;
+    flex-direction: column;
     gap: var(--vt-space-1);
     margin: 0;
     padding: 0;
     list-style: none;
 }
 
-.vm-navitem {
-    display: flex;
-    align-items: flex-start;
-    gap: var(--vt-space-3);
-    padding: var(--vt-space-3);
-    border-radius: var(--vt-radius-lg);
-    color: var(--vt-text);
-    text-decoration: none;
-}
-
-.vm-navitem:hover,
-.vm-navitem[aria-current='page'] {
-    background: var(--vt-glass-thin-fill);
-}
-
-.vm-navitem[aria-current='page'] {
-    box-shadow: inset calc(var(--vt-space-1) / 2) 0 0 var(--vt-accent);
-}
-
-.vm-navitem__icon {
-    display: grid;
-    place-items: center;
-    flex: none;
-    inline-size: var(--vt-space-8);
-    block-size: var(--vt-space-8);
-    border: thin solid color-mix(in srgb, var(--vt-accent) 35%, transparent);
-    border-radius: var(--vt-radius-md);
-    background: color-mix(in srgb, var(--vt-accent) 16%, transparent);
-    color: var(--vt-text);
-}
-
-.vm-navitem__text {
-    display: flex;
-    flex-direction: column;
-    gap: var(--vt-space-1);
-    min-inline-size: 0;
-}
-
-.vm-navitem__label {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--vt-space-2);
-    font-weight: var(--vt-weight-medium);
-    overflow-wrap: anywhere;
-}
-
-.vm-navitem__desc {
-    color: var(--vt-text-muted);
-    font-size: var(--vt-fs-body-sm);
-    line-height: var(--vt-leading-snug);
-    overflow-wrap: anywhere;
-}
-
-.vm-menuitem {
-    display: flex;
-    align-items: center;
-    gap: var(--vt-space-3);
-    inline-size: 100%;
-    box-sizing: border-box;
-    padding: var(--vt-space-2) var(--vt-space-3);
-    border: 0;
-    border-radius: var(--vt-radius-md);
-    background: none;
-    color: var(--vt-text);
-    font-family: var(--vt-font-body);
-    font-size: var(--vt-fs-body);
-    text-align: start;
-    text-decoration: none;
-    cursor: pointer;
-}
-
-.vm-menuitem:hover,
-.vm-menuitem[aria-checked='true'] {
-    background: var(--vt-glass-thin-fill);
-}
-
 .vm-menuitem__code {
     inline-size: var(--vt-space-8);
     color: var(--vt-text-muted);
     font-size: var(--vt-fs-caption);
-}
-
-.vm-menuitem__label {
-    min-inline-size: 0;
-    overflow-wrap: anywhere;
-}
-
-.vm-menuitem__check {
-    margin-inline-start: auto;
-    color: var(--vt-text-muted);
 }
 
 .vm-usermenu {
@@ -473,9 +324,19 @@
     cursor: pointer;
 }
 
-.vm-switcher__row:hover,
+.vm-switcher__row:hover {
+    background: var(--vt-surface-2);
+}
+
+/* A JELENLEGI workspace (D318): háttérkitöltés nincs — accent szöveg + pipa-ikon. */
 .vm-switcher__row[aria-current='true'] {
-    background: var(--vt-glass-thin-fill);
+    color: var(--vt-accent-hover);
+    font-weight: var(--vt-weight-medium);
+}
+
+.vm-switcher__check {
+    flex: none;
+    color: var(--vt-accent-hover);
 }
 
 .vm-switcher__name {
@@ -572,10 +433,6 @@
 
 .vm-mobilenav__panel {
     padding-block: var(--vt-space-2);
-}
-
-.vm-mobilenav .vm-navpanel {
-    grid-template-columns: 1fr;
 }
 
 .vm-langrow {
