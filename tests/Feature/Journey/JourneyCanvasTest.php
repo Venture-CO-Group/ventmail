@@ -220,6 +220,19 @@ it('az IDEGEN tenant sablonja „nem létezik", az A/B arány 100 kell legyen, �
         ->and($codes)->toContain('multiple_triggers@t2');
 });
 
+it('D310: kampány SAJÁT tartalma journey-lépésben nem használható (validáció + futás)', function () {
+    $campaign = \App\Modules\Campaign\Models\Campaign::create(['name' => 'Saját tartalmas', 'subject' => '']);
+    $owned = canvasTemplate('Kampány saját tartalma');
+    $owned->forceFill(['owner_campaign_id' => $campaign->getKey()])->save();
+
+    $graph = JourneyGraph::fromArray(['nodes' => [
+        cnode('t', 'api_event', ['event' => 'x']),
+        cnode('send', 'send_email', ['template' => (string) $owned->uuid, 'from_email' => 'no-reply@pelda.hu']),
+    ], 'edges' => [cedge('t', 'send')]]);
+
+    expect(issueCodes(app(JourneyGraphValidator::class)->validate($graph)))->toContain('reference_missing@send');
+});
+
 it('a gráf szerkezete korlátos — túl sok csomópont, rossz azonosító elutasítva', function () {
     $nodes = array_map(fn (int $i) => cnode('n'.$i, 'exit'), range(1, JourneyGraph::MAX_NODES + 1));
 

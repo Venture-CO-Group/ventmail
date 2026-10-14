@@ -2045,7 +2045,8 @@
             "newHint": "Du erstellst den Inhalt direkt hier in der Kampagne. In die Bibliothek gelangt er nur, wenn du ihn im Editor auch als Vorlage speicherst.",
             "create": "Inhalt erstellen",
             "edit": "Inhalt bearbeiten",
-            "libraryEmpty": "Die Vorlagenbibliothek ist noch leer — erstelle den Inhalt direkt hier."
+            "libraryEmpty": "Die Vorlagenbibliothek ist noch leer — erstelle den Inhalt direkt hier.",
+            "draftOnly": "Die Inhaltsquelle lässt sich nur im Entwurf ändern. Nimm eine geplante Kampagne zuerst aus der Planung."
         },
         "ownContent": "Eigener Inhalt"
     },

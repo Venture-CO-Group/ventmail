@@ -2045,7 +2045,8 @@
             "newHint": "You build the content right here in the campaign. It only goes to the library if you also save it as a template in the editor.",
             "create": "Create content",
             "edit": "Edit content",
-            "libraryEmpty": "The template library is still empty — build the content right here."
+            "libraryEmpty": "The template library is still empty — build the content right here.",
+            "draftOnly": "The content source can only be changed while the campaign is a draft. Unschedule a scheduled campaign first."
         },
         "ownContent": "Own content"
     },

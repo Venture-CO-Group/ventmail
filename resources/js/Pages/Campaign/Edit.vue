@@ -157,6 +157,8 @@ watch(
 /* ---------- tartalom: új (helyben) vagy meglévő (könyvtár) ---------- */
 
 const contentMode = ref<'new' | 'existing'>(props.campaign.contentMode);
+/** D308: a tartalom FORRÁSA (új saját / meglévő) csak vázlatnál váltható — a szerver is így dönt. */
+const contentSourceLocked = computed(() => readonly.value || props.campaign.status !== 'draft');
 
 watch(
     () => props.campaign,
@@ -557,7 +559,7 @@ const sectionTitle = (key: string): string => t(`checklist.section.${key}`);
                                     :model-value="contentMode"
                                     value="new"
                                     name="content-mode"
-                                    :disabled="readonly"
+                                    :disabled="contentSourceLocked"
                                     data-testid="content-mode-new"
                                     @update:model-value="chooseContent('new')"
                                 >
@@ -567,18 +569,19 @@ const sectionTitle = (key: string): string => t(`checklist.section.${key}`);
                                     :model-value="contentMode"
                                     value="existing"
                                     name="content-mode"
-                                    :disabled="readonly"
+                                    :disabled="contentSourceLocked"
                                     data-testid="content-mode-existing"
                                     @update:model-value="chooseContent('existing')"
                                 >
                                     {{ t('checklist.contentMode.existing') }}
                                 </VtRadio>
                             </VmFieldGroup>
+                            <p v-if="!readonly && campaign.status !== 'draft'" class="vm-cl-hint" role="note" data-testid="content-draft-only">{{ t('checklist.contentMode.draftOnly') }}</p>
 
                             <template v-if="contentMode === 'new'">
                                 <p class="vm-cl-hint">{{ t('checklist.contentMode.newHint') }}</p>
                                 <div class="vm-cluster">
-                                    <VtButton v-if="!readonly" :disabled="saving" data-testid="content-create" @click="openOwnContent">
+                                    <VtButton v-if="!contentSourceLocked" :disabled="saving" data-testid="content-create" @click="openOwnContent">
                                         <VmIcon :name="campaign.ownTemplateUuid ? 'layout' : 'plus'" />
                                         {{ campaign.ownTemplateUuid ? t('checklist.contentMode.edit') : t('checklist.contentMode.create') }}
                                     </VtButton>

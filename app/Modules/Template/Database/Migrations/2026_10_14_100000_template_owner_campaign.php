@@ -14,6 +14,9 @@ use Illuminate\Support\Facades\Schema;
  | (ott csak az önálló sablonok vannak). NULL = önálló (könyvtári) sablon — minden meglévő sor
  | ilyen, tehát a régi viselkedés változatlan. A kampány törlésekor a hivatkozás NULL-ra áll
  | (a sablon soft-delete-tel él tovább, a verziótörténet megmarad).
+ |
+ | Az index NEM `CONCURRENTLY`: a `templates` workspace-enként néhány tucat soros tábla, a rövid
+ | zár észrevehetetlen — a konkurens index-építés tranzakción kívüli futása itt csak kockázat.
  */
 return new class extends Migration
 {

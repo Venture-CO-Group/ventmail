@@ -2045,7 +2045,8 @@
             "newHint": "Vous créez le contenu ici même, dans la campagne. Il n'entre dans la bibliothèque que si vous l'enregistrez aussi comme modèle dans l'éditeur.",
             "create": "Créer le contenu",
             "edit": "Modifier le contenu",
-            "libraryEmpty": "La bibliothèque de modèles est encore vide — créez le contenu ici."
+            "libraryEmpty": "La bibliothèque de modèles est encore vide — créez le contenu ici.",
+            "draftOnly": "La source du contenu ne peut être modifiée que pour une campagne en brouillon. Déprogrammez d’abord une campagne programmée."
         },
         "ownContent": "Contenu propre"
     },

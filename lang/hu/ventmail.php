@@ -80,7 +80,7 @@ return [
         'saved' => 'A sablon mentve.',
     ],
     'campaigns' => [
-        'contentLocked' => 'Küldés közben a kampány tartalma nem cserélhető.',
+        'contentLocked' => 'Új tartalom csak vázlat kampányhoz készülhet — ütemezett kampányt előbb vegyél vissza vázlatba.',
         'templateNotAssignable' => 'Ez a sablon egy másik kampány saját tartalma — nem köthető ide.',
         'saved' => 'A kampány mentve.',
         'schedule' => 'A kampány ütemezve.',

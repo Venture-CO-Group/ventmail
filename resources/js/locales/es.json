@@ -2045,7 +2045,8 @@
             "newHint": "Creas el contenido aquí mismo, en la campaña. Solo pasa a la biblioteca si también lo guardas como plantilla en el editor.",
             "create": "Crear contenido",
             "edit": "Editar contenido",
-            "libraryEmpty": "La biblioteca de plantillas aún está vacía: crea el contenido aquí."
+            "libraryEmpty": "La biblioteca de plantillas aún está vacía: crea el contenido aquí.",
+            "draftOnly": "El origen del contenido solo se puede cambiar con la campaña en borrador. Primero desprograma la campaña."
         },
         "ownContent": "Contenido propio"
     },

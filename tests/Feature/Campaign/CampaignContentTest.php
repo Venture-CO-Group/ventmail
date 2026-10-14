@@ -141,12 +141,45 @@ it('más kampány saját tartalmára nem köthető kampány (és idegen kampány
     asContentUser($this)->get("/campaigns/{$foreign->uuid}/content")->assertNotFound();
 });
 
-it('nem szerkeszthető (küldés alatti) kampányhoz nem készül új tartalom', function () {
-    $campaign = contentCampaign();
-    $campaign->forceFill(['status' => 'sending'])->saveQuietly();
+it('D308: új tartalom / újrakötés CSAK vázlatnál — ütemezett (szerző és publikáló) és küldés alatti kampánynál elutasít, a sablon nem cserélődik', function (string $status, string $role) {
+    $library = Template::create(['name' => 'Jóváhagyott', 'marketing' => true, 'blocks' => [
+        ['type' => 'section', 'children' => [['type' => 'column', 'children' => [
+            ['type' => 'footer', 'attrs' => ['address' => 'Nádor utca 1., 1051 Budapest']],
+        ]]]],
+    ]]);
+    $campaign = contentCampaign(['template_id' => $library->getKey()]);
+    $campaign->forceFill(['status' => $status])->saveQuietly();
+
+    $this->user = StudioFixtures::user($this->workspace, $role);
 
     asContentUser($this)->post("/campaigns/{$campaign->uuid}/content")->assertSessionHas('error');
-    expect(Template::query()->where('owner_campaign_id', $campaign->getKey())->count())->toBe(0);
+
+    expect($campaign->fresh()->template_id)->toBe($library->getKey())
+        ->and(Template::query()->where('owner_campaign_id', $campaign->getKey())->count())->toBe(0);
+})->with([
+    'ütemezett, szerző' => ['scheduled', 'author'],
+    'ütemezett, publikáló' => ['scheduled', 'owner'],
+    'küldés alatt' => ['sending', 'owner'],
+]);
+
+it('D308: vázlat kampánynál a szerző is létrehozhatja a saját tartalmat', function () {
+    $this->user = StudioFixtures::user($this->workspace, 'author');
+    $campaign = contentCampaign();
+
+    asContentUser($this)->post("/campaigns/{$campaign->uuid}/content")->assertRedirect("/campaigns/{$campaign->uuid}/content");
+    expect($campaign->fresh()->template?->owner_campaign_id)->toBe($campaign->getKey());
+});
+
+it('D310: A/B változatként sem köthető más kampány saját tartalma (422)', function () {
+    $first = contentCampaign();
+    asContentUser($this)->post("/campaigns/{$first->uuid}/content");
+    $owned = $first->fresh()->template;
+
+    $second = contentCampaign(['name' => 'Másik']);
+
+    asContentUser($this)->post("/campaigns/{$second->uuid}/variants", ['label' => 'B', 'templateUuid' => (string) $owned->uuid, 'weight' => 50])
+        ->assertSessionHasErrors('templateUuid');
+    expect($second->variants()->count())->toBe(0);
 });
 
 it('„Mentés sablonként": a saját tartalom önálló könyvtári sablonként is elmenthető', function () {

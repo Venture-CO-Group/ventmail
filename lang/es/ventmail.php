@@ -80,7 +80,7 @@ return [
         'saved' => 'Plantilla guardada.',
     ],
     'campaigns' => [
-        'contentLocked' => 'El contenido de la campaña no se puede reemplazar durante el envío.',
+        'contentLocked' => 'Solo se puede crear contenido nuevo para una campaña en borrador: primero desprograma una campaña programada.',
         'templateNotAssignable' => 'Esta plantilla es el contenido propio de otra campaña y no se puede asociar aquí.',
         'saved' => 'Campaña guardada.',
         'schedule' => 'Campaña programada.',

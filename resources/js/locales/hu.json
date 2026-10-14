@@ -2045,7 +2045,8 @@
             "newHint": "A tartalmat itt, a kampányban készíted el. A könyvtárba csak akkor kerül, ha a szerkesztőben sablonként is elmented.",
             "create": "Tartalom létrehozása",
             "edit": "Tartalom szerkesztése",
-            "libraryEmpty": "A sablonkönyvtár még üres — készítsd el a tartalmat itt helyben."
+            "libraryEmpty": "A sablonkönyvtár még üres — készítsd el a tartalmat itt helyben.",
+            "draftOnly": "A tartalom forrása csak vázlat kampánynál módosítható. Ütemezett kampányt előbb vegyél vissza vázlatba."
         },
         "ownContent": "Saját tartalom"
     },

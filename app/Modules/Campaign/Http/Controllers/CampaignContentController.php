@@ -36,12 +36,19 @@ final class CampaignContentController
 
         $campaign = Campaign::query()->where('uuid', $uuid)->firstOrFail();
 
-        if (! $campaign->statusEnum()->isEditable()) {
-            return back()->with('error', __('ventmail.campaigns.contentLocked'));
-        }
-
-        DB::transaction(function () use ($campaign, $context, $versions): void {
+        /*
+         | D308: új saját tartalom / újrakötés CSAK VÁZLAT kampánynál. Egy ütemezett kampány
+         | jóváhagyott tartalmát ez az út nem cserélheti le (sem szerzőként, sem publikálóként —
+         | előbb vissza kell venni vázlatba); a küldés alattiét végképp nem. Az állapotot a SOR-ZÁR
+         | UTÁN nézzük: az ütemező közben `sending`-re válthatja (különben 500 lenne a modell-
+         | hookból, nem hibaüzenet).
+         */
+        $created = DB::transaction(function () use ($campaign, $context, $versions): bool {
             $campaign = Campaign::query()->whereKey($campaign->getKey())->lockForUpdate()->firstOrFail();
+
+            if ($campaign->status !== 'draft') {
+                return false;
+            }
 
             // A MEGLÉVŐ saját tartalom újra bekötődik (a „Meglévő" ágról visszaváltva sem vész el).
             $template = Template::query()->where('owner_campaign_id', $campaign->getKey())->latest('id')->first();
@@ -67,7 +74,13 @@ final class CampaignContentController
             if ($campaign->template_id !== $template->getKey()) {
                 $campaign->forceFill(['template_id' => $template->getKey()])->save();
             }
+
+            return true;
         });
+
+        if (! $created) {
+            return back()->with('error', __('ventmail.campaigns.contentLocked'));
+        }
 
         return redirect()->route('campaigns.content', ['uuid' => $campaign->uuid]);
     }
