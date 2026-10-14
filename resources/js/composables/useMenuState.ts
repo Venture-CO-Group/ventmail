@@ -1,9 +1,40 @@
-import { ref } from 'vue';
+import { computed, ref, type ComputedRef } from 'vue';
 
 /**
- * EGYSZERRE EGY nyitott legördülő a héjban (nav-csoportok, workspace-váltó, nyelv,
- * avatar-menü): egy új megnyitás bezárja az előzőt. Modul-szintű állapot, mert a
- * legördülők egymás testvérei, nem szülő-gyerek.
+ * EGYSZERRE EGY nyitott legördülő a héjban (nav-csoportok, workspace-váltó, nyelv, avatar-menü,
+ * export-menük): egy új megnyitás bezárja az előzőt. Modul-szintű állapot, mert a legördülők
+ * egymás testvérei, nem szülő-gyerek.
+ *
+ * A legördülő maga a @venture/ui `VtDropdown` (0.3.0, D315): VEZÉRELT módban kapja a nyitott
+ * állapotot (`:open` + `@update:open`), a hover / kattintás-rögzítés / Esc / ütközés-figyelés
+ * a könyvtáré — itt csak a „egyszerre egy" koordináció él.
  */
 export const activeMenuId = ref<string | null>(null);
-export const activeMenuPinned = ref(false);
+
+export function useShellMenu(id: string): { open: ComputedRef<boolean>; setOpen: (value: boolean) => void } {
+    const open = computed(() => activeMenuId.value === id);
+
+    function setOpen(value: boolean): void {
+        if (value) {
+            activeMenuId.value = id;
+        } else if (activeMenuId.value === id) {
+            activeMenuId.value = null;
+        }
+    }
+
+    return { open, setOpen };
+}
+
+/** Navigáció után minden legördülő zár (a következő oldalon egy sem maradhat nyitva). */
+export function closeAllMenus(): void {
+    activeMenuId.value = null;
+}
+
+/**
+ * A `VtDropdown` trigger-slotjának attribútumai a SAJÁT gombunkra (`v-bind`). A könyvtár az
+ * `aria-haspopup`-ot `string`-ként típusozza, a Vue gomb-típusa szűkebb — a futásidejű érték
+ * helyes (`"menu"` vagy hiányzik), ezért itt egy általános attribútum-objektumként adjuk tovább.
+ */
+export function asTrigger(attrs: Record<string, unknown>): Record<string, unknown> {
+    return attrs;
+}

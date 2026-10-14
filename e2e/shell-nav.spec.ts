@@ -64,7 +64,7 @@ test('a Studio panel hoverre és kattintásra nyílik, leírással; Esc zár és
     await expect(trigger).toHaveAttribute('aria-expanded', 'true');
     await expect(page.getByTestId('nav-campaigns')).toBeVisible();
     // Egysoros leírás a panelben.
-    await expect(page.getByTestId('nav-campaigns').locator('.vm-navitem__desc')).not.toBeEmpty();
+    await expect(page.getByTestId('nav-campaigns').locator('.vt-navitem__desc')).not.toBeEmpty();
 
     // Kattintás: rögzíti (nem zárja be).
     await trigger.click();

@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { Link, usePage } from '@inertiajs/vue3';
-import { computed, onMounted, ref, watch } from 'vue';
+import { Link, router, usePage } from '@inertiajs/vue3';
+import { VtDropdown } from '@venture/ui';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import BrandLogo from '../Components/BrandLogo.vue';
-import VmDropdown from '../Components/Shell/VmDropdown.vue';
 import VmIcon from '../Components/Shell/VmIcon.vue';
 import VmLocalePicker from '../Components/Shell/VmLocalePicker.vue';
 import VmNavPanel from '../Components/Shell/VmNavPanel.vue';
@@ -11,6 +11,7 @@ import VmUserMenu from '../Components/Shell/VmUserMenu.vue';
 import VmWorkspaceSwitcher from '../Components/Shell/VmWorkspaceSwitcher.vue';
 import { useCompactNav } from '../composables/useCompactNav';
 import { useLocaleSync } from '../composables/useLocaleSync';
+import { activeMenuId, asTrigger, closeAllMenus } from '../composables/useMenuState';
 import { useNavigation, type NavGroupId } from '../composables/useNavigation';
 import { readStoredList, writeStoredList } from '../composables/useStoredState';
 import { useFormat } from '../composables/useFormat';
@@ -56,9 +57,21 @@ const STORAGE_KEY = 'vm.nav.expanded';
 const mobileOpen = ref(false);
 const expanded = ref<string[]>([]);
 
+/** A nav-csoport legördülők „egyszerre egy" koordinációja (lásd `useMenuState`). */
+function setMenu(id: string, value: boolean): void {
+    if (value) activeMenuId.value = id;
+    else if (activeMenuId.value === id) activeMenuId.value = null;
+}
+
+let stopNavigate: (() => void) | undefined;
+
 onMounted(() => {
     expanded.value = readStoredList(STORAGE_KEY);
+    // Egy navigáció után egyetlen legördülő sem maradhat nyitva.
+    stopNavigate = router.on('navigate', closeAllMenus);
 });
+
+onBeforeUnmount(() => stopNavigate?.());
 
 function toggleGroup(id: NavGroupId): void {
     expanded.value = expanded.value.includes(id) ? expanded.value.filter((item) => item !== id) : [...expanded.value, id];
@@ -126,25 +139,35 @@ function onMobileKeydown(event: KeyboardEvent): void {
                     </Link>
 
                     <div v-for="group in groups" :key="group.id" class="vm-topbar__group" :data-testid="`nav-${group.id}`">
-                        <VmDropdown
-                            :id="`group-${group.id}`"
+                        <!-- D315: @venture/ui `VtDropdown` (hover + kattintásra rögzít, Esc, ütközés-figyelés),
+                             VEZÉRELT módban az „egyszerre egy nyitott" koordinációhoz. -->
+                        <VtDropdown
                             hover
-                            :testid="`nav-group-${group.id}`"
                             :label="iconOnly ? group.label : undefined"
-                            :title="iconOnly ? group.label : undefined"
-                            trigger-class="vm-toplink"
-                            :panel-class="`vm-navmenu vm-navmenu--${group.id}`"
+                            :open="activeMenuId === `group-${group.id}`"
+                            @update:open="setMenu(`group-${group.id}`, $event)"
                         >
-                            <template #trigger="{ open }">
-                                <span class="vm-toplink__inner" :data-active="groupActive(group.id) ? 'true' : undefined">
-                                    <VmIcon :name="group.icon" />
-                                    <span v-if="!iconOnly">{{ group.label }}</span>
-                                    <VmIcon name="chevron" class="vm-toplink__chevron" :class="{ 'vm-toplink__chevron--open': open }" />
-                                </span>
+                            <template #trigger="{ open, ...trigger }">
+                                <button
+                                    type="button"
+                                    class="vm-toplink"
+                                    v-bind="asTrigger(trigger)"
+                                    :title="iconOnly ? group.label : undefined"
+                                    :data-testid="`nav-group-${group.id}`"
+                                    :data-open="open ? 'true' : undefined"
+                                >
+                                    <span class="vm-toplink__inner" :data-active="groupActive(group.id) ? 'true' : undefined">
+                                        <VmIcon :name="group.icon" />
+                                        <span v-if="!iconOnly">{{ group.label }}</span>
+                                        <VmIcon name="chevron" class="vm-toplink__chevron" :class="{ 'vm-toplink__chevron--open': open }" />
+                                    </span>
+                                </button>
                             </template>
 
-                            <VmNavPanel :items="group.items" :active-href="activeHref" />
-                        </VmDropdown>
+                            <div :class="`vm-navmenu vm-navmenu--${group.id}`">
+                                <VmNavPanel :items="group.items" :active-href="activeHref" />
+                            </div>
+                        </VtDropdown>
                     </div>
                 </nav>
 
