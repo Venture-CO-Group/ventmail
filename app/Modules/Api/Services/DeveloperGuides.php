@@ -8,6 +8,7 @@ use App\Modules\Api\Support\ApiRateLimits;
 use App\Modules\Messages\Data\MailgunPayload;
 use App\Modules\Webhooks\Jobs\DeliverWebhook;
 use App\Modules\Webhooks\Services\WebhookSigner;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 use RuntimeException;
 use Symfony\Component\Yaml\Yaml;
@@ -33,10 +34,22 @@ final class DeveloperGuides
     /** @return list<array{key: string, soon: bool, title: string, html: string, text: string}> */
     public function build(string $locale, string $baseUrl): array
     {
+        $values = $this->values($baseUrl);
+        // A forrás módosítási ideje + nyelv + a kitöltött értékek: bármelyik változik, új kulcs.
+        $key = 'developer-guides:'.(string) @filemtime(base_path(self::SOURCE)).':'.$locale.':'.md5((string) json_encode($values));
+
+        return Cache::remember($key, 3600, fn (): array => $this->render($locale, $values));
+    }
+
+    /**
+     * @param  array<string, string>  $values
+     * @return list<array{key: string, soon: bool, title: string, html: string, text: string}>
+     */
+    private function render(string $locale, array $values): array
+    {
         $source = Yaml::parseFile(base_path(self::SOURCE));
         // D309: mind a 7 felületi nyelv a forrásban; ismeretlen nyelv → angol.
         $language = in_array($locale, self::LOCALES, true) ? $locale : 'en';
-        $values = $this->values($baseUrl);
         $out = [];
 
         foreach ((array) ($source['guides'] ?? []) as $guide) {

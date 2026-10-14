@@ -116,7 +116,9 @@ final class TemplateUiController
             $content = StarterTemplates::build($validated['starter'], $workspace);
         } elseif (($validated['from_template'] ?? null) !== null) {
             // A SAJÁT sablon másolata — a global scope miatt idegen workspace sablonja 404.
-            $source = Template::query()->where('uuid', $validated['from_template'])->firstOrFail();
+            // D313: csak KÖNYVTÁRI sablon másolható így — más kampány (vázlat) tartalmának
+            // másolása nem támogatott út.
+            $source = Template::query()->library()->where('uuid', $validated['from_template'])->firstOrFail();
             $marketing = (bool) $source->marketing;
             $content = [
                 'subject' => (string) $source->subject,

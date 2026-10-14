@@ -4,14 +4,18 @@ declare(strict_types=1);
 
 use App\Modules\Audience\Models\Contact;
 use App\Modules\Audience\Models\ContactList;
+use App\Modules\Campaign\Http\Controllers\CampaignContentController;
 use App\Modules\Campaign\Models\Campaign;
 use App\Modules\Campaign\Services\CampaignChecklist;
 use App\Modules\Consent\Services\ConsentRecorder;
 use App\Modules\Domains\Models\Domain;
+use App\Modules\Identity\Enums\Role;
 use App\Modules\Template\Models\Template;
 use App\Modules\Tenancy\Models\Workspace;
+use App\Modules\Tenancy\Policies\AbilityMap;
 use App\Modules\Tenancy\Services\WorkspaceContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Gate;
 use Tests\Support\StudioFixtures;
 
 uses(RefreshDatabase::class);
@@ -215,4 +219,99 @@ it('ÜRES sablonkönyvtárral is KÉSZ a kampány: a saját tartalom (valódi c�
 
     expect($checklist['ready'])->toBeTrue()
         ->and(collect($checklist['sections'])->firstWhere('key', 'content')['template']['owned'])->toBeTrue();
+});
+
+/*
+ | SECURITY REVIEW — életciklus (D312), jogosultság, névütközés, másolás (D313).
+ */
+
+it('D312: a kampány VÉGLEGES törlése a saját tartalmát is törli (cascade), a könyvtári sablon érintetlen', function () {
+    $library = Template::create(['name' => 'Könyvtári marad', 'marketing' => false, 'blocks' => []]);
+    $campaign = contentCampaign();
+    asContentUser($this)->post("/campaigns/{$campaign->uuid}/content");
+    $owned = $campaign->fresh()->template;
+
+    $campaign->fresh()->forceDelete();
+
+    expect(Template::withTrashed()->whereKey($owned->getKey())->exists())->toBeFalse()
+        ->and(Template::query()->whereKey($library->getKey())->exists())->toBeTrue()
+        // Gazdátlan sor nem maradhat (az könyvtári sablonná válna — D310).
+        ->and(Template::withTrashed()->where('name', $owned->name)->exists())->toBeFalse();
+});
+
+it('D312: a kampány soft-delete-je a saját tartalmát is soft-delete-eli, a visszaállítás visszahozza', function () {
+    $campaign = contentCampaign();
+    asContentUser($this)->post("/campaigns/{$campaign->uuid}/content");
+    $owned = $campaign->fresh()->template;
+
+    // Egy KORÁBBAN külön törölt saját tartalom törölve marad a visszaállításkor.
+    $older = new Template(['name' => 'Régi saját', 'marketing' => false, 'blocks' => []]);
+    $older->forceFill(['owner_campaign_id' => $campaign->getKey()])->save();
+    $older->delete();
+    Template::withTrashed()->whereKey($older->getKey())->update(['deleted_at' => now()->subDay()]);
+
+    $campaign->fresh()->delete();
+    expect(Template::query()->whereKey($owned->getKey())->exists())->toBeFalse()
+        ->and(Template::onlyTrashed()->whereKey($owned->getKey())->exists())->toBeTrue();
+
+    Campaign::withTrashed()->whereKey($campaign->getKey())->first()->restore();
+    expect(Template::query()->whereKey($owned->getKey())->exists())->toBeTrue()
+        ->and(Template::query()->whereKey($older->getKey())->exists())->toBeFalse();
+});
+
+it('D312: könyvtári sablonra váltva a saját tartalom a kampányé marad (visszaváltáskor ugyanaz kötődik be), de máshol nem használható', function () {
+    $library = Template::create(['name' => 'Könyvtári', 'marketing' => false, 'blocks' => []]);
+    $campaign = contentCampaign();
+    asContentUser($this)->post("/campaigns/{$campaign->uuid}/content");
+    $owned = $campaign->fresh()->template;
+
+    asContentUser($this)->put("/campaigns/{$campaign->uuid}", ['name' => 'Őszi hírlevél', 'templateUuid' => (string) $library->uuid])->assertSessionHasNoErrors();
+    expect($campaign->fresh()->template_id)->toBe($library->getKey());
+
+    asContentUser($this)->post("/campaigns/{$campaign->uuid}/content");
+    expect($campaign->fresh()->template_id)->toBe($owned->getKey())
+        ->and(Template::query()->where('owner_campaign_id', $campaign->getKey())->count())->toBe(1);
+});
+
+it('authz: a tartalom-végpontok szerepenként az AbilityMap szerint (campaign.create ÉS template.create kell)', function (Role $role) {
+    $campaign = contentCampaign();
+    $this->user = StudioFixtures::user($this->workspace, $role->value);
+    $allowed = in_array('campaign.create', AbilityMap::abilitiesOf($role), true) && in_array('template.create', AbilityMap::abilitiesOf($role), true);
+
+    $post = asContentUser($this)->post("/campaigns/{$campaign->uuid}/content");
+    $allowed ? $post->assertRedirect("/campaigns/{$campaign->uuid}/content") : $post->assertForbidden();
+
+    $get = asContentUser($this)->get("/campaigns/{$campaign->uuid}/content");
+    $allowed ? $get->assertOk() : $get->assertForbidden();
+
+    if (! $allowed) {
+        expect(Template::query()->where('owner_campaign_id', $campaign->getKey())->count())->toBe(0);
+    }
+})->with(fn () => Role::cases());
+
+it('authz: campaign.create igen, template.create nem → 403 (mindkét végponton)', function () {
+    $campaign = contentCampaign();
+    Gate::before(fn ($user, string $ability) => $ability === 'template.create' ? false : null);
+
+    asContentUser($this)->post("/campaigns/{$campaign->uuid}/content")->assertForbidden();
+    asContentUser($this)->get("/campaigns/{$campaign->uuid}/content")->assertForbidden();
+    expect(Template::query()->count())->toBe(0);
+});
+
+it('NIT: a belső név ütközésmentes — egy pont így elnevezett könyvtári sablon mellett sincs 500', function () {
+    $campaign = contentCampaign();
+    Template::create(['name' => CampaignContentController::uniqueName($campaign), 'marketing' => false, 'blocks' => []]);
+
+    asContentUser($this)->post("/campaigns/{$campaign->uuid}/content")->assertRedirect("/campaigns/{$campaign->uuid}/content");
+
+    expect($campaign->fresh()->template->name)->toEndWith(' (2)');
+});
+
+it('D313: „másolat sablonból" csak könyvtári sablonból — más kampány saját tartalmából 404', function () {
+    $campaign = contentCampaign();
+    asContentUser($this)->post("/campaigns/{$campaign->uuid}/content");
+    $owned = $campaign->fresh()->template;
+
+    asContentUser($this)->post('/templates', ['name' => 'Lopott vázlat', 'from_template' => (string) $owned->uuid])->assertNotFound();
+    expect(Template::query()->where('name', 'Lopott vázlat')->exists())->toBeFalse();
 });

@@ -58,7 +58,7 @@ final class CampaignContentController
 
                 $template = new Template([
                     // A név belső (a könyvtár nem mutatja), de a parciális egyedi index miatt egyedi.
-                    'name' => Str::limit((string) $campaign->name, 100, '').' · '.substr((string) $campaign->uuid, 0, 8),
+                    'name' => self::uniqueName($campaign),
                     'subject' => (string) $campaign->subject,
                     'preheader' => $campaign->preheader,
                     'marketing' => true,
@@ -83,6 +83,23 @@ final class CampaignContentController
         }
 
         return redirect()->route('campaigns.content', ['uuid' => $campaign->uuid]);
+    }
+
+    /**
+     * Ütközésmentes belső név: `<kampány> · <teljes kampány-uuid>`, és ha mégis foglalt (valaki
+     * pont így nevezett el egy könyvtári sablont), sorszámos utótag — az egyedi index
+     * (`templates_workspace_name_unique`) különben 500-at adna.
+     */
+    public static function uniqueName(Campaign $campaign): string
+    {
+        $base = Str::limit((string) $campaign->name, 70, '').' · '.$campaign->uuid;
+        $name = $base;
+
+        for ($suffix = 2; Template::query()->where('name', $name)->exists(); $suffix++) {
+            $name = $base.' ('.$suffix.')';
+        }
+
+        return $name;
     }
 
     public function show(string $uuid): Response|RedirectResponse
