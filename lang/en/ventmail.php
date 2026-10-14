@@ -91,6 +91,8 @@ return [
         'saved' => 'Template saved.',
     ],
     'campaigns' => [
+        'contentLocked' => 'The campaign content cannot be replaced while it is sending.',
+        'templateNotAssignable' => 'This template is another campaign\'s own content and cannot be attached here.',
         'saved' => 'Campaign saved.',
         'schedule' => 'Campaign scheduled.',
         'unschedule' => 'Schedule removed.',

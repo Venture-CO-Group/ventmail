@@ -29,6 +29,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Unique;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 use RuntimeException;
@@ -154,6 +155,10 @@ final class CampaignUiController
                 'displayStatus' => $this->displayStatus($campaign),
                 'editable' => $campaign->statusEnum()->isEditable(),
                 'templateUuid' => $campaign->template?->uuid,
+                // UI-polírozás · 6: a tartalom-választó ága. „new" = a kampány SAJÁT, helyben készült
+                // tartalma (alapértelmezett), „existing" = könyvtári sablon.
+                'contentMode' => $campaign->template !== null && $campaign->template->owner_campaign_id === null ? 'existing' : 'new',
+                'ownTemplateUuid' => ($own = Template::query()->where('owner_campaign_id', $campaign->getKey())->latest('id')->first()) !== null ? (string) $own->uuid : null,
                 'targetLists' => array_values((array) $campaign->target_lists),
                 'targetSegments' => array_values((array) $campaign->target_segments),
                 'excludeLists' => array_values((array) $campaign->exclude_lists),
@@ -197,7 +202,7 @@ final class CampaignUiController
                 ->get()
                 ->map(fn ($row) => ['status' => (string) $row->status, 'reason' => (string) $row->reason, 'count' => (int) $row->n])
                 ->values()->all(),
-            'templates' => Template::query()->where('marketing', true)->orderBy('name')->get(['uuid', 'name'])
+            'templates' => Template::query()->library()->where('marketing', true)->orderBy('name')->get(['uuid', 'name'])
                 ->map(fn (Template $template) => ['uuid' => (string) $template->uuid, 'name' => (string) $template->name])
                 ->values()->all(),
             // v1.1 · D284: a választó a listákat/szegmenseket a `targets()` végpontról kéri
@@ -322,7 +327,7 @@ final class CampaignUiController
         if (! empty($validated['templateUuid'])) {
             // A SABLON a global scope-on át oldódik fel: idegen workspace sablonjára nem
             // lehet kampányt kötni.
-            $templateId = Template::query()->where('uuid', $validated['templateUuid'])->firstOrFail()->getKey();
+            $templateId = $this->assignableTemplate($campaign, $validated['templateUuid'])->getKey();
         }
 
         // SOR-ZÁR a mentés és az ütemezett ág idejére (review NIT): az ütemező (amelyik szintén
@@ -434,7 +439,7 @@ final class CampaignUiController
         // A SABLON a global scope-on át: idegen workspace sablonja 404.
         $templateId = empty($validated['templateUuid'])
             ? null
-            : Template::query()->where('uuid', $validated['templateUuid'])->firstOrFail()->getKey();
+            : $this->assignableTemplate($campaign, $validated['templateUuid'])->getKey();
 
         try {
             $campaign->variants()->create([
@@ -582,6 +587,21 @@ final class CampaignUiController
     }
 
     /** A kampány neve tenantonként egyedi (a részleges unique index szerint). */
+    /**
+     * Köthető sablon: könyvtári, vagy a KAMPÁNY SAJÁT tartalma — más kampány helyben készült
+     * tartalma nem (UI-polírozás · 6): azt a másik kampány szerkesztője írja.
+     */
+    private function assignableTemplate(Campaign $campaign, string $uuid): Template
+    {
+        $template = Template::query()->where('uuid', $uuid)->firstOrFail();
+
+        if ($template->owner_campaign_id !== null && (int) $template->owner_campaign_id !== (int) $campaign->getKey()) {
+            throw ValidationException::withMessages(['templateUuid' => [__('ventmail.campaigns.templateNotAssignable')]]);
+        }
+
+        return $template;
+    }
+
     private function uniqueName(?Campaign $campaign): Unique
     {
         return Rule::unique('campaigns', 'name')

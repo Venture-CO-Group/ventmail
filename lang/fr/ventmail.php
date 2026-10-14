@@ -77,6 +77,8 @@ return [
         'saved' => 'Modèle enregistré.',
     ],
     'campaigns' => [
+        'contentLocked' => 'Le contenu de la campagne ne peut pas être remplacé pendant l\'envoi.',
+        'templateNotAssignable' => 'Ce modèle est le contenu propre d\'une autre campagne et ne peut pas être associé ici.',
         'saved' => 'Campagne enregistrée.',
         'schedule' => 'Campagne programmée.',
         'unschedule' => 'Programmation supprimée.',

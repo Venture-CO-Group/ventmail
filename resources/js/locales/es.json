@@ -1717,6 +1717,10 @@
             "expandPalette": "Expandir panel",
             "collapseProps": "Contraer ajustes",
             "expandProps": "Ajustes"
+        },
+        "campaign": {
+            "context": "Contenido de la campaña",
+            "back": "Volver a la campaña"
         }
     },
     "library": {
@@ -2033,7 +2037,17 @@
             "sent": "Enviado",
             "failed": "Error",
             "skipped": "Omitido (puerta)"
-        }
+        },
+        "contentMode": {
+            "legend": "¿De dónde viene el contenido?",
+            "new": "Crear una plantilla nueva",
+            "existing": "Cargar una plantilla existente",
+            "newHint": "Creas el contenido aquí mismo, en la campaña. Solo pasa a la biblioteca si también lo guardas como plantilla en el editor.",
+            "create": "Crear contenido",
+            "edit": "Editar contenido",
+            "libraryEmpty": "La biblioteca de plantillas aún está vacía: crea el contenido aquí."
+        },
+        "ownContent": "Contenido propio"
     },
     "journeyCanvas": {
         "top": {

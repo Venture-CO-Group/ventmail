@@ -1717,6 +1717,10 @@
             "expandPalette": "Panel kinyitása",
             "collapseProps": "Beállítások összecsukása",
             "expandProps": "Beállítások"
+        },
+        "campaign": {
+            "context": "Kampány tartalma",
+            "back": "Vissza a kampányhoz"
         }
     },
     "library": {
@@ -2033,7 +2037,17 @@
             "sent": "Kiküldve",
             "failed": "Hiba",
             "skipped": "Kihagyva (kapu)"
-        }
+        },
+        "contentMode": {
+            "legend": "Honnan jön a tartalom?",
+            "new": "Új template készítése",
+            "existing": "Meglévő template betöltése",
+            "newHint": "A tartalmat itt, a kampányban készíted el. A könyvtárba csak akkor kerül, ha a szerkesztőben sablonként is elmented.",
+            "create": "Tartalom létrehozása",
+            "edit": "Tartalom szerkesztése",
+            "libraryEmpty": "A sablonkönyvtár még üres — készítsd el a tartalmat itt helyben."
+        },
+        "ownContent": "Saját tartalom"
     },
     "journeyCanvas": {
         "top": {

@@ -23,6 +23,7 @@ const VIEWPORTS = {
 } as const;
 
 const LONG_NAME = 'UI-polish hosszú hírlevél';
+const NEW_CAMPAIGN = 'UI-polish új kampány';
 
 test.describe.configure({ mode: 'serial' });
 test.setTimeout(240_000);
@@ -99,6 +100,32 @@ for (const [dir, viewport] of Object.entries(VIEWPORTS)) {
 
             if ((await content.getAttribute('aria-expanded')) !== 'true') await content.click();
             await shot(page, dir, '03-campaign-content');
+
+            // ÚJ kampány tartalom-lépése (az „Új template készítése" ág) és a kampány-szerkesztő.
+            if (PHASE === 'after') {
+                await visit(page, `/campaigns?search=${encodeURIComponent(NEW_CAMPAIGN)}`);
+                const existing = page.locator('a[href^="/campaigns/"]', { hasText: NEW_CAMPAIGN }).first();
+
+                if ((await existing.count()) > 0) {
+                    await page.goto((await existing.getAttribute('href')) as string);
+                } else {
+                    await page.getByTestId('campaign-new').click();
+                    await page.getByTestId('campaign-name').fill(NEW_CAMPAIGN);
+                    await page.getByTestId('campaign-submit').click();
+                    await page.waitForURL(/\/campaigns\/[0-9a-f-]{36}$/);
+                }
+
+                const toggle = page.getByTestId('section-toggle-content');
+
+                if ((await toggle.getAttribute('aria-expanded')) !== 'true') await toggle.click();
+                await expect(page.getByTestId('content-mode-new')).toBeVisible();
+                await shot(page, dir, '03b-campaign-content-new');
+
+                await page.getByTestId('content-create').click();
+                await page.waitForURL(/\/content$/);
+                await expect(page.getByTestId('editor-canvas')).toBeVisible();
+                await shot(page, dir, '03c-campaign-content-editor');
+            }
         });
 
         test('sablonszerkesztő hosszú levéllel', async ({ page }) => {

@@ -80,6 +80,8 @@ return [
         'saved' => 'Vorlage gespeichert.',
     ],
     'campaigns' => [
+        'contentLocked' => 'Während des Versands kann der Kampagneninhalt nicht ersetzt werden.',
+        'templateNotAssignable' => 'Diese Vorlage ist der eigene Inhalt einer anderen Kampagne und kann hier nicht verwendet werden.',
         'saved' => 'Kampagne gespeichert.',
         'schedule' => 'Kampagne geplant.',
         'unschedule' => 'Planung aufgehoben.',

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Head, router } from '@inertiajs/vue3';
+import { Head, Link, router } from '@inertiajs/vue3';
 import { VtButton, VtDrawer, VtModal } from '@venture/ui';
 import axios, { AxiosError } from 'axios';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
@@ -65,7 +65,11 @@ const props = defineProps<{
     senderDomains: string[];
     /** CSAK OLVASHATÓ MÓD oka (review R4-S3): aktív kampány / journey sablonja, publikálási jog nélkül. */
     writeDenial: string | null;
+    /** UI-polírozás · 6: a KAMPÁNY saját tartalma — ugyanez a szerkesztő, kampány-kontextusban. */
+    campaign?: { uuid: string; name: string } | null;
 }>();
+
+const exitUrl = computed(() => (props.campaign ? `/campaigns/${props.campaign.uuid}` : '/templates'));
 
 const { t } = useI18n();
 const locked = computed(() => props.writeDenial !== null);
@@ -382,7 +386,7 @@ async function saveAndExit(): Promise<void> {
     menuOpen.value = false;
 
     if (await editor.save(true)) {
-        router.visit('/templates');
+        router.visit(exitUrl.value);
     }
 }
 
@@ -397,7 +401,7 @@ const nameInitial = computed(() => {
 
     if (mode === 'saveBlock') return t('editor.saveBlock.defaultName');
 
-    return t('editor.save.copyName', { name: editor.name.value });
+    return t('editor.save.copyName', { name: props.campaign?.name ?? editor.name.value });
 });
 
 async function submitName(name: string): Promise<void> {
@@ -522,7 +526,17 @@ function openTest(): void {
             <!-- FELSŐ SÁV -->
             <header class="vm-ed-top">
                 <div class="vm-ed-top__name">
-                    <input v-model="editor.name.value" :aria-label="t('editor.top.name')" maxlength="120" :readonly="locked" data-testid="editor-name" />
+                    <!-- A kampány saját tartalmának neve belső: a fejléc a KAMPÁNYT mutatja, visszalinkkel. -->
+                    <template v-if="campaign">
+                        <Link :href="exitUrl" class="vm-ed-iconbtn" :aria-label="t('editor.campaign.back')" :title="t('editor.campaign.back')" data-testid="editor-campaign-back">
+                            <VmIcon name="chevron" class="vm-ed-chevron vm-ed-chevron--start" />
+                        </Link>
+                        <span class="vm-ed-context" data-testid="editor-campaign-context">
+                            <small>{{ t('editor.campaign.context') }}</small>
+                            <strong class="vm-truncate" :title="campaign.name">{{ campaign.name }}</strong>
+                        </span>
+                    </template>
+                    <input v-else v-model="editor.name.value" :aria-label="t('editor.top.name')" maxlength="120" :readonly="locked" data-testid="editor-name" />
                     <span class="vm-ed-status" :class="`vm-ed-status--${editor.saveState.value}`" role="status" data-testid="save-status" :data-state="editor.saveState.value">
                         <span class="vm-ed-status__dot" aria-hidden="true" />{{ statusLabel }}
                     </span>
@@ -565,7 +579,7 @@ function openTest(): void {
                             <VmIcon name="chevron" />
                         </button>
                         <div v-if="menuOpen" class="vm-ed-split__menu" role="menu" @keydown.esc="menuOpen = false">
-                            <button type="button" role="menuitem" class="vm-ed-menuitem" data-testid="menu-save-as" @click="openName('saveAs')">{{ t('editor.top.saveAs') }}</button>
+                            <button v-if="!campaign" type="button" role="menuitem" class="vm-ed-menuitem" data-testid="menu-save-as" @click="openName('saveAs')">{{ t('editor.top.saveAs') }}</button>
                             <button type="button" role="menuitem" class="vm-ed-menuitem" data-testid="menu-save-template" @click="openName('saveTemplate')">{{ t('editor.top.saveTemplate') }}</button>
                             <button type="button" role="menuitem" class="vm-ed-menuitem" data-testid="menu-test-send" @click="openTest">{{ t('editor.top.sendTest') }}</button>
                         </div>

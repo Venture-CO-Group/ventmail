@@ -57,6 +57,25 @@
     min-inline-size: 0;
 }
 
+.vm-ed-context {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-inline-size: 0;
+}
+
+.vm-ed-context small {
+    color: var(--vt-text-muted);
+    font-size: var(--vt-fs-caption);
+    letter-spacing: var(--vt-tracking-wider);
+    text-transform: uppercase;
+}
+
+.vm-ed-context strong {
+    font-family: var(--vt-font-display);
+    font-size: var(--vt-fs-h5);
+}
+
 .vm-ed-top__name input {
     flex: 1 1 auto;
     min-inline-size: 0;

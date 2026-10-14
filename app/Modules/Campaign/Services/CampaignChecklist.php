@@ -174,6 +174,8 @@ final class CampaignChecklist
                 'uuid' => (string) $template->uuid,
                 'name' => (string) $template->name,
                 'marketing' => (bool) $template->marketing,
+                // UI-polírozás · 6: a kampány SAJÁT (helyben készült) tartalma-e.
+                'owned' => (int) $template->owner_campaign_id === (int) $campaign->getKey(),
             ],
             'missing' => $compliance['missing'],
         ];

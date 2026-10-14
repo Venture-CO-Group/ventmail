@@ -80,6 +80,8 @@ return [
         'saved' => 'Modello salvato.',
     ],
     'campaigns' => [
+        'contentLocked' => 'Durante l\'invio il contenuto della campagna non può essere sostituito.',
+        'templateNotAssignable' => 'Questo modello è il contenuto di un\'altra campagna e non può essere collegato qui.',
         'saved' => 'Campagna salvata.',
         'schedule' => 'Campagna pianificata.',
         'unschedule' => 'Pianificazione annullata.',

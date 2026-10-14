@@ -1717,6 +1717,10 @@
             "expandPalette": "Expand panel",
             "collapseProps": "Collapse settings",
             "expandProps": "Settings"
+        },
+        "campaign": {
+            "context": "Campaign content",
+            "back": "Back to the campaign"
         }
     },
     "library": {
@@ -2033,7 +2037,17 @@
             "sent": "Sent",
             "failed": "Failed",
             "skipped": "Skipped (gate)"
-        }
+        },
+        "contentMode": {
+            "legend": "Where does the content come from?",
+            "new": "Create a new template",
+            "existing": "Load an existing template",
+            "newHint": "You build the content right here in the campaign. It only goes to the library if you also save it as a template in the editor.",
+            "create": "Create content",
+            "edit": "Edit content",
+            "libraryEmpty": "The template library is still empty — build the content right here."
+        },
+        "ownContent": "Own content"
     },
     "journeyCanvas": {
         "top": {

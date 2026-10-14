@@ -1717,6 +1717,10 @@
             "expandPalette": "Espandi pannello",
             "collapseProps": "Comprimi impostazioni",
             "expandProps": "Impostazioni"
+        },
+        "campaign": {
+            "context": "Contenuto della campagna",
+            "back": "Torna alla campagna"
         }
     },
     "library": {
@@ -2033,7 +2037,17 @@
             "sent": "Inviato",
             "failed": "Errore",
             "skipped": "Saltato (controllo)"
-        }
+        },
+        "contentMode": {
+            "legend": "Da dove viene il contenuto?",
+            "new": "Crea un nuovo modello",
+            "existing": "Carica un modello esistente",
+            "newHint": "Crei il contenuto qui, nella campagna. Entra nella libreria solo se nell'editor lo salvi anche come modello.",
+            "create": "Crea contenuto",
+            "edit": "Modifica contenuto",
+            "libraryEmpty": "La libreria dei modelli è ancora vuota — crea il contenuto qui."
+        },
+        "ownContent": "Contenuto proprio"
     },
     "journeyCanvas": {
         "top": {

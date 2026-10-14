@@ -14,14 +14,14 @@ export interface StudioSeed {
     preferenceUrl: string;
 }
 
-export async function seedStudio(page: Page, run: string): Promise<StudioSeed> {
+export async function seedStudio(page: Page, run: string, options: { templates?: boolean } = {}): Promise<StudioSeed> {
     if (!page.url().startsWith('http')) await page.goto('/dashboard');
 
     const result = await page.evaluate(async (target) => {
         const response = await fetch(target, { credentials: 'same-origin', headers: { Accept: 'application/json' } });
 
         return { status: response.status, body: response.ok ? await response.json() : null };
-    }, `/dev/seed-studio?run=${run}`);
+    }, `/dev/seed-studio?run=${run}${options.templates === false ? '&templates=0' : ''}`);
 
     expect(result.status).toBe(200);
 

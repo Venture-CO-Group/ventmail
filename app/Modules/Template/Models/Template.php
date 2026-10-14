@@ -59,6 +59,17 @@ final class Template extends Model
         return $this->compactAudit;
     }
 
+    /**
+     * A SABLONKÖNYVTÁR sablonjai (UI-polírozás · 6): a kampány helyben készült tartalma
+     * (`owner_campaign_id`) nem könyvtári sablon — a választók és a könyvtár ezt kérdezik.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<self>  $query
+     */
+    public function scopeLibrary(\Illuminate\Database\Eloquent\Builder $query): void
+    {
+        $query->whereNull('owner_campaign_id');
+    }
+
     public function uniqueIds(): array
     {
         return ['uuid'];
@@ -72,6 +83,7 @@ final class Template extends Model
             'marketing' => 'boolean',
             'rendered_at' => 'datetime',
             'published_at' => 'datetime',
+            'owner_campaign_id' => 'integer',
         ];
     }
 

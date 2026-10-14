@@ -1717,6 +1717,10 @@
             "expandPalette": "Bereich ausklappen",
             "collapseProps": "Einstellungen einklappen",
             "expandProps": "Einstellungen"
+        },
+        "campaign": {
+            "context": "Kampagneninhalt",
+            "back": "Zurück zur Kampagne"
         }
     },
     "library": {
@@ -2033,7 +2037,17 @@
             "sent": "Gesendet",
             "failed": "Fehler",
             "skipped": "Übersprungen (Gate)"
-        }
+        },
+        "contentMode": {
+            "legend": "Woher kommt der Inhalt?",
+            "new": "Neue Vorlage erstellen",
+            "existing": "Vorhandene Vorlage laden",
+            "newHint": "Du erstellst den Inhalt direkt hier in der Kampagne. In die Bibliothek gelangt er nur, wenn du ihn im Editor auch als Vorlage speicherst.",
+            "create": "Inhalt erstellen",
+            "edit": "Inhalt bearbeiten",
+            "libraryEmpty": "Die Vorlagenbibliothek ist noch leer — erstelle den Inhalt direkt hier."
+        },
+        "ownContent": "Eigener Inhalt"
     },
     "journeyCanvas": {
         "top": {
