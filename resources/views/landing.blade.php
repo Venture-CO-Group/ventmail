@@ -34,7 +34,7 @@
         <span class="landing__blob landing__blob--c"></span>
     </div>
 
-    <header class="landing__header vm-glow-hairline">
+    <header class="landing__header">
         <a class="brand-logo" href="/" aria-label="ventMail">
             <img class="brand-logo__mark" src="/brand/logomark.svg" alt="">
             <span class="brand-logo__word vt-text-display">vent<strong>Mail</strong></span>

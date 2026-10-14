@@ -296,3 +296,36 @@ main,
     font-family: var(--vt-font-mono);
     font-size: var(--vt-fs-caption);
 }
+
+/*
+ | A FEJLÉC alatti futó vonal — SÁV-elválasztó, nem kártya-keret (a glow-szabály a kártyákra
+ | vonatkozik, D314). Korábban a közös `glow.css` `.vm-glow-hairline` utility-je volt; az app
+ | már nem használja, ezért ide, a termékoldal saját stílusába került.
+ */
+.landing__header {
+    position: relative;
+}
+
+.landing__header::after {
+    content: '';
+    position: absolute;
+    inset: auto 0 0 0;
+    height: var(--vt-hair);
+    pointer-events: none;
+    background: var(--vm-glow-linear);
+    background-size: 200% 100%;
+    opacity: 0.45;
+    animation: landing-glow-flow 12s linear infinite;
+}
+
+@keyframes landing-glow-flow {
+    to {
+        background-position: 200% 0;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .landing__header::after {
+        animation: none;
+    }
+}

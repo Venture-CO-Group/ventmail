@@ -1,16 +1,19 @@
 /*
  | A VENTURE GLOW-RENDSZER (ventSSO v1.2 portja) — kizárólag @venture/design tokenekből.
  |
- |  - .vm-glow-rim        a teljes keret, csak fókuszkártyán (belépő, megtagadva);
- |  - .vm-glow-hairline   halvány futó vonal egy sáv alatt (oldalsáv-fej);
- |  - .vm-glow-indicator  az aktív navigációs elem függőleges jelölője.
+ |  - .vm-glow-rim        a teljes keret, csak fókuszkártyán (belépő, megtagadva).
+ |
+ | GLOW-SZABÁLY (@venture/ui 0.3.0, D314): a kártya glow-ja VAGY körbefut, VAGY nincs. A
+ | kártyák ringjét a `VtCard`/`VmCard` `glow` propja adja; az egyélű hairline- és a
+ | nav-jelölő indicator-utility kivezetve (az aktív menüpontot a `VtNavItem` jelöli). A
+ | `--vm-glow-linear` csak TARTALOM (folyamatjelző sáv), nem kártya-keret.
  |
  | `@property` nélkül a keret statikus színátmenet; `prefers-reduced-motion` mellett semmi
  | nem mozog. A hajszálvonalak `calc(var(--vt-space-1) / 4)`-ek (a token 4 egység), mert a
  | tokenteszt nyers hosszt nem enged; az eredeti 1 px-es, 2 px-es értéket adják vissza.
  |
- | JELENTÉS a @venture/ui felé: a glow-rim/-hairline/-indicator mindkét app (ventSSO, ventMail)
- | saját példánya — a @venture/design utilities-ébe kellene költöznie.
+ | JELENTÉS a @venture/ui felé: a glow-rim (fókuszkártya konikus keret) mindkét app (ventSSO,
+ | ventMail) saját példánya — a @venture/design utilities-ébe kellene költöznie.
  */
 @property --vm-rim-angle {
     syntax: '<angle>';
@@ -36,12 +39,6 @@
         var(--vt-accent),
         var(--vt-color-cyan-400)
     );
-    --vm-glow-vertical: linear-gradient(
-        180deg,
-        var(--vt-color-cyan-400),
-        var(--vt-accent),
-        var(--vt-color-violet-400)
-    );
 }
 
 @keyframes vm-rim-spin {
@@ -57,12 +54,6 @@
     }
     50% {
         opacity: 1;
-    }
-}
-
-@keyframes vm-glow-flow {
-    to {
-        background-position: 200% 0;
     }
 }
 
@@ -130,41 +121,9 @@
     opacity: 0.6;
 }
 
-.vm-glow-hairline {
-    position: relative;
-    padding-block-end: var(--vt-space-4);
-}
-
-.vm-glow-hairline::after {
-    content: '';
-    position: absolute;
-    inset: auto 0 0 0;
-    height: var(--vt-hair);
-    pointer-events: none;
-    background: var(--vm-glow-linear);
-    background-size: 200% 100%;
-    opacity: 0.45;
-    animation: vm-glow-flow 12s linear infinite;
-}
-
-.vm-glow-indicator {
-    position: relative;
-}
-
-.vm-glow-indicator::before {
-    content: '';
-    position: absolute;
-    inset-block: var(--vt-space-2);
-    inset-inline-start: 0;
-    width: calc(var(--vt-space-1) / 2);
-    border-radius: var(--vt-radius-full);
-    background: var(--vm-glow-vertical);
-}
-
 @media (prefers-reduced-motion: reduce) {
     .vm-glow-rim::before,
-    .vm-glow-rim::after,
-    .vm-glow-hairline::after {
+    .vm-glow-rim::after {
         animation: none !important;
     }
 }
