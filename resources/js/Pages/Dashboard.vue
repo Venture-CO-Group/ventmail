@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Link, router, usePage } from '@inertiajs/vue3';
 import { VtBadge, VtButton, type VtColumn } from '@venture/ui';
-import { computed } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import VmSparkline from '../Components/Charts/VmSparkline.vue';
 import VmCard from '../Components/Form/VmCard.vue';
@@ -141,12 +141,44 @@ const kpiCards = computed(() => {
 
 type CampaignTableRow = { name: string; status: string; recipients: string; open: string; click: string; uuid: string };
 
+/*
+ | A RÁCS OSZLOPSZÁMA (UI-polírozás · 4, review): a 4 / 2 / 1 sávot a CSS dönti el (töréspont nélkül,
+ | lásd a stílust); itt csak KIOLVASSUK a számított sávok számát. Ebből jön a széles kártyák
+ | elhelyezése (4 sávnál a kampányok 3 + a kézbesíthetőség 1, különben mindkettő teljes sor) és a
+ | táblák oszlopkészlete 1 sávnál (mobilon a táblák nem csordulhatnak túl).
+ */
+const gridRef = ref<HTMLElement | null>(null);
+const gridColumns = ref(0);
+let gridObserver: ResizeObserver | null = null;
+
+function readColumns(): void {
+    if (gridRef.value) gridColumns.value = getComputedStyle(gridRef.value).gridTemplateColumns.split(' ').filter(Boolean).length;
+}
+
+onMounted(() => {
+    readColumns();
+
+    if (typeof ResizeObserver !== 'undefined' && gridRef.value) {
+        gridObserver = new ResizeObserver(readColumns);
+        gridObserver.observe(gridRef.value);
+    }
+});
+
+onBeforeUnmount(() => gridObserver?.disconnect());
+
+const wide = computed(() => gridColumns.value >= 4);
+const single = computed(() => gridColumns.value === 1);
+
 const campaignColumns = computed<VtColumn<CampaignTableRow>[]>(() => [
     { key: 'name', label: t('dashboard.campaigns.name') },
     { key: 'status', label: t('dashboard.campaigns.status') },
-    { key: 'recipients', label: t('dashboard.campaigns.recipients'), align: 'right' },
-    { key: 'open', label: t('dashboard.campaigns.open'), align: 'right' },
-    { key: 'click', label: t('dashboard.campaigns.click'), align: 'right' },
+    ...(single.value
+        ? []
+        : ([
+              { key: 'recipients', label: t('dashboard.campaigns.recipients'), align: 'right' },
+              { key: 'open', label: t('dashboard.campaigns.open'), align: 'right' },
+              { key: 'click', label: t('dashboard.campaigns.click'), align: 'right' },
+          ] as VtColumn<CampaignTableRow>[])),
 ]);
 
 const campaignRows = computed<CampaignTableRow[]>(() =>
@@ -174,9 +206,9 @@ const recordRows = computed(() =>
 type Row = { subject: string; status: string; recipient: string; created: string };
 
 const columns = computed<VtColumn<Row>[]>(() => [
-    { key: 'created', label: t('dashboard.recentColumns.created') },
+    ...(single.value ? [] : [{ key: 'created', label: t('dashboard.recentColumns.created') } as VtColumn<Row>]),
     { key: 'subject', label: t('dashboard.recentColumns.subject') },
-    { key: 'recipient', label: t('dashboard.recentColumns.recipient') },
+    ...(single.value ? [] : [{ key: 'recipient', label: t('dashboard.recentColumns.recipient') } as VtColumn<Row>]),
     { key: 'status', label: t('dashboard.recentColumns.status') },
 ]);
 
@@ -221,11 +253,11 @@ const rows = computed<Row[]>(() =>
         <!--
          | A KÁRTYARÁCS (UI-polírozás · 4. pont): EGYETLEN determinisztikus CSS grid, 4 / 2 / 1
          | oszlop, token-gap. Minden kártya egy cella (`data-dash-cell`); egy sor kártyái azonos
-         | tetővel és aljjal állnak (a grid nyújtja őket). A széles kártyák PÁRBAN állnak
-         | (`vm-dash-pair`, teljes sor, saját 2 / 1 oszlopos rácsa) — a párfelek éle a külső rács
-         | 1. és 3. oszlopának élére esik, és 1 oszlopnál sem keletkezik implicit oszlop.
+         | tetővel és aljjal állnak (a grid nyújtja őket). A széles kártyák 4 sávnál 3 + 1 sávot
+         | kapnak (kampányok + kézbesíthetőség), 2 és 1 sávnál teljes sort — a sávszámot a CSS dönti
+         | el, a komponens csak kiolvassa (`readColumns`), így implicit oszlop sosem keletkezik (D311).
          -->
-        <div class="vm-dash-grid" data-testid="dashboard-grid">
+        <div ref="gridRef" class="vm-dash-grid" :class="{ 'vm-dash-grid--tight': gridColumns > 0 && !wide }" data-testid="dashboard-grid" :data-columns="gridColumns">
             <div class="vm-dash-metrics" data-testid="dashboard-metrics">
                 <VmCard v-for="card in kpiCards" :key="card.key" glass :data-testid="`kpi-${card.key}`" :data-dash-cell="`kpi-${card.key}`">
                     <div class="vm-dash-kpi">
@@ -283,9 +315,15 @@ const rows = computed<Row[]>(() =>
                 </VmCard>
             </div>
 
-            <div v-if="campaigns !== null || deliverability" class="vm-dash-pair" :class="{ 'vm-dash-pair--single': campaigns === null || !deliverability }">
+            <!-- A széles kártyák: 4 sávnál kampányok 3 + kézbesíthetőség 1, különben mindkettő teljes sor. -->
                 <!-- LEGUTÓBBI KAMPÁNYOK -->
-                <VmCard v-if="campaigns !== null" glass data-testid="dashboard-campaigns" data-dash-cell="campaigns">
+                <VmCard
+                    v-if="campaigns !== null"
+                    glass
+                    :class="wide && deliverability ? 'vm-dash-span-3' : 'vm-dash-full'"
+                    data-testid="dashboard-campaigns"
+                    data-dash-cell="campaigns"
+                >
                     <div class="vm-dash-head">
                         <h2>{{ t('dashboard.campaigns.title') }}</h2>
                         <Link href="/campaigns" class="vm-dash-link" data-testid="dashboard-campaigns-all">
@@ -304,7 +342,14 @@ const rows = computed<Row[]>(() =>
                 </VmCard>
 
                 <!-- KÉZBESÍTHETŐSÉG -->
-                <VmCard v-if="deliverability" glass glow data-testid="dashboard-deliverability" data-dash-cell="deliverability">
+                <VmCard
+                    v-if="deliverability"
+                    glass
+                    glow
+                    :class="wide && campaigns !== null ? 'vm-dash-span-1' : 'vm-dash-full'"
+                    data-testid="dashboard-deliverability"
+                    data-dash-cell="deliverability"
+                >
                     <div class="vm-dash-head">
                         <h2>{{ t('dashboard.deliverability.title') }}</h2>
                         <VtBadge :tone="deliverability.healthy ? 'success' : 'warning'" size="sm" data-testid="deliverability-health">
@@ -339,7 +384,6 @@ const rows = computed<Row[]>(() =>
                         {{ t('dashboard.deliverability.openDomains') }}
                     </VtButton>
                 </VmCard>
-            </div>
 
             <!-- LEGUTÓBBI ÜZENETEK (napló) — teljes sor -->
             <VmCard class="vm-dash-full" data-dash-cell="recent">
@@ -383,7 +427,7 @@ const rows = computed<Row[]>(() =>
  */
 .vm-dash-grid {
     --vm-dash-gap: var(--vt-space-6);
-    --vm-dash-t4: calc(var(--vt-space-32) * 7);
+    --vm-dash-t4: calc(var(--vt-space-32) * 7.75);
     --vm-dash-t2: calc(var(--vt-space-32) * 4);
     --vm-dash-q: calc((100% - 3 * var(--vm-dash-gap)) / 4 - var(--vm-dash-gap) / 4);
     --vm-dash-h: calc((100% - var(--vm-dash-gap)) / 2 - var(--vm-dash-gap) / 4);
@@ -406,19 +450,28 @@ const rows = computed<Row[]>(() =>
     align-items: stretch;
 }
 
-/* A széles kártyák párja: teljes sor, saját 2 / 1 oszlopos rács — a fél él a külső rács 3. oszlopára esik. */
-.vm-dash-pair {
-    --vm-dash-h: calc((100% - var(--vm-dash-gap)) / 2 - var(--vm-dash-gap) / 4);
-
-    grid-column: 1 / -1;
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(max(var(--vm-dash-h), min(100%, calc((var(--vm-dash-t2) - 100%) * 999))), 1fr));
-    gap: var(--vm-dash-gap);
-    align-items: stretch;
+/*
+ | Keskeny rácsnál (2 / 1 sáv) a táblák RÖGZÍTETT elrendezésűek: az oszlopok a kártya szélességén
+ | osztoznak, a hosszú érték levágva (`vm-truncate`) vagy tördelve — vízszintes túlcsordulás nincs.
+ */
+.vm-dash-grid--tight :deep(.vt-table__el) {
+    table-layout: fixed;
 }
 
-.vm-dash-pair--single {
-    grid-template-columns: minmax(0, 1fr);
+.vm-dash-grid--tight :deep(.vm-truncate) {
+    max-inline-size: 100%;
+}
+
+.vm-dash-grid--tight .vm-dash-campaign {
+    min-inline-size: 0;
+}
+
+.vm-dash-span-3 {
+    grid-column: span 3;
+}
+
+.vm-dash-span-1 {
+    grid-column: span 1;
 }
 
 .vm-dash-full {

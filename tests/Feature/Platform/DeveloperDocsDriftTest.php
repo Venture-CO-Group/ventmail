@@ -108,26 +108,40 @@ it('a hibakódok és a vezérlő-paraméterek a szerződésből generáltak', fu
     expect($controls)->toContain('o:testmode', 'o:tag', 'o:deliverytime', 'o:channel', 'recipient-variables', 't:variables', 'h:X-* · v:*');
 });
 
-it('az útmutatók EGY forrásfájlból jönnek, minden útmutató hu + en, ismeretlen helyőrző nincs', function () {
+it('az útmutatók EGY forrásfájlból jönnek, mind a 7 nyelven, ismeretlen helyőrző nincs', function () {
     $source = Yaml::parseFile(base_path(DeveloperGuides::SOURCE));
 
     $keys = collect($source['guides'])->pluck('key')->all();
 
     expect($keys)->toBe(['auth', 'messages', 'smtp', 'webhooks', 'errors', 'rateLimits', 'sandbox', 'inbound', 'validation']);
 
+    // D309: mind a 7 felületi nyelv, és minden nyelven UGYANAZOK a helyőrzők (a számok nem fordíthatók el).
     foreach ($source['guides'] as $guide) {
-        expect($guide['title'])->toHaveKeys(['hu', 'en'])
-            ->and($guide['body'])->toHaveKeys(['hu', 'en']);
+        expect($guide['title'])->toHaveKeys(DeveloperGuides::LOCALES)
+            ->and($guide['body'])->toHaveKeys(DeveloperGuides::LOCALES);
+
+        $placeholders = function (string $body): array {
+            preg_match_all('/\{\{(\w+)\}\}/', $body, $match);
+            $out = array_values(array_unique($match[1]));
+            sort($out);
+
+            return $out;
+        };
+
+        foreach (DeveloperGuides::LOCALES as $locale) {
+            expect($placeholders($guide['body'][$locale]))->toBe($placeholders($guide['body']['en']), "{$guide['key']} @ {$locale}");
+        }
     }
 
-    foreach (['hu', 'en', 'de'] as $locale) {
+    foreach (DeveloperGuides::LOCALES as $locale) {
         foreach (app(DeveloperGuides::class)->build($locale, 'https://api.ventmail.app/v1') as $guide) {
             expect($guide['html'])->not->toContain('{{')->not->toContain('<script');
         }
     }
 
-    // A többi felületi nyelv az angolt kapja.
-    expect(app(DeveloperGuides::class)->build('de', 'x')[0]['title'])->toBe('Authentication and scopes');
+    expect(app(DeveloperGuides::class)->build('de', 'x')[0]['title'])->toBe('Authentifizierung und Scopes')
+        // Ismeretlen nyelv → angol.
+        ->and(app(DeveloperGuides::class)->build('pt', 'x')[0]['title'])->toBe('Authentication and scopes');
 });
 
 it('a kitöltött számok a FUTÓ kódból jönnek (rate-limit, SMTP, webhook-újrapróbálás)', function () {
@@ -140,7 +154,10 @@ it('a kitöltött számok a FUTÓ kódból jönnek (rate-limit, SMTP, webhook-ú
         ->and($guides['webhooks']['html'])->toContain((string) DeliverWebhook::MAX_ATTEMPTS)->toContain('1 → 2 → 4 → 8 → 16 min')
         ->and($guides['inbound']['soon'])->toBeTrue()
         ->and($guides['validation']['soon'])->toBeTrue()
-        ->and($guides['messages']['html'])->toContain('recipient-variables');
+        ->and($guides['messages']['html'])->toContain('recipient-variables')
+        // A kereső szövege a kötőjelet MEGTARTJA (Idempotency-Key, dead-letter).
+        ->and($guides['auth']['text'])->toContain('Idempotency-Key')
+        ->and($guides['webhooks']['text'])->toContain('dead-letter');
 });
 
 it('a képernyő propjai: útmutatók, scope-lista, hibakódok', function () {

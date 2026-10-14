@@ -46,6 +46,8 @@ function rows(boxes: Box[]): Box[][] {
 for (const [width, height, columns] of [
     [1440, 900, 4],
     [1280, 800, 4],
+    // 1024-nél a 4. sáv már túl keskeny lenne (a kézbesíthetőség gombja kilógna) → 2 sáv.
+    [1024, 768, 2],
     [820, 1180, 2],
     [390, 844, 1],
 ] as const) {
@@ -90,6 +92,36 @@ for (const [width, height, columns] of [
 
         for (const box of boxes) {
             expect(firstRowLefts.some((left) => Math.abs(left - box.left) <= TOLERANCE), `bal él: ${box.id}`).toBe(true);
+        }
+
+        // 6. Egyetlen táblázat sem csordul túl vízszintesen a rácsban (nincs levágott oszlop).
+        const overflowing = await grid.locator('table').evaluateAll((tables) =>
+            tables
+                .map((table) => {
+                    let box: HTMLElement | null = table as HTMLElement;
+
+                    // A legközelebbi KÁRTYÁIG minden ős: a táblát semmi nem vághatja és nem görgetheti.
+                    const out: string[] = [];
+                    while (box && !box.hasAttribute('data-dash-cell')) {
+                        if (box.scrollWidth > box.clientWidth + 1) out.push(`${box.tagName}.${box.className} ${box.scrollWidth}>${box.clientWidth}`);
+                        box = box.parentElement;
+                    }
+
+                    return out;
+                })
+                .flat(),
+        );
+
+        expect(overflowing).toEqual([]);
+
+        // 7. A legutóbbi kampányok kártyája széles: 4 oszlopnál 3 sávot, egyébként a teljes sort kapja.
+        const campaigns = boxes.find((box) => box.id === 'campaigns');
+        const recent = boxes.find((box) => box.id === 'recent');
+
+        if (campaigns && recent) {
+            const ratio = (campaigns.right - campaigns.left) / (recent.right - recent.left);
+
+            expect(ratio).toBeGreaterThan(columns === 4 ? 0.7 : 0.99);
         }
 
         // 5. A sorok között a köz pontosan a rács köze.

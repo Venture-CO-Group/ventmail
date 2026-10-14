@@ -57,7 +57,15 @@ async function shot(page: Page, dir: string, name: string, fullPage = true): Pro
         await page.waitForTimeout(1200);
     }
 
+    // TELJES OLDALAS képnél a ragadós sávok (héj-sáv, szerkesztő felső sávja, mobil sín) a kép
+    // közepén is megjelennének (rögzítési artefakt) — a képhez statikusra állítjuk őket.
+    const unstick = fullPage
+        ? await page.addStyleTag({ content: '[data-testid="app-nav"], .vm-ed-top, .vm-ed-rail { position: static !important; }' })
+        : null;
+
     await page.screenshot({ path: join(OUT, dir, `${name}.png`), fullPage, animations: 'disabled', caret: 'hide' });
+
+    if (unstick) await unstick.evaluate((node) => (node as Element).remove());
 
     if (viewport) await page.setViewportSize(viewport);
 }

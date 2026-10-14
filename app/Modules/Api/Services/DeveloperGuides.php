@@ -15,8 +15,8 @@ use Symfony\Component\Yaml\Yaml;
 /**
  * A FEJLESZTŐI DOKSI PRÓZAI ÚTMUTATÓI (UI-polírozás · 9. pont, D305).
  *
- * EGYETLEN forrásfájl: `docs/developer/guides.yaml`. A szöveg ott él (hu + en; a többi felületi
- * nyelv az angolt kapja), a SZÁMOK viszont nem: a `{{kulcs}}` helyőrzőket itt, a futó kódból és
+ * EGYETLEN forrásfájl: `docs/developer/guides.yaml`. A szöveg ott él (a felület mind a 7 nyelvén,
+ * D309), a SZÁMOK viszont nem: a `{{kulcs}}` helyőrzőket itt, a futó kódból és
  * konfigurációból töltjük ki (rate-limit, SMTP, webhook-újrapróbálás, aláírás-tűrés) — a doksi
  * így nem mondhat mást, mint ami fut. Ismeretlen helyőrző = hiba (a teszt elkapja).
  *
@@ -27,11 +27,15 @@ final class DeveloperGuides
 {
     public const SOURCE = 'docs/developer/guides.yaml';
 
+    /** A forrásban kötelező nyelvek (a felület 7 nyelve, D309). */
+    public const LOCALES = ['hu', 'en', 'de', 'fr', 'it', 'es', 'ru'];
+
     /** @return list<array{key: string, soon: bool, title: string, html: string, text: string}> */
     public function build(string $locale, string $baseUrl): array
     {
         $source = Yaml::parseFile(base_path(self::SOURCE));
-        $language = in_array($locale, ['hu', 'en'], true) ? $locale : 'en';
+        // D309: mind a 7 felületi nyelv a forrásban; ismeretlen nyelv → angol.
+        $language = in_array($locale, self::LOCALES, true) ? $locale : 'en';
         $values = $this->values($baseUrl);
         $out = [];
 
@@ -44,7 +48,7 @@ final class DeveloperGuides
                 'title' => (string) ($guide['title'][$language] ?? $guide['title']['en'] ?? $guide['key']),
                 'html' => Str::markdown($body, ['html_input' => 'strip', 'allow_unsafe_links' => false]),
                 // A KERESŐNEK: a törzs jelölés nélkül.
-                'text' => trim((string) preg_replace('/[`*_#|>\-]+/', ' ', $body)),
+                'text' => trim((string) preg_replace('/[`*_#|>]+/', ' ', $body)),
             ];
         }
 
