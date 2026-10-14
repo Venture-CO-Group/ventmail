@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { VtBadge, VtInput, VtSegmented, type VtColumn } from '@venture/ui';
+import { VtBadge, VtInput, VtNavItem, VtSegmented, type VtColumn } from '@venture/ui';
 import { computed, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import VmCard from '../../Components/Form/VmCard.vue';
@@ -237,65 +237,53 @@ const methodTone = (method: string): 'success' | 'accent' | 'warning' | 'danger'
 
                     <template v-if="mainGuides.length">
                         <p class="vm-docnav__group">{{ t('plat.docs.guides') }}</p>
-                        <button
+                        <VtNavItem
                             v-for="item in mainGuides"
                             :key="item.key"
-                            type="button"
-                            class="vm-docnav__item"
-                            :class="{ 'vm-docnav__item--active': selected === `guide:${item.key}` }"
-                            :aria-current="selected === `guide:${item.key}` ? 'page' : undefined"
+                            :label="item.title"
+                            :active="selected === `guide:${item.key}`"
                             :data-testid="guideTestid(item)"
                             @click="select(`guide:${item.key}`)"
-                        >
-                            {{ item.title }}
-                        </button>
+                        />
                     </template>
 
                     <template v-for="group in groups" :key="group.tag">
                         <p class="vm-docnav__group">{{ group.tag }}</p>
-                        <button
+                        <VtNavItem
                             v-for="item in group.operations"
                             :key="item.id"
-                            type="button"
-                            class="vm-docnav__item"
-                            :class="{ 'vm-docnav__item--active': selected === item.id }"
-                            :aria-current="selected === item.id ? 'page' : undefined"
+                            :active="selected === item.id"
                             :data-testid="`docs-op-${item.id}`"
                             @click="select(item.id)"
                         >
-                            <span class="vm-docnav__method">{{ item.method }}</span>
-                            <span class="vm-truncate">{{ item.path }}</span>
-                        </button>
+                            <span class="vm-docnav__op"><span class="vm-docnav__method">{{ item.method }}</span><span class="vm-truncate">{{ item.path }}</span></span>
+                        </VtNavItem>
                     </template>
 
                     <!-- D15: „hamarosan" — a szerződés végpontjai jelölve (drift = 0), új végpont nincs. -->
                     <template v-if="soonGuides.length || soonOperations.length">
                         <p class="vm-docnav__group">{{ t('plat.docs.later') }}</p>
-                        <button
+                        <VtNavItem
                             v-for="item in soonGuides"
                             :key="item.key"
-                            type="button"
-                            class="vm-docnav__item vm-docnav__item--soon"
-                            :class="{ 'vm-docnav__item--active': selected === `guide:${item.key}` }"
-                            :aria-current="selected === `guide:${item.key}` ? 'page' : undefined"
+                            class="vm-docnav__soon"
+                            :label="item.title"
+                            :active="selected === `guide:${item.key}`"
                             :data-testid="guideTestid(item)"
                             @click="select(`guide:${item.key}`)"
                         >
-                            <span class="vm-truncate">{{ item.title }}</span> <VtBadge tone="accent-2" size="sm">{{ t('nav.soon') }}</VtBadge>
-                        </button>
-                        <button
+                            <template #trailing><VtBadge tone="accent-2" size="sm">{{ t('nav.soon') }}</VtBadge></template>
+                        </VtNavItem>
+                        <VtNavItem
                             v-for="item in soonOperations"
                             :key="item.id"
-                            type="button"
-                            class="vm-docnav__item vm-docnav__item--soon"
-                            :class="{ 'vm-docnav__item--active': selected === item.id }"
-                            :aria-current="selected === item.id ? 'page' : undefined"
+                            class="vm-docnav__soon"
+                            :active="selected === item.id"
                             :data-testid="`docs-op-${item.id}`"
                             @click="select(item.id)"
                         >
-                            <span class="vm-docnav__method">{{ item.method }}</span>
-                            <span class="vm-truncate">{{ item.path }}</span>
-                        </button>
+                            <span class="vm-docnav__op"><span class="vm-docnav__method">{{ item.method }}</span><span class="vm-truncate">{{ item.path }}</span></span>
+                        </VtNavItem>
                     </template>
                 </nav>
             </template>
@@ -437,29 +425,15 @@ const methodTone = (method: string): 'success' | 'accent' | 'warning' | 'danger'
     text-transform: uppercase;
 }
 
-.vm-docnav__item {
-    display: flex;
-    align-items: center;
-    gap: var(--vt-space-2);
-    width: 100%;
-    padding: var(--vt-space-2) var(--vt-space-3);
-    border: none;
-    border-radius: var(--vt-radius-md);
-    background: transparent;
-    color: var(--vt-text);
-    font: inherit;
-    text-align: left;
-    cursor: pointer;
-    min-width: 0;
-}
-
-.vm-docnav__item--active {
-    background: var(--vt-bg-elevated);
-}
-
-.vm-docnav__item--soon {
+.vm-docnav__soon {
     color: var(--vt-text-muted);
-    cursor: default;
+}
+
+.vm-docnav__op {
+    display: flex;
+    align-items: baseline;
+    gap: var(--vt-space-2);
+    min-width: 0;
 }
 
 .vm-docnav__method {
