@@ -2523,24 +2523,10 @@
             "lead": "/v1 stabile — nessuna modifica incompatibile. La sandbox usa la allowlist seed: nessuna email arriva a destinatari reali.",
             "start": "Per iniziare",
             "later": "Più avanti",
-            "guide": {
-                "auth": "Autenticazione",
-                "errors": "Errori e codici",
-                "sandbox": "Sandbox",
-                "webhooks": "Payload webhook"
-            },
-            "guideText": {
-                "auth": "Ogni richiesta si autentica con una chiave API nell'header Authorization: Bearer. Le chiavi sono legate al workspace, gli scope decidono cosa possono chiamare ed è possibile impostare un'allowlist IP.",
-                "errors": "Gli errori hanno una forma unica: error.code (stabile, leggibile da macchina) ed error.message. Un rifiuto del PreSendGate è 422 con il motivo strutturato.",
-                "sandbox": "Per i test usa una chiave di test o il controllo o:testmode: il messaggio passa il PreSendGate e compare nel registro, ma non viene consegnato. Finché l'invio non è attivo, solo i destinatari nella allowlist seed ricevono email reali.",
-                "webhooks": "Ogni evento arriva come POST JSON firmato al tuo endpoint. Verifica firma e timestamp ed elabora ogni id X-VentMail-Delivery una sola volta."
-            },
-            "authBasic": "Compatibilità: funziona anche HTTP Basic con utente \"api\" e la chiave come password.",
             "testKeys": "Prefisso chiavi di test",
             "payload": "Payload webhook",
             "schema": "Schema",
             "field": "Campo",
-            "signatureNote": "Verifica: confronta HMAC-SHA256(segreto, timestamp + \".\" + corpo) con X-VentMail-Signature; rifiuta timestamp più vecchi di {seconds} secondi. Durante una rotazione la firma con il vecchio segreto arriva in X-VentMail-Signature-Previous.",
             "language": "Linguaggio",
             "scope": "Scope richiesto",
             "parameters": "Parametri",
@@ -2548,7 +2534,17 @@
             "in": "Posizione",
             "description": "Descrizione",
             "responses": "Risposte",
-            "testField": "true — solo negli eventi di prova"
+            "testField": "true — solo negli eventi di prova",
+            "guides": "Guide",
+            "search": "Cerca nella documentazione",
+            "searchEmpty": "Nessun risultato.",
+            "scopes": "Scope e relativi endpoint",
+            "scopeNone": "nessun endpoint /v1 — permesso dell’interfaccia",
+            "controls": "Parametri di controllo (dal contratto)",
+            "errorCodes": "Codici di errore stabili",
+            "soonBanner": "In arrivo: l’endpoint fa parte del contratto, ma la funzione non è ancora disponibile per tutti — non costruirci ancora integrazioni in produzione.",
+            "soonEndpoints": "Endpoint del contratto",
+            "source": "Fonte"
         }
     },
     "branding": {

@@ -2523,24 +2523,10 @@
             "lead": "/v1 stable — aucun changement cassant. La sandbox fonctionne avec la liste de seed : aucun e-mail n'atteint de vrais destinataires.",
             "start": "Bien démarrer",
             "later": "Plus tard",
-            "guide": {
-                "auth": "Authentification",
-                "errors": "Erreurs et codes",
-                "sandbox": "Sandbox",
-                "webhooks": "Payloads webhook"
-            },
-            "guideText": {
-                "auth": "Chaque requête s'authentifie avec une clé API dans l'en-tête Authorization: Bearer. Les clés sont liées à un espace de travail, leurs scopes déterminent les appels autorisés, et une liste d'IP autorisées peut être définie.",
-                "errors": "Les erreurs ont une forme unique : error.code (stable, lisible par machine) et error.message. Un rejet du PreSendGate renvoie 422 avec le motif structuré.",
-                "sandbox": "Pour tester, utilisez une clé de test ou le contrôle o:testmode : le message passe le PreSendGate et apparaît dans le journal, sans être livré. Tant que l'envoi n'est pas en production, seuls les destinataires de la liste de seed reçoivent de vrais e-mails.",
-                "webhooks": "Chaque événement arrive en POST JSON signé sur votre point de terminaison. Vérifiez la signature et l'horodatage, et ne traitez chaque identifiant X-VentMail-Delivery qu'une fois."
-            },
-            "authBasic": "Compatibilité : HTTP Basic fonctionne aussi avec l'identifiant \"api\" et la clé comme mot de passe.",
             "testKeys": "Préfixe des clés de test",
             "payload": "Payload webhook",
             "schema": "Schéma",
             "field": "Champ",
-            "signatureNote": "Vérification : comparez HMAC-SHA256(secret, horodatage + \".\" + corps) à X-VentMail-Signature ; rejetez les horodatages de plus de {seconds} secondes. Pendant un renouvellement, la signature avec l'ancien secret arrive dans X-VentMail-Signature-Previous.",
             "language": "Langage",
             "scope": "Scope requis",
             "parameters": "Paramètres",
@@ -2548,7 +2534,17 @@
             "in": "Emplacement",
             "description": "Description",
             "responses": "Réponses",
-            "testField": "true — uniquement pour les événements de test"
+            "testField": "true — uniquement pour les événements de test",
+            "guides": "Guides",
+            "search": "Rechercher dans la documentation",
+            "searchEmpty": "Aucun résultat.",
+            "scopes": "Scopes et leurs points de terminaison",
+            "scopeNone": "aucun point de terminaison /v1 — droit d’interface",
+            "controls": "Paramètres de contrôle (issus du contrat)",
+            "errorCodes": "Codes d’erreur stables",
+            "soonBanner": "Bientôt : le point de terminaison fait partie du contrat, mais la fonction n’est pas encore disponible pour tous — n’y construisez pas encore d’intégration en production.",
+            "soonEndpoints": "Points de terminaison du contrat",
+            "source": "Source"
         }
     },
     "branding": {

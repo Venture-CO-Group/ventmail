@@ -2523,24 +2523,10 @@
             "lead": "Stable /v1 — no breaking changes. The sandbox works with the seed allowlist: no mail reaches real recipients.",
             "start": "Getting started",
             "later": "Later",
-            "guide": {
-                "auth": "Authentication",
-                "errors": "Errors and codes",
-                "sandbox": "Sandbox",
-                "webhooks": "Webhook payloads"
-            },
-            "guideText": {
-                "auth": "Every request authenticates with an API key in the Authorization: Bearer header. Keys are workspace-bound, their scopes decide what they may call, and an IP allowlist can be set.",
-                "errors": "Errors share one shape: error.code (stable, machine-readable) and error.message. A PreSendGate rejection is 422 with the gate's structured reason.",
-                "sandbox": "For testing use a test key or the o:testmode control: the message passes the PreSendGate and shows in the log, but is not delivered. Until sending is live, only seed-allowlisted recipients can receive real mail.",
-                "webhooks": "Every event arrives as a signed JSON POST to your endpoint. Verify the signature and timestamp, and process each X-VentMail-Delivery id only once."
-            },
-            "authBasic": "Compatibility: HTTP Basic also works with the username \"api\" and the key as password.",
             "testKeys": "Test key prefix",
             "payload": "Webhook payload",
             "schema": "Schema",
             "field": "Field",
-            "signatureNote": "Verify: compare HMAC-SHA256(secret, timestamp + \".\" + body) with X-VentMail-Signature; reject timestamps older than {seconds} seconds. During a secret rotation the signature made with the old secret arrives in X-VentMail-Signature-Previous.",
             "language": "Language",
             "scope": "Required scope",
             "parameters": "Parameters",
@@ -2548,7 +2534,17 @@
             "in": "In",
             "description": "Description",
             "responses": "Responses",
-            "testField": "true — test events only"
+            "testField": "true — test events only",
+            "guides": "Guides",
+            "search": "Search the documentation",
+            "searchEmpty": "No results.",
+            "scopes": "Scopes and their endpoints",
+            "scopeNone": "no /v1 endpoint — UI permission",
+            "controls": "Control parameters (from the contract)",
+            "errorCodes": "Stable error codes",
+            "soonBanner": "Coming soon: the endpoint is part of the contract, but the feature is not generally available yet — do not build production integrations on it.",
+            "soonEndpoints": "Contract endpoints",
+            "source": "Source"
         }
     },
     "branding": {

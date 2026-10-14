@@ -159,6 +159,13 @@ for (const [dir, viewport] of Object.entries(VIEWPORTS)) {
         test('fejlesztői doksi', async ({ page }) => {
             await visit(page, '/developers');
             await shot(page, dir, '06-developer-docs');
+
+            if (PHASE === 'after') {
+                await page.getByTestId('docs-guide-smtp').click();
+                await shot(page, dir, '06b-developer-docs-smtp');
+                await page.getByTestId('docs-op-post-messages').click();
+                await shot(page, dir, '06c-developer-docs-endpoint');
+            }
         });
     });
 }

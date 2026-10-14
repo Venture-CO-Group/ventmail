@@ -1,0 +1,289 @@
+# ventMail fejlesztői dokumentáció — PRÓZAI ÚTMUTATÓK (UI-polírozás · 9. pont, D305).
+#
+# Ez az EGYETLEN forrás az appon belüli doksi (/developers) szöveges útmutatóihoz. Az endpoint-
+# referencia, a hibakódok, a scope-ok és a vezérlő-paraméterek NEM itt élnek: azok a
+# `docs/openapi/ventmail-v1.yaml` szerződésből és a route-okból generálódnak (D177).
+#
+# A számok (portok, limitek, újrapróbálás) NEM ide vannak beírva: a `{{kulcs}}` helyőrzőket az
+# `App\Modules\Api\Services\DeveloperGuides` a KÓDBÓL / konfigurációból tölti ki — így a szöveg
+# nem csúszhat el attól, ami ténylegesen fut. Ismeretlen helyőrző → a teszt elbukik.
+#
+# Nyelvek: `hu` és `en` (a többi felületi nyelv az angolt kapja — a fejlesztői referencia, mint
+# az OpenAPI, nem fordított). Törzs: Markdown (CommonMark, nyers HTML nélkül).
+#
+# `soon: true` = a funkció „hamarosan" (D15): a szerződésben szereplő végpontjai a referenciában
+# „Hamarosan" jelöléssel látszanak, új végpontot ez a fájl NEM talál ki.
+
+guides:
+  - key: auth
+    title:
+      hu: Hitelesítés és scope-ok
+      en: Authentication and scopes
+    body:
+      hu: |
+        Minden kérés **API-kulccsal** hitelesít: `Authorization: Bearer <kulcs>`. Mailgun-
+        paritásként a HTTP Basic is működik: felhasználónév `api`, jelszó a kulcs.
+
+        - Az éles kulcs előtagja `vm_live_`, a teszt-kulcsé `{{test_key_prefix}}`.
+        - A kulcs egy workspace-hez kötött; a **scope**-ok döntik el, melyik végpontot hívhatja
+          (hiányzó scope: `403 INSUFFICIENT_SCOPE`). A scope-ot a végpont oldala is mutatja.
+        - A kulcshoz **IP-allowlist** (CIDR) is rendelhető.
+        - Marketing-csatornán küldeni csak a `messages:send:marketing` scope-pal ÉS a kulcs
+          csatorna-jogával lehet.
+        - Minden küldő `POST` kötelezően `Idempotency-Key` fejlécet kér (legfeljebb 255 karakter).
+
+        Bázis-URL: `{{base_url}}`
+      en: |
+        Every request authenticates with an **API key**: `Authorization: Bearer <key>`. For
+        Mailgun parity HTTP Basic works too: username `api`, password the key.
+
+        - Live keys start with `vm_live_`, test keys with `{{test_key_prefix}}`.
+        - A key belongs to one workspace; its **scopes** decide which endpoints it may call
+          (missing scope: `403 INSUFFICIENT_SCOPE`). Each endpoint page shows its scope.
+        - A key can carry an **IP allowlist** (CIDR).
+        - Sending on the marketing channel needs the `messages:send:marketing` scope AND the
+          key's channel permission.
+        - Every sending `POST` requires an `Idempotency-Key` header (at most 255 characters).
+
+        Base URL: `{{base_url}}`
+
+  - key: messages
+    title:
+      hu: Messages API — strukturált, MIME, batch
+      en: Messages API — structured, MIME, batch
+    body:
+      hu: |
+        **Strukturált küldés:** `POST /messages` (JSON vagy `multipart/form-data`). A ventMail
+        Mailgun-kompatibilis: a `from`, `to`, `subject`, `html`, `text` mezők mellett az
+        `o:` (opciók), `h:` (egyedi fejlécek) és `v:` (visszhangzó változók) előtagú
+        paramétereket érti — a lenti táblázat a szerződésből generált.
+
+        **Nyers MIME:** `POST /messages.mime` — a kész MIME-üzenet `message` mezőben. A nem
+        értelmezett `o:` vezérlő hiba (`UNSUPPORTED_MIME_OPTION`); a leiratkozó fejléc a
+        ventMailé (RFC 8058), nyers MIME-ban nem adható meg.
+
+        **Batch:** egy hívás legfeljebb **{{batch_max}}** címzett. A `recipient-variables` JSON
+        objektum címzettenként adja a behelyettesítést — minden címzett külön levelet kap:
+
+        ```json
+        {
+          "from": "Shop <no-reply@mail.example.com>",
+          "to": ["anna@example.com", "bela@example.com"],
+          "subject": "Szia %recipient.first%!",
+          "text": "A kódod: %recipient.code%",
+          "recipient-variables": "{\"anna@example.com\":{\"first\":\"Anna\",\"code\":\"A1\"},\"bela@example.com\":{\"first\":\"Béla\",\"code\":\"B2\"}}"
+        }
+        ```
+
+        A `v:*` értékek visszhangzanak (eseményben, webhookban látszanak), a `t:variables`
+        titkos sablonváltozói nem.
+      en: |
+        **Structured send:** `POST /messages` (JSON or `multipart/form-data`). ventMail is
+        Mailgun-compatible: besides `from`, `to`, `subject`, `html`, `text` it understands
+        parameters prefixed `o:` (options), `h:` (custom headers) and `v:` (echoed
+        variables) — the table below is generated from the contract.
+
+        **Raw MIME:** `POST /messages.mime` — the finished MIME message in the `message`
+        field. An unknown `o:` control is an error (`UNSUPPORTED_MIME_OPTION`); the
+        unsubscribe header belongs to ventMail (RFC 8058) and cannot be set in raw MIME.
+
+        **Batch:** at most **{{batch_max}}** recipients per call. The `recipient-variables` JSON
+        object gives each recipient its own substitution — every recipient gets a separate
+        message:
+
+        ```json
+        {
+          "from": "Shop <no-reply@mail.example.com>",
+          "to": ["anna@example.com", "bela@example.com"],
+          "subject": "Hi %recipient.first%!",
+          "text": "Your code: %recipient.code%",
+          "recipient-variables": "{\"anna@example.com\":{\"first\":\"Anna\",\"code\":\"A1\"},\"bela@example.com\":{\"first\":\"Bela\",\"code\":\"B2\"}}"
+        }
+        ```
+
+        `v:*` values are echoed (visible in events and webhooks); the secret template
+        variables in `t:variables` are not.
+
+  - key: smtp
+    title:
+      hu: SMTP relay — csatlakozás
+      en: SMTP relay — connection
+    body:
+      hu: |
+        Ha az alkalmazásod SMTP-n küld, a ventMail relay ugyanazon a motoron (PreSendGate,
+        suppression, consent, napló) viszi tovább, mint az API-hívást.
+
+        | Beállítás | Érték |
+        |---|---|
+        | Kiszolgáló | `{{smtp_host}}` |
+        | Port | `587` (STARTTLS) vagy `465` (implicit TLS) |
+        | Titkosítás | KÖTELEZŐ — titkosítatlan hitelesítést a szerver nem fogad |
+        | Hitelesítés | `PLAIN` / `LOGIN`, a **Platform → SMTP-hitelesítők** oldalon kiadott felhasználónévvel és jelszóval |
+        | Levélméret | legfeljebb {{smtp_max_mb}} MB |
+        | Sebesség | hitelesítőnként {{smtp_rate}} levél / perc (a workspace-keret fölötte érvényes) |
+
+        Nyílt relay nincs: hitelesítés nélkül a szerver semmit nem továbbít.
+      en: |
+        If your application sends over SMTP, the ventMail relay forwards it on the same engine
+        (PreSendGate, suppression, consent, logs) as an API call.
+
+        | Setting | Value |
+        |---|---|
+        | Host | `{{smtp_host}}` |
+        | Port | `587` (STARTTLS) or `465` (implicit TLS) |
+        | Encryption | REQUIRED — the server refuses unencrypted authentication |
+        | Authentication | `PLAIN` / `LOGIN`, with the username and password issued on **Platform → SMTP credentials** |
+        | Message size | at most {{smtp_max_mb}} MB |
+        | Rate | {{smtp_rate}} messages / minute per credential (the workspace limit applies above it) |
+
+        There is no open relay: without authentication the server forwards nothing.
+
+  - key: webhooks
+    title:
+      hu: Webhookok — aláírás, újrapróbálás, replay
+      en: Webhooks — signature, retry, replay
+    body:
+      hu: |
+        Minden webhook-kérés **HMAC-SHA256**-tal aláírt. Fejlécek:
+
+        - `X-VentMail-Timestamp` — unix időbélyeg,
+        - `X-VentMail-Signature` — `hex(HMAC-SHA256(titok, időbélyeg + "." + nyers törzs))`,
+        - `X-VentMail-Signature-Previous` — titok-forgatás alatt a régi titokkal készült aláírás,
+        - `X-VentMail-Event`, `X-VentMail-Delivery` — esemény-típus és kézbesítés-azonosító.
+
+        **Ellenőrzés a fogadó oldalon:** (1) számold újra az aláírást a NYERS törzsön és
+        hasonlítsd időben állandó módon; (2) utasítsd el, ha az időbélyeg {{tolerance}} mp-nél
+        régebbi vagy {{future_tolerance}} mp-nél jövőbelibb; (3) dobd el a már látott
+        `X-VentMail-Delivery` azonosítót (replay-védelem).
+
+        **Újrapróbálás:** nem 2xx válasznál exponenciális visszalépéssel, legfeljebb
+        {{webhook_attempts}} kísérlet ({{webhook_backoff}}); utána a kézbesítés **dead-letter**
+        állapotba kerül — nem vész el.
+
+        **Replay:** a dead-letter (vagy bármely) kézbesítés újraküldhető a felületről vagy a
+        `POST /webhooks/deliveries/{uuid}/replay` végponttal.
+      en: |
+        Every webhook request is signed with **HMAC-SHA256**. Headers:
+
+        - `X-VentMail-Timestamp` — unix timestamp,
+        - `X-VentMail-Signature` — `hex(HMAC-SHA256(secret, timestamp + "." + raw body))`,
+        - `X-VentMail-Signature-Previous` — during secret rotation, the signature with the old secret,
+        - `X-VentMail-Event`, `X-VentMail-Delivery` — event type and delivery id.
+
+        **Verify on the receiving side:** (1) recompute the signature over the RAW body and
+        compare in constant time; (2) reject it if the timestamp is older than {{tolerance}} s or
+        more than {{future_tolerance}} s in the future; (3) drop an `X-VentMail-Delivery` id you
+        have already seen (replay protection).
+
+        **Retry:** on a non-2xx response, with exponential backoff, at most {{webhook_attempts}}
+        attempts ({{webhook_backoff}}); after that the delivery goes to **dead-letter** — it is
+        not lost.
+
+        **Replay:** a dead-lettered (or any) delivery can be re-sent from the UI or with
+        `POST /webhooks/deliveries/{uuid}/replay`.
+
+  - key: errors
+    title:
+      hu: Hibakódok
+      en: Error codes
+    body:
+      hu: |
+        Hiba esetén a válasz törzse mindig ugyanolyan alakú; a **kód** a szerződés, az üzenet
+        csak segítség:
+
+        ```json
+        { "error": { "code": "SUPPRESSED", "message": "…" } }
+        ```
+
+        HTTP-osztályok: `400` formai hiba, `401` hiányzó / érvénytelen kulcs, `403` hiányzó
+        scope vagy csatorna-jog, `404` nincs ilyen erőforrás a workspace-ben, `409`
+        idempotencia-ütközés, `422` a PreSendGate elutasította, `429` rate-limit. A teljes,
+        stabil kódlista a szerződésből generált:
+      en: |
+        On error the response body always has the same shape; the **code** is the contract,
+        the message is only a hint:
+
+        ```json
+        { "error": { "code": "SUPPRESSED", "message": "…" } }
+        ```
+
+        HTTP classes: `400` malformed, `401` missing / invalid key, `403` missing scope or
+        channel permission, `404` no such resource in the workspace, `409` idempotency
+        conflict, `422` rejected by the PreSendGate, `429` rate limit. The full, stable code
+        list is generated from the contract:
+
+  - key: rateLimits
+    title:
+      hu: Rate-limitek
+      en: Rate limits
+    body:
+      hu: |
+        | Keret | Érték |
+        |---|---|
+        | API-kulcsonként | {{api_per_key}} kérés / perc |
+        | Hálózati partnerenként (kulcstól függetlenül) | {{api_per_peer}} kérés / perc |
+        | Kulcs nélküli kérés, partnerenként | {{api_anonymous}} kérés / perc |
+        | SMTP, hitelesítőnként | {{smtp_rate}} levél / perc |
+
+        Túllépéskor `429 TOO_MANY_REQUESTS` jön `Retry-After` fejléccel — várj annyi
+        másodpercet, és ismételd ugyanazzal az `Idempotency-Key`-jel (dupla küldés nincs).
+        A küldési kvóta (`QUOTA_EXCEEDED`) és a domain-szintű küldési sebesség
+        (`RATE_LIMITED`) a PreSendGate döntése, `422`-vel.
+      en: |
+        | Limit | Value |
+        |---|---|
+        | Per API key | {{api_per_key}} requests / minute |
+        | Per network peer (regardless of key) | {{api_per_peer}} requests / minute |
+        | Requests without a key, per peer | {{api_anonymous}} requests / minute |
+        | SMTP, per credential | {{smtp_rate}} messages / minute |
+
+        When exceeded you get `429 TOO_MANY_REQUESTS` with a `Retry-After` header — wait that
+        many seconds and retry with the same `Idempotency-Key` (no double send). The sending
+        quota (`QUOTA_EXCEEDED`) and the per-domain sending rate (`RATE_LIMITED`) are
+        PreSendGate decisions, returned as `422`.
+
+  - key: sandbox
+    title:
+      hu: Sandbox és tesztmód
+      en: Sandbox and test mode
+    body:
+      hu: |
+        Az `o:testmode` igaz értékével a küldés naplózódik és átmegy a kapukon, de levél nem
+        megy ki. Amíg a workspace küldése nem éles (vagy a seed-allowlist kötelező), csak az
+        allowlistes címzett kap levelet — mindenki más `SENDING_RESTRICTED` kóddal áll meg.
+        Az aktuális állapot lent látszik.
+      en: |
+        With `o:testmode` set to true the send is logged and passes the gates, but no mail
+        goes out. Until the workspace sending is live (or the seed allowlist is enforced),
+        only allowlisted recipients get mail — everyone else stops with `SENDING_RESTRICTED`.
+        The current state is shown below.
+
+  - key: inbound
+    soon: true
+    title:
+      hu: Bejövő route-ok
+      en: Inbound routes
+    body:
+      hu: |
+        **Hamarosan.** A bejövő levelek (MX) szabály szerinti továbbítása webhookra vagy a
+        ventSupportnak. A végpontok a szerződés részei (lent, „Hamarosan" jelöléssel), de a
+        funkció még nem általánosan elérhető — éles integrációt még ne építs rá.
+      en: |
+        **Coming soon.** Rule-based forwarding of inbound mail (MX) to a webhook or to
+        ventSupport. The endpoints are part of the contract (below, marked "soon"), but the
+        feature is not generally available yet — do not build production integrations on it.
+
+  - key: validation
+    soon: true
+    title:
+      hu: Címellenőrzés
+      en: Address validation
+    body:
+      hu: |
+        **Hamarosan.** Egyedi és tömeges címellenőrzés (szintaxis, domain, kockázat). A
+        végpontok a szerződés részei (lent, „Hamarosan" jelöléssel), de a funkció még nem
+        általánosan elérhető.
+      en: |
+        **Coming soon.** Single and bulk address validation (syntax, domain, risk). The
+        endpoints are part of the contract (below, marked "soon"), but the feature is not
+        generally available yet.

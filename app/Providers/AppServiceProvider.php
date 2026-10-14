@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
+use App\Modules\Api\Support\ApiRateLimits;
 use App\Modules\Audit\Services\KeyedHash;
 use App\Modules\Consent\Services\ConfirmationTokens;
 use App\Modules\Consent\Services\PreferenceTokens;
@@ -113,15 +114,15 @@ class AppServiceProvider extends ServiceProvider
             $peer = self::peer($request);
 
             if (! is_string($bearer) || $bearer === '') {
-                return Limit::perMinute(60)->by('peer:'.$peer);
+                return Limit::perMinute(ApiRateLimits::ANONYMOUS_PER_PEER)->by('peer:'.$peer);
             }
 
             return [
-                Limit::perMinute(300)->by('key:'.KeyedHash::of('rate_limit', $bearer)),
+                Limit::perMinute(ApiRateLimits::PER_KEY)->by('key:'.KeyedHash::of('rate_limit', $bearer)),
                 // A partner-plafon a KULCS-FORGATÓ támadó ellen van: kérésenként más Bearer
                 // értékkel a `key:` vödör sosem telik meg. Bőkezű, mert egy CI-runner vagy
                 // NAT mögött több tenant is lehet — de nem átírható fejlécből származik.
-                Limit::perMinute(1200)->by('peer:'.$peer),
+                Limit::perMinute(ApiRateLimits::PER_PEER)->by('peer:'.$peer),
             ];
         });
 

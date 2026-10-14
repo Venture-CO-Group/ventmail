@@ -2523,24 +2523,10 @@
             "lead": "Stabiles /v1 — keine Breaking Changes. Die Sandbox arbeitet mit der Seed-Allowlist: echte Empfänger erhalten keine Mails.",
             "start": "Erste Schritte",
             "later": "Später",
-            "guide": {
-                "auth": "Authentifizierung",
-                "errors": "Fehler und Codes",
-                "sandbox": "Sandbox",
-                "webhooks": "Webhook-Payloads"
-            },
-            "guideText": {
-                "auth": "Jede Anfrage authentifiziert sich mit einem API-Schlüssel im Header Authorization: Bearer. Schlüssel sind an einen Workspace gebunden, ihre Scopes bestimmen die erlaubten Aufrufe, eine IP-Allowlist ist möglich.",
-                "errors": "Fehler haben eine einheitliche Form: error.code (stabil, maschinenlesbar) und error.message. Eine PreSendGate-Ablehnung ist 422 mit dem strukturierten Grund.",
-                "sandbox": "Zum Testen einen Testschlüssel oder o:testmode verwenden: die Nachricht durchläuft das PreSendGate und erscheint im Protokoll, wird aber nicht zugestellt. Solange der Versand nicht live ist, erhalten nur Seed-Allowlist-Empfänger echte Mails.",
-                "webhooks": "Jedes Ereignis kommt als signierter JSON-POST an deinem Endpunkt an. Prüfe Signatur und Zeitstempel und verarbeite jede X-VentMail-Delivery-ID nur einmal."
-            },
-            "authBasic": "Kompatibilität: HTTP Basic funktioniert ebenfalls mit Benutzername \"api\" und dem Schlüssel als Passwort.",
             "testKeys": "Testschlüssel-Präfix",
             "payload": "Webhook-Payload",
             "schema": "Schema",
             "field": "Feld",
-            "signatureNote": "Prüfung: HMAC-SHA256(Geheimnis, Zeitstempel + \".\" + Body) mit X-VentMail-Signature vergleichen; Zeitstempel älter als {seconds} Sekunden ablehnen. Während einer Rotation kommt die Signatur mit dem alten Geheimnis in X-VentMail-Signature-Previous.",
             "language": "Sprache",
             "scope": "Erforderlicher Scope",
             "parameters": "Parameter",
@@ -2548,7 +2534,17 @@
             "in": "Ort",
             "description": "Beschreibung",
             "responses": "Antworten",
-            "testField": "true — nur bei Testereignissen"
+            "testField": "true — nur bei Testereignissen",
+            "guides": "Anleitungen",
+            "search": "Dokumentation durchsuchen",
+            "searchEmpty": "Keine Treffer.",
+            "scopes": "Scopes und ihre Endpunkte",
+            "scopeNone": "kein /v1-Endpunkt — Oberflächenrecht",
+            "controls": "Steuerparameter (aus dem Vertrag)",
+            "errorCodes": "Stabile Fehlercodes",
+            "soonBanner": "Demnächst: Der Endpunkt ist Teil des Vertrags, die Funktion ist aber noch nicht allgemein verfügbar — baue noch keine Produktivintegration darauf.",
+            "soonEndpoints": "Endpunkte im Vertrag",
+            "source": "Quelle"
         }
     },
     "branding": {

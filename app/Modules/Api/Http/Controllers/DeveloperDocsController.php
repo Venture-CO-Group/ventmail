@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace App\Modules\Api\Http\Controllers;
 
 use App\Modules\Api\Services\ApiReference;
+use App\Modules\Api\Services\DeveloperGuides;
+use App\Modules\Identity\Http\Controllers\ApiKeyController;
+use App\Modules\Webhooks\Services\WebhookSigner;
 use App\Modules\Webhooks\Http\Controllers\WebhookUiController;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
@@ -23,19 +26,27 @@ use Inertia\Response;
  */
 final class DeveloperDocsController
 {
-    public function __invoke(ApiReference $reference): Response
+    public function __invoke(ApiReference $reference, DeveloperGuides $guides): Response
     {
         // Annak szól, aki integrál vagy üzemeltet: kulcs, webhook vagy napló joga kell hozzá.
         abort_unless(Gate::any(['apiKey.manage', 'webhook.manage', 'logs.view']), 403);
 
+        $built = $reference->build();
+
         return Inertia::render('Platform/Docs', [
-            'reference' => $reference->build(),
+            'reference' => $built,
+            // UI-polírozás · 9: a prózai útmutatók EGY forrásfájlból (`docs/developer/guides.yaml`),
+            // a számok a futó kódból kitöltve.
+            'guides' => $guides->build(app()->getLocale(), $built['baseUrl']),
+            // A kiadható scope-ok (a kulcs-kiadó UGYANEZT a listát kínálja) — a végpontjaik a
+            // referenciából párosulnak.
+            'scopes' => [...ApiKeyController::SCOPES, 'messages:send:marketing'],
             'webhook' => [
                 'events' => WebhookUiController::TEST_TYPES,
                 // A VALÓDI esemény alakja: a `test` mező csak a teszt-eseményben szerepel, ezt a
                 // séma külön jelöli.
                 'sample' => collect(WebhookUiController::samplePayload('delivered'))->except('test')->all(),
-                'toleranceSeconds' => 300,
+                'toleranceSeconds' => WebhookSigner::TOLERANCE_SECONDS,
             ],
             'sandbox' => [
                 'live' => (bool) config('sending.live'),

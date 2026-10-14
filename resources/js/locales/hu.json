@@ -2523,24 +2523,10 @@
             "lead": "Stabil /v1 — breaking change nincs. A sandbox a seed-allowlisttel működik: valódi címzettnek nem megy levél.",
             "start": "Kezdés",
             "later": "Később",
-            "guide": {
-                "auth": "Hitelesítés",
-                "errors": "Hibák és kódok",
-                "sandbox": "Sandbox",
-                "webhooks": "Webhook-payloadok"
-            },
-            "guideText": {
-                "auth": "Minden kérés API-kulccsal hitelesít: Authorization: Bearer fejléc. A kulcs workspace-hez kötött, a scope-jai döntik el, mit hívhat, és IP-allowlist is adható hozzá.",
-                "errors": "A hibák egységes alakúak: error.code (stabil, gépi) és error.message. A PreSendGate elutasítása 422, a kapu strukturált okával.",
-                "sandbox": "Teszteléshez használj teszt-kulcsot vagy az o:testmode vezérlőt: a levél végigmegy a PreSendGate-en és a naplóban látszik, de nem kézbesítődik. Amíg a küldés nem éles, csak a seed-allowlistes címzett kaphat valódi levelet.",
-                "webhooks": "Minden esemény aláírt JSON POST-ként érkezik a végpontodra. Ellenőrizd az aláírást és az időbélyeget, és az X-VentMail-Delivery azonosítót csak egyszer dolgozd fel."
-            },
-            "authBasic": "Kompatibilitás: HTTP Basic is működik \"api\" felhasználónévvel és a kulccsal jelszóként.",
             "testKeys": "Teszt-kulcs előtag",
             "payload": "Webhook-payload",
             "schema": "Séma",
             "field": "Mező",
-            "signatureNote": "Ellenőrzés: HMAC-SHA256(titok, időbélyeg + \".\" + törzs) összevetése az X-VentMail-Signature értékkel; {seconds} másodpercnél régebbi időbélyeget utasíts el. Titok-rotáció alatt a régi titokkal készült aláírás az X-VentMail-Signature-Previous fejlécben jön.",
             "language": "Nyelv",
             "scope": "Szükséges scope",
             "parameters": "Paraméterek",
@@ -2548,7 +2534,17 @@
             "in": "Hely",
             "description": "Leírás",
             "responses": "Válaszok",
-            "testField": "true — csak teszt-eseményben"
+            "testField": "true — csak teszt-eseményben",
+            "guides": "Útmutatók",
+            "search": "Keresés a dokumentációban",
+            "searchEmpty": "Nincs találat.",
+            "scopes": "Scope-ok és végpontjaik",
+            "scopeNone": "nincs /v1 végpont — felületi jog",
+            "controls": "Vezérlő-paraméterek (a szerződésből)",
+            "errorCodes": "Stabil hibakódok",
+            "soonBanner": "Hamarosan: a végpont a szerződés része, de a funkció még nem általánosan elérhető — éles integrációt még ne építs rá.",
+            "soonEndpoints": "A szerződés végpontjai",
+            "source": "Forrás"
         }
     },
     "branding": {
