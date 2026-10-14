@@ -2721,5 +2721,13 @@
         "yes": "igen",
         "no": "nem",
         "nullSender": "(visszapattanás – üres feladó)"
+    },
+    "upload": {
+        "choose": "Fájl kiválasztása",
+        "none": "Nincs kiválasztott fájl",
+        "drop": "vagy húzd ide",
+        "clear": "Eltávolítás",
+        "typeError": "Ez a fájltípus nem engedélyezett ({types}).",
+        "sizeError": "A fájl túl nagy (legfeljebb {mb} MB)."
     }
 }

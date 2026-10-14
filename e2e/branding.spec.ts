@@ -60,10 +60,14 @@ test('mentés: érvényes szín elmentődik, olvashatatlan szín elutasul', asyn
 test('logó: PNG feltöltés és eltávolítás; SVG elutasítva', async ({ page }) => {
     await page.goto('/settings/branding');
 
-    await page.getByTestId('branding-file').setInputFiles({ name: 'logo.svg', mimeType: 'image/svg+xml', buffer: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"/>') });
-    await expect(page.getByTestId('branding-errors')).toBeVisible();
+    const upload = page.getByTestId('branding-upload');
 
-    await page.getByTestId('branding-file').setInputFiles({ name: 'logo.png', mimeType: 'image/png', buffer: await pngBytes(page, 80) });
+    // UI-polírozás · 5 (VtFileUpload): az SVG már a KIVÁLASZTÁSKOR elutasítva — típus-hiba, nincs kérés.
+    await upload.locator('input[type="file"]').setInputFiles({ name: 'logo.svg', mimeType: 'image/svg+xml', buffer: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"/>') });
+    await expect(upload.getByRole('alert')).toBeVisible();
+    await expect(page.getByTestId('branding-logo')).toHaveCount(0);
+
+    await upload.locator('input[type="file"]').setInputFiles({ name: 'logo.png', mimeType: 'image/png', buffer: await pngBytes(page, 80) });
     await expect(page.getByTestId('branding-logo')).toBeVisible();
     await expect(page.getByTestId('branding-remove')).toBeVisible();
 

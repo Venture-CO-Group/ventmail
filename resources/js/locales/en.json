@@ -2721,5 +2721,13 @@
         "yes": "yes",
         "no": "no",
         "nullSender": "(bounce – null sender)"
+    },
+    "upload": {
+        "choose": "Choose file",
+        "none": "No file chosen",
+        "drop": "or drop it here",
+        "clear": "Remove",
+        "typeError": "This file type is not allowed ({types}).",
+        "sizeError": "The file is too large (at most {mb} MB)."
     }
 }

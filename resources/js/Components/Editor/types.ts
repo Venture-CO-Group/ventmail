@@ -61,6 +61,8 @@ export interface EditorCatalog {
     conditionFields: string[];
     segments: Array<{ uuid: string; name: string }>;
     fonts: string[];
+    /** A képfeltöltés felső mérete bájtban (a szerver konfigurációjából). */
+    assetMaxBytes: number;
     fontStacks: Record<string, string>;
     styleDefaults: Required<TemplateStyles>;
     styleRanges: Record<string, [number, number]>;

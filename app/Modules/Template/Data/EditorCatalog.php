@@ -42,6 +42,8 @@ final class EditorCatalog
             'segments' => Segment::query()->orderBy('name')->get(['uuid', 'name'])
                 ->map(fn (Segment $segment) => ['uuid' => (string) $segment->uuid, 'name' => (string) $segment->name])
                 ->values()->all(),
+            // A képfeltöltő (VtFileUpload) kliens-oldali méretkorlátja — a szerver ugyanezt ellenőrzi.
+            'assetMaxBytes' => (int) config('template.assets.max_bytes'),
             'fonts' => array_keys(TemplateStyles::FONTS),
             'fontStacks' => TemplateStyles::FONTS,
             'styleDefaults' => TemplateStyles::DEFAULTS,

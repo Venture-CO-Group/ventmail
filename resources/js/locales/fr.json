@@ -2721,5 +2721,13 @@
         "yes": "oui",
         "no": "non",
         "nullSender": "(rebond – expéditeur vide)"
+    },
+    "upload": {
+        "choose": "Choisir un fichier",
+        "none": "Aucun fichier choisi",
+        "drop": "ou déposez-le ici",
+        "clear": "Retirer",
+        "typeError": "Ce type de fichier n’est pas autorisé ({types}).",
+        "sizeError": "Le fichier est trop volumineux ({mb} Mo au plus)."
     }
 }

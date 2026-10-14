@@ -2721,5 +2721,13 @@
         "yes": "sí",
         "no": "no",
         "nullSender": "(rebote – remitente vacío)"
+    },
+    "upload": {
+        "choose": "Elegir archivo",
+        "none": "Ningún archivo elegido",
+        "drop": "o arrástralo aquí",
+        "clear": "Quitar",
+        "typeError": "Este tipo de archivo no está permitido ({types}).",
+        "sizeError": "El archivo es demasiado grande (como máximo {mb} MB)."
     }
 }
