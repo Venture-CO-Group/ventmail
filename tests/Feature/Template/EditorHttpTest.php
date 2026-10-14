@@ -110,6 +110,32 @@ it('az üres marketing sablon a kötelező lábléccel indul', function () {
     expect(json_encode($template->blocks))->toContain('"footer"');
 });
 
+it('UI-polírozás 7: az üres TRANZAKCIÓS sablon is láblécet kap — cégnév + postai cím, leiratkozó nélkül', function () {
+    $this->workspace->forceFill(['settings' => ['postal_address' => '1051 Budapest, Nádor u. 1.']])->save();
+
+    $this->post('/templates', ['name' => 'Számla', 'subject' => 'S', 'marketing' => false])->assertRedirect();
+
+    $template = Template::query()->where('name', 'Számla')->firstOrFail();
+    $blocks = (array) $template->blocks;
+    $last = json_encode(end($blocks), JSON_UNESCAPED_UNICODE);
+
+    expect($blocks)->toHaveCount(2)
+        ->and($last)->toContain('Nádor Kávéház')
+        ->and($last)->toContain('1051 Budapest, Nádor u. 1.')
+        ->and($last)->not->toContain('"footer"')
+        ->and((string) $template->html)->not->toContain('unsubscribe_url');
+});
+
+it('UI-polírozás 7: minden új sablon (üres, indulósablon, mindkét csatorna) láblécre végződik', function () {
+    foreach ([['marketing' => true], ['marketing' => false], ['starter' => 'thanks']] as $index => $input) {
+        $this->post('/templates', ['name' => "Új {$index}", ...$input])->assertRedirect();
+
+        $blocks = (array) Template::query()->where('name', "Új {$index}")->firstOrFail()->blocks;
+
+        expect(json_encode(end($blocks), JSON_UNESCAPED_UNICODE))->toContain('Nádor Kávéház');
+    }
+});
+
 it('a szerkesztő oldal a katalógust, a megengedett teszt-címzetteket és a kompakt héjat kapja', function () {
     $template = editorTemplate();
 

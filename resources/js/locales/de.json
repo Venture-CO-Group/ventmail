@@ -1711,6 +1711,12 @@
         "locked": {
             "title": "Nur lesbar.",
             "copy": "Kopie erstellen"
+        },
+        "panels": {
+            "collapsePalette": "Bereich einklappen",
+            "expandPalette": "Bereich ausklappen",
+            "collapseProps": "Einstellungen einklappen",
+            "expandProps": "Einstellungen"
         }
     },
     "library": {

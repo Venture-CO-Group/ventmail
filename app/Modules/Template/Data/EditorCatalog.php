@@ -93,6 +93,29 @@ final class EditorCatalog
         ];
     }
 
+    /**
+     * A TRANZAKCIÓS sablon lábléce (UI-polírozás · 7. pont, D303): cégnév + postai cím, egy
+     * szöveg-blokkban. A `footer` blokk itt NEM jó: az a leiratkozó és a beállítás-linket
+     * feltétel nélkül kiírja (ez a lényege), a tranzakciós levélnek pedig nincs leiratkozója.
+     *
+     * @return array<string, mixed>
+     */
+    public static function transactionalFooter(Workspace $workspace): array
+    {
+        $defaults = self::footerDefaults($workspace);
+        // Soronként egy bekezdés (a szöveg-blokk tisztítója a `<br>`-t nem XML-alakban adja vissza).
+        $lines = array_filter(array_map('trim', preg_split('/\R/', (string) $defaults['address']) ?: []), static fn (string $line) => $line !== '');
+        $address = implode('', array_map(static fn (string $line) => '<p>'.e($line).'</p>', $lines));
+
+        return ['type' => 'section', 'attrs' => ['background' => '#f1f5f9'], 'children' => [['type' => 'column', 'children' => [
+            ['type' => 'text', 'attrs' => [
+                'align' => 'center',
+                'color' => '#52606d',
+                'content' => '<p><strong>'.e((string) $defaults['company']).'</strong></p>'.$address,
+            ]],
+        ]]]];
+    }
+
     /** @return array<string, mixed> */
     public static function footerDefaults(Workspace $workspace): array
     {

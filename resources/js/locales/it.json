@@ -1711,6 +1711,12 @@
         "locked": {
             "title": "Sola lettura.",
             "copy": "Crea una copia"
+        },
+        "panels": {
+            "collapsePalette": "Comprimi pannello",
+            "expandPalette": "Espandi pannello",
+            "collapseProps": "Comprimi impostazioni",
+            "expandProps": "Impostazioni"
         }
     },
     "library": {

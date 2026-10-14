@@ -123,6 +123,10 @@ for (const [dir, viewport] of Object.entries(VIEWPORTS)) {
             await expect(page.getByTestId('editor')).toBeVisible();
             await shot(page, dir, '07-long-template-viewport', false);
             await shot(page, dir, '08-long-template-full');
+
+            // Kijelölt elem: a jobb (beállítások) panel kinyílik (az „utána" állapotban; előtte mindig látszott).
+            await page.getByTestId('block-1-0-0').click();
+            await shot(page, dir, '09-editor-selected', false);
         });
 
         test('fejlesztői doksi', async ({ page }) => {

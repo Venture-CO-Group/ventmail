@@ -1711,6 +1711,12 @@
         "locked": {
             "title": "Только чтение.",
             "copy": "Создать копию"
+        },
+        "panels": {
+            "collapsePalette": "Свернуть панель",
+            "expandPalette": "Развернуть панель",
+            "collapseProps": "Свернуть настройки",
+            "expandProps": "Настройки"
         }
     },
     "library": {

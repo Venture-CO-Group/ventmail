@@ -126,7 +126,7 @@ final class TemplateUiController
             /*
              | AZ ÜRES SABLON SEM ÜRES — a marketing sablon kötelező láblécet kap (postai cím,
              | leiratkozó, beállítások), különben az első mentés elutasítana. Aki nem
-             | marketinget ír, kiveszi a jelölést, és akkor a lábléc sem kötelező.
+             | marketinget ír, kiveszi a jelölést: akkor cégnév + cím láblécet kap, leiratkozó nélkül.
              */
             $content = [
                 'subject' => '',
@@ -138,9 +138,13 @@ final class TemplateUiController
                     ['type' => 'section', 'attrs' => ['background' => '#f1f5f9'], 'children' => [['type' => 'column', 'children' => [
                         ['type' => 'footer', 'attrs' => EditorCatalog::footerDefaults($workspace)],
                     ]]]],
-                ] : [['type' => 'section', 'children' => [['type' => 'column', 'children' => [
-                    ['type' => 'text', 'attrs' => ['content' => __('editor.defaults.paragraph')]],
-                ]]]]],
+                ] : [
+                    ['type' => 'section', 'children' => [['type' => 'column', 'children' => [
+                        ['type' => 'text', 'attrs' => ['content' => __('editor.defaults.paragraph')]],
+                    ]]]],
+                    // UI-polírozás · 7: a tranzakciós sablon is láblécre végződik (leiratkozó nélkül).
+                    EditorCatalog::transactionalFooter($workspace),
+                ],
                 'styles' => null,
             ];
         }

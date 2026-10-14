@@ -1711,6 +1711,12 @@
         "locked": {
             "title": "Csak olvasható.",
             "copy": "Másolat készítése"
+        },
+        "panels": {
+            "collapsePalette": "Panel összecsukása",
+            "expandPalette": "Panel kinyitása",
+            "collapseProps": "Beállítások összecsukása",
+            "expandProps": "Beállítások"
         }
     },
     "library": {
