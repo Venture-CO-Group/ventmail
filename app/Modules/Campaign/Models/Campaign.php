@@ -127,7 +127,7 @@ final class Campaign extends Model
     }
 
     /** A visszaállítás előtti `deleted_at` (a `restoring` → `restored` között). */
-    public ?\Illuminate\Support\Carbon $restoringFrom = null;
+    public ?Carbon $restoringFrom = null;
 
     public function statusEnum(): CampaignStatus
     {
