@@ -14,13 +14,13 @@ use App\Modules\Inbound\Data\ScanResult;
  * valódi vírusirtó is fertőzöttnek jelöl. Így a teszt ugyanazt a viselkedést méri, amit a
  * ClamAV adna, valódi kártevő nélkül.
  */
-final class FakeVirusScanner implements VirusScanner
+class FakeVirusScanner implements VirusScanner
 {
     public const EICAR = 'X5O!P%@AP[4\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*';
 
     public bool $available = true;
 
-    public function scan(string $filename, string $contents): ScanResult
+    public function scan(string $filename, string $contents, ?string $reference = null): ScanResult
     {
         if (! $this->available) {
             return ScanResult::unavailable('A szkenner nem elérhető.');

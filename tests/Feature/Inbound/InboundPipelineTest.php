@@ -6,6 +6,7 @@ use App\Modules\Domains\Models\Domain;
 use App\Modules\Inbound\Contracts\InboundRecipientResolver;
 use App\Modules\Inbound\Contracts\RawMailStore;
 use App\Modules\Inbound\Contracts\VirusScanner;
+use App\Modules\Inbound\Data\ScanResult;
 use App\Modules\Inbound\Jobs\ForwardInboundToEmail;
 use App\Modules\Inbound\Jobs\ForwardInboundToUrl;
 use App\Modules\Inbound\Jobs\ParseInboundMessage;
@@ -32,6 +33,7 @@ use App\Modules\Webhooks\Services\WebhookSigner;
 use App\Modules\Webhooks\Services\WebhookUrlGuard;
 use App\Modules\Webhooks\Testing\FakeHostResolver;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 
@@ -603,4 +605,56 @@ it('a kibocsátó hibája nem töri meg a csatolmány-feldolgozást', function (
 
     expect(InboundAttachment::query()->firstOrFail()->scan_result)->toBe('clean')
         ->and(InboundAttachment::query()->firstOrFail()->storage_key)->toContain('attachments');
+});
+
+it('a szkennelés teljes időkerete a csatolmány-cikluson át közös: kimerülés után a többi unavailable (S11)', function () {
+    Queue::fake();
+    config(['inbound.scan_budget_seconds' => 150]);
+
+    $scanner = new class extends FakeVirusScanner
+    {
+        public int $calls = 0;
+
+        public function scan(string $filename, string $contents, ?string $reference = null): ScanResult
+        {
+            $this->calls++;
+            Carbon::setTestNow(now()->addSeconds(100));
+
+            return parent::scan($filename, $contents, $reference);
+        }
+    };
+    $this->app->instance(VirusScanner::class, $scanner);
+
+    $part = fn (string $n) => "--H\r\nContent-Disposition: attachment; filename=\"{$n}.bin\"\r\n\r\nPDF{$n}\r\n";
+    $raw = "Content-Type: multipart/mixed; boundary=\"H\"\r\n\r\n".$part('a').$part('b').$part('c').$part('d')."--H--\r\n";
+
+    runParse(received($raw));
+    Carbon::setTestNow();
+
+    expect($scanner->calls)->toBe(2)
+        ->and(InboundAttachment::query()->orderBy('id')->pluck('scan_result')->all())->toBe(['clean', 'clean', 'unavailable', 'unavailable'])
+        ->and(InboundAttachment::query()->where('scan_result', 'unavailable')->first()->downloadable())->toBeFalse();
+});
+
+it('a szkenner az üzenet-uuid + sorszám hivatkozást kapja (S1)', function () {
+    Queue::fake();
+    $seen = [];
+    $scanner = new class($seen) extends FakeVirusScanner
+    {
+        public function __construct(public array &$refs) {}
+
+        public function scan(string $filename, string $contents, ?string $reference = null): ScanResult
+        {
+            $this->refs[] = $reference;
+
+            return parent::scan($filename, $contents, $reference);
+        }
+    };
+    $this->app->instance(VirusScanner::class, $scanner);
+
+    $part = fn (string $n) => "--H\r\nContent-Disposition: attachment; filename=\"{$n}.bin\"\r\n\r\nPDF\r\n";
+    $message = received("Content-Type: multipart/mixed; boundary=\"H\"\r\n\r\n".$part('a').$part('b')."--H--\r\n");
+    runParse($message);
+
+    expect($seen)->toBe([$message->uuid.'-0', $message->uuid.'-1']);
 });

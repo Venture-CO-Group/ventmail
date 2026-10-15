@@ -10,8 +10,10 @@ use App\Modules\VentSec\Services\ServiceTokenProvider;
 use App\Modules\VentSec\Services\VerdictKeyStore;
 use App\Modules\VentSec\Services\VerdictVerifier;
 use App\Modules\VentSec\Support\SecureUrl;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use stdClass;
 use Throwable;
 
@@ -33,7 +35,7 @@ final class VentSecScanner implements VirusScanner
         private readonly VerdictVerifier $verifier,
     ) {}
 
-    public function scan(string $filename, string $contents): ScanResult
+    public function scan(string $filename, string $contents, ?string $reference = null): ScanResult
     {
         $base = rtrim((string) config('ventsec.scan_url'), '/');
 
@@ -57,7 +59,9 @@ final class VentSecScanner implements VirusScanner
         $headers = [
             'X-VentSec-Profile' => (string) config('ventsec.scan_profile'),
             'X-VentSec-Ref' => $ref,
-            'Idempotency-Key' => 'vm-scan-'.$sha256,
+            // PÉLDÁNYONKÉNT egyedi: a tartalom-hash kulcsa az elavult ítéletet játszaná vissza
+            // (és a kiterjesztés-váltás 422-t adna). Hivatkozás nélkül hívásonként új kulcs.
+            'Idempotency-Key' => 'vm-scan-'.($reference !== null && preg_match('/^[\x21-\x7e]{1,100}$/', $reference) === 1 ? $reference : (string) Str::uuid()),
         ];
 
         // CSAK a kiterjesztés: a fájlnév személyes adat lehet (Számla_Kovács_Béla.pdf).
@@ -119,7 +123,19 @@ final class VentSecScanner implements VirusScanner
             return ScanResult::unavailable('A ventSec ítélet nem erre a csatolmányra szól.');
         }
 
+        // FRISSESSÉG: az aláírt `scanned_at` a határon belül legyen — egy régi, érvényes
+        // aláírású ítélet visszajátszása (vagy rossz órájú ventSec) nem jó alap.
+        if (! $this->fresh($verdict->scanned_at ?? null)) {
+            return ScanResult::unavailable('A ventSec ítélet nem friss (scanned_at).');
+        }
+
         $scanId = is_string($verdict->scan_id ?? null) ? $verdict->scan_id : null;
+
+        // ELAVULT szignatúra-adatbázissal készült `clean` nem elég egy bejövő levélhez
+        // (mail-inbound, fail-closed — FO döntés); a fertőzött ítélet így is fertőzött.
+        if (($verdict->binary_verdict ?? null) === 'clean' && ($verdict->stale_signatures ?? false) !== false) {
+            return ScanResult::unavailable('A ventSec szignatúrái elavultak — a tiszta ítélet nem fogadható el.', $scanId);
+        }
 
         return match ($verdict->binary_verdict ?? null) {
             'clean' => ScanResult::clean($scanId),
@@ -127,6 +143,24 @@ final class VentSecScanner implements VirusScanner
             'unavailable' => ScanResult::unavailable('A ventSec nem tudta megvizsgálni a csatolmányt.', $scanId),
             default => ScanResult::unavailable('Ismeretlen ventSec ítélet.'),
         };
+    }
+
+    private function fresh(mixed $scannedAt): bool
+    {
+        if (! is_string($scannedAt)) {
+            return false;
+        }
+
+        try {
+            $at = Carbon::parse($scannedAt);
+        } catch (Throwable) {
+            return false;
+        }
+
+        $age = now()->getTimestamp() - $at->getTimestamp();
+
+        // Legfeljebb 60 s óra-eltérés a jövő felé.
+        return $age <= (int) config('ventsec.verdict_max_age') && $age >= -60;
     }
 
     private function signatureName(stdClass $verdict): string

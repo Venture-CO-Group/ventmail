@@ -22,7 +22,11 @@ return [
     // --- Scan API (INBOUND_SCANNER=ventsec)
     'scan_url' => rtrim((string) env('VENTSEC_SCAN_URL', ''), '/'),
     'scan_profile' => 'mail-inbound',
-    'scan_timeout' => (int) env('VENTSEC_SCAN_TIMEOUT', 30),
+    'scan_timeout' => (int) env('VENTSEC_SCAN_TIMEOUT', 20),
+    // Az ítélet legfeljebb ennyi másodperc régi lehet (az aláírt `scanned_at` szerint).
+    'verdict_max_age' => (int) env('VENTSEC_VERDICT_MAX_AGE', 600),
+    // Opcionális kulcs-rögzítés: ha meg van adva, csak ezek a `kid`-ek fogadhatók el.
+    'verdict_key_pins' => array_values(array_filter(array_map('trim', explode(',', (string) env('VENTSEC_VERDICT_KEY_PINS', ''))))),
     // A szinkron Scan API plafonja (25 MB): fölötte a ventSec a /jobs útra utal, mi nem küldünk.
     'scan_max_bytes' => 26_214_400,
     // Az ítélet-aláíró kulcsok dokumentuma; üresen a scan_url + /.well-known/...

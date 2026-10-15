@@ -5,11 +5,13 @@ declare(strict_types=1);
 use App\Modules\Domains\Models\Domain;
 use App\Modules\Identity\Models\ApiKey;
 use App\Modules\Sending\Drivers\FakeDriver;
+use App\Modules\Sending\Gate\GateReason;
 use App\Modules\Sending\Models\Message;
 use App\Modules\Suppression\Models\Suppression;
 use App\Modules\Tenancy\Models\Workspace;
 use App\Modules\Tenancy\Services\WorkspaceContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Testing\TestResponse;
 
 uses(RefreshDatabase::class);
 
@@ -27,7 +29,7 @@ beforeEach(function () {
     ['plain' => $this->plain] = ApiKey::issue('CI', ['messages:send']);
 });
 
-function sendKeyed(string $key, array $extra = []): Illuminate\Testing\TestResponse
+function sendKeyed(string $key, array $extra = []): TestResponse
 {
     return test()->withHeaders(['Authorization' => 'Bearer '.test()->plain, 'Idempotency-Key' => $key, 'Accept' => 'application/json'])
         ->postJson('/v1/messages', array_merge([
@@ -90,10 +92,10 @@ it('az elfogadott küldés párhuzamos duplikátuma továbbra is deduplikál', f
 
 it('az átmeneti okok listája: a kapu-állapottól függők igen, a kérés-függők nem', function () {
     foreach (['DOMAIN_UNVERIFIED', 'QUOTA_EXCEEDED', 'RATE_LIMITED', 'SENDING_RESTRICTED', 'CHANNEL_DISABLED', 'GATE_ERROR'] as $reason) {
-        expect(App\Modules\Sending\Gate\GateReason::from($reason)->isTransient())->toBeTrue($reason);
+        expect(GateReason::from($reason)->isTransient())->toBeTrue($reason);
     }
 
     foreach (['SUPPRESSED', 'NO_CONSENT', 'INVALID_REQUEST', 'VALIDATION_RISK', 'IN_PROGRESS', 'IDEMPOTENCY_KEY_REUSED'] as $reason) {
-        expect(App\Modules\Sending\Gate\GateReason::from($reason)->isTransient())->toBeFalse($reason);
+        expect(GateReason::from($reason)->isTransient())->toBeFalse($reason);
     }
 });

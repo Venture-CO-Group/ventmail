@@ -26,6 +26,12 @@ final class ServiceTokenProvider
 {
     private const CACHE_KEY = 'ventsec:m2m-token';
 
+    private function cacheKey(): string
+    {
+        // A kliens-azonosító a kulcsban: másik kliens (vagy scope) sosem kapja a tokent.
+        return self::CACHE_KEY.':'.hash('sha256', config('ventsec.client_id').'|'.config('ventsec.scope').'|'.config('ventsec.resource'));
+    }
+
     private const SAFETY_MARGIN = 60;
 
     public function token(): ?string
@@ -85,7 +91,7 @@ final class ServiceTokenProvider
     /** Egy 401 után a cache-elt token nem használható újra. */
     public function forget(): void
     {
-        Cache::forget(self::CACHE_KEY);
+        Cache::forget($this->cacheKey());
     }
 
     private function tokenUrl(): ?string
@@ -105,7 +111,7 @@ final class ServiceTokenProvider
 
     private function cached(): ?string
     {
-        $sealed = Cache::get(self::CACHE_KEY);
+        $sealed = Cache::get($this->cacheKey());
 
         if (! is_string($sealed)) {
             return null;
@@ -130,7 +136,7 @@ final class ServiceTokenProvider
         $ttl = ($remaining ?? 0) - self::SAFETY_MARGIN;
 
         if ($ttl > 0) {
-            Cache::put(self::CACHE_KEY, Crypt::encryptString($token), $ttl);
+            Cache::put($this->cacheKey(), Crypt::encryptString($token), $ttl);
         }
     }
 

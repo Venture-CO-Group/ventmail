@@ -22,12 +22,15 @@ final class VerdictKeyStore
 {
     private const CACHE_KEY = 'ventsec:verdict-keys';
 
+    private const FAILURE_COOLDOWN = 'ventsec:verdict-keys:failed';
+
     private const REFETCH_COOLDOWN = 'ventsec:verdict-keys:refetch';
 
     /** A nyers, 32 bájtos nyilvános kulcs, vagy null. */
     public function find(string $keyId): ?string
     {
-        $keys = Cache::get(self::CACHE_KEY);
+        $keys = $this->pinned((array) Cache::get(self::CACHE_KEY, []));
+        $keys = $keys === [] ? null : $keys;
         $fetched = false;
 
         if (! is_array($keys)) {
@@ -48,6 +51,38 @@ final class VerdictKeyStore
 
     /** @return array<string, string> kid → nyers kulcs; hiba esetén üres (nem cache-elt) */
     private function fetch(): array
+    {
+        // HŰTÉS letöltési hiba után: a kulcs-végpont kiesése ne pörgesse a hívást minden szkennelésnél.
+        if (Cache::has(self::FAILURE_COOLDOWN)) {
+            return [];
+        }
+
+        $keys = $this->download();
+
+        if ($keys === []) {
+            Cache::put(self::FAILURE_COOLDOWN, 1, 30);
+
+            return [];
+        }
+
+        Cache::put(self::CACHE_KEY, $keys, (int) config('ventsec.keys_cache_ttl'));
+
+        return $this->pinned($keys);
+    }
+
+    /**
+     * @param  array<string, string>  $keys
+     * @return array<string, string>
+     */
+    private function pinned(array $keys): array
+    {
+        $pins = (array) config('ventsec.verdict_key_pins');
+
+        return $pins === [] ? $keys : array_intersect_key($keys, array_flip($pins));
+    }
+
+    /** @return array<string, string> */
+    private function download(): array
     {
         $url = (string) config('ventsec.keys_url') ?: rtrim((string) config('ventsec.scan_url'), '/').'/.well-known/ventsec-verdict-keys.json';
 
@@ -79,10 +114,6 @@ final class VerdictKeyStore
             if ($raw !== null) {
                 $keys[(string) $jwk['kid']] = $raw;
             }
-        }
-
-        if ($keys !== []) {
-            Cache::put(self::CACHE_KEY, $keys, (int) config('ventsec.keys_cache_ttl'));
         }
 
         return $keys;

@@ -141,3 +141,14 @@ it('nem titkosított token-végpontot nem hív (https-kényszer)', function () {
     expect(app(ServiceTokenProvider::class)->token())->toBeNull();
     Http::assertNothingSent();
 });
+
+it('a token cache-kulcsa a kliens-azonosítót is tartalmazza (N7): másik kliens nem kapja meg', function () {
+    Http::fake(['sso.test/*' => Http::response(['access_token' => fakeJwt(time() + 600), 'expires_in' => 600])]);
+    $provider = app(ServiceTokenProvider::class);
+
+    $provider->token();
+    config(['ventsec.client_id' => 'masik-kliens']);
+    $provider->token();
+
+    Http::assertSentCount(2);
+});

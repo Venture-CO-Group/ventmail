@@ -61,7 +61,7 @@ function signedVerdict(string $contents, array $override = [], ?string $secret =
         'steps' => [['step' => 'filetype', 'result' => 'clean'], ['step' => 'clamav', 'result' => 'clean']],
         'engine_versions' => ['clamav' => '1.4.3', 'daily' => '28151', 'yara' => 'a3adad7444ae'],
         'stale_signatures' => false,
-        'scanned_at' => '2026-10-13T09:14:03.412Z',
+        'scanned_at' => now()->utc()->format('Y-m-d\TH:i:s.v\Z'),
     ], $override);
 
     $object = json_decode((string) json_encode($payload), false);
@@ -290,4 +290,88 @@ it('a verdikt scan_id-ját a ScanResult hordozza (az események korrelációjáh
     fakeVentSec(signedVerdict(SCAN_FILE));
 
     expect(scanner()->scan('a.pdf', SCAN_FILE)->scanId)->toBe('01J9Z6Q7Y3X5R0K8ZC4M2T1H6B');
+});
+
+it('az Idempotency-Key a csatolmány-példányra szól (üzenet + sorszám), nem a tartalomra (S1)', function () {
+    fakeVentSec(signedVerdict(SCAN_FILE));
+
+    scanner()->scan('a.pdf', SCAN_FILE, 'msg-uuid-1-0');
+    scanner()->scan('a.pdf', SCAN_FILE, 'msg-uuid-1-1');
+    scanner()->scan('a.pdf', SCAN_FILE);
+
+    $keys = Http::recorded()->filter(fn ($p) => str_ends_with($p[0]->url(), '/scan/v1/files'))
+        ->map(fn ($p) => $p[0]->header('Idempotency-Key')[0])->values()->all();
+
+    expect($keys[0])->toBe('vm-scan-msg-uuid-1-0')->and($keys[1])->toBe('vm-scan-msg-uuid-1-1')
+        ->and($keys[2])->toStartWith('vm-scan-')->and($keys[2])->not->toBe($keys[0])
+        ->and($keys[2])->not->toContain(hash('sha256', SCAN_FILE));
+
+    foreach ($keys as $key) {
+        foreach (['campaign:', 'journey:', 'template-test:', 'invite:', 'optin:', 'smtp:', 'inbound-fwd-', 'dev-seed-'] as $reserved) {
+            expect($key)->not->toStartWith($reserved);
+        }
+    }
+});
+
+it('a régi vagy jövőbeli aláírt scanned_at unavailable (frissességi határ)', function (string $offset, bool $ok) {
+    config(['ventsec.verdict_max_age' => 600]);
+    fakeVentSec(signedVerdict(SCAN_FILE, ['scanned_at' => now()->modify($offset)->utc()->format('Y-m-d\TH:i:s.v\Z')]));
+
+    expect(scanner()->scan('a.pdf', SCAN_FILE)->status)->toBe($ok ? 'clean' : 'unavailable');
+})->with([['-5 seconds', true], ['-599 seconds', true], ['-601 seconds', false], ['-2 days', false], ['+10 minutes', false]]);
+
+it('hibás scanned_at formátum unavailable', function () {
+    fakeVentSec(signedVerdict(SCAN_FILE, ['scanned_at' => 'tegnap']));
+
+    expect(scanner()->scan('a.pdf', SCAN_FILE)->status)->toBe('unavailable');
+});
+
+it('stale_signatures=true mellett a clean is unavailable (mail-inbound fail-closed)', function () {
+    fakeVentSec(signedVerdict(SCAN_FILE, ['stale_signatures' => true, 'scanned_at' => now()->utc()->format('Y-m-d\TH:i:s.v\Z')]));
+
+    expect(scanner()->scan('a.pdf', SCAN_FILE)->status)->toBe('unavailable');
+
+    // A fertőzött ítélet elavult szignatúrával is fertőzött marad (a gyanú erősebb).
+    fakeVentSec(signedVerdict('x', ['stale_signatures' => true, 'binary_verdict' => 'infected', 'verdict' => 'infected', 'steps' => [], 'scanned_at' => now()->utc()->format('Y-m-d\TH:i:s.v\Z')]));
+    expect(scanner()->scan('a.bin', 'x')->status)->toBe('infected');
+});
+
+it('a kulcs-rögzítés (VENTSEC_VERDICT_KEY_PINS) csak a felsorolt kid-et fogadja el (S5)', function () {
+    fakeVentSec(signedVerdict(SCAN_FILE));
+
+    config(['ventsec.verdict_key_pins' => ['aaaaaaaaaaaaaaaa']]);
+    expect(scanner()->scan('a.pdf', SCAN_FILE)->status)->toBe('unavailable');
+
+    Cache::flush();
+    config(['ventsec.verdict_key_pins' => ['aaaaaaaaaaaaaaaa', test()->keyId]]);
+    expect(scanner()->scan('b.pdf', SCAN_FILE)->status)->toBe('clean');
+
+    expect(configFileWith('ventsec', ['VENTSEC_VERDICT_KEY_PINS' => ' a1 , b2 ,'])['verdict_key_pins'])->toBe(['a1', 'b2'])
+        ->and(configFileWith('ventsec', [])['verdict_key_pins'])->toBe([]);
+});
+
+it('a kulcs-letöltés hibája után hűtés van: nem pörgeti a végpontot (N3)', function () {
+    $fetches = 0;
+    Http::swap(new Factory);
+    Http::fake([
+        'sso.test/*' => Http::response(['access_token' => 'tok.en.sig', 'expires_in' => 600]),
+        'sec.test/.well-known/*' => function () use (&$fetches) {
+            $fetches++;
+
+            return Http::response('boom', 500);
+        },
+        'sec.test/scan/v1/files' => fn (Request $r) => Http::response(signedVerdict($r->body())),
+    ]);
+
+    for ($i = 0; $i < 5; $i++) {
+        expect(scanner()->scan('a.pdf', 'x'.$i)->status)->toBe('unavailable');
+    }
+
+    expect($fetches)->toBe(1);
+});
+
+it('az alapértelmezett konfiguráció: 600 s frissesség, 20 s szkennelési időkorlát', function () {
+    $c = configFileWith('ventsec', []);
+
+    expect($c['verdict_max_age'])->toBe(600)->and($c['scan_timeout'])->toBe(20);
 });

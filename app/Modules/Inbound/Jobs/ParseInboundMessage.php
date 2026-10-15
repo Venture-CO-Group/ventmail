@@ -23,6 +23,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Throwable;
@@ -116,8 +117,10 @@ final class ParseInboundMessage implements ShouldQueue
                 'parsed_at' => now(),
             ])->save();
 
-            foreach ($parsed->attachments as $attachment) {
-                $this->storeAttachment($message, $attachment, $store, $scanner, $archives);
+            $scanDeadline = now()->addSeconds((int) config('inbound.scan_budget_seconds'));
+
+            foreach (array_values($parsed->attachments) as $index => $attachment) {
+                $this->storeAttachment($message, $attachment, $store, $scanner, $archives, $index, $scanDeadline);
             }
 
             // A ROUTE-MOTOR csak a sikeres parse után fut: a `match_header` a fejlécekre
@@ -145,6 +148,8 @@ final class ParseInboundMessage implements ShouldQueue
         RawMailStore $store,
         VirusScanner $scanner,
         ArchiveInspector $archives,
+        int $index = 0,
+        ?Carbon $scanDeadline = null,
     ): void {
         $row = InboundAttachment::query()->create([
             'inbound_message_id' => $message->getKey(),
@@ -174,7 +179,11 @@ final class ParseInboundMessage implements ShouldQueue
             return;
         }
 
-        $scan = $scanner->scan($attachment->filename, $attachment->contents);
+        // A TELJES szkennelési időkeret kimerült: a hátralévő csatolmány nem szkennelt → nem
+        // tölthető le (fail-closed), és a szkennert sem terheljük tovább.
+        $scan = $scanDeadline !== null && now()->greaterThan($scanDeadline)
+            ? ScanResult::unavailable('A szkennelési időkeret kimerült.')
+            : $scanner->scan($attachment->filename, $attachment->contents, $message->uuid.'-'.$index);
 
         // FERTŐZÖTT: a tartalom KARANTÉNBA megy (külön prefix), nem a letölthető helyre. A
         // törlés helyett a megőrzés a szándék: az ügyfélnek és a támogatásnak látnia kell,
