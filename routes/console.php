@@ -45,6 +45,11 @@ Schedule::command('audit:prune')->weeklyOn(0, '04:30');
 // sosem lesz felhasználó. A beváltás TÉNYE az audit-naplóban marad, ez a tábla takarítható.
 Schedule::command('tenancy:prune-invitations')->weeklyOn(0, '04:45');
 
+// A ventSec szívverése (VSES): percenként, CSAK bekapcsolt kibocsátásnál (VENTSEC_EVENTS_ENABLED).
+// Egy leállt ütemező így kiderül a ventSec „csendes forrás" riasztásából.
+Schedule::command('ventsec:heartbeat')->everyMinute()->withoutOverlapping()
+    ->when(fn (): bool => (bool) config('ventsec.events.enabled'));
+
 // A bejövő levél IDEGEN tartalom, rövid retencióval (alap 3 nap): GYAKRABBAN takarítunk,
 // mint a saját naplónkat, és a fájltárat is ürítjük vele.
 Schedule::command('inbound:purge')->hourly();

@@ -120,6 +120,20 @@ ANALYTICS_PDF_RENDERER=gotenberg
 GOTENBERG_URL=http://gotenberg:3000
 ANALYTICS_PDF_TIMEOUT=60
 
+# --- inbound scanner + ventSec (FO2): m2m token + Scan API + VSES events. Secrets arrive via set-env.sh.
+INBOUND_SCANNER=clamav
+VENTSEC_TOKEN_URL=
+VENTSEC_CLIENT_ID=
+VENTSEC_CLIENT_SECRET=
+VENTSEC_RESOURCE=https://sec.ventureco.app
+VENTSEC_SCOPE="ventsec.scan ventsec.ingest"
+VENTSEC_SCAN_URL=
+VENTSEC_KEYS_URL=
+VENTSEC_EVENTS_ENABLED=false
+VENTSEC_INGEST_URL=
+VENTSEC_INGEST_SECRET=
+VENTSEC_SOURCE_INSTANCE=
+
 # --- database (internal mail-db network only)
 DB_SSLMODE=disable
 ENV

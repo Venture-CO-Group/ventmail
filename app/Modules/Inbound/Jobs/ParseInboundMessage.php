@@ -7,6 +7,7 @@ namespace App\Modules\Inbound\Jobs;
 use App\Modules\Inbound\Contracts\RawMailStore;
 use App\Modules\Inbound\Contracts\VirusScanner;
 use App\Modules\Inbound\Data\ParsedAttachment;
+use App\Modules\Inbound\Data\ScanResult;
 use App\Modules\Inbound\Models\InboundAttachment;
 use App\Modules\Inbound\Models\InboundMessage;
 use App\Modules\Inbound\Services\ArchiveInspector;
@@ -16,6 +17,7 @@ use App\Modules\Inbound\Services\RouteEngine;
 use App\Modules\Inbound\Services\StrippedTextExtractor;
 use App\Modules\Tenancy\Models\Workspace;
 use App\Modules\Tenancy\Services\WorkspaceContext;
+use App\Modules\VentSec\Contracts\VentSecEvents;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -179,6 +181,8 @@ final class ParseInboundMessage implements ShouldQueue
         // mi érkezett — de letölteni nem lehet (`downloadable()`).
         $prefix = $scan->status === 'clean' ? 'attachments' : 'quarantine';
 
+        $this->emitVerdict($scan);
+
         $key = sprintf('inbound/%d/%s/%s', (int) $message->workspace_id, $prefix, (string) Str::uuid());
 
         $store->put($key, $attachment->contents);
@@ -188,5 +192,26 @@ final class ParseInboundMessage implements ShouldQueue
             'scan_result' => $scan->status,
             'scan_detail' => $scan->detail,
         ])->save();
+    }
+
+    /**
+     * `inbound.attachment_verdict` a ventSec-nek (VSES): CSAK a bináris ítélet és a scan_id —
+     * fájlnév, tartalom, hash soha. A kibocsátás hibája nem érinti a feldolgozást.
+     */
+    private function emitVerdict(ScanResult $scan): void
+    {
+        try {
+            app(VentSecEvents::class)->emit(
+                'inbound.attachment_verdict',
+                match ($scan->status) {
+                    'clean' => 'success',
+                    'infected' => 'denied',
+                    default => 'unknown',
+                },
+                ['binary_verdict' => $scan->status, 'scan_id' => $scan->scanId],
+            );
+        } catch (Throwable $e) {
+            Log::warning('A ventSec-esemény kibocsátása nem sikerült.', ['action' => 'inbound.attachment_verdict', 'error' => $e::class]);
+        }
     }
 }

@@ -1,0 +1,85 @@
+# Venture Security Event Schema (VSES) — action catalog, v1.0
+# The contract between every Venture app and ventSec (ventsec-specifikacio.md 7.).
+# Breaking change only with a new `vses` major version. Additive changes are free.
+#
+# context: the ONLY keys an event of this action may carry. Values are short strings, integers
+# within ±(2^53−1), booleans or null (or lists of them) — no floats: express ratios as integers
+# (e.g. delivery.bounce_wave `rate` in per-mille).
+# `field` / `fields`: the NAMES of what changed (e.g. [redirect_uris, scopes]) — never old or new
+# values; the SDK rejects anything that is not a field name. Durations are `*_seconds`.
+# Never allowed anywhere: passwords, tokens, keys, file or message content, file names,
+# document titles, e-mail addresses, raw IPs (network.ip is a separate, encrypted field).
+
+vses: "1.0"
+
+categories:
+  - authentication
+  - authorization
+  - session
+  - account
+  - admin
+  - data_access
+  - file
+  - crypto
+  - payment
+  - api
+  - network
+  - host
+  - integrity
+  - backup
+  - posture
+  - finding
+  - ventsec
+
+apps:
+
+  ventsso:
+    login.succeeded:        { category: authentication, severity_hint: info, context: [client_id, method, mfa, risk_level, new_device, new_country] }
+    login.failed:           { category: authentication, severity_hint: low,  context: [client_id, method, reason] }
+    mfa.challenge.failed:   { category: authentication, severity_hint: low,  context: [client_id, factor] }
+    mfa.disabled:           { category: account,        severity_hint: medium, context: [factor, by_admin] }
+    mfa.recovery_used:      { category: account,        severity_hint: medium, context: [remaining] }
+    token.refresh_reused:   { category: session,        severity_hint: high, context: [client_id, family_revoked] }
+    session.revoked:        { category: session,        severity_hint: info, context: [client_id, reason, count] }
+    admin.role_granted:     { category: admin,          severity_hint: medium, context: [app, role] }
+    admin.role_revoked:     { category: admin,          severity_hint: low,  context: [app, role] }
+    admin.client_updated:   { category: admin,          severity_hint: medium, context: [client_id, fields] }
+    admin.client_deleted:   { category: admin,          severity_hint: high, context: [client_id] }
+    admin.impersonation_started: { category: admin,     severity_hint: high, context: [reason_code] }
+
+  ventvault:
+    file.uploaded:          { category: file,        severity_hint: info, context: [mode, size_bucket] }
+    file.downloaded:        { category: data_access, severity_hint: info, context: [mode, via_share] }
+    file.shared_public:     { category: data_access, severity_hint: low,  context: [expires_in_hours, password_protected] }
+    download.bulk:          { category: data_access, severity_hint: medium, context: [count, window_minutes] }
+    asset.scan_verdict:     { category: file,        severity_hint: info, context: [binary_verdict, scan_id] }
+    audit.anchor.written:   { category: integrity,   severity_hint: info, context: [anchor_seq, floor_seq, head_seq, row_count, anchor_hash, kind] }
+
+  ventpay:
+    webhook.signature_invalid: { category: api,     severity_hint: medium, context: [provider] }
+    refund.issued:          { category: payment,    severity_hint: info, context: [amount_bucket, reason_code] }
+    api_key.used_new_prefix: { category: api,       severity_hint: medium, context: [key_id] }
+
+  ventmail:
+    inbound.attachment_verdict: { category: file,   severity_hint: info, context: [binary_verdict, scan_id] }
+    smtp.auth_failed:       { category: authentication, severity_hint: low, context: [listener, reason] }
+    delivery.bounce_wave:   { category: api,        severity_hint: medium, context: [domain_hash, rate] }
+
+  ventsec:
+    heartbeat:              { category: ventsec, severity_hint: info, context: [outbox_depth, outbox_oldest_seconds, sdk_version] }
+    admin.source_created:   { category: ventsec, severity_hint: low,  context: [source_kind] }
+    admin.source_updated:   { category: ventsec, severity_hint: low,  context: [source_kind, fields] }
+    # reason_code: a code from ventSec's fixed list (ventSec ADR-0013), never free text.
+    admin.source_secret_rotated: { category: ventsec, severity_hint: low, context: [source_kind, reason_code] }
+    # Archiving a source silences it on purpose — worth a look, hence medium.
+    admin.source_archived:  { category: ventsec, severity_hint: medium, context: [source_kind, reason_code] }
+    admin.rule_setting_changed: { category: ventsec, severity_hint: medium, context: [rule_id, field] }
+    pii_viewed:             { category: ventsec, severity_hint: low,  context: [incident_number] }
+    secret_in_event:        { category: ventsec, severity_hint: medium, context: [source_app, detector] }
+    source_silent:          { category: ventsec, severity_hint: medium, context: [source_kind, silent_seconds, expected_heartbeat_seconds] }
+    source_recovered:       { category: ventsec, severity_hint: info, context: [source_kind, silent_seconds] }
+    # The daily retention run (ADR-0005): row counts only, never a row.
+    retention_purged:       { category: ventsec, severity_hint: info, context: [event_pii_rows, event_dedup_rows, dead_letter_rows] }
+    # Key management (ventSec ADR-0012): identifiers only, never key material.
+    kms.data_key_created:   { category: ventsec, severity_hint: high, context: [key_id, kek_id, kek_generated, discarded_sealed_data] }
+    kms.kek_rotated:        { category: ventsec, severity_hint: medium, context: [key_id, from_kek_id, to_kek_id] }

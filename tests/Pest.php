@@ -14,6 +14,12 @@ pest()->extend(TestCase::class)->in('Feature');
 // A RefreshDatabase-t az adatbázist érintő tesztek maguk kérik (`uses(RefreshDatabase::class)`),
 // hogy a séma nélküli skeleton-tesztek gyorsak maradjanak.
 
+/** base64url, padding nélkül (a ventSec ítélet-aláírásának és kulcsainak kódolása). */
+function b64u(string $raw): string
+{
+    return rtrim(strtr(base64_encode($raw), '+/', '-_'), '=');
+}
+
 /** Egy config-fájl kiértékelése adott env-vel — a VALÓDI alapértékek mérésére. */
 function configFileWith(string $file, array $env): array
 {

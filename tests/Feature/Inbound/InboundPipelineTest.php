@@ -25,6 +25,8 @@ use App\Modules\Sending\Models\Message;
 use App\Modules\Suppression\Models\Suppression;
 use App\Modules\Tenancy\Models\Workspace;
 use App\Modules\Tenancy\Services\WorkspaceContext;
+use App\Modules\VentSec\Contracts\VentSecEvents;
+use App\Modules\VentSec\Testing\FakeVentSecEvents;
 use App\Modules\Webhooks\Contracts\HostResolver;
 use App\Modules\Webhooks\Services\WebhookSigner;
 use App\Modules\Webhooks\Services\WebhookUrlGuard;
@@ -557,4 +559,48 @@ it('a RÖVID Received-lánc viszont nem akadály', function () {
     forwardTo($message, 'ops@ugyfel.example');
 
     expect(Message::query()->count())->toBe(1);
+});
+
+/*
+ | FO2 — `inbound.attachment_verdict` a ventSec katalógusából: a szkennelés természetes
+ | helyén. Csak a bináris ítélet és a scan_id megy ki — fájlnév, tartalom, hash SOHA.
+ */
+it('a csatolmány-ítélet esemény: clean → success, infected → denied, unavailable → unknown', function () {
+    Queue::fake();
+    $events = new FakeVentSecEvents;
+    $this->app->instance(VentSecEvents::class, $events);
+
+    $part = fn (string $name, string $body) => "Content-Type: multipart/mixed; boundary=\"H\"\r\n\r\n"
+        ."--H\r\nContent-Disposition: attachment; filename=\"{$name}\"\r\n\r\n{$body}\r\n--H--\r\n";
+
+    runParse(received($part('Számla_Kovács.pdf', 'PDF')));
+    runParse(received($part('virus.exe', FakeVirusScanner::EICAR)));
+    $this->scanner->available = false;
+    runParse(received($part('a.bin', 'x')));
+
+    expect(array_column($events->emitted, 'outcome'))->toBe(['success', 'denied', 'unknown'])
+        ->and(array_column(array_column($events->emitted, 'context'), 'binary_verdict'))->toBe(['clean', 'infected', 'unavailable'])
+        ->and(array_unique(array_column($events->emitted, 'action')))->toBe(['inbound.attachment_verdict']);
+
+    $dump = json_encode($events->emitted);
+    expect($dump)->not->toContain('Kovács')->not->toContain('virus.exe')->not->toContain('EICAR');
+});
+
+it('a kibocsátó hibája nem töri meg a csatolmány-feldolgozást', function () {
+    Queue::fake();
+    $this->app->instance(VentSecEvents::class, new class extends FakeVentSecEvents
+    {
+        public function emit(string $action, string $outcome, array $context = []): void
+        {
+            throw new RuntimeException('ventsec down');
+        }
+    });
+
+    $raw = "Content-Type: multipart/mixed; boundary=\"H\"\r\n\r\n"
+        ."--H\r\nContent-Disposition: attachment; filename=\"a.pdf\"\r\n\r\nPDF\r\n--H--\r\n";
+
+    runParse(received($raw));
+
+    expect(InboundAttachment::query()->firstOrFail()->scan_result)->toBe('clean')
+        ->and(InboundAttachment::query()->firstOrFail()->storage_key)->toContain('attachments');
 });
