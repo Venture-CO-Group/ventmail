@@ -42,4 +42,19 @@ enum GateReason: string
 
     /** Ugyanaz az Idempotency-Key MÁS kérés-tartalommal. */
     case IdempotencyKeyReused = 'IDEMPOTENCY_KEY_REUSED';
+
+    /**
+     * ÁTMENETI-e az elutasítás: a kérés VÁLTOZATLANUL is megváltozhat a kimenete (kvóta, rate
+     * limit, allowlist/seed-mód, csatorna-kapcsoló, domain-hitelesítés, kapu-hiba). Ilyenkor az
+     * Idempotency-Key nem köthető le az elutasításhoz, különben a determinisztikus kulccsal
+     * újrapróbáló kliens örökre ugyanazt a 422-t kapná. A kérés-függő okok (suppression,
+     * consent, bemenet, kockázat) végleges elutasítások, és visszajátszódnak.
+     */
+    public function isTransient(): bool
+    {
+        return in_array($this, [
+            self::DomainUnverified, self::QuotaExceeded, self::RateLimited,
+            self::SendingRestricted, self::ChannelDisabled, self::GateError,
+        ], true);
+    }
 }

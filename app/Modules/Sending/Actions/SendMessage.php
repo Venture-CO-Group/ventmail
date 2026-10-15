@@ -108,6 +108,11 @@ final class SendMessage
                 'reason' => $decision->reason,
                 // Az elutasított levél titkos render-változóira soha nem lesz szükség.
                 'render_variables' => null,
+                // ÁTMENETI elutasításnál a kulcs FELSZABADUL (a sor a naplóban marad): az
+                // ismételt kérésnél a kapu újra lefut. A végleges elutasítás kulcsa kötött.
+                'idempotency_key' => GateReason::tryFrom((string) $decision->reason)?->isTransient() === true
+                    ? null
+                    : $message->idempotency_key,
                 'options' => [...$message->options, 'gate_trace' => $decision->trace()],
             ])->save();
 
