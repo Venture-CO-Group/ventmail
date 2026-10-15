@@ -1,6 +1,6 @@
 Purchase confirmed: {{ pass_name }}
 
-Thank you, your purchase is confirmed. For security we do not email the code; you can open it under “My passes”.
+Thank you, your purchase is confirmed. You can find it under “My passes”.
 
 Item: {{ pass_name }}
 Type: {{ kind_label }}

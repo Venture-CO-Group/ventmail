@@ -8,7 +8,6 @@ Szolgáltató: {{ workspace_name }}
 Szolgáltatás: {{ service_name }}
 Időpont: {{ starts_at_local }}
 Ár: {{ price }}
-Eredeti ár: {{ list_price || – }}
 
 -- 
 Ezt a levelet a Vemoa küldte a(z) {{ workspace_name }} nevében, a foglalásoddal kapcsolatban.

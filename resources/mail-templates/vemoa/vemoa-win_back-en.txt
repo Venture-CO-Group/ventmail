@@ -7,10 +7,11 @@ It has been a while since your last visit to {{ workspace_name }}, and we miss y
 See free times:
 {{ booking_url }}
 
-Do not want these emails any more?: {{ unsubscribe_url }}
+Don't want these emails anymore?
+{{ unsubscribe_url }}
 
 -- 
-This email was sent by Vemoa on behalf of {{ workspace_name }}, regarding your booking.
+This email was sent by Vemoa on behalf of {{ workspace_name }}.
 Marketing message: you received this because you agreed to be contacted by email. You can withdraw your consent at any time.
 This is an automated message, please do not reply.
 Venture co. group · Vemoa

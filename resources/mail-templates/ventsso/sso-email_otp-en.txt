@@ -1,6 +1,6 @@
 Your sign-in code
 
-Enter this code to sign in to or verify yourself with {{ brand_name || Venture }}:
+Enter this code to sign in to {{ brand_name || Venture }} or confirm it's you:
 
 {{ code }}
 

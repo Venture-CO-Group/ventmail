@@ -1,21 +1,21 @@
-Változás a cookie-leltárban
+Változás a sütileltárban
 
-A legutóbbi scan óta változott a cookie-leltár. Ha a „Hozzájárulás előtt beállított” szám nem nulla, a sütik a hozzájárulás előtt kerültek be, ami jogi kockázat.
+A legutóbbi scan óta változott a sütileltár. Ha a „Hozzájárulás előtt beállított” szám nem nulla, a sütik a hozzájárulás előtt kerültek be, ami jogi kockázat.
 
 Súlyosság: {{ severity }}
-Új cookie-k: {{ added_count }}
-Eltűnt cookie-k: {{ removed_count }}
+Új sütik: {{ added_count }}
+Eltűnt sütik: {{ removed_count }}
 Hozzájárulás előtt beállított: {{ violations_count }}
 Site: {{ site_id }}
 Scan: {{ scan_id }}
 
-Új cookie-k:
+Új sütik:
 {{ added_lines || – }}
 
-Eltűnt cookie-k:
+Eltűnt sütik:
 {{ removed_lines || – }}
 
-Hozzájárulás előtt beállított cookie-k:
+Hozzájárulás előtt beállított sütik:
 {{ violations_lines || – }}
 
 -- 

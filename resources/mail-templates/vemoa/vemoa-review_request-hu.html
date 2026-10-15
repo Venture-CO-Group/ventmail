@@ -13,13 +13,14 @@
   .vm-card { background:#161A28 !important; }
   .vm-text { color:#ECEFF6 !important; }
   .vm-muted { color:#B4BCCF !important; }
+  .vm-link { color:#7389FF !important; }
   .vm-box { background:#0E1322 !important; border-color:#3A4055 !important; }
 }
 @media only screen and (max-width:620px) { .vm-pad { padding-left:20px !important; padding-right:20px !important; } }
 </style>
 </head>
 <body class="vm-bg" style="margin:0;padding:0;background:#F6F7FB;-webkit-text-size-adjust:100%;">
-<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;mso-hide:all;">Mondd el, milyen volt a(z) {{ workspace_name }} látogatás.&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;</div>
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;mso-hide:all;">Mondd el, milyen volt a látogatásod.&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;</div>
 <table role="presentation" class="vm-bg" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#F6F7FB;">
 <tr><td align="center" style="padding:24px 12px;font-family:Inter,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;">
@@ -29,7 +30,7 @@
 <h1 class="vm-text" style="margin:0 0 16px;font-size:24px;line-height:32px;font-weight:700;color:#0E1322;">Milyen volt a látogatás?</h1>
 <p class="vm-text" style="margin:0 0 16px;font-size:16px;line-height:24px;color:#0E1322;">Kedves {{ client_name }}!</p>
 <p class="vm-text" style="margin:0 0 16px;font-size:16px;line-height:24px;color:#0E1322;">Köszönjük, hogy a(z) {{ workspace_name }} szolgáltatását választottad ({{ service_name }}, {{ starts_at_local }}). Nagyon hasznos számunkra és másoknak is, ha értékeled a látogatást a Vemoa-ban, a foglalásaid között.</p>
-<p class="vm-muted" style="margin:8px 0 12px;font-size:13px;line-height:20px;color:#5A6076;">Nem szeretnél több ilyen levelet?: <a href="{{ unsubscribe_url }}" style="color:#3D5AE6;">Leiratkozás egy kattintással</a></p>
+<p class="vm-muted" style="margin:8px 0 12px;font-size:13px;line-height:20px;color:#5A6076;">Nem kérsz több ilyen levelet? <a class="vm-link" href="{{ unsubscribe_url }}" style="color:#3D5AE6;">Leiratkozás egy kattintással</a></p>
 </td></tr>
 <tr><td class="vm-card vm-pad" bgcolor="#FFFFFF" style="background:#FFFFFF;border-top:1px solid #D7DCE8;border-radius:0 0 16px 16px;padding:20px 32px 24px;font-family:Inter,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
 <p class="vm-muted" style="margin:0 0 8px;font-size:12px;line-height:18px;color:#5A6076;">Ezt a levelet a Vemoa küldte a(z) {{ workspace_name }} nevében, a foglalásoddal kapcsolatban.</p>

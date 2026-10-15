@@ -38,6 +38,12 @@ function familyTemplateCases(): array
     return $cases;
 }
 
+/** @return array<string, array{0: string, 1: string, 2: string, 3: array<string, mixed>}> */
+function familyLinkCases(): array
+{
+    return array_filter(familyTemplateCases(), static fn (array $case): bool => $case[3]['required_links'] !== []);
+}
+
 /** @return list<string> */
 function familyPlaceholders(string $body): array
 {
@@ -93,7 +99,7 @@ it('carries every required link in both html and txt', function (string $dir, st
         expect(familyFile($dir, $name, 'html'))->toContain('href="{{ '.$var.' }}"');
         expect(familyPlaceholders(familyFile($dir, $name, 'txt')))->toContain($var);
     }
-})->with(familyTemplateCases());
+})->with(familyLinkCases());
 
 it('uses the manifest subject as a single line', function (string $dir, string $name, string $locale, array $template): void {
     $subject = familyFile($dir, $name, 'subject');

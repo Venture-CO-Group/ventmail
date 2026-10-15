@@ -13,6 +13,7 @@
   .vm-card { background:#161A28 !important; }
   .vm-text { color:#ECEFF6 !important; }
   .vm-muted { color:#B4BCCF !important; }
+  .vm-link { color:#7389FF !important; }
   .vm-box { background:#0E1322 !important; border-color:#3A4055 !important; }
 }
 @media only screen and (max-width:620px) { .vm-pad { padding-left:20px !important; padding-right:20px !important; } }
@@ -29,7 +30,7 @@
 <h1 class="vm-text" style="margin:0 0 16px;font-size:24px;line-height:32px;font-weight:700;color:#0E1322;">Your sign-in link</h1>
 <p class="vm-text" style="margin:0 0 16px;font-size:16px;line-height:24px;color:#0E1322;">Use the button below to sign in to {{ brand_name || Venture }} without a password.</p>
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 20px;"><tr><td align="center" bgcolor="#3D5AE6" style="background:#3D5AE6;border-radius:12px;"><a href="{{ url }}" style="display:inline-block;padding:14px 28px;font-family:Inter,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:16px;line-height:20px;font-weight:600;color:#FFFFFF;text-decoration:none;border-radius:12px;">Sign in</a></td></tr></table>
-<p class="vm-muted" style="margin:0 0 16px;font-size:13px;line-height:20px;color:#5A6076;">If the button does not work, paste this link into your browser:<br><a href="{{ url }}" style="color:#3D5AE6;word-break:break-all;">{{ url }}</a></p>
+<p class="vm-muted" style="margin:0 0 16px;font-size:13px;line-height:20px;color:#5A6076;">If the button does not work, paste this link into your browser:<br><a class="vm-link" href="{{ url }}" style="color:#3D5AE6;word-break:break-all;">{{ url }}</a></p>
 <p class="vm-muted" style="margin:0 0 12px;font-size:13px;line-height:20px;color:#5A6076;">The link can be used once and expires shortly. Do not share it with anyone.</p>
 <p class="vm-muted" style="margin:0 0 12px;font-size:13px;line-height:20px;color:#5A6076;">If you did not request this, ignore this email.</p>
 </td></tr>

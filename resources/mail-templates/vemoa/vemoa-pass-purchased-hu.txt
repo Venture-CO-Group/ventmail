@@ -1,6 +1,6 @@
 Sikeres vásárlás: {{ pass_name }}
 
-Köszönjük, a vásárlásod sikeres. A kódot biztonsági okból nem küldjük e-mailben; a „Bérleteim” oldalon éred el.
+Köszönjük, a vásárlásod sikeres. Az újonnan vásárolt terméket a „Bérleteim” oldalon éred el.
 
 Termék: {{ pass_name }}
 Típus: {{ kind_label }}

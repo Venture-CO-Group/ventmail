@@ -13,6 +13,7 @@
   .vm-card { background:#161A28 !important; }
   .vm-text { color:#ECEFF6 !important; }
   .vm-muted { color:#B4BCCF !important; }
+  .vm-link { color:#7389FF !important; }
   .vm-box { background:#0E1322 !important; border-color:#3A4055 !important; }
 }
 @media only screen and (max-width:620px) { .vm-pad { padding-left:20px !important; padding-right:20px !important; } }
@@ -27,7 +28,7 @@
 <tr><td bgcolor="#5B7CFF" height="4" style="background:#5B7CFF;height:4px;font-size:0;line-height:0;">&nbsp;</td></tr>
 <tr><td class="vm-card vm-pad" bgcolor="#FFFFFF" style="background:#FFFFFF;padding:32px;font-family:Inter,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
 <h1 class="vm-text" style="margin:0 0 16px;font-size:24px;line-height:32px;font-weight:700;color:#0E1322;">Your sign-in code</h1>
-<p class="vm-text" style="margin:0 0 16px;font-size:16px;line-height:24px;color:#0E1322;">Enter this code to sign in to or verify yourself with {{ brand_name || Venture }}:</p>
+<p class="vm-text" style="margin:0 0 16px;font-size:16px;line-height:24px;color:#0E1322;">Enter this code to sign in to {{ brand_name || Venture }} or confirm it's you:</p>
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 20px;"><tr><td class="vm-box vm-text" style="background:#ECEFF6;border:1px solid #D7DCE8;border-radius:12px;padding:16px 28px;font-family:'JetBrains Mono',ui-monospace,Menlo,Consolas,monospace;font-size:32px;line-height:40px;letter-spacing:8px;font-weight:700;color:#0E1322;">{{ code }}</td></tr></table>
 <p class="vm-muted" style="margin:0 0 12px;font-size:13px;line-height:20px;color:#5A6076;">The code is short-lived and single-use. Never share it – Venture staff will never ask for it.</p>
 <p class="vm-muted" style="margin:0 0 12px;font-size:13px;line-height:20px;color:#5A6076;">If you did not start this, ignore this email, and change your password if in doubt.</p>
