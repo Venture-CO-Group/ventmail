@@ -1,0 +1,12 @@
+A support session was opened in your account
+
+Transparency notice: Vemoa support opened a time-limited support session in the {{ provider_name }} workspace.
+
+Provider: {{ provider_name }}
+Reason: {{ reason }}
+Duration (minutes): {{ minutes }}
+
+-- 
+Provider notice from Vemoa, related to your Vemoa account.
+This is an automated message, please do not reply.
+Venture co. group · Vemoa

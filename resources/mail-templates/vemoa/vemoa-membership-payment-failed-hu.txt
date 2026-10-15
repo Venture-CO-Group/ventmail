@@ -1,0 +1,17 @@
+Nem sikerült a tagság havi díja
+
+A(z) {{ provider }} tagságod ({{ membership }}) havi díját nem sikerült levonni.
+
+Tagság: {{ membership }}
+Szolgáltató: {{ provider }}
+Esedékes összeg: {{ amount }}
+
+Díj rendezése:
+{{ passes_url }}
+
+A díjat a „Bérleteim” oldalon rendezheted.
+
+-- 
+Ezt a levelet a Vemoa küldte a(z) {{ provider }} nevében, a foglalásoddal kapcsolatban.
+Ez egy automatikus értesítés, kérjük, ne válaszolj rá.
+Venture co. group · Vemoa

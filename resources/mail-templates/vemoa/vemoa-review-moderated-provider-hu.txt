@@ -1,0 +1,12 @@
+Döntés egy bejelentett véleményről
+
+A moderátor döntött egy bejelentett véleményről, amely a(z) {{ provider_name }} szolgáltatóra vonatkozik.
+
+Szolgáltató: {{ provider_name }}
+Döntés (keep = marad, hide = elrejtve, remove = törölve): {{ decision }}
+Indoklás: {{ reason || – }}
+
+-- 
+Szolgáltatói értesítés a Vemoa-tól, a Vemoa-fiókodhoz kapcsolódóan.
+Ez egy automatikus értesítés, kérjük, ne válaszolj rá.
+Venture co. group · Vemoa

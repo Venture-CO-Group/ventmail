@@ -1,0 +1,13 @@
+Boldog születésnapot!
+
+Kedves {{ client_name }}!
+
+Boldog születésnapot kívánunk a(z) {{ workspace_name }} csapata nevében! Reméljük, hamarosan újra találkozunk.
+
+Nem szeretnél több ilyen levelet?: {{ unsubscribe_url }}
+
+-- 
+Ezt a levelet a Vemoa küldte a(z) {{ workspace_name }} nevében, a foglalásoddal kapcsolatban.
+Marketing üzenet: azért kaptad, mert hozzájárultál, hogy a szolgáltató e-mailben keressen. A hozzájárulásodat bármikor visszavonhatod.
+Ez egy automatikus értesítés, kérjük, ne válaszolj rá.
+Venture co. group · Vemoa

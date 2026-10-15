@@ -1,0 +1,12 @@
+A decision about your review
+
+A moderator has decided on your reported review of {{ provider_name }}.
+
+Provider: {{ provider_name }}
+Decision (keep, hide or remove): {{ decision }}
+Reason: {{ reason || – }}
+
+-- 
+This email was sent by Vemoa on behalf of {{ provider_name }}, regarding your booking.
+This is an automated message, please do not reply.
+Venture co. group · Vemoa

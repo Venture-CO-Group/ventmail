@@ -1,0 +1,15 @@
+Confirmation needed for your membership payment
+
+Your bank asks you to authenticate the monthly fee for your {{ provider }} membership ({{ membership }}).
+
+Membership: {{ membership }}
+Provider: {{ provider }}
+Amount due: {{ amount }}
+
+Confirm payment:
+{{ passes_url }}
+
+-- 
+This email was sent by Vemoa on behalf of {{ provider }}, regarding your booking.
+This is an automated message, please do not reply.
+Venture co. group · Vemoa

@@ -1,0 +1,17 @@
+Felszabadult egy időpont
+
+Felszabadult egy időpont, amelyre várólistán voltál. Foglald le, amíg szabad!
+
+Szolgáltató: {{ workspace_name }}
+Szolgáltatás: {{ service_name }}
+Időpont: {{ starts_at_local }}
+
+Időpont lefoglalása:
+{{ booking_url }}
+
+Az ajánlat {{ expires_in_minutes }} percig érvényes, utána a következő várakozóhoz kerül.
+
+-- 
+Ezt a levelet a Vemoa küldte a(z) {{ workspace_name }} nevében, a foglalásoddal kapcsolatban.
+Ez egy automatikus értesítés, kérjük, ne válaszolj rá.
+Venture co. group · Vemoa

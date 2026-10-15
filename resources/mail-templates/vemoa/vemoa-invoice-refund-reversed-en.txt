@@ -1,0 +1,11 @@
+A refund was reversed – invoice action needed
+
+Stripe reversed a refund for which a credit note was already issued. The original invoice must be reissued by hand.
+
+Amount (minor units): {{ amount_minor }} {{ currency }}
+Correction document: {{ document_number }}
+
+-- 
+Provider notice from Vemoa, related to your Vemoa account.
+This is an automated message, please do not reply.
+Venture co. group · Vemoa

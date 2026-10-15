@@ -1,0 +1,18 @@
+Purchase confirmed: {{ pass_name }}
+
+Thank you, your purchase is confirmed. For security we do not email the code; you can open it under “My passes”.
+
+Item: {{ pass_name }}
+Type: {{ kind }}
+Provider: {{ provider }}
+Expires: {{ expires_on || does not expire }}
+
+Types: session_pack = session pack, voucher = voucher, credit = credit, membership = membership.
+
+Open my passes:
+{{ passes_url }}
+
+-- 
+This email was sent by Vemoa on behalf of {{ provider }}, regarding your booking.
+This is an automated message, please do not reply.
+Venture co. group · Vemoa

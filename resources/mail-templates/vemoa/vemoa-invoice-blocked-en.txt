@@ -1,0 +1,12 @@
+An invoice could not be issued
+
+An invoice could not be issued automatically and is waiting for your decision.
+
+Amount (minor units): {{ amount_minor }} {{ currency }}
+Paid at: {{ paid_at }}
+Reason: {{ reason }}
+
+-- 
+Provider notice from Vemoa, related to your Vemoa account.
+This is an automated message, please do not reply.
+Venture co. group · Vemoa

@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="hu" xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="color-scheme" content="light dark">
+<meta name="supported-color-schemes" content="light dark">
+<title>Döntés a véleményedről</title>
+<style>
+@media (prefers-color-scheme: dark) {
+  .vm-bg { background:#080B16 !important; }
+  .vm-card { background:#161A28 !important; }
+  .vm-text { color:#ECEFF6 !important; }
+  .vm-muted { color:#B4BCCF !important; }
+  .vm-box { background:#0E1322 !important; border-color:#3A4055 !important; }
+}
+@media only screen and (max-width:620px) { .vm-pad { padding-left:20px !important; padding-right:20px !important; } }
+</style>
+</head>
+<body class="vm-bg" style="margin:0;padding:0;background:#F6F7FB;-webkit-text-size-adjust:100%;">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;mso-hide:all;">A(z) {{ provider_name }} szolgáltatóról írt véleményedet elbíráltuk.&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;</div>
+<table role="presentation" class="vm-bg" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#F6F7FB;">
+<tr><td align="center" style="padding:24px 12px;font-family:Inter,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;">
+<tr><td bgcolor="#080B16" class="vm-pad" style="background:#080B16;border-radius:16px 16px 0 0;padding:20px 32px;font-family:Inter,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:20px;line-height:28px;font-weight:700;color:#FFFFFF;">Vemoa</td></tr>
+<tr><td bgcolor="#5B7CFF" height="4" style="background:#5B7CFF;height:4px;font-size:0;line-height:0;">&nbsp;</td></tr>
+<tr><td class="vm-card vm-pad" bgcolor="#FFFFFF" style="background:#FFFFFF;padding:32px;font-family:Inter,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+<h1 class="vm-text" style="margin:0 0 16px;font-size:24px;line-height:32px;font-weight:700;color:#0E1322;">Döntés a véleményedről</h1>
+<p class="vm-text" style="margin:0 0 16px;font-size:16px;line-height:24px;color:#0E1322;">A moderátor döntött a(z) {{ provider_name }} szolgáltatóról írt, bejelentett véleményedről.</p>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" class="vm-box" style="margin:0 0 20px;background:#ECEFF6;border:1px solid #D7DCE8;border-radius:12px;"><tr><td class="vm-muted" valign="top" width="40%" style="padding:12px 8px 6px 16px;font-size:13px;line-height:20px;color:#5A6076;">Szolgáltató</td><td class="vm-text" valign="top" style="padding:12px 16px 6px 0;font-size:14px;line-height:20px;color:#0E1322;word-break:break-word;">{{ provider_name }}</td></tr><tr><td class="vm-muted" valign="top" width="40%" style="padding:6px 8px 6px 16px;font-size:13px;line-height:20px;color:#5A6076;">Döntés (keep = marad, hide = elrejtve, remove = törölve)</td><td class="vm-text" valign="top" style="padding:6px 16px 6px 0;font-size:14px;line-height:20px;color:#0E1322;word-break:break-word;">{{ decision }}</td></tr><tr><td class="vm-muted" valign="top" width="40%" style="padding:6px 8px 12px 16px;font-size:13px;line-height:20px;color:#5A6076;">Indoklás</td><td class="vm-text" valign="top" style="padding:6px 16px 12px 0;font-size:14px;line-height:20px;color:#0E1322;word-break:break-word;">{{ reason || – }}</td></tr></table>
+</td></tr>
+<tr><td class="vm-card vm-pad" bgcolor="#FFFFFF" style="background:#FFFFFF;border-top:1px solid #D7DCE8;border-radius:0 0 16px 16px;padding:20px 32px 24px;font-family:Inter,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+<p class="vm-muted" style="margin:0 0 8px;font-size:12px;line-height:18px;color:#5A6076;">Ezt a levelet a Vemoa küldte a(z) {{ provider_name }} nevében, a foglalásoddal kapcsolatban.</p>
+<p class="vm-muted" style="margin:0 0 8px;font-size:12px;line-height:18px;color:#5A6076;">Ez egy automatikus értesítés, kérjük, ne válaszolj rá.</p>
+<p class="vm-muted" style="margin:0;font-size:12px;line-height:18px;font-weight:600;color:#5A6076;">Venture co. group · Vemoa</p>
+</td></tr>
+</table>
+</td></tr>
+</table>
+</body>
+</html>

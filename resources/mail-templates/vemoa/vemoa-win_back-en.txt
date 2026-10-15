@@ -1,0 +1,16 @@
+We miss you
+
+Hello {{ client_name }},
+
+It has been a while since your last visit to {{ workspace_name }}, and we miss you. Have a look at the free times!
+
+See free times:
+{{ booking_url }}
+
+Do not want these emails any more?: {{ unsubscribe_url }}
+
+-- 
+This email was sent by Vemoa on behalf of {{ workspace_name }}, regarding your booking.
+Marketing message: you received this because you agreed to be contacted by email. You can withdraw your consent at any time.
+This is an automated message, please do not reply.
+Venture co. group · Vemoa

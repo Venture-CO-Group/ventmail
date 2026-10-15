@@ -1,0 +1,13 @@
+Vitatott fizetés – teendő van
+
+Egy kártyás fizetést megtámadtak (chargeback). A vitára a Stripe-ban kell válaszolnod a határidőn belül.
+
+Fizetés azonosító: {{ payment_id }}
+Mire szólt: {{ kind }}
+A vita állapota: {{ status }}
+Összeg (legkisebb egységben): {{ amount_minor }} {{ currency }}
+
+-- 
+Szolgáltatói értesítés a Vemoa-tól, a Vemoa-fiókodhoz kapcsolódóan.
+Ez egy automatikus értesítés, kérjük, ne válaszolj rá.
+Venture co. group · Vemoa

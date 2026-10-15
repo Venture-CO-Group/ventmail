@@ -1,0 +1,16 @@
+Hiányzol
+
+Kedves {{ client_name }}!
+
+Már régen jártál nálunk a(z) {{ workspace_name }} szolgáltatónál, és hiányzol. Nézd meg a szabad időpontokat!
+
+Szabad időpontok:
+{{ booking_url }}
+
+Nem szeretnél több ilyen levelet?: {{ unsubscribe_url }}
+
+-- 
+Ezt a levelet a Vemoa küldte a(z) {{ workspace_name }} nevében, a foglalásoddal kapcsolatban.
+Marketing üzenet: azért kaptad, mert hozzájárultál, hogy a szolgáltató e-mailben keressen. A hozzájárulásodat bármikor visszavonhatod.
+Ez egy automatikus értesítés, kérjük, ne válaszolj rá.
+Venture co. group · Vemoa

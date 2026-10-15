@@ -1,0 +1,11 @@
+Újra aktív a fiókod
+
+A(z) {{ provider_name }} fiókját újra aktiváltuk, ismét fogadhatsz foglalásokat.
+
+Szolgáltató: {{ provider_name }}
+Indoklás: {{ reason || – }}
+
+-- 
+Szolgáltatói értesítés a Vemoa-tól, a Vemoa-fiókodhoz kapcsolódóan.
+Ez egy automatikus értesítés, kérjük, ne válaszolj rá.
+Venture co. group · Vemoa

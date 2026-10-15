@@ -1,0 +1,13 @@
+Happy birthday!
+
+Hello {{ client_name }},
+
+Happy birthday from the {{ workspace_name }} team! We hope to see you again soon.
+
+Do not want these emails any more?: {{ unsubscribe_url }}
+
+-- 
+This email was sent by Vemoa on behalf of {{ workspace_name }}, regarding your booking.
+Marketing message: you received this because you agreed to be contacted by email. You can withdraw your consent at any time.
+This is an automated message, please do not reply.
+Venture co. group · Vemoa

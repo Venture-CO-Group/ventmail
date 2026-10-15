@@ -1,0 +1,12 @@
+Döntés a véleményedről
+
+A moderátor döntött a(z) {{ provider_name }} szolgáltatóról írt, bejelentett véleményedről.
+
+Szolgáltató: {{ provider_name }}
+Döntés (keep = marad, hide = elrejtve, remove = törölve): {{ decision }}
+Indoklás: {{ reason || – }}
+
+-- 
+Ezt a levelet a Vemoa küldte a(z) {{ provider_name }} nevében, a foglalásoddal kapcsolatban.
+Ez egy automatikus értesítés, kérjük, ne válaszolj rá.
+Venture co. group · Vemoa

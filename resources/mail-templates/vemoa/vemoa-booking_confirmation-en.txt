@@ -1,0 +1,16 @@
+Your booking is confirmed
+
+Hello {{ client_name }},
+
+Your booking is confirmed. We look forward to seeing you!
+
+Provider: {{ workspace_name }}
+Service: {{ service_name }}
+Time: {{ starts_at_local }}
+Price: {{ price }}
+List price: {{ list_price || – }}
+
+-- 
+This email was sent by Vemoa on behalf of {{ workspace_name }}, regarding your booking.
+This is an automated message, please do not reply.
+Venture co. group · Vemoa

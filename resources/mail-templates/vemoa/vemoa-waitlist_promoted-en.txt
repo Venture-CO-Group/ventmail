@@ -1,0 +1,16 @@
+A spot opened up for you
+
+Hello {{ client_name }},
+
+Good news: a spot opened up and your waitlist booking is now confirmed.
+
+Provider: {{ workspace_name }}
+Service: {{ service_name }}
+Time: {{ starts_at_local }}
+Price: {{ price }}
+List price: {{ list_price || – }}
+
+-- 
+This email was sent by Vemoa on behalf of {{ workspace_name }}, regarding your booking.
+This is an automated message, please do not reply.
+Venture co. group · Vemoa

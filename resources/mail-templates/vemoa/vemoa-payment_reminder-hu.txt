@@ -1,0 +1,16 @@
+Emlékeztető a tagság díjáról
+
+Kedves {{ client_name }}!
+
+A(z) {{ workspace_name }} tagságodnak ({{ membership }}) a havi díja a sikertelen levonás után még mindig rendezetlen.
+
+Tagság: {{ membership }}
+Esedékes összeg: {{ amount }}
+
+Díj rendezése:
+{{ passes_url }}
+
+-- 
+Ezt a levelet a Vemoa küldte a(z) {{ workspace_name }} nevében, a foglalásoddal kapcsolatban.
+Ez egy automatikus értesítés, kérjük, ne válaszolj rá.
+Venture co. group · Vemoa

@@ -1,0 +1,20 @@
+Confirm your booking
+
+Hello {{ guest_name }},
+
+We are holding the time below for you at {{ workspace_name }}, but you need to confirm your email address to complete the booking.
+
+Provider: {{ workspace_name }}
+Time: {{ starts_at_local }}
+
+Confirm booking:
+{{ confirm_url }}
+
+The held spot is kept for {{ expires_in_minutes }} minutes, then released.
+
+If you did not book this, ignore this email.
+
+-- 
+This email was sent by Vemoa on behalf of {{ workspace_name }}, regarding your booking.
+This is an automated message, please do not reply.
+Venture co. group · Vemoa

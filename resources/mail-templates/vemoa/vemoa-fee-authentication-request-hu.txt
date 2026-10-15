@@ -1,0 +1,18 @@
+Megerősítés szükséges a díjhoz
+
+Kedves {{ guest_name }}!
+
+A(z) {{ workspace_name }} lemondási vagy meg nem jelenési díjat számított fel, és a bankod megerősítést (azonosítást) kér a terheléshez.
+
+Szolgáltató: {{ workspace_name }}
+Összeg: {{ amount }}
+
+Azonosítás a banknál:
+{{ authenticate_url }}
+
+A link {{ expires_in_days }} napig érvényes.
+
+-- 
+Ezt a levelet a Vemoa küldte a(z) {{ workspace_name }} nevében, a foglalásoddal kapcsolatban.
+Ez egy automatikus értesítés, kérjük, ne válaszolj rá.
+Venture co. group · Vemoa

@@ -1,0 +1,11 @@
+Jóváhagyták a jelentkezésedet
+
+A(z) {{ provider_name }} jelentkezését jóváhagytuk, a listázásod aktív.
+
+Szolgáltató: {{ provider_name }}
+Indoklás: {{ reason || – }}
+
+-- 
+Szolgáltatói értesítés a Vemoa-tól, a Vemoa-fiókodhoz kapcsolódóan.
+Ez egy automatikus értesítés, kérjük, ne válaszolj rá.
+Venture co. group · Vemoa
