@@ -141,6 +141,8 @@ final class SendMessageController
             'from_name' => $payload->fromName,
             'subject' => $subject,
             'to' => $payload->recipients,
+            // A sablon NEVE: az idempotencia-ujjlenyomat a kérést fedi, nem a feloldott törzset.
+            'template' => $payload->template,
             'html' => $html,
             'text' => $text,
             'tags' => $payload->tags,

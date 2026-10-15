@@ -442,6 +442,19 @@ final class SendMessage
             'options', 'ip_pool_id', 'raw_sha256',
         ]);
 
+        // SABLONOS kérésnél az ujjlenyomat azt fedi, amit a hívó KÜLDÖTT (sablon-név, változók,
+        // címzettek…), nem a feloldott törzset/tárgyat: egy közben aktivált új verzió miatt a
+        // válasz-vesztés utáni újrapróbálás ne kapjon 409-et. Sablon nélkül a viselkedés változatlan
+        // (a `template` kulcs sem kerül az ujjlenyomatba, a korábbi ujjlenyomatok érvényesek).
+        if (is_string($template = Arr::get($attributes, 'template')) && $template !== '') {
+            unset($canonical['html'], $canonical['text'], $canonical['rendered_html']);
+            $canonical['template'] = $template;
+
+            if (($canonical['options']['subject_from_template'] ?? false) === true) {
+                unset($canonical['subject']);
+            }
+        }
+
         ksort($canonical);
 
         // Érvénytelen UTF-8 (latin-1 törzsű legacy integráció) esetén a `json_encode`

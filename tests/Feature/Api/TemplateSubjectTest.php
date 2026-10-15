@@ -222,3 +222,25 @@ it('tárgy nélküli aktív verzió után az új verzió is tárgy nélküli', f
 
     expect(StoredTemplateVersion::query()->where('version', 2)->firstOrFail()->subject)->toBeNull();
 });
+
+it('sablonos küldés újrapróbálása új verzió aktiválása után is replay (nem 409) — az ujjlenyomat a kérést fedi', function () {
+    subjectTemplate('Rendelés {{ no }}');
+    $headers = ['Authorization' => 'Bearer '.test()->plain, 'Idempotency-Key' => 'tmpl-retry-1', 'Accept' => 'application/json'];
+    $body = ['from' => 'no-reply@pelda.hu', 'to' => 'cimzett@example.test', 'template' => 'order', 't:variables' => json_encode(['no' => '7', 'name' => 'A'])];
+
+    $first = test()->withHeaders($headers)->postJson('/v1/messages', $body)->assertAccepted();
+
+    // Közben új verzió lép életbe (más törzs ÉS tárgy).
+    $template = StoredTemplate::query()->where('name', 'order')->firstOrFail();
+    $template->activeVersion()->update(['is_active' => false]);
+    StoredTemplateVersion::create(['stored_template_id' => $template->getKey(), 'version' => 2, 'body' => '<p>ÚJ</p>', 'subject' => 'Új tárgy', 'is_active' => true]);
+
+    $retry = test()->withHeaders($headers)->postJson('/v1/messages', $body)->assertAccepted();
+
+    expect($retry->json('id'))->toBe($first->json('id'))->and(FakeDriver::$sent)->toHaveCount(1);
+
+    // A hívó által küldött tartalom változása viszont továbbra is 409.
+    test()->withHeaders($headers)->postJson('/v1/messages', [...$body, 't:variables' => json_encode(['no' => '8'])])->assertStatus(409);
+    subjectTemplate(null, 'order2');
+    test()->withHeaders($headers)->postJson('/v1/messages', [...$body, 'template' => 'order2'])->assertStatus(409);
+});

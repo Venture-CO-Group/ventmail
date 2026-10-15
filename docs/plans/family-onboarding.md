@@ -113,6 +113,8 @@ szivárog a hiba) tesz `SendConsentProof` jobot a `default` sorra (6 próba, bac
   5xx, 429, 401/403/408 → újrapróbál. A főkönyv-hiba soha nem blokkol; a küldési kapu a helyi consentből dönt (teszt).
 - Hiányos konfiguráció: nem küld, naplóz (`consent.ledger.not_configured`).
 
+**FO17 — Sablonos küldés ujjlenyomata.** Az idempotencia-ujjlenyomat sablonos kérésnél a hívó által küldött tartalmat fedi (sablon-NÉV, `t:variables`, címzettek, feladó, csatorna, opciók; a kérés saját tárgya), NEM a feloldott törzset/sablon-tárgyat. Így egy közben aktivált új verzió után a válasz-vesztéses újrapróbálás replay (202), nem 409. Sablon nélküli kérésnél semmi nem változik (a `template` kulcs csak sablonos kérésnél kerül az ujjlenyomatba).
+
 **FO14 — Átmeneti elutasítás nem köti le az Idempotency-Key-t (B2).** A `GateReason::isTransient()` (DOMAIN_UNVERIFIED,
 QUOTA_EXCEEDED, RATE_LIMITED, SENDING_RESTRICTED, CHANNEL_DISABLED, GATE_ERROR) esetén a `SendMessage` az elutasított üzenet
 `idempotency_key`-ét NULL-ra állítja (a sor a naplóban marad, `rejected` + okkal): az ugyanazzal a kulccsal és törzzsel ismételt
