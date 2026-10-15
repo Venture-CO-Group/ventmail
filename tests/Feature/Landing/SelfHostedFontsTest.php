@@ -1,6 +1,7 @@
 <?php
 
 declare(strict_types=1);
+use App\Support\FontPreload;
 
 /*
  | A betűk a saját originről jönnek (@venture/design fonts.css) — a Google Fonts CDN minden
@@ -74,5 +75,39 @@ it('a resources/ és a docker/ alatt semmi forrás nem hivatkozik Google-betűre
 it('a három betűcsalád a saját originről jön: a belépők importálják a fonts.css-t', function () {
     foreach (['resources/js/app.ts', 'resources/css/landing.css', 'resources/css/hosted.css'] as $entry) {
         expect((string) file_get_contents(base_path($entry)))->toContain('@venture/design/fonts.css');
+    }
+});
+
+it('az OFL-licencszövegek a public/fonts alól szolgálódnak, és bájtra egyeznek a csomagéval', function () {
+    $package = base_path('node_modules/@venture/design/dist/fonts');
+
+    foreach (['inter', 'space-grotesk', 'jetbrains-mono'] as $family) {
+        $served = public_path("fonts/LICENSE-{$family}.txt");
+        expect(is_file($served))->toBeTrue("hiányzik: public/fonts/LICENSE-{$family}.txt")
+            ->and((string) file_get_contents($served))->toContain('SIL OPEN FONT LICENSE');
+
+        // A design-bump nem csúszhat el csendben: ha a csomag települ, a másolatnak azonosnak kell lennie.
+        if (is_file("{$package}/LICENSE-{$family}.txt")) {
+            expect(hash_file('sha256', $served))->toBe(hash_file('sha256', "{$package}/LICENSE-{$family}.txt"));
+        }
+    }
+});
+
+it('a preload dev-szerver (hot file) mellett kimarad, és a manifesztet processzenként egyszer olvassa', function () {
+    $hot = public_path('hot');
+    file_put_contents($hot, 'http://localhost:5173');
+    try {
+        $manifest = tempnam(sys_get_temp_dir(), 'vite');
+        file_put_contents($manifest, json_encode(['x/fonts/inter-latin.woff2' => ['file' => 'assets/i.woff2']]));
+        config(['vite.manifest_path' => $manifest]);
+
+        expect(FontPreload::urls())->toBe([]);
+
+        unlink($hot);
+        expect(FontPreload::urls())->toHaveCount(1);
+        unlink($manifest); // memoizált: a második hívás már nem olvas fájlt
+        expect(FontPreload::urls())->toHaveCount(1);
+    } finally {
+        @unlink($hot);
     }
 });
