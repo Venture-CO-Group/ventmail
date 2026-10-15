@@ -61,7 +61,9 @@ final class HttpConsentProofLedger implements ConsentProofLedger
         }
 
         if ($status === 409) {
-            Log::info('consent.ledger.already_recorded');
+            // Azonos kulcs + eltérő törzs: a bizonyíték már a főkönyvben van (lezárt) — de a 409
+            // szokatlan, ezért WARNING és külön esemény (hash-lánc auditáláshoz), PII nélkül.
+            Log::warning('consent.ledger.idempotency_conflict');
 
             return null;
         }

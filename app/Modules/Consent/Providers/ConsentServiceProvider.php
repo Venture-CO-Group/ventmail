@@ -76,6 +76,11 @@ final class ConsentServiceProvider extends ModuleServiceProvider
             if ($missing !== []) {
                 throw new RuntimeException('CONSENT_LEDGER_DRIVER=ventcookie, de hiányzik: '.implode(', ', $missing).'.');
             }
+
+            // A HMAC-kulcs rövidsége az alany-hivatkozás szótár-támadhatóságát jelentené.
+            if (strlen((string) config('consent.ledger.subject_key')) < 32) {
+                throw new RuntimeException('CONSENT_LEDGER_DRIVER=ventcookie: a CONSENT_LEDGER_SUBJECT_KEY legalább 32 bájt legyen.');
+            }
         }
 
         return $driver;

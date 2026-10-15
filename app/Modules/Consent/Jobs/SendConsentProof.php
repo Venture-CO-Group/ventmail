@@ -14,6 +14,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Egy consent-bizonyíték letétele a ventCookie főkönyvbe (retry + backoff). A job NEM hordoz
@@ -67,20 +68,23 @@ final class SendConsentProof implements ShouldQueue
         $context->set($workspace);
 
         try {
-            $consent = Consent::query()->whereKey($this->consentId)->first();
+            // ZÁROLVA: két párhuzamos job nyugtája ne írja felül egymást a régebbi javára.
+            DB::transaction(function () use ($receipt): void {
+                $consent = Consent::query()->whereKey($this->consentId)->lockForUpdate()->first();
 
-            if ($consent === null) {
-                return;
-            }
+                if ($consent === null) {
+                    return;
+                }
 
-            $at = Carbon::parse($this->occurredAt);
+                $at = Carbon::parse($this->occurredAt);
 
-            // Egy késve érkező, RÉGEBBI nyugta nem írja felül az újabbat.
-            if ($consent->ledger_receipt_at !== null && $consent->ledger_receipt_at->greaterThan($at)) {
-                return;
-            }
+                // Egy késve érkező, RÉGEBBI nyugta nem írja felül az újabbat.
+                if ($consent->ledger_receipt_at !== null && $consent->ledger_receipt_at->greaterThan($at)) {
+                    return;
+                }
 
-            $consent->forceFill(['ledger_receipt_id' => $receipt->receiptId, 'ledger_receipt_at' => $at])->save();
+                $consent->forceFill(['ledger_receipt_id' => $receipt->receiptId, 'ledger_receipt_at' => $at])->save();
+            });
         } finally {
             $previous === null ? $context->forget() : $context->set($previous);
         }
