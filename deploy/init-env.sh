@@ -134,6 +134,13 @@ VENTSEC_INGEST_URL=
 VENTSEC_INGEST_SECRET=
 VENTSEC_SOURCE_INSTANCE=
 
+# --- ventCookie e-mail-consent ledger (FO3). Secrets (token, subject key) arrive via set-env.sh.
+CONSENT_LEDGER_DRIVER=fake
+CONSENT_LEDGER_URL=
+CONSENT_LEDGER_TOKEN=
+CONSENT_LEDGER_SITE_ID=
+CONSENT_LEDGER_SUBJECT_KEY=
+
 # --- database (internal mail-db network only)
 DB_SSLMODE=disable
 ENV

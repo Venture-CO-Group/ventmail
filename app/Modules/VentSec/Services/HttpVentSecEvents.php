@@ -11,7 +11,7 @@ use RuntimeException;
 
 /**
  * A VentSecEvents HTTP-megvalósítása. Kikapcsolva (`VENTSEC_EVENTS_ENABLED=false`, az alap)
- * semmit nem küld. Bekapcsolva az esemény egy `background` sorú jobbal megy ki (retry +
+ * semmit nem küld. Bekapcsolva az esemény egy `default` sorú jobbal (a Horizon `background` supervisor fogyasztja) megy ki (retry +
  * backoff), így a hívó folyamata nem várja a ventSec-et.
  *
  * TODO ventSec: tartós outbox (a `venture-security-events` SDK-é) — addig az újrapróbálás a

@@ -31,4 +31,21 @@ return [
      | beállításai módosítására.
      */
     'preference_ttl_hours' => (int) env('CONSENT_PREFERENCE_TTL_HOURS', 2160),
+
+    /*
+     | A ventCookie E-MAIL-CONSENT FŐKÖNYV (FO3): a double opt-in bizonyítéka egy hash-láncolt,
+     | append-only főkönyvbe is bekerül (POST /api/internal/v1/email-consent). A helyi consent
+     | marad a hivatalos; a főkönyv-hiba soha nem blokkol. Alapból `fake` (nincs hívás): a
+     | `ventcookie` meghajtóhoz mind az öt érték kell, élesben hiányosan a boot elbukik.
+     | A token és a subject_key titok: env-ből, soha a repóból.
+     */
+    'ledger' => [
+        'driver' => env('CONSENT_LEDGER_DRIVER', 'fake'),
+        'url' => rtrim((string) env('CONSENT_LEDGER_URL', ''), '/'),
+        'token' => env('CONSENT_LEDGER_TOKEN', ''),
+        'site_id' => env('CONSENT_LEDGER_SITE_ID', ''),
+        // A HMAC-kulcs az alany-hivatkozáshoz: HMAC-SHA256(kisbetűs, vágott e-mail, kulcs).
+        'subject_key' => env('CONSENT_LEDGER_SUBJECT_KEY', ''),
+        'timeout' => (int) env('CONSENT_LEDGER_TIMEOUT', 10),
+    ],
 ];

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Suppression\Http\Controllers;
 
+use App\Modules\Consent\Services\ConsentLedgerReporter;
 use App\Modules\Sending\Models\Message;
 use App\Modules\Sending\Services\DomainNormalizer;
 use App\Modules\Suppression\Services\SuppressionStore;
@@ -152,6 +153,11 @@ final class UnsubscribeController
                 (string) $claim['recipient'],
                 detail: 'message:'.$claim['messageUuid'],
             );
+
+            // FO3: a leiratkozás a consent VISSZAVONÁSA — a ventCookie főkönyvbe is bizonyíték.
+            // A helyi consent-sort nem érinti (a suppression a hivatalos tiltás), és a főkönyv
+            // hibája a leiratkozást sosem blokkolja (a reporter elnyeli).
+            app(ConsentLedgerReporter::class)->withdrawnByEmail((string) $claim['recipient'], 'message:'.$claim['messageUuid']);
 
             return true;
         } finally {

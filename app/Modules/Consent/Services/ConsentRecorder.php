@@ -34,6 +34,8 @@ use Illuminate\Support\Str;
  */
 final class ConsentRecorder
 {
+    public function __construct(private readonly ConsentLedgerReporter $ledger) {}
+
     /**
      * BEIRATKOZÁSI KÉRÉS (double opt-in első lépése).
      *
@@ -85,7 +87,14 @@ final class ConsentRecorder
                 $consent->forceFill(['ip_hash' => $this->hashIp($ip)])->save();
             }
 
-            $this->event($consent, 'requested', $ip, $userAgent, $policyVersion, $formText, $source);
+            $requested = $this->event($consent, 'requested', $ip, $userAgent, $policyVersion, $formText, $source);
+
+            // FO3: a ventCookie főkönyvbe a ventMail által INDÍTOTT double opt-in kérés kerül. Az
+            // import-kérés (`imported()`) nem DOI-kérés: a hozzájárulás máshol történt, nálunk
+            // nincs megerősítve, ezért nem bizonyíték.
+            if ($source !== 'import') {
+                $this->ledger->requested($consent, (string) $requested->uuid, $requested->occurred_at);
+            }
 
             return $consent->fresh();
         });
@@ -156,7 +165,7 @@ final class ConsentRecorder
                 'confirmed_at' => $consent->confirmed_at ?? now(),
             ])->save();
 
-            $this->event(
+            $confirmed = $this->event(
                 $consent,
                 'confirmed',
                 $ip,
@@ -166,6 +175,8 @@ final class ConsentRecorder
                 $consent->source,
                 ['request' => $request === null ? null : (string) $request->uuid],
             );
+
+            $this->ledger->confirmed($consent, (string) $confirmed->uuid, $request?->occurred_at);
 
             return $consent->fresh();
         });
@@ -183,9 +194,17 @@ final class ConsentRecorder
         ?string $ip = null,
     ): Consent {
         return DB::transaction(function () use ($consent, $source, $ip): Consent {
+            $alreadyRevoked = $consent->status === 'revoked';
+
             $consent->forceFill(['status' => 'revoked', 'revoked_at' => now()])->save();
 
-            $this->event($consent, 'revoked', $ip, null, $consent->policy_version, null, $source);
+            $revoked = $this->event($consent, 'revoked', $ip, null, $consent->policy_version, null, $source);
+
+            // FO3: a visszavonás bizonyítéka a főkönyvbe (a már visszavont consent újabb
+            // visszavonása nem új bizonyíték).
+            if (! $alreadyRevoked) {
+                $this->ledger->withdrawn($consent, $source, (string) $revoked->uuid);
+            }
 
             return $consent->fresh();
         });
@@ -324,8 +343,8 @@ final class ConsentRecorder
         ?string $formText,
         ?string $source,
         array $payload = [],
-    ): void {
-        ConsentEvent::query()->create([
+    ): ConsentEvent {
+        return ConsentEvent::query()->create([
             'consent_id' => $consent->getKey(),
             // A NYERS címet átadjuk, de a MODELL csak a hash-ét tárolja (nincs is oszlop a
             // nyers alaknak). Az invariáns így nem a hívók figyelmén múlik.

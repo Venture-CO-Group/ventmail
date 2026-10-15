@@ -137,13 +137,13 @@ it('KIKAPCSOLVA nem küld semmit — se job, se HTTP', function () {
     Http::assertNothingSent();
 });
 
-it('bekapcsolva a kibocsátás a `background` sorra tesz egy jobot, nem hív szinkron HTTP-t', function () {
+it('bekapcsolva a kibocsátás a `default` sorra tesz egy jobot, nem hív szinkron HTTP-t', function () {
     Queue::fake();
     Http::fake();
 
     app(HttpVentSecEvents::class)->emit('smtp.auth_failed', 'failure', ['listener' => 'submission', 'reason' => 'invalid_credentials']);
 
-    Queue::assertPushedOn('background', SendVentSecEvent::class, fn (SendVentSecEvent $job) => $job->event['action'] === 'smtp.auth_failed');
+    Queue::assertPushedOn('default', SendVentSecEvent::class, fn (SendVentSecEvent $job) => $job->event['action'] === 'smtp.auth_failed');
     Http::assertNothingSent();
 });
 

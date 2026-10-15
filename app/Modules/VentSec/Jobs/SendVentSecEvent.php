@@ -24,7 +24,7 @@ final class SendVentSecEvent implements ShouldQueue
     /** @param array<string, mixed> $event */
     public function __construct(public readonly array $event)
     {
-        $this->onQueue('background');
+        $this->onQueue('default');
         $this->afterCommit();
     }
 
