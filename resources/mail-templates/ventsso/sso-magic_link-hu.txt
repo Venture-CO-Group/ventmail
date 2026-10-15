@@ -1,9 +1,15 @@
 Bejelentkezési linked
 
-Az alábbi linkkel jelszó nélkül bejelentkezhetsz a Venture-fiókodba. A link rövid ideig érvényes és egyszer használható.
+Az alábbi gombbal jelszó nélkül bejelentkezhetsz a(z) {{ brand_name || Venture }} szolgáltatásba.
 
+Bejelentkezés:
 {{ url }}
+
+A link egyszer használható, és rövid időn belül lejár. Ne add tovább senkinek.
 
 Ha nem te kérted, hagyd figyelmen kívül ezt a levelet.
 
-— Venture
+-- 
+Ezt a levelet azért kaptad, mert ehhez az e-mail-címhez tartozik fiók (vagy valaki ezt a címet adta meg) a(z) {{ brand_name || Venture }} szolgáltatásban.
+Ez egy automatikus értesítés, kérjük, ne válaszolj rá.
+Venture co. group · ventSSO

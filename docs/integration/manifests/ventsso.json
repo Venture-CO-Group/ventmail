@@ -1,0 +1,166 @@
+{
+  "prefix": "sso",
+  "locales": [
+    "hu",
+    "en"
+  ],
+  "templates": [
+    {
+      "key": "email_verification",
+      "audience": "user",
+      "channel": "transactional",
+      "purpose": "Confirms the user's e-mail address (new account, or after an admin changed the address); the signed link expires (default 60 minutes).",
+      "variables": {
+        "url": "string — signed verification link",
+        "brand_name": "string — display name of the app the user is in (ventSSO's own for security alerts); may be absent",
+        "brand_logo_url": "string — https logo URL; absent when none is set",
+        "brand_accent_color": "string — #RRGGBB accent colour; absent when none is set",
+        "brand_client_id": "string — OAuth client id of the app the user is in; absent for ventSSO's own pages and always for security alerts",
+        "locale": "string — hu|en, the recipient's language (same as the template locale suffix)"
+      },
+      "required_links": [
+        "url"
+      ],
+      "subject": {
+        "hu": "Erősítsd meg az e-mail-címed",
+        "en": "Confirm your email address"
+      }
+    },
+    {
+      "key": "password_reset",
+      "audience": "user",
+      "channel": "transactional",
+      "purpose": "Password-reset link the user asked for.",
+      "variables": {
+        "url": "string — password-reset link (single use, expires)",
+        "brand_name": "string — display name of the app the user is in (ventSSO's own for security alerts); may be absent",
+        "brand_logo_url": "string — https logo URL; absent when none is set",
+        "brand_accent_color": "string — #RRGGBB accent colour; absent when none is set",
+        "brand_client_id": "string — OAuth client id of the app the user is in; absent for ventSSO's own pages and always for security alerts",
+        "locale": "string — hu|en, the recipient's language (same as the template locale suffix)"
+      },
+      "required_links": [
+        "url"
+      ],
+      "subject": {
+        "hu": "Jelszó visszaállítása",
+        "en": "Reset your password"
+      }
+    },
+    {
+      "key": "magic_link",
+      "audience": "user",
+      "channel": "transactional",
+      "purpose": "Passwordless sign-in link.",
+      "variables": {
+        "url": "string — single-use sign-in link",
+        "brand_name": "string — display name of the app the user is in (ventSSO's own for security alerts); may be absent",
+        "brand_logo_url": "string — https logo URL; absent when none is set",
+        "brand_accent_color": "string — #RRGGBB accent colour; absent when none is set",
+        "brand_client_id": "string — OAuth client id of the app the user is in; absent for ventSSO's own pages and always for security alerts",
+        "locale": "string — hu|en, the recipient's language (same as the template locale suffix)"
+      },
+      "required_links": [
+        "url"
+      ],
+      "subject": {
+        "hu": "Bejelentkezési linked",
+        "en": "Your sign-in link"
+      }
+    },
+    {
+      "key": "email_otp",
+      "audience": "user",
+      "channel": "transactional",
+      "purpose": "One-time sign-in code: e-mail OTP sign-in, adaptive-MFA step-up, and 2FA recovery. The code is the only call to action; no link.",
+      "variables": {
+        "code": "string — one-time numeric code, short-lived",
+        "brand_name": "string — display name of the app the user is in (ventSSO's own for security alerts); may be absent",
+        "brand_logo_url": "string — https logo URL; absent when none is set",
+        "brand_accent_color": "string — #RRGGBB accent colour; absent when none is set",
+        "brand_client_id": "string — OAuth client id of the app the user is in; absent for ventSSO's own pages and always for security alerts",
+        "locale": "string — hu|en, the recipient's language (same as the template locale suffix)"
+      },
+      "required_links": [],
+      "subject": {
+        "hu": "Bejelentkezési kódod",
+        "en": "Your sign-in code"
+      }
+    },
+    {
+      "key": "invitation",
+      "audience": "guest",
+      "channel": "transactional",
+      "purpose": "Invitation to join an organization, with the role pre-assigned.",
+      "variables": {
+        "url": "string — invitation accept link",
+        "organization": "string — organization name",
+        "role": "string — member|admin (organization role)",
+        "brand_name": "string — display name of the app the user is in (ventSSO's own for security alerts); may be absent",
+        "brand_logo_url": "string — https logo URL; absent when none is set",
+        "brand_accent_color": "string — #RRGGBB accent colour; absent when none is set",
+        "brand_client_id": "string — OAuth client id of the app the user is in; absent for ventSSO's own pages and always for security alerts",
+        "locale": "string — hu|en, the recipient's language (same as the template locale suffix)"
+      },
+      "required_links": [
+        "url"
+      ],
+      "subject": {
+        "hu": "Meghívást kaptál",
+        "en": "You have been invited"
+      }
+    },
+    {
+      "key": "security_alert",
+      "audience": "user|admin",
+      "channel": "transactional",
+      "purpose": "Security notice, branched on `event` inside the template. Always sent with ventSSO's own branding.",
+      "variables": {
+        "event": "string — account_locked|social_linked|failed_per_minute|blocked_per_minute",
+        "minutes": "int — account_locked only: the lock window in minutes",
+        "provider": "string — social_linked only: the linked provider (google|microsoft|apple)",
+        "count": "int — failed_per_minute / blocked_per_minute only: events counted in the last minute",
+        "brand_name": "string — display name of the app the user is in (ventSSO's own for security alerts); may be absent",
+        "brand_logo_url": "string — https logo URL; absent when none is set",
+        "brand_accent_color": "string — #RRGGBB accent colour; absent when none is set",
+        "brand_client_id": "string — OAuth client id of the app the user is in; absent for ventSSO's own pages and always for security alerts",
+        "locale": "string — hu|en, the recipient's language (same as the template locale suffix)"
+      },
+      "required_links": [],
+      "subject": {
+        "hu": "Biztonsági értesítés",
+        "en": "Security alert"
+      },
+      "events": {
+        "account_locked": {
+          "audience": "user",
+          "variables": [
+            "minutes"
+          ],
+          "purpose": "The account was locked after too many failed sign-ins."
+        },
+        "social_linked": {
+          "audience": "user",
+          "variables": [
+            "provider"
+          ],
+          "purpose": "A social sign-in provider was linked to the account."
+        },
+        "failed_per_minute": {
+          "audience": "admin",
+          "variables": [
+            "count"
+          ],
+          "purpose": "Failed sign-ins per minute crossed the alert threshold."
+        },
+        "blocked_per_minute": {
+          "audience": "admin",
+          "variables": [
+            "count"
+          ],
+          "purpose": "Blocked sign-ins per minute crossed the alert threshold."
+        }
+      }
+    }
+  ]
+}

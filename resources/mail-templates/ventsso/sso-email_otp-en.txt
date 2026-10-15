@@ -1,9 +1,14 @@
 Your sign-in code
 
-Enter this code to finish signing in:
+Enter this code to sign in to or verify yourself with {{ brand_name || Venture }}:
 
 {{ code }}
 
-The code is valid for a short time. If this was not you, change your password.
+The code is short-lived and single-use. Never share it – Venture staff will never ask for it.
 
-— Venture
+If you did not start this, ignore this email, and change your password if in doubt.
+
+-- 
+You received this email because an account in {{ brand_name || Venture }} uses this address (or someone entered it).
+This is an automated message, please do not reply.
+Venture co. group · ventSSO

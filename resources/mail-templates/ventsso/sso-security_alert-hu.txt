@@ -1,9 +1,17 @@
 Biztonsági értesítés
 
-Biztonsági esemény történt a Venture-fiókodban: {{ event }} ({{ provider }}).
+Biztonsági eseményt észleltünk a Venture-fiókoddal vagy a rendszerrel kapcsolatban. Az esemény részletei:
 
-{{ code }}
+Esemény: {{ event || – }}
+Zárolás időtartama (perc): {{ minutes || – }}
+Összekötött szolgáltató: {{ provider || – }}
+Események száma az elmúlt percben: {{ count || – }}
 
-Ha nem te voltál, azonnal változtasd meg a jelszavad, és ellenőrizd a fiókod beállításait.
+Az esemény típusától függően csak a releváns sorok kapnak értéket, a többi „–” jelet mutat.
 
-— Venture
+Ha az esemény nem tőled ered (például zárolás vagy új összekötött fiók), azonnal változtass jelszót, és nézd át a fiókbeállításaidat. Üzemeltetői riasztás esetén a bejelentkezési naplót érdemes átnézni.
+
+-- 
+Ezt a levelet azért kaptad, mert ehhez az e-mail-címhez tartozik fiók (vagy valaki ezt a címet adta meg) a(z) {{ brand_name || Venture }} szolgáltatásban.
+Ez egy automatikus értesítés, kérjük, ne válaszolj rá.
+Venture co. group · ventSSO

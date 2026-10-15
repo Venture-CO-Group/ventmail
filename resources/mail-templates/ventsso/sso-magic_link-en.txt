@@ -1,9 +1,15 @@
 Your sign-in link
 
-Use the link below to sign in to your Venture account without a password. The link is valid for a short time and can be used once.
+Use the button below to sign in to {{ brand_name || Venture }} without a password.
 
+Sign in:
 {{ url }}
+
+The link can be used once and expires shortly. Do not share it with anyone.
 
 If you did not request this, ignore this email.
 
-— Venture
+-- 
+You received this email because an account in {{ brand_name || Venture }} uses this address (or someone entered it).
+This is an automated message, please do not reply.
+Venture co. group · ventSSO
