@@ -7,6 +7,7 @@
      Nincs Inertia, nincs app-JS; indexelhető (az app-oldalak noindex-ek maradnak). --}}
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}" data-theme="dark">
 <head>
+    @include('partials.ventcookie-loader')
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
@@ -94,6 +95,11 @@
         <nav class="landing__legal" aria-label="{{ __('landing.footer.nav') }}">
             <a href="https://sso.ventureco.app/terms" rel="noopener">{{ __('landing.footer.terms') }}</a>
             <a href="https://sso.ventureco.app/privacy-policy" rel="noopener">{{ __('landing.footer.privacy') }}</a>
+            @if (config('ventcookie.domain_token') !== '')
+                {{-- Inline kezelő nincs (CSP script-src 'self'): a kötést a /landing/cookie-settings.js végzi. --}}
+                <a href="#cookie-settings" data-vc-open-preferences>{{ __('landing.footer.cookies') }}</a>
+                <script src="/landing/cookie-settings.js" defer></script>
+            @endif
         </nav>
         <div class="landing__venture">
             <img src="/brand/venture-logo-light.svg" alt="Venture CO Group" width="51" height="24">

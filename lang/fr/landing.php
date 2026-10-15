@@ -69,5 +69,6 @@ return [
         'nav' => 'Informations légales',
         'terms' => 'Conditions d\'utilisation',
         'privacy' => 'Politique de confidentialité',
+        'cookies' => 'Paramètres des cookies',
     ],
 ];

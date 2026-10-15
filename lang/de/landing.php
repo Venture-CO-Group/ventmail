@@ -69,5 +69,6 @@ return [
         'nav' => 'Rechtliche Hinweise',
         'terms' => 'Nutzungsbedingungen',
         'privacy' => 'Datenschutzerklärung',
+        'cookies' => 'Cookie-Einstellungen',
     ],
 ];
