@@ -59,8 +59,14 @@ final class SendConsentProof implements ShouldQueue
         }
 
         // A consent a SAJÁT workspace kontextusában töltődik (global scope): idegen
-        // workspace consent-jére a job nem tud nyugtát írni.
-        app(WorkspaceContext::class)->runFor($workspace, function () use ($receipt): void {
+        // workspace consent-jére a job nem tud nyugtát írni. A korábbi kontextust visszaállítjuk
+        // (szinkron queue-nál a hívó folyamata ugyanebben a processzben fut).
+        $context = app(WorkspaceContext::class);
+        $previous = $context->hasWorkspace() ? $context->workspace() : null;
+
+        $context->set($workspace);
+
+        try {
             $consent = Consent::query()->whereKey($this->consentId)->first();
 
             if ($consent === null) {
@@ -75,6 +81,8 @@ final class SendConsentProof implements ShouldQueue
             }
 
             $consent->forceFill(['ledger_receipt_id' => $receipt->receiptId, 'ledger_receipt_at' => $at])->save();
-        });
+        } finally {
+            $previous === null ? $context->forget() : $context->set($previous);
+        }
     }
 }
