@@ -1,0 +1,12 @@
+A havi pecsét horgonyzása elbukott ({{ period }})
+
+A havi pecsét külső (ventSec) horgonyzása elbukott. A pecsét érvényes marad, de nincs külső tanúja.
+
+Site: {{ site_id }}
+Időszak: {{ period }}
+Ok: {{ reason }}
+
+-- 
+Ezt az értesítést a ventCookie küldte, mert a fiókodhoz vagy a csapatodhoz kapcsolódik.
+Ez egy automatikus levél, kérjük, ne válaszolj rá.
+Venture co. group · ventCookie

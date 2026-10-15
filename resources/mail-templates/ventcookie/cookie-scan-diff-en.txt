@@ -1,0 +1,24 @@
+Changes in your cookie inventory
+
+The cookie inventory changed since the last scan. If “Set before consent” is not zero, cookies were set before consent was given, which is a compliance risk.
+
+Severity: {{ severity }}
+New cookies: {{ added_count }}
+Removed cookies: {{ removed_count }}
+Set before consent: {{ violations_count }}
+Site: {{ site_id }}
+Scan: {{ scan_id }}
+
+New cookies:
+{{ added_lines || – }}
+
+Removed cookies:
+{{ removed_lines || – }}
+
+Cookies set before consent:
+{{ violations_lines || – }}
+
+-- 
+This notification was sent by ventCookie because it relates to your account or team.
+This is an automated message, please do not reply.
+Venture co. group · ventCookie

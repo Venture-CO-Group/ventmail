@@ -1,0 +1,186 @@
+{
+  "prefix": "cookie",
+  "locales": [
+    "hu",
+    "en"
+  ],
+  "templates": [
+    {
+      "key": "tenant-invitation",
+      "audience": "user",
+      "channel": "transactional",
+      "purpose": "Meghívó egy ventCookie tenant csapatába; a meghívott a belépési linkre kattintva csatlakozik (a levelet a meghívó tenant nyelvén kapja).",
+      "variables": {
+        "tenant_name": "string — a meghívó tenant neve",
+        "role": "string — a felajánlott szerep (pl. tenant-editor)",
+        "expires_at": "string — a meghívó lejárata, ISO-8601",
+        "login_url": "string — a ventSSO-n át belépő link (CTA)"
+      },
+      "required_links": [
+        "login_url"
+      ],
+      "subject": {
+        "hu": "Meghívót kaptál a(z) {{ tenant_name }} ventCookie csapatába",
+        "en": "You have been invited to {{ tenant_name }} on ventCookie"
+      }
+    },
+    {
+      "key": "scan-diff",
+      "audience": "admin",
+      "channel": "transactional",
+      "purpose": "Értesítés a tenant tulajdonosainak, ha a cookie-leltár változott a legutóbbi scan óta (új/eltávolított cookie, illetve prior-blocking sértés).",
+      "variables": {
+        "site_id": "string — az érintett site azonosítója (UUID)",
+        "scan_id": "string — a scan azonosítója (UUID)",
+        "severity": "string — critical (prior-blocking sértés van) vagy info",
+        "added_count": "int — új cookie-k száma",
+        "removed_count": "int — eltűnt cookie-k száma",
+        "violations_count": "int — a hozzájárulás előtt beállított cookie-k száma",
+        "added_lines": "string — új cookie-k, soronként egy (name@domain); legfeljebb 25 sor, utána \"+N\"",
+        "removed_lines": "string — eltűnt cookie-k, soronként egy",
+        "violations_lines": "string — hozzájárulás előtt beállított cookie-k, soronként egy"
+      },
+      "required_links": [],
+      "subject": {
+        "hu": "ventCookie: változás a cookie-leltárban",
+        "en": "ventCookie: changes in your cookie inventory"
+      }
+    },
+    {
+      "key": "weekly-summary",
+      "audience": "admin",
+      "channel": "transactional",
+      "purpose": "Heti összefoglaló a tenant tulajdonosainak (hétfő reggel): hozzájárulások, scanek, besorolatlan cookie-k.",
+      "variables": {
+        "week_starting": "string — a hét kezdete, YYYY-MM-DD",
+        "total_consents": "int — hozzájárulás-döntések a héten",
+        "total_scans": "int — scanek a héten",
+        "unclassified": "int — besorolatlan cookie-k összesen",
+        "sites_count": "int — site-ok száma az összefoglalóban",
+        "sites_lines": "string — site-onként egy előre formázott sor (név, döntések, elfogadási arány, scanek, besorolatlan), a levél nyelvén"
+      },
+      "required_links": [],
+      "subject": {
+        "hu": "ventCookie heti összefoglaló — {{ week_starting }}",
+        "en": "ventCookie weekly summary — {{ week_starting }}"
+      }
+    },
+    {
+      "key": "webhook-auto-disabled",
+      "audience": "admin",
+      "channel": "transactional",
+      "purpose": "A tenant webhook végpontja egymás utáni hibák miatt automatikusan letiltva; a tulajdonosnak újra kell engedélyeznie.",
+      "variables": {
+        "tenant_id": "string — a tenant azonosítója (UUID)",
+        "webhook_endpoint_id": "string — a letiltott végpont azonosítója (UUID)",
+        "consecutive_failures": "int — egymás utáni hibák száma a letiltáskor"
+      },
+      "required_links": [],
+      "subject": {
+        "hu": "ventCookie: a webhook végpontod le lett tiltva",
+        "en": "ventCookie: your webhook endpoint has been disabled"
+      }
+    },
+    {
+      "key": "unclassified-ratio-high",
+      "audience": "admin",
+      "channel": "transactional",
+      "purpose": "A scan után a besorolatlan cookie-k aránya a küszöb felett van; a generált policy hiányos lenne, amíg nincs besorolva.",
+      "variables": {
+        "site_id": "string — az érintett site azonosítója (UUID)",
+        "scan_id": "string — a scan azonosítója (UUID)",
+        "ratio_percent": "float — besorolatlan cookie-k aránya, százalék (1 tizedes)",
+        "threshold_percent": "float — a riasztási küszöb, százalék",
+        "unclassified": "int — besorolatlan cookie-k száma",
+        "cookies_found": "int — talált cookie-k összesen"
+      },
+      "required_links": [],
+      "subject": {
+        "hu": "ventCookie: sok a besorolatlan cookie ({{ ratio_percent }}%)",
+        "en": "ventCookie: many unclassified cookies ({{ ratio_percent }}%)"
+      }
+    },
+    {
+      "key": "operator-webhook-auto-disabled",
+      "audience": "operator",
+      "channel": "transactional",
+      "purpose": "Platform-értesítés az üzemeltetőnek: egy tenant webhook végpontja automatikusan letiltva.",
+      "variables": {
+        "tenant_id": "string — a tenant azonosítója (UUID)",
+        "webhook_endpoint_id": "string — a végpont azonosítója (UUID)",
+        "consecutive_failures": "int — egymás utáni hibák száma"
+      },
+      "required_links": [],
+      "subject": {
+        "hu": "ventCookie: webhook végpont automatikusan letiltva",
+        "en": "ventCookie: webhook endpoint auto-disabled"
+      }
+    },
+    {
+      "key": "operator-domain-verification-result",
+      "audience": "operator",
+      "channel": "transactional",
+      "purpose": "Platform-értesítés az üzemeltetőnek: egy domain sikeresen verifikálva.",
+      "variables": {
+        "tenant_id": "string — a tenant azonosítója (UUID)",
+        "domain_id": "string — a domain azonosítója (UUID)",
+        "host": "string — a verifikált host",
+        "outcome": "string — verified",
+        "method": "string — dns vagy meta",
+        "verified_at": "string — a verifikáció ideje, ISO-8601"
+      },
+      "required_links": [],
+      "subject": {
+        "hu": "ventCookie: domain verifikálva — {{ host }}",
+        "en": "ventCookie: domain verified — {{ host }}"
+      }
+    },
+    {
+      "key": "operator-seal-anchor-failed",
+      "audience": "operator",
+      "channel": "transactional",
+      "purpose": "Platform-értesítés: a havi pecsét külső (ventSec) horgonyzása elbukott; a pecsét ettől érvényes marad, de nincs külső tanúja.",
+      "variables": {
+        "site_id": "string — a site azonosítója (UUID)",
+        "period": "string — a pecsét hónapja, YYYY-MM",
+        "reason": "string — a hiba rövid oka"
+      },
+      "required_links": [],
+      "subject": {
+        "hu": "ventCookie: a havi pecsét horgonyzása elbukott ({{ period }})",
+        "en": "ventCookie: monthly seal anchoring failed ({{ period }})"
+      }
+    },
+    {
+      "key": "operator-worm-mirror-failed",
+      "audience": "operator",
+      "channel": "transactional",
+      "purpose": "Platform-értesítés: a havi pecsét WORM-tükrözése elbukott.",
+      "variables": {
+        "site_id": "string — a site azonosítója (UUID)",
+        "period": "string — a pecsét hónapja, YYYY-MM",
+        "reason": "string — a hiba rövid oka"
+      },
+      "required_links": [],
+      "subject": {
+        "hu": "ventCookie: a WORM tükrözés elbukott ({{ period }})",
+        "en": "ventCookie: WORM mirroring failed ({{ period }})"
+      }
+    },
+    {
+      "key": "operator-consent-ingest-failing",
+      "audience": "operator",
+      "channel": "transactional",
+      "purpose": "Platform-értesítés: a consent-rögzítés hibázik (az egészség-figyelő kötése későbbi feladat; a sablon addig is megvan).",
+      "variables": {
+        "site_id": "string — az érintett site azonosítója (UUID), ha ismert",
+        "reason": "string — a hiba rövid oka"
+      },
+      "required_links": [],
+      "subject": {
+        "hu": "ventCookie: a consent-rögzítés hibázik",
+        "en": "ventCookie: consent ingest is failing"
+      }
+    }
+  ]
+}

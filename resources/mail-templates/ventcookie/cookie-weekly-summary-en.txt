@@ -1,0 +1,17 @@
+Weekly summary – {{ week_starting }}
+
+This is your weekly summary for the week starting {{ week_starting }}.
+
+Week starting: {{ week_starting }}
+Consent decisions: {{ total_consents }}
+Scans: {{ total_scans }}
+Unclassified cookies: {{ unclassified }}
+Sites: {{ sites_count }}
+
+Sites:
+{{ sites_lines || – }}
+
+-- 
+This notification was sent by ventCookie because it relates to your account or team.
+This is an automated message, please do not reply.
+Venture co. group · ventCookie

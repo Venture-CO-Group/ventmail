@@ -1,0 +1,15 @@
+Domain verifikálva: {{ host }}
+
+Egy domain verifikációja lezárult.
+
+Host: {{ host }}
+Eredmény: {{ outcome }}
+Módszer: {{ method }}
+Verifikálva: {{ verified_at }}
+Tenant: {{ tenant_id }}
+Domain: {{ domain_id }}
+
+-- 
+Ezt az értesítést a ventCookie küldte, mert a fiókodhoz vagy a csapatodhoz kapcsolódik.
+Ez egy automatikus levél, kérjük, ne válaszolj rá.
+Venture co. group · ventCookie

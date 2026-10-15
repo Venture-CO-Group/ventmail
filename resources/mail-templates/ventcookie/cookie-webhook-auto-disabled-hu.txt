@@ -1,0 +1,14 @@
+A webhook végpontod le lett tiltva
+
+A webhook végpontod {{ consecutive_failures }} egymást követő sikertelen kézbesítés után automatikusan le lett tiltva. Amíg nem engeded újra, nem kapsz tőle eseményeket.
+
+Tenant: {{ tenant_id }}
+Végpont: {{ webhook_endpoint_id }}
+Egymás utáni hibák: {{ consecutive_failures }}
+
+Javítsd a fogadó oldalt, majd engedd újra a végpontot a ventCookie felületén.
+
+-- 
+Ezt az értesítést a ventCookie küldte, mert a fiókodhoz vagy a csapatodhoz kapcsolódik.
+Ez egy automatikus levél, kérjük, ne válaszolj rá.
+Venture co. group · ventCookie

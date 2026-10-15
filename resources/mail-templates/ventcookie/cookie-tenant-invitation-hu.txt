@@ -1,0 +1,17 @@
+Meghívót kaptál a(z) {{ tenant_name }} csapatába
+
+Meghívtak a(z) {{ tenant_name }} ventCookie csapatába. A belépés a Venture-fiókodon (ventSSO) keresztül történik.
+
+Csapat: {{ tenant_name }}
+Szerepkör: {{ role }}
+A meghívó lejár: {{ expires_at }}
+
+Belépés és csatlakozás:
+{{ login_url }}
+
+Ha nem számítottál a meghívásra, nyugodtan hagyd figyelmen kívül ezt a levelet.
+
+-- 
+Ezt az értesítést a ventCookie küldte, mert a fiókodhoz vagy a csapatodhoz kapcsolódik.
+Ez egy automatikus levél, kérjük, ne válaszolj rá.
+Venture co. group · ventCookie

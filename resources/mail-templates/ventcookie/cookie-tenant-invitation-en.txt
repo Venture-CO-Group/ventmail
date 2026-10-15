@@ -1,0 +1,17 @@
+You have been invited to {{ tenant_name }}
+
+You have been invited to the {{ tenant_name }} team on ventCookie. You sign in with your Venture account (ventSSO).
+
+Team: {{ tenant_name }}
+Role: {{ role }}
+Invitation expires: {{ expires_at }}
+
+Sign in and join:
+{{ login_url }}
+
+If you were not expecting this invitation, you can safely ignore this email.
+
+-- 
+This notification was sent by ventCookie because it relates to your account or team.
+This is an automated message, please do not reply.
+Venture co. group · ventCookie

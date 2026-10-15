@@ -1,0 +1,12 @@
+Webhook endpoint auto-disabled
+
+A tenant webhook endpoint was automatically disabled.
+
+Tenant: {{ tenant_id }}
+Endpoint: {{ webhook_endpoint_id }}
+Consecutive failures: {{ consecutive_failures }}
+
+-- 
+This notification was sent by ventCookie because it relates to your account or team.
+This is an automated message, please do not reply.
+Venture co. group · ventCookie

@@ -1,0 +1,12 @@
+A WORM tükrözés elbukott ({{ period }})
+
+A havi pecsét WORM-tükrözése elbukott.
+
+Site: {{ site_id }}
+Időszak: {{ period }}
+Ok: {{ reason }}
+
+-- 
+Ezt az értesítést a ventCookie küldte, mert a fiókodhoz vagy a csapatodhoz kapcsolódik.
+Ez egy automatikus levél, kérjük, ne válaszolj rá.
+Venture co. group · ventCookie

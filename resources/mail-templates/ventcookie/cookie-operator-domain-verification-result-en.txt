@@ -1,0 +1,15 @@
+Domain verified: {{ host }}
+
+A domain verification has completed.
+
+Host: {{ host }}
+Outcome: {{ outcome }}
+Method: {{ method }}
+Verified at: {{ verified_at }}
+Tenant: {{ tenant_id }}
+Domain: {{ domain_id }}
+
+-- 
+This notification was sent by ventCookie because it relates to your account or team.
+This is an automated message, please do not reply.
+Venture co. group · ventCookie

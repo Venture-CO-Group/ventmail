@@ -1,0 +1,24 @@
+Változás a cookie-leltárban
+
+A legutóbbi scan óta változott a cookie-leltár. Ha a „Hozzájárulás előtt beállított” szám nem nulla, a sütik a hozzájárulás előtt kerültek be, ami jogi kockázat.
+
+Súlyosság: {{ severity }}
+Új cookie-k: {{ added_count }}
+Eltűnt cookie-k: {{ removed_count }}
+Hozzájárulás előtt beállított: {{ violations_count }}
+Site: {{ site_id }}
+Scan: {{ scan_id }}
+
+Új cookie-k:
+{{ added_lines || – }}
+
+Eltűnt cookie-k:
+{{ removed_lines || – }}
+
+Hozzájárulás előtt beállított cookie-k:
+{{ violations_lines || – }}
+
+-- 
+Ezt az értesítést a ventCookie küldte, mert a fiókodhoz vagy a csapatodhoz kapcsolódik.
+Ez egy automatikus levél, kérjük, ne válaszolj rá.
+Venture co. group · ventCookie
