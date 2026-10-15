@@ -5,7 +5,7 @@ Hello {{ client_name }},
 Thank you for choosing {{ workspace_name }} ({{ service_name }}, {{ starts_at_local }}). It helps us and others a lot if you rate your visit in Vemoa, among your bookings.
 
 Don't want these emails anymore?
-{{ unsubscribe_url }}
+{{ optout_url }}
 
 -- 
 This email was sent by Vemoa on behalf of {{ workspace_name }}, regarding your booking.

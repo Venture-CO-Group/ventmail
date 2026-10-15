@@ -5,7 +5,7 @@ Kedves {{ client_name }}!
 Köszönjük, hogy a(z) {{ workspace_name }} szolgáltatását választottad ({{ service_name }}, {{ starts_at_local }}). Nagyon hasznos számunkra és másoknak is, ha értékeled a látogatást a Vemoa-ban, a foglalásaid között.
 
 Nem kérsz több ilyen levelet?
-{{ unsubscribe_url }}
+{{ optout_url }}
 
 -- 
 Ezt a levelet a Vemoa küldte a(z) {{ workspace_name }} nevében, a foglalásoddal kapcsolatban.

@@ -3,7 +3,7 @@ An invoice could not be issued
 An invoice could not be issued automatically and is waiting for your decision.
 
 Amount: {{ amount }}
-Paid at: {{ paid_at }}
+Paid at: {{ paid_at_label }}
 Reason: {{ reason }}
 
 -- 

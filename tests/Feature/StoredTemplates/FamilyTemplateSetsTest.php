@@ -64,6 +64,17 @@ it('has every manifest set present', function (): void {
     expect(familyTemplateCases())->not->toBeEmpty();
 });
 
+it('never uses ventMail-reserved variable names', function (string $dir, string $name, string $locale, array $template): void {
+    // A ventMail felülírja őket (Message::bodyLinkVariables, TemplateRenderer::renderForRecipient).
+    $reserved = ['unsubscribe_url', 'preferences_url', 'browser_url', 'recipient_email', 'current_year'];
+
+    expect(array_intersect($reserved, array_keys($template['variables'])))->toBe([], "{$name}: foglalt változónév a manifesztben");
+
+    foreach (['html', 'txt', 'subject'] as $ext) {
+        expect(array_intersect($reserved, familyPlaceholders(familyFile($dir, $name, $ext))))->toBe([], "{$name}.{$ext}: foglalt változónév");
+    }
+})->with(familyTemplateCases());
+
 it('ships html, txt and subject for every manifest key and locale', function (string $dir, string $name): void {
     foreach (['html', 'txt', 'subject'] as $ext) {
         expect(trim(familyFile($dir, $name, $ext)))->not->toBe('');

@@ -11,7 +11,7 @@ Open this slot:
 {{ booking_url }}
 
 Don't want these emails anymore?
-{{ unsubscribe_url }}
+{{ optout_url }}
 
 -- 
 This email was sent by Vemoa on behalf of {{ workspace_name }}.

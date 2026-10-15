@@ -3,7 +3,7 @@ Elakadt egy számla kiállítása
 Egy számlát nem sikerült automatikusan kiállítani, a kiállítás a te döntésedre vár.
 
 Összeg: {{ amount }}
-Fizetve: {{ paid_at }}
+Fizetve: {{ paid_at_label }}
 Ok: {{ reason }}
 
 -- 

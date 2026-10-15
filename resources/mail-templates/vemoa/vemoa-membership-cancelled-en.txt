@@ -4,7 +4,7 @@ Your membership was cancelled
 
 Membership: {{ membership }}
 Provider: {{ provider }}
-Valid until (UTC): {{ valid_until || ended immediately }}
+Valid until: {{ valid_until_label || ended immediately }}
 
 Open my passes:
 {{ passes_url }}

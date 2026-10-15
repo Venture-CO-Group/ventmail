@@ -8,7 +8,7 @@ Szabad időpontok:
 {{ booking_url }}
 
 Nem kérsz több ilyen levelet?
-{{ unsubscribe_url }}
+{{ optout_url }}
 
 -- 
 Ezt a levelet a Vemoa küldte a(z) {{ workspace_name }} nevében.

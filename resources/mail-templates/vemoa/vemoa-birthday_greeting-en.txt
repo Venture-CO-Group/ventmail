@@ -5,7 +5,7 @@ Hello {{ client_name }},
 Happy birthday from the {{ workspace_name }} team! We hope to see you again soon.
 
 Don't want these emails anymore?
-{{ unsubscribe_url }}
+{{ optout_url }}
 
 -- 
 This email was sent by Vemoa on behalf of {{ workspace_name }}.

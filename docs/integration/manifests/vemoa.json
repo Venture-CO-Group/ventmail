@@ -9,6 +9,7 @@
     "Vemoa is Hungarian-first: a message whose language is not given (or not hu|en) is sent as hu — a per-app fallback, unlike apps that fall back to en.",
     "A key is the name as the code emits it (underscores or hyphens): the wire name is vemoa-<key>-<locale>.",
     "Variables are scalars. `*_label` and `amount` are ready-made words in the message language; the raw code/amount_minor stay for conditions.",
+    "Do not use ventMail-reserved names for variables (unsubscribe_url, preferences_url, browser_url, recipient_email, current_year): ventMail overwrites them. Vemoa's own opt-out link is optout_url; ventMail's List-Unsubscribe still works and arrives as the unsubscribed webhook.",
     "Transactional mail is sent with o:tracking=no; the unsubscribe links are /unsubscribe/... so a rewriting tracker leaves them alone.",
     "Marketing keys (rebook_nudge, birthday_greeting, win_back, fill_offer) go on the marketing channel, closed until ventMail opens it; review_request stays transactional with an opt-out (owner/DPO question open)."
   ],
@@ -101,10 +102,10 @@
         "price": "string — the price, formatted with currency (e.g. '9 900 Ft')",
         "list_price": "string|null — the list price before a deal, formatted; null without a deal",
         "starts_at_local": "string — start in the location's time zone, 'YYYY-MM-DD HH:MM'",
-        "unsubscribe_url": "string — one-click unsubscribe link (signed)"
+        "optout_url": "string — Vemoa's signed one-click opt-out link (marketing for this guest; /unsubscribe/…). NOT ventMail's reserved unsubscribe_url"
       },
       "required_links": [
-        "unsubscribe_url"
+        "optout_url"
       ],
       "subject": {
         "hu": "Milyen volt a látogatás? — {{ workspace_name }}",
@@ -239,6 +240,7 @@
         "membership": "string — the membership's name",
         "provider": "string — the business",
         "valid_until": "string|null — end of the paid period, ISO 8601 UTC; null when it ends now",
+        "valid_until_label": "string|null — the same date as people read it (hu '2026. 10. 12.', en '12 Oct 2026'), Hungarian local time",
         "passes_url": "string — the guest's passes page"
       },
       "required_links": [
@@ -260,11 +262,11 @@
         "service_name": "string — the service last booked",
         "next_starts": "string — the next free starts, comma-separated local times, may be empty",
         "booking_url": "string — link to the booking page for that service and person",
-        "unsubscribe_url": "string — one-click unsubscribe link (signed)"
+        "optout_url": "string — Vemoa's signed one-click opt-out link (marketing for this guest; /unsubscribe/…). NOT ventMail's reserved unsubscribe_url"
       },
       "required_links": [
         "booking_url",
-        "unsubscribe_url"
+        "optout_url"
       ],
       "subject": {
         "hu": "Foglalj újra — {{ workspace_name }}",
@@ -279,10 +281,10 @@
       "variables": {
         "client_name": "string — the guest's name (the client record's name)",
         "workspace_name": "string — the business that sends the message (the provider's name on Vemoa)",
-        "unsubscribe_url": "string — one-click unsubscribe link (signed)"
+        "optout_url": "string — Vemoa's signed one-click opt-out link (marketing for this guest; /unsubscribe/…). NOT ventMail's reserved unsubscribe_url"
       },
       "required_links": [
-        "unsubscribe_url"
+        "optout_url"
       ],
       "subject": {
         "hu": "Boldog születésnapot! — {{ workspace_name }}",
@@ -298,11 +300,11 @@
         "client_name": "string — the guest's name (the client record's name)",
         "workspace_name": "string — the business that sends the message (the provider's name on Vemoa)",
         "booking_url": "string — link to the business's booking page",
-        "unsubscribe_url": "string — one-click unsubscribe link (signed)"
+        "optout_url": "string — Vemoa's signed one-click opt-out link (marketing for this guest; /unsubscribe/…). NOT ventMail's reserved unsubscribe_url"
       },
       "required_links": [
         "booking_url",
-        "unsubscribe_url"
+        "optout_url"
       ],
       "subject": {
         "hu": "Hiányzol — {{ workspace_name }}",
@@ -320,11 +322,11 @@
         "service_name": "string — the service on offer",
         "starts_at_local": "string — start in the location's time zone, 'YYYY-MM-DD HH:MM'",
         "booking_url": "string — link that opens the booking page on that service, person and day",
-        "unsubscribe_url": "string — one-click unsubscribe link (signed)"
+        "optout_url": "string — Vemoa's signed one-click opt-out link (marketing for this guest; /unsubscribe/…). NOT ventMail's reserved unsubscribe_url"
       },
       "required_links": [
         "booking_url",
-        "unsubscribe_url"
+        "optout_url"
       ],
       "subject": {
         "hu": "Szabad időpont neked — {{ workspace_name }}",
@@ -437,6 +439,7 @@
         "amount_minor": "int — amount in minor units (e.g. fillér)",
         "currency": "string — ISO 4217 code",
         "paid_at": "string — when the payment was made, ISO 8601",
+        "paid_at_label": "string — the same moment as people read it (hu '2026. 10. 12. 14:30'), Hungarian local time",
         "reason": "string — why the invoice is blocked"
       },
       "required_links": [],
