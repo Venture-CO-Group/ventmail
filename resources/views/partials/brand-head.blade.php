@@ -5,6 +5,8 @@
 <link rel="manifest" href="/site.webmanifest">
 {{-- Egyetlen forrás: a sötét --vt-bg token értéke (@venture/design). Ha a token változik, ez és a site.webmanifest együtt frissítendő. --}}
 <meta name="theme-color" content="#080B16">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+{{-- Betűk: SAJÁT originről (@venture/design/fonts.css, a CSS-belépőkben) — harmadik fél betűszerverére
+     nem megy látogatói IP. A két fő vágás (törzs + címsor, latin) preload, hogy a swap ne ugorjon. --}}
+@foreach (\App\Support\FontPreload::urls() as $fontUrl)
+<link rel="preload" as="font" type="font/woff2" href="{{ $fontUrl }}" crossorigin>
+@endforeach

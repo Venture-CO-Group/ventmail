@@ -3,6 +3,7 @@
  | preference center) stílusa. Csak @venture/design tokenek; szkript nincs (a CSP tiltja),
  | töréspont nélküli, folyékony elrendezés (a media query nem olvas `var()`-t).
  */
+@import '@venture/design/fonts.css';
 @import '@venture/design/styles.css';
 
 html,

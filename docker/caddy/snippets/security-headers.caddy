@@ -14,7 +14,7 @@
 		Permissions-Policy "geolocation=(), microphone=(), camera=(), payment=(), usb=()"
 		Cross-Origin-Opener-Policy "same-origin"
 		Cross-Origin-Resource-Policy "same-origin"
-		Content-Security-Policy "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; object-src 'none'; img-src 'self' data: https:; font-src 'self' https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' https://cookie.ventureco.app; connect-src 'self' https://cookie.ventureco.app"
+		Content-Security-Policy "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; object-src 'none'; img-src 'self' data: https:; font-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' https://cookie.ventureco.app; connect-src 'self' https://cookie.ventureco.app"
 		-X-Powered-By
 		-Server
 	}
