@@ -23,6 +23,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Factory;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Queue;
@@ -496,4 +497,21 @@ it('élesben a subject_key legalább 32 bájt (S4)', function () {
 
     config(['consent.ledger.subject_key' => str_repeat('k', 32)]);
     expect(ConsentServiceProvider::ledgerDriver())->toBe('ventcookie');
+});
+
+it('N5: a reporter hibás SQL-je savepointban fut — a hívó Postgres-tranzakcióját nem mérgezi meg', function () {
+    $recorder = app(ConsentRecorder::class);
+    $recorder->confirm($recorder->request('anna@example.test', 'marketing', 'form'));
+
+    DB::transaction(function () {
+        DB::statement('alter table consent_events rename to ce_tmp');
+
+        // A `max(id)` lekérdezés elbukik (nincs tábla) — a reporter elnyeli.
+        app(ConsentLedgerReporter::class)->withdrawnByEmail('anna@example.test', 'message:x');
+
+        DB::statement('alter table ce_tmp rename to consent_events');
+
+        // Ha a tranzakció megmérgeződött volna, ez „current transaction is aborted"-tal bukna.
+        expect(Consent::query()->count())->toBe(1);
+    });
 });

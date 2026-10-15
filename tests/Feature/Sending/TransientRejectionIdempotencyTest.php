@@ -7,10 +7,15 @@ use App\Modules\Identity\Models\ApiKey;
 use App\Modules\Sending\Drivers\FakeDriver;
 use App\Modules\Sending\Gate\GateReason;
 use App\Modules\Sending\Models\Message;
+use App\Modules\Sending\Services\MessageDispatcher;
+use App\Modules\Smtp\Services\GateReasonToSmtpReply;
 use App\Modules\Suppression\Models\Suppression;
 use App\Modules\Tenancy\Models\Workspace;
 use App\Modules\Tenancy\Services\WorkspaceContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
 
 uses(RefreshDatabase::class);
@@ -97,5 +102,90 @@ it('az átmeneti okok listája: a kapu-állapottól függők igen, a kérés-fü
 
     foreach (['SUPPRESSED', 'NO_CONSENT', 'INVALID_REQUEST', 'VALIDATION_RISK', 'IN_PROGRESS', 'IDEMPOTENCY_KEY_REUSED'] as $reason) {
         expect(GateReason::from($reason)->isTransient())->toBeFalse($reason);
+    }
+});
+
+/*
+ | A B2 utómunkái (security re-review): versenyvesztes hívás, `queued` visszajátszás, régi sorok
+ | kulcs-felszabadítása, ütemezett (dispatcher-oldali) elutasítás, SMTP 4xx leképezés.
+ */
+
+it('S3: egy még döntetlen (`queued`) sor visszajátszása 409 IN_PROGRESS — nem 202, és más kód, mint az IDEMPOTENCY_KEY_REUSED', function () {
+    Message::create(['channel' => 'transactional', 'from_email' => 'no-reply@pelda.hu', 'recipients' => ['cimzett@example.test'], 'subject' => 'Szia', 'headers' => [], 'idempotency_key' => 'queued-key-1']);
+
+    $response = sendKeyed('queued-key-1')->assertStatus(409);
+
+    expect($response->json('error.code'))->toBe('IN_PROGRESS')->not->toBe('IDEMPOTENCY_KEY_REUSED')
+        ->and($response->headers->get('Retry-After'))->not->toBeNull()
+        ->and(FakeDriver::$sent)->toBe([]);
+});
+
+it('S2: a versenyt vesztő hívás, ha a nyertes közben felszabadította a kulcsot, nem 500 — újrapróbálja, és elfogadott', function () {
+    $armed = true;
+    $selects = 0;
+
+    // A nyertes sor beszúrása a vesztes INSERT ELŐTT; a vesztes második lekérdezése előtt a nyertes
+    // kulcsa felszabadul (átmeneti elutasítás).
+    Message::creating(function () use (&$armed) {
+        if ($armed) {
+            $armed = false;
+            DB::table('messages')->insert([
+                'uuid' => (string) Str::uuid(), 'workspace_id' => app(WorkspaceContext::class)->workspaceId(),
+                'channel' => 'transactional', 'from_email' => 'no-reply@pelda.hu', 'recipients' => '["cimzett@example.test"]',
+                'status' => 'rejected', 'reason' => 'RATE_LIMITED', 'idempotency_key' => 'race-key-1', 'created_at' => now(), 'updated_at' => now(),
+            ]);
+        }
+    });
+    DB::beforeExecuting(function (string $query) use (&$selects) {
+        if (str_contains($query, 'select') && str_contains($query, '"idempotency_key" = ') && str_contains($query, 'from "messages"')) {
+            $selects++;
+
+            if ($selects === 2) {
+                DB::table('messages')->where('idempotency_key', 'race-key-1')->update(['idempotency_key' => null]);
+            }
+        }
+    });
+
+    sendKeyed('race-key-1')->assertAccepted();
+    expect(FakeDriver::$sent)->toHaveCount(1);
+});
+
+it('N2: a régi, átmenetileg elutasított sorok kulcsát a parancs felszabadítja (idempotens), a végleseket nem', function () {
+    $make = fn (string $key, string $reason) => Message::create([
+        'channel' => 'transactional', 'from_email' => 'no-reply@pelda.hu', 'recipients' => ['a@example.test'], 'subject' => 'x', 'headers' => [],
+        'status' => 'rejected', 'reason' => $reason, 'idempotency_key' => $key,
+    ]);
+    $make('k-rate', 'RATE_LIMITED');
+    $make('k-restricted', 'SENDING_RESTRICTED');
+    $make('k-supp', 'SUPPRESSED');
+    Message::create(['channel' => 'transactional', 'from_email' => 'no-reply@pelda.hu', 'recipients' => ['a@example.test'], 'subject' => 'x', 'headers' => [], 'status' => 'accepted', 'idempotency_key' => 'k-ok']);
+
+    expect(Artisan::call('sending:release-transient-keys'))->toBe(0);
+    expect(Artisan::call('sending:release-transient-keys'))->toBe(0);
+
+    expect(Message::query()->whereNotNull('idempotency_key')->orderBy('idempotency_key')->pluck('idempotency_key')->all())->toBe(['k-ok', 'k-supp']);
+});
+
+it('N3: a dispatcher-oldali (küldéskori) átmeneti elutasítás is felszabadítja a kulcsot', function () {
+    $message = Message::create([
+        'channel' => 'transactional', 'from_email' => 'no-reply@pelda.hu', 'recipients' => ['cimzett@example.test'], 'subject' => 'x', 'headers' => [],
+        'tags' => [], 'status' => 'accepted', 'gate_decided_at' => now(), 'idempotency_key' => 'sched-key', 'options' => ['body_html' => '<p>x</p>'],
+    ]);
+
+    config(['sending.live' => false, 'sending.allowlist_enforced' => true, 'sending.allowlist' => []]);
+    app(MessageDispatcher::class)->dispatch($message);
+
+    $fresh = $message->fresh();
+    expect($fresh->status)->toBe('rejected')->and($fresh->reason)->toBe('SENDING_RESTRICTED')->and($fresh->idempotency_key)->toBeNull();
+});
+
+it('N4: az átmeneti okok SMTP-n 4xx, a végleges 5xx', function () {
+    foreach (['SENDING_RESTRICTED', 'CHANNEL_DISABLED', 'QUOTA_EXCEEDED', 'RATE_LIMITED', 'GATE_ERROR', 'IN_PROGRESS'] as $reason) {
+        expect(GateReasonToSmtpReply::map($reason, 'u')->code)->toBeBetween(400, 499, $reason);
+    }
+
+    // A domain-hitelesítés SMTP-n szándékosan permanens (meglévő tesztelt viselkedés).
+    foreach (['DOMAIN_UNVERIFIED', 'SUPPRESSED', 'NO_CONSENT', 'VALIDATION_RISK', 'INVALID_REQUEST'] as $reason) {
+        expect(GateReasonToSmtpReply::map($reason, 'u')->code)->toBeBetween(500, 599, $reason);
     }
 });

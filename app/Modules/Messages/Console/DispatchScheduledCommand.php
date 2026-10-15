@@ -6,6 +6,7 @@ namespace App\Modules\Messages\Console;
 
 use App\Modules\Events\Models\MessageEvent;
 use App\Modules\Sending\Actions\SendMessage;
+use App\Modules\Sending\Gate\GateReason;
 use App\Modules\Sending\Gate\PreSendGate;
 use App\Modules\Sending\Models\Message;
 use App\Modules\Sending\Services\MessageDispatcher;
@@ -133,6 +134,7 @@ final class DispatchScheduledCommand extends Command
             $message->forceFill([
                 'status' => 'rejected',
                 'reason' => $decision->reason,
+                'idempotency_key' => GateReason::tryFrom((string) $decision->reason)?->isTransient() === true ? null : $message->idempotency_key,
                 'gate_decided_at' => now(),
                 'options' => [...$message->options, 'gate_trace' => $decision->trace()],
             ])->save();

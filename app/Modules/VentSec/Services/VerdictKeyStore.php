@@ -67,7 +67,15 @@ final class VerdictKeyStore
 
         Cache::put(self::CACHE_KEY, $keys, (int) config('ventsec.keys_cache_ttl'));
 
-        return $this->pinned($keys);
+        $pinned = $this->pinned($keys);
+
+        // Sikeres letöltés, de egy rögzített kid sem egyezik: ugyanúgy hűtés (különben minden
+        // szkennelés újra letöltene).
+        if ($pinned === []) {
+            Cache::put(self::FAILURE_COOLDOWN, 1, 30);
+        }
+
+        return $pinned;
     }
 
     /**

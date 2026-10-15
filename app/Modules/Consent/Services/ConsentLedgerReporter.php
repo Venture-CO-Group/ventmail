@@ -75,24 +75,27 @@ final class ConsentLedgerReporter
     public function withdrawnByEmail(string $email, string $discriminator): void
     {
         try {
-            $consent = Consent::query()
-                ->where('email', DomainNormalizer::listKey(trim($email)))
-                ->where('channel', 'marketing')
-                ->first();
+            // SAVEPOINT: a keresés és a verzió-lekérdezés hibás SQL-je ne mérgezze a hívó tranzakcióját.
+            DB::transaction(function () use ($email, $discriminator): void {
+                $consent = Consent::query()
+                    ->where('email', DomainNormalizer::listKey(trim($email)))
+                    ->where('channel', 'marketing')
+                    ->first();
+
+                if ($consent === null) {
+                    return;
+                }
+
+                // ÁLLAPOT-VERZIÓ a kulcsban: withdraw → re-optin → withdraw ugyanabból a régi
+                // levélből új kulcsot kap (különben a második visszavonás az elsőre replay-ződne).
+                // A levélkliens ÚJRAPRÓBÁLÁSA (nincs állapotváltozás) azonos kulcsot ad.
+                $version = (int) ConsentEvent::query()->where('consent_id', $consent->getKey())->max('id')
+                    .'@'.($consent->confirmed_at?->getTimestamp() ?? 0);
+
+                $this->withdrawn($consent, 'unsubscribe_link', $discriminator.'|'.$version);
+            });
         } catch (Throwable $e) {
             Log::warning('consent.ledger.lookup_failed', ['error' => $e::class]);
-
-            return;
-        }
-
-        if ($consent !== null) {
-            // ÁLLAPOT-VERZIÓ a kulcsban: withdraw → re-optin → withdraw ugyanabból a régi
-            // levélből új kulcsot kap (különben a második visszavonás az elsőre replay-ződne).
-            // A levélkliens ÚJRAPRÓBÁLÁSA (nincs állapotváltozás) azonos kulcsot ad.
-            $version = (int) ConsentEvent::query()->where('consent_id', $consent->getKey())->max('id')
-                .'@'.($consent->confirmed_at?->getTimestamp() ?? 0);
-
-            $this->withdrawn($consent, 'unsubscribe_link', $discriminator.'|'.$version);
         }
     }
 
@@ -122,7 +125,8 @@ final class ConsentLedgerReporter
     {
         // SEMMI nem gördítheti vissza a hívó (consent-író) tranzakcióját: a teljes törzs védett.
         try {
-            $this->build($consent, $action, $method, $discriminator, $at, $times);
+            // SAVEPOINT: egy hibás SQL itt a hívó Postgres-tranzakcióját ne mérgezze meg.
+            DB::transaction(fn () => $this->build($consent, $action, $method, $discriminator, $at, $times));
         } catch (Throwable $e) {
             Log::warning('consent.ledger.report_failed', ['action' => $action, 'error' => $e::class]);
         }

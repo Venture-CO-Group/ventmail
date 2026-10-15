@@ -577,3 +577,34 @@ it('a sablonszerkesztő limiterei ablakonként külön kulcsot kapnak', function
             ->and(count(array_unique($keys)))->toBe(count($keys), "közös kulcs: {$name}");
     }
 });
+
+it('S1 (security): a kampány idempotencia-kulcsa STABIL — átmeneti elutasítás után sem változik, átfedő köteg nem küld kétszer', function () {
+    $list = ContactList::create(['name' => 'Lista']);
+    rvSubscriber('anna@pelda.hu', $list);
+    $template = Template::create(['name' => 'Kampány', 'marketing' => true, 'blocks' => rvTree([['type' => 'text', 'attrs' => ['content' => 'Szia']]])]);
+
+    Bus::fake();
+    $campaign = app(StartCampaign::class)(Campaign::create([
+        'template_id' => $template->getKey(), 'name' => 'Ősz', 'subject' => 'Ősz', 'from_email' => 'no-reply@pelda.hu',
+        'target_lists' => [(string) $list->uuid],
+    ]));
+
+    $key = 'sending:'.$campaign->workspace_id;
+    RateLimiter::increment($key, 60, (int) config('sending.rate_limit.per_minute'));
+
+    $job = fn () => new SendCampaignChunk((string) $campaign->uuid, (int) $campaign->workspace_id, $campaign->recipients()->pluck('id')->all());
+    app()->call([$job(), 'handle']);   // RATE_LIMITED → retry:1
+
+    expect($campaign->recipients()->first()->skip_reason)->toStartWith('retry:');
+
+    RateLimiter::clear($key);
+    app()->call([$job(), 'handle']);   // kimegy
+
+    // ÁTFEDŐ köteg: ugyanazt a címzettet még `pending`/attempt 0 állapotban látta.
+    $campaign->recipients()->update(['status' => 'pending', 'sent_at' => null, 'skip_reason' => null]);
+    app()->call([$job(), 'handle']);
+
+    expect(Message::query()->where('status', '!=', 'rejected')->count())->toBe(1)
+        ->and(FakeDriver::$sent)->toHaveCount(1)
+        ->and(Message::query()->whereNotNull('idempotency_key')->pluck('idempotency_key')->first())->not->toContain(':r');
+});

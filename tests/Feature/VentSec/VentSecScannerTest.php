@@ -375,3 +375,24 @@ it('az alapértelmezett konfiguráció: 600 s frissesség, 20 s szkennelési id�
 
     expect($c['verdict_max_age'])->toBe(600)->and($c['scan_timeout'])->toBe(20);
 });
+
+it('N6: ha a letöltés sikeres, de egy rögzített kid sem egyezik, a hűtés ekkor is életbe lép', function () {
+    $fetches = 0;
+    Http::swap(new Factory);
+    Http::fake([
+        'sso.test/*' => Http::response(['access_token' => 'tok.en.sig', 'expires_in' => 600]),
+        'sec.test/.well-known/*' => function () use (&$fetches) {
+            $fetches++;
+
+            return Http::response(['keys' => [jwkOf(test()->public)]]);
+        },
+        'sec.test/scan/v1/files' => fn (Request $r) => Http::response(signedVerdict($r->body())),
+    ]);
+    config(['ventsec.verdict_key_pins' => ['aaaaaaaaaaaaaaaa']]);
+
+    for ($i = 0; $i < 5; $i++) {
+        expect(scanner()->scan('a.pdf', 'y'.$i)->status)->toBe('unavailable');
+    }
+
+    expect($fetches)->toBe(1);
+});

@@ -123,6 +123,15 @@ INVALID_REQUEST, VALIDATION_RISK) továbbra is kötöttek és visszajátszódnak
 párhuzamos duplikátumot továbbra is deduplikálja. Séma-változás nincs. A Gate által elfogadott, de az újrakiértékelésen (ütemezett)
 elutasított üzenet útja nem érintett.
 
+**FO14b — B2 utómunkák (security re-review).**
+- **Kampány:** az idempotencia-kulcs STABIL `campaign:{uuid}:{email_hash}` (a `:rN` szuffix megszűnt; a próbálkozás-számláló csak a `skip_reason`-ben él a `MAX_TRANSIENT_ATTEMPTS`-hoz), mert a felszabadított kulccsal két átfedő köteg két levelet küldhetett volna. Az `IN_PROGRESS` a kampányban átmeneti (retry).
+- **Versenyvesztes hívás:** ha a nyertes közben átmeneti elutasítással felszabadította a kulcsot, a kérés egyszer újrafut; ha ez is ütközik, újrapróbálható 409 `IN_PROGRESS` — soha nem 500.
+- **`queued` sor visszajátszása** (a kapu-döntés még nincs meg) → 409 `IN_PROGRESS` + `Retry-After: 1`, NEM 202. **Kliens-szerződés:** az `IN_PROGRESS` más hibakód, mint az `IDEMPOTENCY_KEY_REUSED` (azt a ventSSO „elküldve"-nek veszi); az `IN_PROGRESS`-t ugyanazzal a kulccsal újra kell próbálni.
+- **N2:** egyszeri adatjavítás deploy után: `php artisan sending:release-transient-keys` (idempotens; a B2 előtti, átmenetileg elutasított sorok kulcsát szabadítja fel).
+- **N3:** a dispatcher-oldali (küldéskori, ütemezett) átmeneti elutasítás — `MessageDispatcher` seed-mód ág és `DispatchScheduledCommand` újraértékelés — is felszabadítja a kulcsot.
+- **N4:** SMTP-n SENDING_RESTRICTED és CHANNEL_DISABLED 451, QUOTA/RATE_LIMITED 452, GATE_ERROR/IN_PROGRESS 451; a végleges okok 5xx. **A DOMAIN_UNVERIFIED SMTP-n 550 marad** (meglévő, tesztelt tulajdonosi viselkedés: `OwnerDecisionsTest`, `SubmissionIngestTest`) — tulajdonosi döntést kér, ha 451 kell (REST-en a kulcs felszabadul).
+- **N5:** a `ConsentLedgerReporter` teljes törzse savepointban (`DB::transaction`) és try/catch alatt; a `ConsentEvent::max('id')` is benne. **N6:** a `VerdictKeyStore` hűtése akkor is életbe lép, ha a letöltés sikeres, de egy rögzített kid sem egyezik.
+
 **FO15 — ventSec-szigorítások.** Az `Idempotency-Key` csatolmány-példányonként `vm-scan-<levél-uuid>-<sorszám>` (a `VirusScanner::scan`
 kapott egy opcionális `$reference` paramétert; hivatkozás nélkül hívásonként új uuid) — nincs elavult-ítélet replay és kiterjesztés-váltási
 422. Frissességi határ az aláírt `scanned_at`-on (`VENTSEC_VERDICT_MAX_AGE`, alap 600 s; +60 s jövőbeli óra-eltérés tűrve). **Tulajdonosi

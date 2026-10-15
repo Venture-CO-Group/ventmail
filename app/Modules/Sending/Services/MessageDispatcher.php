@@ -17,6 +17,7 @@ use App\Modules\Sending\Contracts\SendingDriver;
 use App\Modules\Sending\Data\DispatchResult;
 use App\Modules\Sending\Data\DriverHealth;
 use App\Modules\Sending\Enums\Channel;
+use App\Modules\Sending\Gate\GateReason;
 use App\Modules\Sending\Models\Message;
 use App\Modules\Sending\Models\RawMimeMessage;
 use App\Modules\StoredTemplates\Services\TemplateRenderer;
@@ -123,7 +124,13 @@ final class MessageDispatcher
         // A KÜLDÉSI MÓD a küldés pillanatában is számít: ha a tulajdonos a gate-döntés óta
         // visszazárta (seed-mód, marketing ki), a sorban álló levél sem mehet ki.
         if (($restriction = $this->mode->restriction($message)) !== null) {
-            $message->forceFill(['status' => 'rejected', 'reason' => $restriction->value, 'render_variables' => null])->save();
+            $message->forceFill([
+                'status' => 'rejected',
+                'reason' => $restriction->value,
+                'render_variables' => null,
+                // Az ütemezett levél küldéskori ÁTMENETI elutasítása is felszabadítja a kulcsot (B2).
+                'idempotency_key' => GateReason::tryFrom($restriction->value)?->isTransient() === true ? null : $message->idempotency_key,
+            ])->save();
             $this->events($message, 'rejected', [], ['reason' => $restriction->value]);
 
             return;

@@ -171,6 +171,17 @@ final class SendMessageController
                 );
             }
 
+            // A párhuzamos hívás döntése még nincs meg: NEM siker (nem 202), és NEM az
+            // IDEMPOTENCY_KEY_REUSED (azt a kliensek „elküldve"-nek veszik). Újrapróbálható.
+            if ($result->decision->reason === GateReason::InProgress->value) {
+                return ApiError::response(
+                    GateReason::InProgress->value,
+                    'Az ugyanezzel az Idempotency-Key-jel indított kérés még feldolgozás alatt áll — próbáld újra pár másodperc múlva, ugyanazzal a kulccsal.',
+                    409,
+                    ['id' => $result->message->uuid]
+                )->header('Retry-After', '1');
+            }
+
             return ApiError::rejected(
                 (string) $result->decision->reason,
                 $this->explain($result->decision->reason),
