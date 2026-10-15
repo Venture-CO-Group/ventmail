@@ -460,11 +460,20 @@ final class Message extends Model
      * A driver ezt használja a MIME összeállításához; az adatbázisba csak a kanonikus
      * törzs kerül, mert a személyre szabott változat titkot (magic-link, token) hordozhat.
      *
-     * @var array<string, array{html: ?string, text: ?string}>
+     * @var array<string, array{html: ?string, text: ?string, subject?: ?string}>
      */
     public array $renderedBodies = [];
 
-    /** @param array<string, array{html: ?string, text: ?string}> $bodies */
+    /**
+     * A címzettnek kimenő TÁRGY: a sablonból jövő tárgy címzettenként renderelve (FO1),
+     * különben a tárolt tárgy. A `subject` kulcs csak sablon-tárgynál van a törzsek mellett.
+     */
+    public function subjectFor(string $recipient): ?string
+    {
+        return $this->renderedBodies[$recipient]['subject'] ?? $this->subject;
+    }
+
+    /** @param array<string, array{html: ?string, text: ?string, subject?: ?string}> $bodies */
     public function withRenderedBodies(array $bodies): self
     {
         $this->renderedBodies = $bodies;

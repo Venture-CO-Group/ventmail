@@ -1200,7 +1200,16 @@
         "tooLarge": "Il confronto non parte oltre {lines} righe — scarica le versioni dall’API.",
         "activated": "La versione è ora attiva.",
         "skipped": "{count} righe invariate omesse (righe {from}–{to})",
-        "identical": "Le due versioni sono IDENTICHE — nessuna differenza."
+        "identical": "Le due versioni sono IDENTICHE — nessuna differenza.",
+        "subject": "Oggetto",
+        "subjectNone": "nessun oggetto del modello",
+        "subjectHint": "Facoltativo. Usato se la richiesta di invio non ha un oggetto; i segnaposto {example} vengono compilati come nel corpo. Una sola riga.",
+        "newVersion": "Nuova versione",
+        "newVersionNote": "Una versione esistente non può essere modificata — il salvataggio crea una nuova versione.",
+        "body": "Corpo HTML",
+        "bodyText": "Versione testuale (facoltativa)",
+        "activateNow": "Attiva subito dopo il salvataggio",
+        "save": "Salva nuova versione"
     },
     "invitations": {
         "title": "I tuoi inviti",

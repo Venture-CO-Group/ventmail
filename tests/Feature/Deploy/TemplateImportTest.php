@@ -71,3 +71,87 @@ it('eltérő élő tartalomra új AKTÍV verziót hoz, és pontosan egy verzió 
 it('ismeretlen sablonkészletre hibával áll meg', function () {
     expect(Artisan::call('ventmail:templates:import', ['workspace' => 'venture', 'set' => '../etc']))->not->toBe(0);
 });
+
+/*
+ | FO1 — a `<név>.subject` fájl (egyetlen sor) a sablonverzió tárgya. A tartalom — a tárgyat is
+ | beleértve — változása új AKTÍV verziót hoz; egyébként idempotens.
+ */
+function subjectSet(array $files): string
+{
+    $set = 'zz-subject-'.bin2hex(random_bytes(3));
+    $dir = resource_path("mail-templates/{$set}");
+    mkdir($dir, 0777, true);
+
+    foreach ($files as $file => $content) {
+        file_put_contents("{$dir}/{$file}", $content);
+    }
+
+    return $set;
+}
+
+function removeSet(string $set): void
+{
+    $dir = resource_path("mail-templates/{$set}");
+    array_map('unlink', glob("{$dir}/*") ?: []);
+    @rmdir($dir);
+}
+
+function activeSubject(string $name): ?string
+{
+    return StoredTemplateVersion::query()
+        ->whereHas('template', fn ($q) => $q->where('name', $name))
+        ->where('is_active', true)->value('subject');
+}
+
+it('a .subject fájl tartalma a verzió tárgya (első sor, trimmelve)', function () {
+    $set = subjectSet(['x-a-hu.html' => '<p>a</p>', 'x-a-hu.subject' => "  Rendelés {{ order_no }}  \n", 'x-b-hu.html' => '<p>b</p>']);
+
+    try {
+        expect(Artisan::call('ventmail:templates:import', ['workspace' => 'venture', 'set' => $set]))->toBe(0);
+        app(WorkspaceContext::class)->set($this->workspace);
+
+        expect(activeSubject('x-a-hu'))->toBe('Rendelés {{ order_no }}')
+            ->and(activeSubject('x-b-hu'))->toBeNull();
+    } finally {
+        removeSet($set);
+    }
+});
+
+it('tárgy-változás új AKTÍV verziót hoz, változatlan tárgy nem', function () {
+    $set = subjectSet(['x-a-hu.html' => '<p>a</p>', 'x-a-hu.subject' => 'Egy']);
+
+    try {
+        Artisan::call('ventmail:templates:import', ['workspace' => 'venture', 'set' => $set]);
+        Artisan::call('ventmail:templates:import', ['workspace' => 'venture', 'set' => $set]);
+        app(WorkspaceContext::class)->set($this->workspace);
+        $template = StoredTemplate::query()->where('name', 'x-a-hu')->firstOrFail();
+        expect($template->versions()->count())->toBe(1);
+        app(WorkspaceContext::class)->forget();
+
+        file_put_contents(resource_path("mail-templates/{$set}/x-a-hu.subject"), 'Kettő');
+        Artisan::call('ventmail:templates:import', ['workspace' => 'venture', 'set' => $set]);
+
+        app(WorkspaceContext::class)->set($this->workspace);
+        expect($template->versions()->count())->toBe(2)
+            ->and($template->versions()->where('is_active', true)->count())->toBe(1)
+            ->and(activeSubject('x-a-hu'))->toBe('Kettő');
+    } finally {
+        removeSet($set);
+    }
+});
+
+it('a tárgy-fájl eltávolítása (törzs változatlan) új, tárgy nélküli verziót hoz', function () {
+    $set = subjectSet(['x-a-hu.html' => '<p>a</p>', 'x-a-hu.subject' => 'Egy']);
+
+    try {
+        Artisan::call('ventmail:templates:import', ['workspace' => 'venture', 'set' => $set]);
+        unlink(resource_path("mail-templates/{$set}/x-a-hu.subject"));
+        Artisan::call('ventmail:templates:import', ['workspace' => 'venture', 'set' => $set]);
+
+        app(WorkspaceContext::class)->set($this->workspace);
+        expect(activeSubject('x-a-hu'))->toBeNull()
+            ->and(StoredTemplate::query()->where('name', 'x-a-hu')->firstOrFail()->versions()->count())->toBe(2);
+    } finally {
+        removeSet($set);
+    }
+});

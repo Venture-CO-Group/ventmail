@@ -131,6 +131,8 @@ return [
     'storedTemplates' => [
         'activated' => 'La versión ya está activa.',
         'unknownVersion' => 'No existe esa versión — recarga la página.',
+        'versionCreated' => 'Nueva versión guardada.',
+        'versionConflict' => 'Otra solicitud acaba de crear una versión — inténtalo de nuevo.',
     ],
     'journeys' => [
         'activated' => 'Journey activa.',

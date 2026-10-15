@@ -128,6 +128,8 @@ return [
     'storedTemplates' => [
         'activated' => 'La version est désormais en ligne.',
         'unknownVersion' => 'Cette version n\'existe pas — rechargez la page.',
+        'versionCreated' => 'Nouvelle version enregistrée.',
+        'versionConflict' => 'Une autre requête vient de créer une version — réessayez.',
     ],
     'journeys' => [
         'activated' => 'Le parcours est actif.',

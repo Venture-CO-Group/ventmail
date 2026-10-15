@@ -131,6 +131,8 @@ return [
     'storedTemplates' => [
         'activated' => 'A verzió aktív lett.',
         'unknownVersion' => 'Nincs ilyen verzió — frissítsd az oldalt.',
+        'versionCreated' => 'Új verzió mentve.',
+        'versionConflict' => 'Közben egy másik kérés is új verziót hozott létre — próbáld újra.',
     ],
     'journeys' => [
         'activated' => 'A journey aktív.',

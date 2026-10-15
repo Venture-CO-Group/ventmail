@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace App\Modules\StoredTemplates\Http\Controllers;
 
+use App\Modules\StoredTemplates\Http\Requests\StoreVersionRequest;
 use App\Modules\StoredTemplates\Models\StoredTemplate;
 use App\Modules\StoredTemplates\Models\StoredTemplateVersion;
 use App\Modules\StoredTemplates\Services\VersionDiff;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -73,6 +75,7 @@ final class StoredTemplateUiController
                     'active' => (bool) $version->is_active,
                     'createdAt' => $version->created_at?->toIso8601String(),
                     'bytes' => strlen((string) $version->body),
+                    'subject' => $version->subject,
                 ])->values()->all(),
             ],
 
@@ -135,6 +138,41 @@ final class StoredTemplateUiController
         }
 
         return back()->with('success', __('ventmail.storedTemplates.activated'));
+    }
+
+    /**
+     * ÚJ VERZIÓ (tárggyal). A meglévő verzió tartalma nem írható át — ez mindig új sor.
+     * Ugyanaz a zárolás + deaktiválás, mint az API-oldali verzió-létrehozásnál.
+     */
+    public function storeVersion(StoreVersionRequest $request, string $uuid): RedirectResponse
+    {
+        $template = StoredTemplate::query()->where('uuid', $uuid)->firstOrFail();
+        $data = $request->validated();
+        $activate = (bool) ($data['activate'] ?? false);
+
+        try {
+            DB::transaction(function () use ($template, $data, $activate): void {
+                $locked = StoredTemplate::query()->whereKey($template->getKey())->lockForUpdate()->firstOrFail();
+
+                if ($activate) {
+                    $locked->versions()->where('is_active', true)->get()
+                        ->each(fn (StoredTemplateVersion $current) => $current->update(['is_active' => false]));
+                }
+
+                StoredTemplateVersion::create([
+                    'stored_template_id' => $locked->getKey(),
+                    'version' => $locked->nextVersionNumber(),
+                    'body' => $data['body'],
+                    'body_text' => $data['body_text'] ?? null,
+                    'subject' => ($data['subject'] ?? null) === '' ? null : ($data['subject'] ?? null),
+                    'is_active' => $activate,
+                ]);
+            });
+        } catch (UniqueConstraintViolationException) {
+            return back()->with('error', __('ventmail.storedTemplates.versionConflict'));
+        }
+
+        return back()->with('success', __('ventmail.storedTemplates.versionCreated'));
     }
 
     /** @param Collection<int, StoredTemplateVersion> $versions */

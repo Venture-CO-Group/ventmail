@@ -67,6 +67,8 @@ final class SendMessageController
         // változókkal EGYSZERRE.
         $html = $payload->html;
         $text = $payload->text;
+        $subject = $payload->subject;
+        $options = $payload->options;
 
         if ($payload->template !== null) {
             $template = StoredTemplate::query()->where('name', $payload->template)->first();
@@ -81,6 +83,14 @@ final class SendMessageController
 
             $html = $version->body;
             $text = $version->body_text ?? $text;
+
+            // A KÉRÉS TÁRGYA MINDIG NYER. Csak ha nincs, megy a sablonverzió tárgya — a
+            // helyőrzők a küldési úton töltődnek (törzsével azonos változókkal), ezért a
+            // jelölő: csak a sablonból jövő tárgyat renderelünk, a hívó sajátját nem.
+            if (($subject === null || trim($subject) === '') && $version->subject !== null) {
+                $subject = $version->subject;
+                $options['subject_from_template'] = true;
+            }
         }
 
         $ipPoolId = null;
@@ -129,7 +139,7 @@ final class SendMessageController
             'channel' => $payload->channel,
             'from_email' => $payload->fromEmail,
             'from_name' => $payload->fromName,
-            'subject' => $payload->subject,
+            'subject' => $subject,
             'to' => $payload->recipients,
             'html' => $html,
             'text' => $text,
@@ -137,7 +147,7 @@ final class SendMessageController
             'variables' => $payload->variables,
             'render_variables' => $payload->renderVariables,
             'headers' => $payload->headers,
-            'options' => $payload->options,
+            'options' => $options,
             'deliverytime' => $payload->deliverytime,
             // A teszt-kulcs testmode-ja NEM kapcsolható le a hívó oldaláról: egy CI-ban
             // hagyott kulcs különben valódi címzettekre küldene (Mailgun-viselkedés).

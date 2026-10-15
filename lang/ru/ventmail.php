@@ -131,6 +131,8 @@ return [
     'storedTemplates' => [
         'activated' => 'Версия стала активной.',
         'unknownVersion' => 'Такой версии нет — обновите страницу.',
+        'versionCreated' => 'Новая версия сохранена.',
+        'versionConflict' => 'Другой запрос только что создал версию — повторите.',
     ],
     'journeys' => [
         'activated' => 'Сценарий активен.',

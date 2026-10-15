@@ -20,7 +20,7 @@ final class StoredTemplateVersion extends Model
 {
     use Auditable, BelongsToWorkspace, HasUuids;
 
-    protected $fillable = ['stored_template_id', 'version', 'body', 'body_text', 'engine', 'is_active'];
+    protected $fillable = ['stored_template_id', 'version', 'body', 'body_text', 'subject', 'engine', 'is_active'];
 
     protected function casts(): array
     {

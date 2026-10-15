@@ -15,4 +15,7 @@ Route::middleware(['auth', 'workspace'])->group(function (): void {
         ->where('uuid', '[0-9a-fA-F\-]{36}')
         ->where('version', '[0-9]+')
         ->name('storedTemplates.activate');
+    Route::post('/stored-templates/{uuid}/versions', [StoredTemplateUiController::class, 'storeVersion'])
+        ->where('uuid', '[0-9a-fA-F\-]{36}')
+        ->name('storedTemplates.storeVersion');
 });

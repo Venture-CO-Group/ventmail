@@ -40,7 +40,9 @@ final class ImportTemplatesCommand extends Command
             $html = (string) file_get_contents($file);
             $text = is_file($txt = $dir.'/'.$name.'.txt') ? (string) file_get_contents($txt) : null;
 
-            $counts[$this->upsert($name, $html, $text, $set)]++;
+            $subject = $this->subjectOf($dir.'/'.$name.'.subject');
+
+            $counts[$this->upsert($name, $html, $text, $subject, $set)]++;
         }
 
         $this->info(sprintf('%s: %d új, %d új verzió, %d változatlan', $set, $counts['created'], $counts['versioned'], $counts['unchanged']));
@@ -48,16 +50,31 @@ final class ImportTemplatesCommand extends Command
         return self::SUCCESS;
     }
 
-    private function upsert(string $name, string $html, ?string $text, string $set): string
+    /**
+     * A `<név>.subject` fájl EGYETLEN sora a verzió tárgya (`{{ var }}` helyőrzőkkel).
+     * Nincs fájl vagy üres tartalom = nincs sablon-tárgy (a kérés tárgya marad az egyetlen).
+     */
+    private function subjectOf(string $file): ?string
     {
-        return DB::transaction(function () use ($name, $html, $text, $set): string {
+        if (! is_file($file)) {
+            return null;
+        }
+
+        $line = trim(preg_split('/\R/', trim((string) file_get_contents($file)))[0] ?? '');
+
+        return $line === '' ? null : mb_substr($line, 0, 255);
+    }
+
+    private function upsert(string $name, string $html, ?string $text, ?string $subject, string $set): string
+    {
+        return DB::transaction(function () use ($name, $html, $text, $subject, $set): string {
             $template = StoredTemplate::query()->where('name', $name)->lockForUpdate()->first();
 
             if ($template === null) {
                 $template = StoredTemplate::create(['name' => $name, 'description' => "{$set} (importált)"]);
                 StoredTemplateVersion::create([
                     'stored_template_id' => $template->getKey(), 'version' => 1,
-                    'body' => $html, 'body_text' => $text, 'is_active' => true,
+                    'body' => $html, 'body_text' => $text, 'subject' => $subject, 'is_active' => true,
                 ]);
 
                 return 'created';
@@ -65,7 +82,7 @@ final class ImportTemplatesCommand extends Command
 
             $active = $template->versions()->where('is_active', true)->first();
 
-            if ($active !== null && $active->body === $html && $active->body_text === $text) {
+            if ($active !== null && $active->body === $html && $active->body_text === $text && $active->subject === $subject) {
                 return 'unchanged';
             }
 
@@ -74,7 +91,7 @@ final class ImportTemplatesCommand extends Command
 
             StoredTemplateVersion::create([
                 'stored_template_id' => $template->getKey(), 'version' => $template->nextVersionNumber(),
-                'body' => $html, 'body_text' => $text, 'is_active' => true,
+                'body' => $html, 'body_text' => $text, 'subject' => $subject, 'is_active' => true,
             ]);
 
             return 'versioned';

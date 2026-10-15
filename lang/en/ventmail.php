@@ -142,6 +142,8 @@ return [
     'storedTemplates' => [
         'activated' => 'The version is now live.',
         'unknownVersion' => 'No such version — reload the page.',
+        'versionCreated' => 'New version saved.',
+        'versionConflict' => 'Another request just created a version — try again.',
     ],
     'journeys' => [
         'activated' => 'Journey is active.',

@@ -477,6 +477,11 @@ final class MessageDispatcher
             }
 
             $rendered[$recipient] = [
+                // FO1: a sablonverzió tárgya — sima szöveg (nincs HTML-escape), egy sor. A
+                // kulcs csak sablon-tárgynál létezik; a hívó saját tárgyát nem renderelzük.
+                ...(($message->options['subject_from_template'] ?? false) === true && $message->subject !== null
+                    ? ['subject' => $this->renderSubject((string) $message->subject, $recipient, $recipientVariables, $shared, $reserved)]
+                    : []),
                 'html' => $recipientHtml,
                 'text' => $text === '' ? null : $this->renderer->renderForRecipient($text, $recipient, $recipientVariables, $shared, escape: false, reserved: $reserved, conditions: $studio),
                 'mime' => null,
@@ -484,6 +489,22 @@ final class MessageDispatcher
         }
 
         return $this->sign($message, $rendered);
+    }
+
+    /**
+     * A sablon-tárgy renderelése: ugyanaz a változó-szemantika és egyetlen pass, mint a
+     * törzsnél, de SIMA SZÖVEGKÉNT — a HTML-escape a tárgyban `&amp;`-ként látszana. A
+     * CR/LF-et kiszűrjük: a változó a hívótól jön, és egy sortörés fejléc-injekció lenne.
+     *
+     * @param  array<string, mixed>  $recipientVariables
+     * @param  array<string, mixed>  $shared
+     * @param  array<string, string>  $reserved
+     */
+    private function renderSubject(string $subject, string $recipient, array $recipientVariables, array $shared, array $reserved): string
+    {
+        $rendered = $this->renderer->renderForRecipient($subject, $recipient, $recipientVariables, $shared, escape: false, reserved: $reserved);
+
+        return trim((string) preg_replace('/\s*[\r\n]+\s*/', ' ', $rendered));
     }
 
     /**

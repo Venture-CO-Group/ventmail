@@ -1200,7 +1200,16 @@
         "tooLarge": "Der Vergleich läuft über {lines} Zeilen nicht — lade die Versionen über die API herunter.",
         "activated": "Die Version ist jetzt aktiv.",
         "skipped": "{count} unveränderte Zeilen übersprungen (Zeilen {from}–{to})",
-        "identical": "Die beiden Versionen sind IDENTISCH — kein Unterschied."
+        "identical": "Die beiden Versionen sind IDENTISCH — kein Unterschied.",
+        "subject": "Betreff",
+        "subjectNone": "kein Vorlagen-Betreff",
+        "subjectHint": "Optional. Wird verwendet, wenn die Sendeanfrage keinen Betreff enthält; {example}-Platzhalter werden wie im Text gefüllt. Eine Zeile.",
+        "newVersion": "Neue Version",
+        "newVersionNote": "Eine bestehende Version lässt sich nicht ändern — Speichern erzeugt eine neue Version.",
+        "body": "HTML-Inhalt",
+        "bodyText": "Textversion (optional)",
+        "activateNow": "Nach dem Speichern sofort aktiv",
+        "save": "Neue Version speichern"
     },
     "invitations": {
         "title": "Deine Einladungen",
