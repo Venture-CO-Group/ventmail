@@ -24,6 +24,12 @@ CR/LF-et szóközre cseréli (fejléc-injekció ellen). A hívó saját tárgyá
 viselkedés változatlan). A renderelt tárgy a `renderedBodies[$rcpt]['subject']` kulcson utazik
 (`Message::subjectFor()`), a `PostalDriver` és az `OutboundMimeBuilder` (DKIM-aláírt MIME) is ezt használja.
 SMTP/MIME hívók nem használnak tárolt sablont, ott nincs teendő.
+A renderelt tárgy a kampányéval azonos `SubjectSanitizer`-en megy át (C0/DEL/C1/U+2028-9 → szóköz, 255 vágás; a `HeaderSafetyGate` csak
+a renderelés előtti tárgyat látja). A `messages.subject` SZÁNDÉKOSAN a RENDERELETLEN sablon-tárgyat tárolja (nincs benne személyes adat/
+token); a kimenő tárgy a küldéskor áll elő.
+**Tárgy-öröklés:** a `/v1/templates/{name}/versions` (nincs tárgy-mező, nem bővítjük) az új verzióba az AKTÍV verzió tárgyát viszi
+tovább, különben egy törzs-frissítés némán elvenné; a felület új-verzió űrlapja az aktív verzió tárgyával van előtöltve
+(`selected.activeSubject`).
 
 **FO4 — Sablon-szerkesztés a felületen.** A StoredTemplates oldal verziónként mutatja a tárgyat, és új
 „Új verzió" űrlapot kapott (HTML törzs, szöveges változat, tárgy, „mentés után élő"). A tárgy egy sorra
@@ -106,6 +112,33 @@ szivárog a hiba) tesz `SendConsentProof` jobot a `default` sorra (6 próba, bac
 - Hiba-kezelés: 201/200 → nyugta; 409 → lezárt (a bizonyíték már ott van); egyéb 4xx → végleges, naplózva; hálózat,
   5xx, 429, 401/403/408 → újrapróbál. A főkönyv-hiba soha nem blokkol; a küldési kapu a helyi consentből dönt (teszt).
 - Hiányos konfiguráció: nem küld, naplóz (`consent.ledger.not_configured`).
+
+**FO14 — Átmeneti elutasítás nem köti le az Idempotency-Key-t (B2).** A `GateReason::isTransient()` (DOMAIN_UNVERIFIED,
+QUOTA_EXCEEDED, RATE_LIMITED, SENDING_RESTRICTED, CHANNEL_DISABLED, GATE_ERROR) esetén a `SendMessage` az elutasított üzenet
+`idempotency_key`-ét NULL-ra állítja (a sor a naplóban marad, `rejected` + okkal): az ugyanazzal a kulccsal és törzzsel ismételt
+kérés új üzenetként újra átmegy a kapun, és nem kap sem replay-422-t, sem 409-et. A kérés-függő okok (SUPPRESSED, NO_CONSENT,
+INVALID_REQUEST, VALIDATION_RISK) továbbra is kötöttek és visszajátszódnak; az elfogadott küldés kulcsa a unique kényszer miatt a
+párhuzamos duplikátumot továbbra is deduplikálja. Séma-változás nincs. A Gate által elfogadott, de az újrakiértékelésen (ütemezett)
+elutasított üzenet útja nem érintett.
+
+**FO15 — ventSec-szigorítások.** Az `Idempotency-Key` csatolmány-példányonként `vm-scan-<levél-uuid>-<sorszám>` (a `VirusScanner::scan`
+kapott egy opcionális `$reference` paramétert; hivatkozás nélkül hívásonként új uuid) — nincs elavult-ítélet replay és kiterjesztés-váltási
+422. Frissességi határ az aláírt `scanned_at`-on (`VENTSEC_VERDICT_MAX_AGE`, alap 600 s; +60 s jövőbeli óra-eltérés tűrve). **Tulajdonosi
+döntés (naplózva):** `stale_signatures=true` + `clean` → `unavailable` (fail-closed, mail-inbound); a fertőzött ítélet így is fertőzött.
+Opcionális kulcs-rögzítés `VENTSEC_VERDICT_KEY_PINS` (kid-ek). A kulcs-letöltés hibája után 30 s hűtés. A m2m token cache-kulcsa a
+kliens-azonosítót/scope-ot/resource-t is tartalmazza. A csatolmány-ciklus teljes szkennelési időkerete `INBOUND_SCAN_BUDGET_SECONDS`
+(alap 120 s): kimerülés után a hátralévők `unavailable`-ek; a szkennelési időkorlát alapja 20 s.
+
+**FO16 — Consent főkönyv szigorítások.** `subject_ref = HMAC-SHA256("<workspace uuid>|<kisbetűs, vágott e-mail>", CONSENT_LEDGER_SUBJECT_KEY)`
+— a workspace-hez kötött (tenantok között nem kapcsolható össze). **Ez eltér a C3 szerződés eredeti „HMAC(e-mail)" megfogalmazásától,
+tulajdonosi döntés; a ventCookie oldalnak csak annyi a következménye, hogy a ref opaque marad.** Kulcs-rotáció: a rotáció után képzett
+hivatkozások nem egyeznek a régiekkel — ugyanaz a cím új alanyként jelenik meg, a régi bizonyítékok a régi kulccsal köthetők; a kulcsot
+ezért nem rotáljuk szükség nélkül, és rotáció előtt a ventCookie-val egyeztetni kell. Éles guard: a kulcs legalább 32 bájt. A reporter
+teljes törzse try/catch alatt (soha nem gördíti vissza a consent-író tranzakciót); a `scope_ref` a consent saját workspace-éből képződik;
+üres (GDPR-törölt) címnél nem jelent; a `consent_text_version` csak `^[A-Za-z0-9._:-]{1,40}$` alakban megy ki. Az egykattintásos
+leiratkozás kulcsa tartalmazza az üzenet-uuid-t ÉS a consent állapot-verzióját (utolsó consent-esemény id + `confirmed_at`), így
+withdraw → re-optin → withdraw ugyanabból a régi levélből új kulcsot kap, a levélkliens újrapróbálása azonosat. A 409 külön
+`consent.ledger.idempotency_conflict` WARNING (PII nélkül). A nyugta-írás `lockForUpdate`-tel.
 
 **FO13 — Konfig.** Minden kulcs `config/*.php`-ban (`env()` csak ott), `.env.example` és `deploy/init-env.sh` üres/`false`/`fake`
 alapértékkel; a titkok (`VENTSEC_CLIENT_SECRET`, `VENTSEC_INGEST_SECRET`, `CONSENT_LEDGER_TOKEN`, `CONSENT_LEDGER_SUBJECT_KEY`)

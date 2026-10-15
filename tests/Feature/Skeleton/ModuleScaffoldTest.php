@@ -19,10 +19,12 @@ const VENTMAIL_MODULES = [
     'Audience', 'Consent', 'Template', 'Campaign', 'Journey', 'Forms', 'Analytics',
     // zárás
     'Billing', 'SuperAdmin', 'Api',
+    // ventSec-kötés (m2m token, ítélet-ellenőrzés, VSES események)
+    'VentSec',
 ];
 
-it('mind a 25 modul vázát létrehozza', function () {
-    expect(VENTMAIL_MODULES)->toHaveCount(25);
+it('mind a 26 modul vázát létrehozza', function () {
+    expect(VENTMAIL_MODULES)->toHaveCount(26);
 
     foreach (VENTMAIL_MODULES as $module) {
         expect(is_dir(app_path("Modules/{$module}")))
