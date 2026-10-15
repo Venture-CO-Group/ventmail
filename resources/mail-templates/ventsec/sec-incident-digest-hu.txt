@@ -1,0 +1,11 @@
+Napi összefoglaló: {{ count }} nyitott S3/S4 incidens
+
+{{ count }} nyitott S3/S4 incidensről még nem értesítettünk. Súlyosság, majd szám szerint rendezve:
+
+Incidensek:
+{{ incidents_lines }}
+
+-- 
+Üzemeltetői riasztás: azért kaptad, mert a ventSec riasztási címzettjei között szerepelsz.
+Ez egy automatikus értesítés, kérjük, ne válaszolj rá.
+Venture co. group · ventSec

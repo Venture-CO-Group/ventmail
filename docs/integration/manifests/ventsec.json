@@ -1,0 +1,96 @@
+{
+  "prefix": "sec",
+  "locales": ["hu", "en"],
+  "templates": [
+    {
+      "key": "incident-alert",
+      "audience": "operator",
+      "channel": "transactional",
+      "purpose": "One new S1 incident, told at once to the operator; also the notice of an incident opened by the silent-source check.",
+      "variables": {
+        "severity_tag": "string — S1 (the alert is S1 only; S2 goes in a batch)",
+        "severity_label": "string — severity as shape and word, e.g. \"◆ S1 critical\"",
+        "number": "int — incident number",
+        "title": "string — the incident's own title (never event content, IP or user agent)",
+        "source": "string — the source's name or the check that opened the incident",
+        "opened_at": "string — UTC time, \"2026-10-15 09:30 UTC\"",
+        "sla_due_at": "string — UTC acknowledge-by time; empty when the incident has no SLA deadline",
+        "incident_url": "string — link to the incident in the ventSec admin"
+      },
+      "required_links": ["incident_url"],
+      "subject": {
+        "hu": "[{{ severity_tag }}] #{{ number }} {{ title }} · {{ source }}",
+        "en": "[{{ severity_tag }}] #{{ number }} {{ title }} · {{ source }}"
+      }
+    },
+    {
+      "key": "incident-escalation",
+      "audience": "operator",
+      "channel": "transactional",
+      "purpose": "An S1 incident still not acknowledged after the escalation time, sent once more.",
+      "variables": {
+        "severity_tag": "string — S1",
+        "severity_label": "string — severity as shape and word, e.g. \"◆ S1 critical\"",
+        "number": "int — incident number",
+        "title": "string — the incident's own title",
+        "source": "string — the source's name or the check that opened the incident",
+        "opened_at": "string — UTC time, \"2026-10-15 09:30 UTC\"",
+        "sla_due_at": "string — UTC acknowledge-by time; empty when the incident has no SLA deadline",
+        "incident_url": "string — link to the incident in the ventSec admin",
+        "escalation_minutes": "int — minutes since the first alert (15 by default)"
+      },
+      "required_links": ["incident_url"],
+      "subject": {
+        "hu": "[{{ severity_tag }}] ESZKALÁCIÓ #{{ number }} {{ title }} · {{ source }}",
+        "en": "[{{ severity_tag }}] ESCALATION #{{ number }} {{ title }} · {{ source }}"
+      }
+    },
+    {
+      "key": "incident-batch",
+      "audience": "operator",
+      "channel": "transactional",
+      "purpose": "Two or more open S2 incidents, told in one mail when the batch window (at most 15 minutes) ends.",
+      "variables": {
+        "severity_tag": "string — S2",
+        "count": "int — number of incidents in the mail (two or more)",
+        "incidents_lines": "string — multi-line list, one block per incident: severity label, number, title, source, then its link; blocks separated by a blank line (render in a white-space:pre-wrap block)"
+      },
+      "required_links": [],
+      "subject": {
+        "hu": "[{{ severity_tag }}] {{ count }} incidens igényel figyelmet",
+        "en": "[{{ severity_tag }}] {{ count }} incidents need attention"
+      }
+    },
+    {
+      "key": "incident-digest",
+      "audience": "operator",
+      "channel": "transactional",
+      "purpose": "The daily digest of open S3/S4 incidents nobody was told about yet.",
+      "variables": {
+        "count": "int — number of open S3/S4 incidents in the digest",
+        "incidents_lines": "string — multi-line list, one block per incident (severity label, number, title, source, link), sorted by severity then number; blocks separated by a blank line (render in a white-space:pre-wrap block)"
+      },
+      "required_links": [],
+      "subject": {
+        "hu": "ventSec összefoglaló: {{ count }} nyitott S3/S4 incidens",
+        "en": "ventSec digest: {{ count }} open S3/S4 incident(s)"
+      }
+    },
+    {
+      "key": "source-silent",
+      "audience": "operator",
+      "channel": "transactional",
+      "purpose": "A source went silent and the check opened no incident to announce (an opened incident goes out as incident-alert).",
+      "variables": {
+        "app": "string — the silent source's app, e.g. ventsso",
+        "env": "string — its environment, e.g. prod",
+        "silent_seconds": "int — seconds since its last event or heartbeat"
+      },
+      "required_links": [],
+      "subject": {
+        "hu": "ventSec: a(z) {{ app }} ({{ env }}) forrás {{ silent_seconds }} mp óta néma",
+        "en": "ventSec: source {{ app }} ({{ env }}) has been silent for {{ silent_seconds }} s"
+      }
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{{ count }} incidens igényel figyelmet
+
+{{ count }} nyitott {{ severity_tag }} incidens vár figyelemre. Soronként: súlyosság, szám, cím, forrás, majd a link.
+
+Incidensek:
+{{ incidents_lines }}
+
+-- 
+Üzemeltetői riasztás: azért kaptad, mert a ventSec riasztási címzettjei között szerepelsz.
+Ez egy automatikus értesítés, kérjük, ne válaszolj rá.
+Venture co. group · ventSec

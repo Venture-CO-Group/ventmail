@@ -1,0 +1,18 @@
+{{ severity_label }} · #{{ number }} {{ title }}
+
+Új, azonnali figyelmet igénylő incidens nyílt a ventSec-ben.
+
+Súlyosság: {{ severity_label }}
+Incidens: #{{ number }}
+Cím: {{ title }}
+Forrás: {{ source }}
+Megnyitva: {{ opened_at }}
+Nyugtázási határidő: {{ sla_due_at || nincs megadva }}
+
+Incidens megnyitása:
+{{ incident_url }}
+
+-- 
+Üzemeltetői riasztás: azért kaptad, mert a ventSec riasztási címzettjei között szerepelsz.
+Ez egy automatikus értesítés, kérjük, ne válaszolj rá.
+Venture co. group · ventSec
