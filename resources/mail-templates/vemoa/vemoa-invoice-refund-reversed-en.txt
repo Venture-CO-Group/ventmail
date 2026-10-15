@@ -2,7 +2,7 @@ A refund was reversed – invoice action needed
 
 Stripe reversed a refund for which a credit note was already issued. The original invoice must be reissued by hand.
 
-Amount (minor units): {{ amount_minor }} {{ currency }}
+Amount: {{ amount }}
 Correction document: {{ document_number }}
 
 -- 

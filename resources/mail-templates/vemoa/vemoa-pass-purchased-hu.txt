@@ -3,11 +3,9 @@ Sikeres vásárlás: {{ pass_name }}
 Köszönjük, a vásárlásod sikeres. A kódot biztonsági okból nem küldjük e-mailben; a „Bérleteim” oldalon éred el.
 
 Termék: {{ pass_name }}
-Típus: {{ kind }}
+Típus: {{ kind_label }}
 Szolgáltató: {{ provider }}
 Lejárat: {{ expires_on || nem jár le }}
-
-Típusok: session_pack = alkalmas bérlet, voucher = utalvány, credit = egyenleg, membership = tagság.
 
 Bérleteim megnyitása:
 {{ passes_url }}

@@ -8,7 +8,7 @@
       "channel": "transactional",
       "purpose": "One new S1 incident, told at once to the operator; also the notice of an incident opened by the silent-source check.",
       "variables": {
-        "severity_tag": "string — S1 (the alert is S1 only; S2 goes in a batch)",
+        "severity_tag": "string — S1, S2, S3 or S4 (an S1 from the detection, an S2/S3 from the silent-source check)",
         "severity_label": "string — severity as shape and word, e.g. \"◆ S1 critical\"",
         "number": "int — incident number",
         "title": "string — the incident's own title (never event content, IP or user agent)",

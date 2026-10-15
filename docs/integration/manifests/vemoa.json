@@ -4,6 +4,14 @@
     "hu",
     "en"
   ],
+  "locale_fallback": "hu",
+  "notes": [
+    "Vemoa is Hungarian-first: a message whose language is not given (or not hu|en) is sent as hu — a per-app fallback, unlike apps that fall back to en.",
+    "A key is the name as the code emits it (underscores or hyphens): the wire name is vemoa-<key>-<locale>.",
+    "Variables are scalars. `*_label` and `amount` are ready-made words in the message language; the raw code/amount_minor stay for conditions.",
+    "Transactional mail is sent with o:tracking=no; the unsubscribe links are /unsubscribe/... so a rewriting tracker leaves them alone.",
+    "Marketing keys (rebook_nudge, birthday_greeting, win_back, fill_offer) go on the marketing channel, closed until ventMail opens it; review_request stays transactional with an opt-out (owner/DPO question open)."
+  ],
   "templates": [
     {
       "key": "booking_confirmation",
@@ -170,7 +178,8 @@
       "purpose": "Receipt for a pass / voucher / credit / membership purchase. Never carries the code (the guest opens it in 'Bérleteim').",
       "variables": {
         "pass_name": "string — the pass's name",
-        "kind": "string — session_pack | voucher | credit | membership",
+        "kind": "string — code: session_pack | voucher | credit | membership",
+        "kind_label": "string — the pass kind in words (e.g. 'Ajándékutalvány' / 'Gift voucher')",
         "provider": "string — the business that sold it",
         "expires_on": "string|null — expiry date, 'YYYY-MM-DD'; null when it does not expire",
         "passes_url": "string — the guest's passes page"
@@ -384,7 +393,8 @@
       "purpose": "Invites someone to join a workspace's team.",
       "variables": {
         "workspace_name": "string — the workspace they are invited to",
-        "role": "string — the role offered (provider_staff | provider_front_desk)",
+        "role": "string — code: provider_staff | provider_front_desk",
+        "role_label": "string — the role in words (e.g. 'Munkatárs' / 'Team member')",
         "invite_url": "string — acceptance link (token in the URL fragment: no click tracking)",
         "expires_in_days": "int — days the invitation is valid"
       },
@@ -403,8 +413,11 @@
       "purpose": "A card payment was disputed (chargeback) — the owner must respond in Stripe.",
       "variables": {
         "payment_id": "string — Vemoa payment id",
-        "kind": "string — what was paid for (deposit | fee | pass | membership)",
-        "status": "string — the dispute's status at Stripe",
+        "kind": "string — code: deposit | fee | pass | membership",
+        "kind_label": "string — what was paid for, in words (e.g. 'Bérlet' / 'Pass')",
+        "status": "string — code of the dispute's status at Stripe (needs_response | under_review | won | lost …)",
+        "status_label": "string — the status in words",
+        "amount": "string — the amount ready-made in the message language, e.g. '12 345 Ft' (hu) / '12,345 HUF' (en)",
         "amount_minor": "int — amount in minor units (e.g. fillér)",
         "currency": "string — ISO 4217 code"
       },
@@ -420,6 +433,7 @@
       "channel": "transactional",
       "purpose": "An invoice could not be issued automatically and waits for the owner.",
       "variables": {
+        "amount": "string — the amount ready-made in the message language, e.g. '12 345 Ft' (hu) / '12,345 HUF' (en)",
         "amount_minor": "int — amount in minor units (e.g. fillér)",
         "currency": "string — ISO 4217 code",
         "paid_at": "string — when the payment was made, ISO 8601",
@@ -437,6 +451,7 @@
       "channel": "transactional",
       "purpose": "Stripe reversed a refund whose credit note was already issued: the original invoice must be reissued by hand.",
       "variables": {
+        "amount": "string — the amount ready-made in the message language, e.g. '12 345 Ft' (hu) / '12,345 HUF' (en)",
         "amount_minor": "int — amount in minor units (e.g. fillér)",
         "currency": "string — ISO 4217 code",
         "document_number": "string — the document number of the correction"
@@ -453,6 +468,7 @@
       "channel": "transactional",
       "purpose": "The paid promotion request was approved and placed.",
       "variables": {
+        "amount": "string — the price ready-made in the message language",
         "product": "string — the promotion product",
         "category": "string — the category key",
         "week": "string — the week's start date, 'YYYY-MM-DD'",
@@ -472,6 +488,7 @@
       "channel": "transactional",
       "purpose": "The paid promotion request was refused (with the reason).",
       "variables": {
+        "amount": "string — the price ready-made in the message language",
         "product": "string — the promotion product",
         "category": "string — the category key",
         "week": "string — the week's start date, 'YYYY-MM-DD'",
@@ -492,7 +509,8 @@
       "purpose": "Tells the review's author what the moderator decided about the reported review.",
       "variables": {
         "provider_name": "string — the reviewed business",
-        "decision": "string — keep | hide | remove",
+        "decision": "string — code: keep | hide | remove",
+        "decision_label": "string — the decision in words (a sentence start, e.g. 'A véleményt elrejtettük')",
         "reason": "string — the moderator's reason"
       },
       "required_links": [],
@@ -508,7 +526,8 @@
       "purpose": "Tells the provider what the moderator decided about the reported review.",
       "variables": {
         "provider_name": "string — the reviewed business",
-        "decision": "string — keep | hide | remove",
+        "decision": "string — code: keep | hide | remove",
+        "decision_label": "string — the decision in words (a sentence start, e.g. 'A véleményt elrejtettük')",
         "reason": "string — the moderator's reason"
       },
       "required_links": [],

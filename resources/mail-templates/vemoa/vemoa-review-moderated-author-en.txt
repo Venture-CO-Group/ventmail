@@ -3,7 +3,7 @@ A decision about your review
 A moderator has decided on your reported review of {{ provider_name }}.
 
 Provider: {{ provider_name }}
-Decision (keep, hide or remove): {{ decision }}
+Decision: {{ decision_label }}
 Reason: {{ reason || – }}
 
 -- 

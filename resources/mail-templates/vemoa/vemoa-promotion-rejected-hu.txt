@@ -7,7 +7,7 @@ Indoklás: {{ reason || – }}
 Termék: {{ product }}
 Kategória: {{ category }}
 A hét kezdete: {{ week }}
-Ár (legkisebb egységben): {{ price_amount_minor }} {{ currency }}
+Ár: {{ amount }}
 
 -- 
 Szolgáltatói értesítés a Vemoa-tól, a Vemoa-fiókodhoz kapcsolódóan.

@@ -3,7 +3,7 @@ Döntés egy bejelentett véleményről
 A moderátor döntött egy bejelentett véleményről, amely a(z) {{ provider_name }} szolgáltatóra vonatkozik.
 
 Szolgáltató: {{ provider_name }}
-Döntés (keep = marad, hide = elrejtve, remove = törölve): {{ decision }}
+Döntés: {{ decision_label }}
 Indoklás: {{ reason || – }}
 
 -- 

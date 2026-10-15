@@ -1,6 +1,6 @@
 {{ severity_label }} · #{{ number }} {{ title }}
 
-A new incident that needs immediate attention was opened in ventSec.
+A new incident was opened in ventSec.
 
 Severity: {{ severity_label }}
 Incident: #{{ number }}

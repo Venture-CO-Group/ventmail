@@ -2,7 +2,7 @@ Visszavont visszatérítés – számla teendő
 
 A Stripe visszavonta a visszatérítést, amelyhez már jóváíró számlát állítottunk ki. Az eredeti számlát kézzel újra ki kell állítani.
 
-Összeg (legkisebb egységben): {{ amount_minor }} {{ currency }}
+Összeg: {{ amount }}
 Korrekciós bizonylat: {{ document_number }}
 
 -- 

@@ -2,7 +2,7 @@ Elakadt egy számla kiállítása
 
 Egy számlát nem sikerült automatikusan kiállítani, a kiállítás a te döntésedre vár.
 
-Összeg (legkisebb egységben): {{ amount_minor }} {{ currency }}
+Összeg: {{ amount }}
 Fizetve: {{ paid_at }}
 Ok: {{ reason }}
 

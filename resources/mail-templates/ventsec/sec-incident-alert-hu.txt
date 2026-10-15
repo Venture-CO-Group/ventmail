@@ -1,6 +1,6 @@
 {{ severity_label }} · #{{ number }} {{ title }}
 
-Új, azonnali figyelmet igénylő incidens nyílt a ventSec-ben.
+Új incidens nyílt a ventSec-ben.
 
 Súlyosság: {{ severity_label }}
 Incidens: #{{ number }}

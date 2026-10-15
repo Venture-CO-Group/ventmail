@@ -3,7 +3,7 @@ Döntés a véleményedről
 A moderátor döntött a(z) {{ provider_name }} szolgáltatóról írt, bejelentett véleményedről.
 
 Szolgáltató: {{ provider_name }}
-Döntés (keep = marad, hide = elrejtve, remove = törölve): {{ decision }}
+Döntés: {{ decision_label }}
 Indoklás: {{ reason || – }}
 
 -- 

@@ -2,7 +2,7 @@ An invoice could not be issued
 
 An invoice could not be issued automatically and is waiting for your decision.
 
-Amount (minor units): {{ amount_minor }} {{ currency }}
+Amount: {{ amount }}
 Paid at: {{ paid_at }}
 Reason: {{ reason }}
 
