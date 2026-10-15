@@ -1,4 +1,5 @@
 import { createInertiaApp } from '@inertiajs/vue3';
+import '@venture/design/fonts.css';
 import '@venture/design/styles.css';
 import VentureUI from '@venture/ui';
 import '@venture/ui/style.css';

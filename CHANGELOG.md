@@ -3,6 +3,11 @@
 Formátum: [Keep a Changelog](https://keepachangelog.com/hu/1.1.0/). Verziózás: a kiadás tagje `vMAJOR.MINOR.PATCH`.
 A részletes döntési nyomvonal: `docs/plans/v1.1.md` (D1–D300).
 
+## [Unreleased]
+
+### Fixed
+- **GDPR: a Google Fonts CDN kivezetve.** A látogatók IP-je a hozzájárulás előtt a Google-hez ment (az app-, landing- és hosztolt oldalakról). A betűk (Inter, Space Grotesk, JetBrains Mono) mostantól a saját originről jönnek (`@venture/design/fonts.css`, 0.4.0, OFL-licencekkel); a két fő vágás preload (`App\Support\FontPreload`). A CSP-ből a `fonts.googleapis.com` és a `fonts.gstatic.com` törölve (`font-src`/`style-src` csak `'self'`). Őr-tesztek: renderelt HTML, CSP és a `resources/` + `docker/` forrásai; Playwright: a betűk betöltődnek, Google-kérés nincs.
+
 ## [1.2.0] — 2026-10-14 (ventMail v1.1)
 
 > A kiadás tagje `v1.2.0`, a terv/prompt neve „v1.1": a `v1.1.0` tag már élesben fut, kiadott tag nem írható át (D1).

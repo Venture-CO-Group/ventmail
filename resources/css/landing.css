@@ -4,6 +4,7 @@
  | Töréspont nélküli, folyékony elrendezés: `flex-wrap`, `auto-fit` rács és `min()` —
  | a media query nem olvas `var()`-t, és 375 szélességen sem szabad vízszintes görgetés.
  */
+@import '@venture/design/fonts.css';
 @import '@venture/design/styles.css';
 @import '../js/glow.css';
 @import '../js/brand.css';
