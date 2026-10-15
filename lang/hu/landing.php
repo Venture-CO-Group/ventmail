@@ -69,5 +69,6 @@ return [
         'nav' => 'Jogi információk',
         'terms' => 'Felhasználási feltételek',
         'privacy' => 'Adatkezelési tájékoztató',
+        'cookies' => 'Süti-beállítások',
     ],
 ];
