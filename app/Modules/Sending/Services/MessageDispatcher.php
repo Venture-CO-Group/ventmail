@@ -504,7 +504,7 @@ final class MessageDispatcher
     {
         $rendered = $this->renderer->renderForRecipient($subject, $recipient, $recipientVariables, $shared, escape: false, reserved: $reserved);
 
-        return trim((string) preg_replace('/\s*[\r\n]+\s*/', ' ', $rendered));
+        return SubjectSanitizer::clean($rendered);
     }
 
     /**

@@ -70,6 +70,9 @@ final class StoredTemplateUiController
             'selected' => $template === null ? null : [
                 'name' => (string) $template->name,
                 'description' => $template->description,
+                // Az új-verzió űrlap ELŐTÖLTÉSE: az aktív verzió tárgya (különben a törzs
+                // szerkesztése közben a tárgy elveszne).
+                'activeSubject' => $versions->firstWhere('is_active', true)?->subject,
                 'versions' => $versions->map(fn (StoredTemplateVersion $version) => [
                     'version' => (int) $version->version,
                     'active' => (bool) $version->is_active,

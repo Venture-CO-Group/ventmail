@@ -460,3 +460,33 @@ it('új verzió létrehozása a storedTemplate.manage képességhez kötött, é
     $this->actingAs(storedTemplateUser($mine))->withSession(['workspace_uuid' => $mine->uuid])
         ->post('/stored-templates/'.$foreign->uuid.'/versions', ['body' => 'x'])->assertNotFound();
 });
+
+it('a felület az AKTÍV verzió tárgyát adja az új verzió űrlapjának előtöltéséhez (S8)', function () {
+    $workspace = Workspace::factory()->create();
+    $user = storedTemplateUser($workspace);
+    $template = seedStoredTemplate($workspace);
+
+    app(WorkspaceContext::class)->runFor($workspace, function () use ($template) {
+        StoredTemplateVersion::query()->where('stored_template_id', $template->getKey())->where('version', 2)->delete();
+        StoredTemplateVersion::create(['stored_template_id' => $template->getKey(), 'version' => 3, 'body' => 'x', 'subject' => 'Aktív {{ a }}', 'is_active' => false]);
+    });
+    app(WorkspaceContext::class)->runFor($workspace, fn () => $template->activeVersion()->update(['is_active' => false]));
+    app(WorkspaceContext::class)->runFor($workspace, fn () => StoredTemplateVersion::query()->where('version', 3)->firstOrFail()->update(['is_active' => true]));
+
+    $this->actingAs($user)->withSession(['workspace_uuid' => $workspace->uuid])
+        ->get('/stored-templates')->assertOk()
+        ->assertInertia(fn ($page) => $page->where('selected.activeSubject', 'Aktív {{ a }}'));
+});
+
+it('az új verzió tárgya CR/LF-et szóközre normalizálja (S12)', function () {
+    $workspace = Workspace::factory()->create();
+    $user = storedTemplateUser($workspace);
+    $template = seedStoredTemplate($workspace);
+
+    $this->actingAs($user)->withSession(['workspace_uuid' => $workspace->uuid])
+        ->post('/stored-templates/'.$template->uuid.'/versions', ['body' => 'x', 'subject' => "A\r\nBcc: x"])->assertRedirect();
+
+    app(WorkspaceContext::class)->runFor($workspace, function () {
+        expect(StoredTemplateVersion::query()->where('version', 3)->firstOrFail()->subject)->toBe('A Bcc: x');
+    });
+});

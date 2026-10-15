@@ -40,7 +40,7 @@ interface DiffLine {
 
 const props = defineProps<{
     templates: Array<{ uuid: string; name: string; description: string | null; versions: number }>;
-    selected: { name: string; description: string | null; versions: VersionRow[] } | null;
+    selected: { name: string; description: string | null; activeSubject: string | null; versions: VersionRow[] } | null;
     comparison: {
         left: number;
         right: number;
@@ -90,13 +90,25 @@ watch(template, () => {
 
 // ÚJ VERZIÓ: a meglévő verzió nem írható át, a mentés mindig új sort hoz létre. A tárgy
 // opcionális (üres = nincs sablon-tárgy), `{{ változó }}` helyőrzőkkel, egy sor.
-const newVersion = useForm({ body: '', body_text: '', subject: '', activate: false });
+const newVersion = useForm({ body: '', body_text: '', subject: props.selected?.activeSubject ?? '', activate: false });
+// A tárgy ELŐTÖLTÖTT az aktív verzióéval (sablonváltáskor is).
+watch(
+    () => [props.selected?.name, props.selected?.activeSubject],
+    () => {
+        newVersion.subject = props.selected?.activeSubject ?? '';
+    },
+);
 const subjectExample = '{{ name }}';
 
 function saveVersion(): void {
     newVersion.post(`/stored-templates/${uuidOf.value}/versions`, {
         preserveScroll: true,
-        onSuccess: () => newVersion.reset(),
+        onSuccess: () => {
+            newVersion.body = '';
+            newVersion.body_text = '';
+            newVersion.activate = false;
+            newVersion.subject = props.selected?.activeSubject ?? '';
+        },
     });
 }
 
