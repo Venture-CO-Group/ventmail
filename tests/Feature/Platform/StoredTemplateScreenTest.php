@@ -378,3 +378,115 @@ it('a régió-korlát a szabad memóriából pontosan számol (injektált szonda
         ini_set('memory_limit', (string) $original);
     }
 });
+
+/*
+ | FO1 — a verzió TÁRGYA: a felület mutatja, és ÚJ VERZIÓ létrehozásakor szerkeszthető
+ | (a meglévő verzió tartalma továbbra sem írható át).
+ */
+it('a verzió-lista mutatja a tárgyat', function () {
+    $workspace = Workspace::factory()->create();
+    $user = storedTemplateUser($workspace);
+    $template = seedStoredTemplate($workspace);
+
+    app(WorkspaceContext::class)->runFor($workspace, function () use ($template) {
+        StoredTemplateVersion::create([
+            'stored_template_id' => $template->getKey(), 'version' => 3, 'body' => 'x',
+            'subject' => 'Számla {{ no }}', 'is_active' => false,
+        ]);
+    });
+
+    $this->actingAs($user)->withSession(['workspace_uuid' => $workspace->uuid])
+        ->get('/stored-templates')
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('selected.versions', fn ($versions) => collect($versions)->firstWhere('version', 3)['subject'] === 'Számla {{ no }}'
+                && collect($versions)->firstWhere('version', 1)['subject'] === null));
+});
+
+it('új verziót hoz létre tárggyal, és aktiválni is tud', function () {
+    $workspace = Workspace::factory()->create();
+    $user = storedTemplateUser($workspace);
+    $template = seedStoredTemplate($workspace);
+
+    $this->actingAs($user)->withSession(['workspace_uuid' => $workspace->uuid])
+        ->post('/stored-templates/'.$template->uuid.'/versions', [
+            'body' => '<p>Új</p>', 'body_text' => 'Új', 'subject' => "  Számla {{ no }}\r\nBcc: x  ", 'activate' => true,
+        ])->assertRedirect();
+
+    app(WorkspaceContext::class)->runFor($workspace, function () use ($template) {
+        $active = $template->activeVersion();
+
+        expect((int) $active->version)->toBe(3)
+            ->and($active->body)->toBe('<p>Új</p>')
+            ->and($active->subject)->toBe('Számla {{ no }} Bcc: x')
+            ->and($template->versions()->where('is_active', true)->count())->toBe(1);
+    });
+});
+
+it('az új verzió tárgy nélkül is létrejön, inaktívan', function () {
+    $workspace = Workspace::factory()->create();
+    $user = storedTemplateUser($workspace);
+    $template = seedStoredTemplate($workspace);
+
+    $this->actingAs($user)->withSession(['workspace_uuid' => $workspace->uuid])
+        ->post('/stored-templates/'.$template->uuid.'/versions', ['body' => '<p>Új</p>'])->assertRedirect();
+
+    app(WorkspaceContext::class)->runFor($workspace, function () use ($template) {
+        $latest = $template->versions()->where('version', 3)->firstOrFail();
+
+        expect($latest->subject)->toBeNull()->and($latest->is_active)->toBeFalse()
+            ->and((int) $template->activeVersion()->version)->toBe(1);
+    });
+});
+
+it('az új verzió törzse kötelező, a tárgy legfeljebb 255 karakter', function () {
+    $workspace = Workspace::factory()->create();
+    $user = storedTemplateUser($workspace);
+    $template = seedStoredTemplate($workspace);
+
+    $this->actingAs($user)->withSession(['workspace_uuid' => $workspace->uuid])
+        ->post('/stored-templates/'.$template->uuid.'/versions', ['body' => '', 'subject' => str_repeat('a', 256)])
+        ->assertSessionHasErrors(['body', 'subject']);
+});
+
+it('új verzió létrehozása a storedTemplate.manage képességhez kötött, és idegen sablonra 404', function () {
+    $mine = Workspace::factory()->create();
+    $theirs = Workspace::factory()->create();
+    $foreign = seedStoredTemplate($theirs);
+
+    $this->actingAs(storedTemplateUser($mine, 'editor'))->withSession(['workspace_uuid' => $mine->uuid])
+        ->post('/stored-templates/'.$foreign->uuid.'/versions', ['body' => 'x'])->assertForbidden();
+
+    $this->actingAs(storedTemplateUser($mine))->withSession(['workspace_uuid' => $mine->uuid])
+        ->post('/stored-templates/'.$foreign->uuid.'/versions', ['body' => 'x'])->assertNotFound();
+});
+
+it('a felület az AKTÍV verzió tárgyát adja az új verzió űrlapjának előtöltéséhez (S8)', function () {
+    $workspace = Workspace::factory()->create();
+    $user = storedTemplateUser($workspace);
+    $template = seedStoredTemplate($workspace);
+
+    app(WorkspaceContext::class)->runFor($workspace, function () use ($template) {
+        StoredTemplateVersion::query()->where('stored_template_id', $template->getKey())->where('version', 2)->delete();
+        StoredTemplateVersion::create(['stored_template_id' => $template->getKey(), 'version' => 3, 'body' => 'x', 'subject' => 'Aktív {{ a }}', 'is_active' => false]);
+    });
+    app(WorkspaceContext::class)->runFor($workspace, fn () => $template->activeVersion()->update(['is_active' => false]));
+    app(WorkspaceContext::class)->runFor($workspace, fn () => StoredTemplateVersion::query()->where('version', 3)->firstOrFail()->update(['is_active' => true]));
+
+    $this->actingAs($user)->withSession(['workspace_uuid' => $workspace->uuid])
+        ->get('/stored-templates')->assertOk()
+        ->assertInertia(fn ($page) => $page->where('selected.activeSubject', 'Aktív {{ a }}'));
+});
+
+it('az új verzió tárgya CR/LF-et szóközre normalizálja (S12)', function () {
+    $workspace = Workspace::factory()->create();
+    $user = storedTemplateUser($workspace);
+    $template = seedStoredTemplate($workspace);
+
+    $this->actingAs($user)->withSession(['workspace_uuid' => $workspace->uuid])
+        ->post('/stored-templates/'.$template->uuid.'/versions', ['body' => 'x', 'subject' => "A\r\nBcc: x"])->assertRedirect();
+
+    app(WorkspaceContext::class)->runFor($workspace, function () {
+        expect(StoredTemplateVersion::query()->where('version', 3)->firstOrFail()->subject)->toBe('A Bcc: x');
+    });
+});

@@ -1,0 +1,106 @@
+{
+  "jcs": {
+    "source": "tests/Vectors/generators/chain.py — RFC 8785 subset",
+    "valid": [
+      {
+        "name": "RFC 8785 3.2.3 sorting (UTF-16 code units: the emoji sorts before U+FB33)",
+        "input": {
+          "€": "Euro Sign",
+          "\r": "Carriage Return",
+          "דּ": "Hebrew Letter Dalet With Dagesh",
+          "1": "One",
+          "😀": "Emoji: Grinning Face",
+          "": "Control",
+          "ö": "Latin Small Letter O With Diaeresis"
+        },
+        "canonical": "{\"\\r\":\"Carriage Return\",\"1\":\"One\",\"\":\"Control\",\"ö\":\"Latin Small Letter O With Diaeresis\",\"€\":\"Euro Sign\",\"😀\":\"Emoji: Grinning Face\",\"דּ\":\"Hebrew Letter Dalet With Dagesh\"}",
+        "sha256_hex": "5e321556d22018a9656991a9e94f77ec175fa193e52a2429d312f8419ec8b08c"
+      },
+      {
+        "name": "RFC 8785 3.2.2 literals and string escapes (the numbers of that example are outside the subset)",
+        "input": {
+          "literals": [
+            null,
+            true,
+            false
+          ],
+          "string": "€$\u000f\nA'B\"\\\\\"/"
+        },
+        "canonical": "{\"literals\":[null,true,false],\"string\":\"€$\\u000f\\nA'B\\\"\\\\\\\\\\\"/\"}",
+        "sha256_hex": "834b0ae0dd68944f19836aa49d608aa4975f03998f927466f8b648d5f927ecee"
+      },
+      {
+        "name": "nested objects and arrays keep array order, sort members",
+        "input": {
+          "b": [
+            3,
+            1,
+            2
+          ],
+          "a": {
+            "z": null,
+            "y": {
+              "x": [],
+              "w": {}
+            }
+          }
+        },
+        "canonical": "{\"a\":{\"y\":{\"w\":{},\"x\":[]},\"z\":null},\"b\":[3,1,2]}",
+        "sha256_hex": "32a58f7ab881208ff4b76b4a4f400ef09fd7c8987786e662a56110687c9f6909"
+      },
+      {
+        "name": "every control character",
+        "input": {
+          "c": "\u0000\u0001\u0002\u0003\u0004\u0005\u0006\u0007\b\t\n\u000b\f\r\u000e\u000f\u0010\u0011\u0012\u0013\u0014\u0015\u0016\u0017\u0018\u0019\u001a\u001b\u001c\u001d\u001e\u001f"
+        },
+        "canonical": "{\"c\":\"\\u0000\\u0001\\u0002\\u0003\\u0004\\u0005\\u0006\\u0007\\b\\t\\n\\u000b\\f\\r\\u000e\\u000f\\u0010\\u0011\\u0012\\u0013\\u0014\\u0015\\u0016\\u0017\\u0018\\u0019\\u001a\\u001b\\u001c\\u001d\\u001e\\u001f\"}",
+        "sha256_hex": "fa936cc61bebe27cbbde8e2db1aa545650922434206715653ee341f25e57cd90"
+      },
+      {
+        "name": "integers at the I-JSON limits and zero",
+        "input": {
+          "max": 9007199254740991,
+          "min": -9007199254740991,
+          "zero": 0,
+          "neg": -1
+        },
+        "canonical": "{\"max\":9007199254740991,\"min\":-9007199254740991,\"neg\":-1,\"zero\":0}",
+        "sha256_hex": "38ce4603e38371a2b56876246a87339d03f1bcc9d8022c2527ca0f204fd77a8e"
+      },
+      {
+        "name": "non-ASCII stays literal, U+2028/U+2029 are not escaped",
+        "input": {
+          "hu": "árvíztűrő tükörfúrógép",
+          "ls": "a b c",
+          "emoji": "🔐"
+        },
+        "canonical": "{\"emoji\":\"🔐\",\"hu\":\"árvíztűrő tükörfúrógép\",\"ls\":\"a b c\"}",
+        "sha256_hex": "02cc08d4cec3870f79a228c2754ea7fb8eca4cab9e0d51217d06b45cca1a5fbb"
+      },
+      {
+        "name": "empty containers",
+        "input": {
+          "o": {},
+          "a": [],
+          "s": ""
+        },
+        "canonical": "{\"a\":[],\"o\":{},\"s\":\"\"}",
+        "sha256_hex": "c127f9b3c6f4233b3976f8e2d54486ab15f9a46cfa50fc14ae6d0787d1ac2917"
+      }
+    ],
+    "invalid": [
+      {
+        "name": "float",
+        "json": "{\"a\":1.5}"
+      },
+      {
+        "name": "integer written with exponent",
+        "json": "{\"a\":1e3}"
+      },
+      {
+        "name": "integer above 2^53-1",
+        "json": "{\"a\":9007199254740992}"
+      }
+    ]
+  }
+}

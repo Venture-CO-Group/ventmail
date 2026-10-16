@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { router } from '@inertiajs/vue3';
-import { VtButton, VtField, VtSelect } from '@venture/ui';
+import { router, useForm } from '@inertiajs/vue3';
+import { VtButton, VtCheckbox, VtField, VtInput, VtSelect, VtTextarea } from '@venture/ui';
 import VmCard from '../../Components/Form/VmCard.vue';
 import VmForm from '../../Components/Form/VmForm.vue';
 import VmFormRow from '../../Components/Form/VmFormRow.vue';
@@ -23,6 +23,7 @@ interface VersionRow {
     active: boolean;
     createdAt: string | null;
     bytes: number;
+    subject: string | null;
 }
 
 interface DiffLine {
@@ -39,7 +40,7 @@ interface DiffLine {
 
 const props = defineProps<{
     templates: Array<{ uuid: string; name: string; description: string | null; versions: number }>;
-    selected: { name: string; description: string | null; versions: VersionRow[] } | null;
+    selected: { name: string; description: string | null; activeSubject: string | null; versions: VersionRow[] } | null;
     comparison: {
         left: number;
         right: number;
@@ -87,6 +88,30 @@ watch(template, () => {
     reload();
 });
 
+// ÚJ VERZIÓ: a meglévő verzió nem írható át, a mentés mindig új sort hoz létre. A tárgy
+// opcionális (üres = nincs sablon-tárgy), `{{ változó }}` helyőrzőkkel, egy sor.
+const newVersion = useForm({ body: '', body_text: '', subject: props.selected?.activeSubject ?? '', activate: false });
+// A tárgy ELŐTÖLTÖTT az aktív verzióéval (sablonváltáskor is).
+watch(
+    () => [props.selected?.name, props.selected?.activeSubject],
+    () => {
+        newVersion.subject = props.selected?.activeSubject ?? '';
+    },
+);
+const subjectExample = '{{ name }}';
+
+function saveVersion(): void {
+    newVersion.post(`/stored-templates/${uuidOf.value}/versions`, {
+        preserveScroll: true,
+        onSuccess: () => {
+            newVersion.body = '';
+            newVersion.body_text = '';
+            newVersion.activate = false;
+            newVersion.subject = props.selected?.activeSubject ?? '';
+        },
+    });
+}
+
 function activate(version: number): void {
     router.post(`/stored-templates/${uuidOf.value}/versions/${version}/activate`, {}, { preserveScroll: true });
 }
@@ -115,6 +140,10 @@ function activate(version: number): void {
                 <span class="vt-text-mono">v{{ version.version }}</span>
                 <span>{{ version.createdAt ? format.dateTime(version.createdAt) : '—' }}</span>
                 <span>{{ version.bytes }} B</span>
+                <span class="vm-wrap" :data-testid="`subject-${version.version}`">
+                    {{ t('storedTemplates.subject') }}:
+                    {{ version.subject ?? t('storedTemplates.subjectNone') }}
+                </span>
 
                 <span v-if="version.active" :data-testid="`active-${version.version}`">
                     {{ t('storedTemplates.active') }}
@@ -129,6 +158,39 @@ function activate(version: number): void {
                     {{ t('storedTemplates.activate') }}
                 </VtButton>
             </div>
+        </VmCard>
+
+        <VmCard v-if="selected" data-testid="stored-template-new-version">
+            <h2>{{ t('storedTemplates.newVersion') }}</h2>
+            <p>{{ t('storedTemplates.newVersionNote') }}</p>
+
+            <VmForm @submit.prevent="saveVersion">
+                <VmFormSection>
+                    <VtField
+                        :label="t('storedTemplates.subject')"
+                        :hint="t('storedTemplates.subjectHint', { example: subjectExample })"
+                        :error="newVersion.errors.subject"
+                    >
+                        <VtInput v-model="newVersion.subject" maxlength="255" data-testid="new-version-subject" />
+                    </VtField>
+
+                    <VtField :label="t('storedTemplates.body')" :error="newVersion.errors.body">
+                        <VtTextarea v-model="newVersion.body" :rows="10" data-testid="new-version-body" />
+                    </VtField>
+
+                    <VtField :label="t('storedTemplates.bodyText')" :error="newVersion.errors.body_text">
+                        <VtTextarea v-model="newVersion.body_text" :rows="5" data-testid="new-version-text" />
+                    </VtField>
+
+                    <VtCheckbox v-model="newVersion.activate" data-testid="new-version-activate">
+                        {{ t('storedTemplates.activateNow') }}
+                    </VtCheckbox>
+
+                    <VtButton type="submit" :disabled="newVersion.processing" data-testid="new-version-save">
+                        {{ t('storedTemplates.save') }}
+                    </VtButton>
+                </VmFormSection>
+            </VmForm>
         </VmCard>
 
         <VmCard v-if="selected && selected.versions.length > 1" data-testid="stored-template-diff">

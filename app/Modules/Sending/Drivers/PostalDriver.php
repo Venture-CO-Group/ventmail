@@ -145,7 +145,7 @@ final class PostalDriver implements SendingDriver
                 'from' => $message->from_name === null
                     ? $message->from_email
                     : (new Address((string) $message->from_email, (string) $message->from_name))->toString(),
-                'subject' => $message->subject,
+                'subject' => $message->subjectFor($recipient),
                 'html_body' => $bodies['html'],
                 'plain_body' => $bodies['text'],
                 // CÍMZETTENKÉNT: a leiratkozó token a leiratkozó SZEMÉLYÉT hordozza,

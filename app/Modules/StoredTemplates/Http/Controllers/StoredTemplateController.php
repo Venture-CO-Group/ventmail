@@ -97,6 +97,11 @@ final class StoredTemplateController
             $version = DB::transaction(function () use ($template, $validated, $activate) {
                 $locked = StoredTemplate::query()->whereKey($template->getKey())->lockForUpdate()->firstOrFail();
 
+                // A TÁRGY ÖRÖKLŐDIK: a `/v1` kérésnek nincs tárgy-mezeje (nem bővítjük), ezért az
+                // új verzió az AKTÍV verzió tárgyát viszi tovább — különben egy törzs-frissítés
+                // némán elvenné a sablon tárgyát. A lekérdezés a deaktiválás ELŐTT fut.
+                $inheritedSubject = $locked->activeVersion()?->subject;
+
                 if ($activate) {
                     // Modell-példányonként: a mass-update kikerülné az auditot (rule 11),
                     // és utólag nem lenne rekonstruálható, melyik verzió volt élő.
@@ -109,6 +114,7 @@ final class StoredTemplateController
                     'version' => $locked->nextVersionNumber(),
                     'body' => $validated['template'],
                     'body_text' => $validated['text'] ?? null,
+                    'subject' => $inheritedSubject,
                     'is_active' => $activate,
                 ]);
             });

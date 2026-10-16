@@ -1200,7 +1200,16 @@
         "tooLarge": "La comparaison ne s’exécute pas au-delà de {lines} lignes — téléchargez les versions via l’API.",
         "activated": "La version est désormais en ligne.",
         "skipped": "{count} lignes inchangées ignorées (lignes {from}–{to})",
-        "identical": "Les deux versions sont IDENTIQUES — aucune différence."
+        "identical": "Les deux versions sont IDENTIQUES — aucune différence.",
+        "subject": "Objet",
+        "subjectNone": "pas d'objet de modèle",
+        "subjectHint": "Facultatif. Utilisé si la requête d'envoi n'a pas d'objet ; les espaces réservés {example} sont remplis comme dans le corps. Une seule ligne.",
+        "newVersion": "Nouvelle version",
+        "newVersionNote": "Une version existante ne peut pas être modifiée — l'enregistrement crée une nouvelle version.",
+        "body": "Corps HTML",
+        "bodyText": "Version texte (facultatif)",
+        "activateNow": "Activer immédiatement après l'enregistrement",
+        "save": "Enregistrer la nouvelle version"
     },
     "invitations": {
         "title": "Vos invitations",

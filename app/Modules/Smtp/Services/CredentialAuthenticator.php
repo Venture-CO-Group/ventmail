@@ -8,7 +8,10 @@ use App\Modules\Smtp\Contracts\SmtpAuthenticator;
 use App\Modules\Smtp\Data\ChannelSecurity;
 use App\Modules\Smtp\Data\SubmissionPrincipal;
 use App\Modules\Smtp\Models\SmtpCredential;
+use App\Modules\VentSec\Contracts\VentSecEvents;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 
 /**
  * Az `smtp_credentials` tábla mögötti hitelesítő.
@@ -30,7 +33,7 @@ final class CredentialAuthenticator implements SmtpAuthenticator
      */
     private static ?string $dummyHash = null;
 
-    public function __construct(private readonly AuthThrottle $throttle) {}
+    public function __construct(private readonly AuthThrottle $throttle, private readonly ?VentSecEvents $events = null) {}
 
     private function dummyHash(): string
     {
@@ -40,7 +43,7 @@ final class CredentialAuthenticator implements SmtpAuthenticator
     public function authenticate(string $username, string $password, ChannelSecurity $security): ?SubmissionPrincipal
     {
         if (! $security->encrypted) {
-            return null;
+            return $this->failed('plaintext_channel');
         }
 
         $credential = SmtpCredential::findByUsername($username);
@@ -49,16 +52,16 @@ final class CredentialAuthenticator implements SmtpAuthenticator
             // Időben azonos út: enélkül a nem létező név ELŐBB adna választ.
             Hash::check($password, $this->dummyHash());
 
-            return null;
+            return $this->failed('invalid_credentials');
         }
 
         if (! Hash::check($password, (string) $credential->password_hash)) {
-            return null;
+            return $this->failed('invalid_credentials');
         }
 
         // A lejárt/visszavont hitelesítő NEM hitelesít — de a hiba ugyanaz kifelé.
         if (! $credential->isUsable()) {
-            return null;
+            return $this->failed('credential_unusable');
         }
 
         return new SubmissionPrincipal(
@@ -67,5 +70,24 @@ final class CredentialAuthenticator implements SmtpAuthenticator
             domainId: $credential->domain_id === null ? null : (int) $credential->domain_id,
             channel: (string) ($credential->channel_restriction ?? 'transactional'),
         );
+    }
+
+    /**
+     * `smtp.auth_failed` a ventSec-nek (VSES): CSAK a listener és egy zárt okkód — felhasználónév,
+     * jelszó, IP soha. A kibocsátás hibája nem érinti a hitelesítést (a válasz mindig `null`).
+     */
+    private function failed(string $reason): ?SubmissionPrincipal
+    {
+        try {
+            ($this->events ?? app(VentSecEvents::class))->emit(
+                'smtp.auth_failed',
+                'failure',
+                ['listener' => 'submission', 'reason' => $reason],
+            );
+        } catch (Throwable $e) {
+            Log::warning('A ventSec-esemény kibocsátása nem sikerült.', ['action' => 'smtp.auth_failed', 'error' => $e::class]);
+        }
+
+        return null;
     }
 }

@@ -25,7 +25,7 @@ use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use RuntimeException;
+use Illuminate\Support\Str;
 use Throwable;
 
 /**
@@ -45,6 +45,12 @@ final class SendMessage
 
     /** @param array<string, mixed> $attributes */
     public function __invoke(array $attributes): SendResult
+    {
+        return $this->send($attributes, mayRetry: true);
+    }
+
+    /** @param array<string, mixed> $attributes */
+    private function send(array $attributes, bool $mayRetry): SendResult
     {
         // A bemenet ÉRVÉNYESSÉGE a sor létrehozása ELŐTT dől el: egy hibás kérés ne hozzon
         // létre perzisztens sort (korlátlan írás-erősítés lenne rossz kliensből), és a
@@ -79,10 +85,16 @@ final class SendMessage
                 : Message::query()->where('idempotency_key', $idempotencyKey)->first();
 
             if ($winner === null) {
-                throw new RuntimeException(
-                    'Az üzenet létrehozása egyediségi kényszerbe ütközött, de a nyertes sor '
-                    .'nem található — ez nem az idempotencia-kulcs ütközése.'
-                );
+                // A kulcs ütközött, de a nyertes közben ÁTMENETI elutasítással felszabadította
+                // (B2). Nem hiba: a kérést EGYSZER újrafuttatjuk (a kapu újra dönt). Ha ez is
+                // ütközik, a hívó újrapróbálható 409 IN_PROGRESS-t kap — soha nem 500-at.
+                if ($mayRetry && $idempotencyKey !== null) {
+                    return $this->send($attributes, mayRetry: false);
+                }
+
+                $pending = (new Message)->forceFill(['uuid' => (string) Str::uuid(), 'status' => 'queued']);
+
+                return new SendResult($pending, GateDecision::rejected(GateReason::InProgress->value, []), replayed: true);
             }
 
             return $this->replay($winner, $attributes);
@@ -108,6 +120,11 @@ final class SendMessage
                 'reason' => $decision->reason,
                 // Az elutasított levél titkos render-változóira soha nem lesz szükség.
                 'render_variables' => null,
+                // ÁTMENETI elutasításnál a kulcs FELSZABADUL (a sor a naplóban marad): az
+                // ismételt kérésnél a kapu újra lefut. A végleges elutasítás kulcsa kötött.
+                'idempotency_key' => GateReason::tryFrom((string) $decision->reason)?->isTransient() === true
+                    ? null
+                    : $message->idempotency_key,
                 'options' => [...$message->options, 'gate_trace' => $decision->trace()],
             ])->save();
 
@@ -437,6 +454,19 @@ final class SendMessage
             'options', 'ip_pool_id', 'raw_sha256',
         ]);
 
+        // SABLONOS kérésnél az ujjlenyomat azt fedi, amit a hívó KÜLDÖTT (sablon-név, változók,
+        // címzettek…), nem a feloldott törzset/tárgyat: egy közben aktivált új verzió miatt a
+        // válasz-vesztés utáni újrapróbálás ne kapjon 409-et. Sablon nélkül a viselkedés változatlan
+        // (a `template` kulcs sem kerül az ujjlenyomatba, a korábbi ujjlenyomatok érvényesek).
+        if (is_string($template = Arr::get($attributes, 'template')) && $template !== '') {
+            unset($canonical['html'], $canonical['text'], $canonical['rendered_html']);
+            $canonical['template'] = $template;
+
+            if (($canonical['options']['subject_from_template'] ?? false) === true) {
+                unset($canonical['subject']);
+            }
+        }
+
         ksort($canonical);
 
         // Érvénytelen UTF-8 (latin-1 törzsű legacy integráció) esetén a `json_encode`
@@ -473,6 +503,12 @@ final class SendMessage
     /** Ismételt Idempotency-Key: az eredeti döntést tükrözzük vissza, új gate-futás nélkül. */
     private function replayDecision(Message $message): GateDecision
     {
+        // `queued`: a kapu-döntés MÉG NEM született meg (párhuzamos hívás fut) — a végeredmény lehet
+        // átmeneti elutasítás is, ezért NEM mondhatjuk 202-nek. Újrapróbálható IN_PROGRESS.
+        if ($message->status === 'queued') {
+            return GateDecision::rejected(GateReason::InProgress->value, []);
+        }
+
         return $message->status === 'rejected'
             ? GateDecision::rejected($message->reason, [])
             : GateDecision::allowed([]);

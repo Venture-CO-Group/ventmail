@@ -1,0 +1,40 @@
+{
+  "source": "tests/Vectors/generators/ingest_signature.py — RFC 4231 4.2/4.3, venture-security-events tests/Unit/SignatureTest.php",
+  "convention": "key = the issued secret string as UTF-8 text, never hex-decoded; header = sha256=<lower-case hex HMAC-SHA256 of the raw body>",
+  "hmac": [
+    {
+      "name": "RFC 4231 test case 1",
+      "key": "bytes 0x0b x 20",
+      "message": "Hi There",
+      "mac_hex": "b0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cff7"
+    },
+    {
+      "name": "RFC 4231 test case 2",
+      "key_text": "Jefe",
+      "message": "what do ya want for nothing?",
+      "mac_hex": "5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843"
+    }
+  ],
+  "headers": [
+    {
+      "name": "SDK fixed VSES body",
+      "key_text": "test-only-hmac-secret",
+      "body": "{\"events\":[{\"vses\":\"1.0\",\"event_id\":\"01J9Z6Q7Y3X5R0K8ZC4M2T1H6B\",\"action\":\"login.failed\"}]}",
+      "header": "sha256=6506e072b54a9566b1ba70708763b96a58ba45cfc75c9aaf47e936dd0d6b8a53"
+    },
+    {
+      "name": "SDK: 64-hex secret ('3f' x 32) used as text over the fixed SDK body",
+      "key": "hex text '3f' x 32",
+      "body": "{\"events\":[{\"vses\":\"1.0\",\"event_id\":\"01J9Z6Q7Y3X5R0K8ZC4M2T1H6B\",\"action\":\"login.failed\"}]}",
+      "header": "sha256=8dbfbd4be53402798da2a8ec1941dca4d8e368f4629c95a28197e14f6ceeca57",
+      "header_if_hex_decoded_wrongly": "sha256=76e15125bc563f26e67ab0b0eb8f7fbc66a1c89d63af02d93e6ba510bdd77d3a"
+    },
+    {
+      "name": "ventSec 64-hex secret used as text, UTF-8 body",
+      "key": "hex text of bytes 0x00..0x1f",
+      "body": "{\"events\":[{\"vses\":\"1.0\",\"event_id\":\"01J9Z6Q7Y3X5R0K8ZC4M2T0001\",\"occurred_at\":\"2026-09-28T09:14:03.412Z\",\"context\":{\"reason\":\"árvíztűrő\"}}]}",
+      "header": "sha256=fc2c76104cf6bee258e15bbd67a4918bc404e6e9a69cb82ca1aac6691d70a309",
+      "header_if_hex_decoded_wrongly": "sha256=522d2f9181480d0ab5d6d631a2abf673de9001f848e67d0c8cdb5f2e92e29462"
+    }
+  ]
+}

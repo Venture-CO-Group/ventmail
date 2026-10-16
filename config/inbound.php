@@ -135,6 +135,16 @@ return [
     // sajátunkként — a küldő által beírt `dkim=pass` hazugság.
     'authserv_id' => env('INBOUND_AUTHSERV_ID', 'mx.ventmail.app'),
 
+    /*
+     | A csatolmány-szkenner: `clamav` (alap, saját clamd) | `ventsec` (a ventSec Scan API-ja,
+     | fail-closed; a bekötés a config/ventsec.php-ban). Elgépelt érték hiba, nem csendes váltás.
+     */
+    'scanner' => env('INBOUND_SCANNER', 'clamav'),
+
+    // A csatolmány-ciklus TELJES szkennelési időkerete (másodperc): kimerülés után a hátralévő
+    // csatolmányok `unavailable`-ek (fail-closed) — a worker ne ragadjon sok lassú szkennelésen.
+    'scan_budget_seconds' => (int) env('INBOUND_SCAN_BUDGET_SECONDS', 120),
+
     'clamav' => [
         'dsn' => env('INBOUND_CLAMAV_DSN', 'tcp://clamav:3310'),
         'timeout' => (int) env('INBOUND_CLAMAV_TIMEOUT', 10),

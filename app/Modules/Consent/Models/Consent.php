@@ -24,7 +24,7 @@ final class Consent extends Model
 
     protected $fillable = [
         'email', 'channel', 'status', 'legal_basis', 'source', 'policy_version',
-        'confirmed_at', 'revoked_at',
+        'confirmed_at', 'revoked_at', 'ledger_receipt_id', 'ledger_receipt_at',
     ];
 
     /** Az audit-tábla sosem törölhető — érintetti e-mail-cím nem kerülhet bele. */
@@ -37,7 +37,7 @@ final class Consent extends Model
 
     protected function casts(): array
     {
-        return ['confirmed_at' => 'datetime', 'revoked_at' => 'datetime'];
+        return ['confirmed_at' => 'datetime', 'revoked_at' => 'datetime', 'ledger_receipt_at' => 'datetime'];
     }
 
     public function setEmailAttribute(?string $value): void

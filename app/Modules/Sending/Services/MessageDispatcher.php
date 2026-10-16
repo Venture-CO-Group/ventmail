@@ -17,6 +17,7 @@ use App\Modules\Sending\Contracts\SendingDriver;
 use App\Modules\Sending\Data\DispatchResult;
 use App\Modules\Sending\Data\DriverHealth;
 use App\Modules\Sending\Enums\Channel;
+use App\Modules\Sending\Gate\GateReason;
 use App\Modules\Sending\Models\Message;
 use App\Modules\Sending\Models\RawMimeMessage;
 use App\Modules\StoredTemplates\Services\TemplateRenderer;
@@ -123,7 +124,13 @@ final class MessageDispatcher
         // A KÜLDÉSI MÓD a küldés pillanatában is számít: ha a tulajdonos a gate-döntés óta
         // visszazárta (seed-mód, marketing ki), a sorban álló levél sem mehet ki.
         if (($restriction = $this->mode->restriction($message)) !== null) {
-            $message->forceFill(['status' => 'rejected', 'reason' => $restriction->value, 'render_variables' => null])->save();
+            $message->forceFill([
+                'status' => 'rejected',
+                'reason' => $restriction->value,
+                'render_variables' => null,
+                // Az ütemezett levél küldéskori ÁTMENETI elutasítása is felszabadítja a kulcsot (B2).
+                'idempotency_key' => GateReason::tryFrom($restriction->value)?->isTransient() === true ? null : $message->idempotency_key,
+            ])->save();
             $this->events($message, 'rejected', [], ['reason' => $restriction->value]);
 
             return;
@@ -382,7 +389,7 @@ final class MessageDispatcher
      */
     private function events(Message $message, string $type, array $rendered, array $payload = [], ?array $recipients = null): void
     {
-        $shared = collect($message->variables)->except('recipient-variables')->all();
+        $shared = $message->echoedVariables();
 
         // MINDEN címzett kap eseményt: egyetlen sor batch esetén 999 címzettről nem tudna
         // semmit az A3 trace és a kézbesítési statisztika.
@@ -477,6 +484,11 @@ final class MessageDispatcher
             }
 
             $rendered[$recipient] = [
+                // FO1: a sablonverzió tárgya — sima szöveg (nincs HTML-escape), egy sor. A
+                // kulcs csak sablon-tárgynál létezik; a hívó saját tárgyát nem renderelzük.
+                ...(($message->options['subject_from_template'] ?? false) === true && $message->subject !== null
+                    ? ['subject' => $this->renderSubject((string) $message->subject, $recipient, $recipientVariables, $shared, $reserved)]
+                    : []),
                 'html' => $recipientHtml,
                 'text' => $text === '' ? null : $this->renderer->renderForRecipient($text, $recipient, $recipientVariables, $shared, escape: false, reserved: $reserved, conditions: $studio),
                 'mime' => null,
@@ -484,6 +496,22 @@ final class MessageDispatcher
         }
 
         return $this->sign($message, $rendered);
+    }
+
+    /**
+     * A sablon-tárgy renderelése: ugyanaz a változó-szemantika és egyetlen pass, mint a
+     * törzsnél, de SIMA SZÖVEGKÉNT — a HTML-escape a tárgyban `&amp;`-ként látszana. A
+     * CR/LF-et kiszűrjük: a változó a hívótól jön, és egy sortörés fejléc-injekció lenne.
+     *
+     * @param  array<string, mixed>  $recipientVariables
+     * @param  array<string, mixed>  $shared
+     * @param  array<string, string>  $reserved
+     */
+    private function renderSubject(string $subject, string $recipient, array $recipientVariables, array $shared, array $reserved): string
+    {
+        $rendered = $this->renderer->renderForRecipient($subject, $recipient, $recipientVariables, $shared, escape: false, reserved: $reserved);
+
+        return SubjectSanitizer::clean($rendered);
     }
 
     /**

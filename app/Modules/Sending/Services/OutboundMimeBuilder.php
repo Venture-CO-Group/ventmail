@@ -43,14 +43,14 @@ final class OutboundMimeBuilder
         );
     }
 
-    /** @param array{html: ?string, text: ?string} $bodies */
+    /** @param array{html: ?string, text: ?string, subject?: ?string} $bodies */
     private function assemble(Message $message, string $recipient, array $bodies): Email
     {
         $email = new Email;
 
         $email->from($this->from($message))
             ->to($recipient)
-            ->subject((string) $message->subject);
+            ->subject((string) ($bodies['subject'] ?? $message->subject));
 
         if (($bodies['text'] ?? null) !== null) {
             $email->text((string) $bodies['text']);

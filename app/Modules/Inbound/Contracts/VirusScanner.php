@@ -16,5 +16,10 @@ use App\Modules\Inbound\Data\ScanResult;
  */
 interface VirusScanner
 {
-    public function scan(string $filename, string $contents): ScanResult;
+    /**
+     * @param  string|null  $reference  a csatolmány-PÉLDÁNY átlátszatlan azonosítója (levél-uuid + sorszám);
+     *                                  a szkenner idempotencia-kulcsához — a tartalom-hash nem jó kulcs
+     *                                  (elavult ítéletet játszana vissza)
+     */
+    public function scan(string $filename, string $contents, ?string $reference = null): ScanResult;
 }

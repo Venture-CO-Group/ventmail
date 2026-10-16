@@ -26,6 +26,7 @@ use App\Modules\Suppression\Providers\SuppressionServiceProvider;
 use App\Modules\Template\Providers\TemplateServiceProvider;
 use App\Modules\Tenancy\Providers\TenancyServiceProvider;
 use App\Modules\Validation\Providers\ValidationServiceProvider;
+use App\Modules\VentSec\Providers\VentSecServiceProvider;
 use App\Modules\Webhooks\Providers\WebhooksServiceProvider;
 use App\Providers\AppServiceProvider;
 use App\Providers\OutboundMailGuardServiceProvider;
@@ -68,6 +69,9 @@ return [
     JourneyServiceProvider::class,
     FormsServiceProvider::class,
     AnalyticsServiceProvider::class,
+
+    // ventSec-kötés (m2m token, ítélet-ellenőrzés, VSES események)
+    VentSecServiceProvider::class,
 
     // zárás
     BillingServiceProvider::class,

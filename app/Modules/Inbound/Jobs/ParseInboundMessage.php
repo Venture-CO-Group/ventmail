@@ -7,6 +7,7 @@ namespace App\Modules\Inbound\Jobs;
 use App\Modules\Inbound\Contracts\RawMailStore;
 use App\Modules\Inbound\Contracts\VirusScanner;
 use App\Modules\Inbound\Data\ParsedAttachment;
+use App\Modules\Inbound\Data\ScanResult;
 use App\Modules\Inbound\Models\InboundAttachment;
 use App\Modules\Inbound\Models\InboundMessage;
 use App\Modules\Inbound\Services\ArchiveInspector;
@@ -16,11 +17,13 @@ use App\Modules\Inbound\Services\RouteEngine;
 use App\Modules\Inbound\Services\StrippedTextExtractor;
 use App\Modules\Tenancy\Models\Workspace;
 use App\Modules\Tenancy\Services\WorkspaceContext;
+use App\Modules\VentSec\Contracts\VentSecEvents;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Throwable;
@@ -114,8 +117,10 @@ final class ParseInboundMessage implements ShouldQueue
                 'parsed_at' => now(),
             ])->save();
 
-            foreach ($parsed->attachments as $attachment) {
-                $this->storeAttachment($message, $attachment, $store, $scanner, $archives);
+            $scanDeadline = now()->addSeconds((int) config('inbound.scan_budget_seconds'));
+
+            foreach (array_values($parsed->attachments) as $index => $attachment) {
+                $this->storeAttachment($message, $attachment, $store, $scanner, $archives, $index, $scanDeadline);
             }
 
             // A ROUTE-MOTOR csak a sikeres parse után fut: a `match_header` a fejlécekre
@@ -143,6 +148,8 @@ final class ParseInboundMessage implements ShouldQueue
         RawMailStore $store,
         VirusScanner $scanner,
         ArchiveInspector $archives,
+        int $index = 0,
+        ?Carbon $scanDeadline = null,
     ): void {
         $row = InboundAttachment::query()->create([
             'inbound_message_id' => $message->getKey(),
@@ -172,12 +179,18 @@ final class ParseInboundMessage implements ShouldQueue
             return;
         }
 
-        $scan = $scanner->scan($attachment->filename, $attachment->contents);
+        // A TELJES szkennelési időkeret kimerült: a hátralévő csatolmány nem szkennelt → nem
+        // tölthető le (fail-closed), és a szkennert sem terheljük tovább.
+        $scan = $scanDeadline !== null && now()->greaterThan($scanDeadline)
+            ? ScanResult::unavailable('A szkennelési időkeret kimerült.')
+            : $scanner->scan($attachment->filename, $attachment->contents, $message->uuid.'-'.$index);
 
         // FERTŐZÖTT: a tartalom KARANTÉNBA megy (külön prefix), nem a letölthető helyre. A
         // törlés helyett a megőrzés a szándék: az ügyfélnek és a támogatásnak látnia kell,
         // mi érkezett — de letölteni nem lehet (`downloadable()`).
         $prefix = $scan->status === 'clean' ? 'attachments' : 'quarantine';
+
+        $this->emitVerdict($scan);
 
         $key = sprintf('inbound/%d/%s/%s', (int) $message->workspace_id, $prefix, (string) Str::uuid());
 
@@ -188,5 +201,26 @@ final class ParseInboundMessage implements ShouldQueue
             'scan_result' => $scan->status,
             'scan_detail' => $scan->detail,
         ])->save();
+    }
+
+    /**
+     * `inbound.attachment_verdict` a ventSec-nek (VSES): CSAK a bináris ítélet és a scan_id —
+     * fájlnév, tartalom, hash soha. A kibocsátás hibája nem érinti a feldolgozást.
+     */
+    private function emitVerdict(ScanResult $scan): void
+    {
+        try {
+            app(VentSecEvents::class)->emit(
+                'inbound.attachment_verdict',
+                match ($scan->status) {
+                    'clean' => 'success',
+                    'infected' => 'denied',
+                    default => 'unknown',
+                },
+                ['binary_verdict' => $scan->status, 'scan_id' => $scan->scanId],
+            );
+        } catch (Throwable $e) {
+            Log::warning('A ventSec-esemény kibocsátása nem sikerült.', ['action' => 'inbound.attachment_verdict', 'error' => $e::class]);
+        }
     }
 }

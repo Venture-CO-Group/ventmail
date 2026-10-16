@@ -75,7 +75,7 @@ final class SendCampaignChunk implements ShouldQueue
      *
      * @var list<string>
      */
-    private const TRANSIENT_REASONS = [GateReason::RateLimited->value, GateReason::GateError->value];
+    private const TRANSIENT_REASONS = [GateReason::RateLimited->value, GateReason::GateError->value, GateReason::InProgress->value];
 
     /** A visszaengedés késleltetése — a limit-ablaknál hosszabb, hogy ne pörögjön. */
     private const RETRY_DELAY = 60;
@@ -335,7 +335,10 @@ final class SendCampaignChunk implements ShouldQueue
          | sorszám a sor `skip_reason`-jében (`retry:N`) él, amíg a címzett `pending`.
          */
         $attempt = str_starts_with((string) $recipient->skip_reason, 'retry:') ? (int) substr((string) $recipient->skip_reason, 6) : 0;
-        $key = 'campaign:'.$campaign->uuid.':'.$recipient->email_hash.($attempt > 0 ? ':r'.$attempt : '');
+        // STABIL kulcs (kísérlet-szuffix nélkül): az átmeneti elutasítás a kulcsot a `SendMessage`-ben
+        // felszabadítja, a retry így ugyanazzal a kulccsal újra átmegy a kapun — az átfedő köteg viszont
+        // az elfogadott levélre replay-t kap, nem második levelet (security S1).
+        $key = 'campaign:'.$campaign->uuid.':'.$recipient->email_hash;
 
         try {
             $result = $send([

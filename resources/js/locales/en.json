@@ -1200,7 +1200,16 @@
         "tooLarge": "Comparison does not run above {lines} lines — download the versions through the API.",
         "activated": "The version is now live.",
         "skipped": "{count} unchanged lines skipped (lines {from}–{to})",
-        "identical": "The two versions are IDENTICAL — no differences."
+        "identical": "The two versions are IDENTICAL — no differences.",
+        "subject": "Subject",
+        "subjectNone": "no template subject",
+        "subjectHint": "Optional. Used when the send request has no subject; {example} placeholders are filled like in the body. Single line.",
+        "newVersion": "New version",
+        "newVersionNote": "An existing version cannot be changed — saving creates a new version.",
+        "body": "HTML body",
+        "bodyText": "Plain-text version (optional)",
+        "activateNow": "Make live right after saving",
+        "save": "Save new version"
     },
     "invitations": {
         "title": "Your invitations",

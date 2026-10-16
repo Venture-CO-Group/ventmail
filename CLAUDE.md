@@ -29,6 +29,7 @@ v1.1 óta még: ECharts (+ `vue-echarts`), `@vue-flow` (journey vászon), `opens
 **Platform:** Messages · Smtp · Inbound · Logs · Validation · Webhooks · Deliverability · StoredTemplates
 **Studio:** Audience · Consent · Template · Campaign · Journey · Forms · Analytics
 **Zárás:** Billing · SuperAdmin · Api
+**ventSec-kötés:** VentSec (m2m token a ventSSO-tól · ítélet-ellenőrzés · VSES események; a `VentSecScanner` az Inbound modulban)
 
 ## Felület (v1.1)
 - **Felső navigáció** (nem oldalsáv): Platform / Studio / Settings csoportok (disclosure minta, mobilon
@@ -50,7 +51,7 @@ v1.1 óta még: ECharts (+ `vue-echarts`), `@vue-flow` (journey vászon), `opens
 - **ventStudio:** közös block-tree JSON Schema; MJML a ventMail oldalán. **Landing page NEM itt** — ventStudio.
   *Kivétel (tulajdonosi döntés):* a ventMail saját, STATIKUS termékoldala az apexen (`ventmail.app`, Blade, `config('app.landing_host')`) itt él — ez NEM a landing-page-builder képesség, az marad a ventStudióé.
 - **ventSupport:** az inbound route `forward()`-olja neki az e-mail csatornát.
-- **ventSec:** csatolmány-szkennelés (ClamAV), később SIEM.
+- **ventSec:** csatolmány-szkennelés a Scan API-n (`INBOUND_SCANNER=clamav|ventsec`, alap `clamav` — fail-closed, Ed25519-ellenőrzött ítélet; a ClamAV a kivezetésig tartalék) + VSES biztonsági események/szívverés (`VENTSEC_EVENTS_ENABLED`, alap KI). Lásd `docs/plans/family-onboarding.md`.
 - **ventVault:** még nem él → import-feltöltés, sablon-képek (`AssetStore`), riport-PDF és logó
   (`ReportArtifactStore`) ideiglenesen a megosztott helyi volume-on (`// TODO ventVault`).
 

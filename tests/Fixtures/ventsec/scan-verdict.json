@@ -1,0 +1,138 @@
+{
+  "source": "tests/Vectors/generators/scan_verdict.py — RFC 8032 reference implementation (checked against RFC 8032 7.1 TEST 1), JCS via json.dumps(sort_keys)",
+  "convention": "message = 'ventsec.scan-verdict.v1\\n' || UTF-8(JCS(payload)); signature = Ed25519(seed, message); key_id = first 16 hex of SHA-256(public key); the API sends the signature base64url, unpadded",
+  "signed_fields": [
+    "scan_id",
+    "key_id",
+    "ref",
+    "requester",
+    "sha256",
+    "size",
+    "detected_type",
+    "verdict",
+    "binary_verdict",
+    "recommended_action",
+    "flagged",
+    "profile",
+    "steps",
+    "engine_versions",
+    "stale_signatures",
+    "scanned_at"
+  ],
+  "omit_when_null": [
+    "ref"
+  ],
+  "seed_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+  "public_key_hex": "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8",
+  "key_id": "56475aa75463474c",
+  "vectors": [
+    {
+      "name": "clean mail attachment with ref",
+      "payload": {
+        "scan_id": "01J9Z6Q7Y3X5R0K8ZC4M2T1H6B",
+        "key_id": "56475aa75463474c",
+        "ref": "att_01J9Z6Q7Y3X5R0K8ZC4M2T0001",
+        "requester": "ventmail",
+        "sha256": "275a021bbfb6489e54d471899f7db9d1663fc695ec2fe2a2c4538aabf651fd0f",
+        "size": 68,
+        "detected_type": "application/pdf",
+        "verdict": "clean",
+        "binary_verdict": "clean",
+        "recommended_action": "allow",
+        "flagged": false,
+        "profile": "mail-inbound",
+        "steps": [
+          {
+            "step": "filetype",
+            "result": "clean"
+          },
+          {
+            "step": "clamav",
+            "result": "clean"
+          }
+        ],
+        "engine_versions": {
+          "clamav": "1.4.3",
+          "daily": "28151",
+          "yara": "a3adad7444ae"
+        },
+        "stale_signatures": false,
+        "scanned_at": "2026-10-13T09:14:03.412Z"
+      },
+      "canonical": "{\"binary_verdict\":\"clean\",\"detected_type\":\"application/pdf\",\"engine_versions\":{\"clamav\":\"1.4.3\",\"daily\":\"28151\",\"yara\":\"a3adad7444ae\"},\"flagged\":false,\"key_id\":\"56475aa75463474c\",\"profile\":\"mail-inbound\",\"recommended_action\":\"allow\",\"ref\":\"att_01J9Z6Q7Y3X5R0K8ZC4M2T0001\",\"requester\":\"ventmail\",\"scan_id\":\"01J9Z6Q7Y3X5R0K8ZC4M2T1H6B\",\"scanned_at\":\"2026-10-13T09:14:03.412Z\",\"sha256\":\"275a021bbfb6489e54d471899f7db9d1663fc695ec2fe2a2c4538aabf651fd0f\",\"size\":68,\"stale_signatures\":false,\"steps\":[{\"result\":\"clean\",\"step\":\"filetype\"},{\"result\":\"clean\",\"step\":\"clamav\"}],\"verdict\":\"clean\"}",
+      "signature_hex": "64fafbe8b26b8845d8222287981016b2fabf81a8360d8d444adbfa558bd633ef1c186b0a71e16273618434d77bb2adad1eae6354b574eae6f33d047d4d2f4400"
+    },
+    {
+      "name": "infected asset, no ref, null daily",
+      "payload": {
+        "scan_id": "01J9Z6Q7Y3X5R0K8ZC4M2T1H6C",
+        "key_id": "56475aa75463474c",
+        "requester": "ventvault",
+        "sha256": "131f95c51cc819465fa1797f6ccacf9d494aaaff46fa3eac73ae63ffbdfd8267",
+        "size": 68,
+        "detected_type": "text/plain",
+        "verdict": "infected",
+        "binary_verdict": "infected",
+        "recommended_action": "reject",
+        "flagged": false,
+        "profile": "asset-publish",
+        "steps": [
+          {
+            "step": "filetype",
+            "result": "clean"
+          },
+          {
+            "step": "clamav",
+            "result": "infected",
+            "signature": "Eicar-Test-Signature"
+          }
+        ],
+        "engine_versions": {
+          "clamav": "1.4.3",
+          "daily": null,
+          "yara": "a3adad7444ae"
+        },
+        "stale_signatures": true,
+        "scanned_at": "2026-10-13T09:15:00.001Z"
+      },
+      "canonical": "{\"binary_verdict\":\"infected\",\"detected_type\":\"text/plain\",\"engine_versions\":{\"clamav\":\"1.4.3\",\"daily\":null,\"yara\":\"a3adad7444ae\"},\"flagged\":false,\"key_id\":\"56475aa75463474c\",\"profile\":\"asset-publish\",\"recommended_action\":\"reject\",\"requester\":\"ventvault\",\"scan_id\":\"01J9Z6Q7Y3X5R0K8ZC4M2T1H6C\",\"scanned_at\":\"2026-10-13T09:15:00.001Z\",\"sha256\":\"131f95c51cc819465fa1797f6ccacf9d494aaaff46fa3eac73ae63ffbdfd8267\",\"size\":68,\"stale_signatures\":true,\"steps\":[{\"result\":\"clean\",\"step\":\"filetype\"},{\"result\":\"infected\",\"signature\":\"Eicar-Test-Signature\",\"step\":\"clamav\"}],\"verdict\":\"infected\"}",
+      "signature_hex": "66ddbfb5b1aa2a5da278d8a632b3680340748a1fa3ea353a336bf349f576add3962a3a50991ca705dc1a549bde0fea3b1db1703f68101dfda596b91b6a404f04"
+    },
+    {
+      "name": "non-ASCII ref",
+      "payload": {
+        "scan_id": "01J9Z6Q7Y3X5R0K8ZC4M2T1H6D",
+        "key_id": "56475aa75463474c",
+        "ref": "árvíztűrő-éé",
+        "requester": "ventmail",
+        "sha256": "275a021bbfb6489e54d471899f7db9d1663fc695ec2fe2a2c4538aabf651fd0f",
+        "size": 68,
+        "detected_type": "application/pdf",
+        "verdict": "clean",
+        "binary_verdict": "clean",
+        "recommended_action": "allow",
+        "flagged": false,
+        "profile": "mail-inbound",
+        "steps": [
+          {
+            "step": "filetype",
+            "result": "clean"
+          },
+          {
+            "step": "clamav",
+            "result": "clean"
+          }
+        ],
+        "engine_versions": {
+          "clamav": "1.4.3",
+          "daily": "28151",
+          "yara": "a3adad7444ae"
+        },
+        "stale_signatures": false,
+        "scanned_at": "2026-10-13T09:14:03.412Z"
+      },
+      "canonical": "{\"binary_verdict\":\"clean\",\"detected_type\":\"application/pdf\",\"engine_versions\":{\"clamav\":\"1.4.3\",\"daily\":\"28151\",\"yara\":\"a3adad7444ae\"},\"flagged\":false,\"key_id\":\"56475aa75463474c\",\"profile\":\"mail-inbound\",\"recommended_action\":\"allow\",\"ref\":\"árvíztűrő-éé\",\"requester\":\"ventmail\",\"scan_id\":\"01J9Z6Q7Y3X5R0K8ZC4M2T1H6D\",\"scanned_at\":\"2026-10-13T09:14:03.412Z\",\"sha256\":\"275a021bbfb6489e54d471899f7db9d1663fc695ec2fe2a2c4538aabf651fd0f\",\"size\":68,\"stale_signatures\":false,\"steps\":[{\"result\":\"clean\",\"step\":\"filetype\"},{\"result\":\"clean\",\"step\":\"clamav\"}],\"verdict\":\"clean\"}",
+      "signature_hex": "96541d8a3e97f281fffee648deb0fbacfa78c87bc5c669366e10038bfb421a4e9ed993af4ceecd31841fd199d688b56a066f7c24004f3d4fd7a235573b65150d"
+    }
+  ]
+}

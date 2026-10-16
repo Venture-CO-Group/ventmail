@@ -1200,7 +1200,16 @@
         "tooLarge": "La comparación no se ejecuta por encima de {lines} líneas — descarga las versiones por la API.",
         "activated": "La versión ya está activa.",
         "skipped": "{count} líneas sin cambios omitidas (líneas {from}–{to})",
-        "identical": "Las dos versiones son IDÉNTICAS — no hay diferencias."
+        "identical": "Las dos versiones son IDÉNTICAS — no hay diferencias.",
+        "subject": "Asunto",
+        "subjectNone": "sin asunto de plantilla",
+        "subjectHint": "Opcional. Se usa si la solicitud de envío no trae asunto; los marcadores {example} se rellenan igual que en el cuerpo. Una sola línea.",
+        "newVersion": "Nueva versión",
+        "newVersionNote": "Una versión existente no se puede modificar — al guardar se crea una nueva versión.",
+        "body": "Cuerpo HTML",
+        "bodyText": "Versión de texto (opcional)",
+        "activateNow": "Activar justo después de guardar",
+        "save": "Guardar nueva versión"
     },
     "invitations": {
         "title": "Tus invitaciones",

@@ -1200,7 +1200,16 @@
         "tooLarge": "Az összehasonlítás {lines} sor fölött nem fut le — töltsd le a verziókat az API-ból.",
         "activated": "A verzió aktív lett.",
         "skipped": "{count} változatlan sor kihagyva ({from}–{to}. sor)",
-        "identical": "A két verzió tartalma AZONOS — nincs eltérés."
+        "identical": "A két verzió tartalma AZONOS — nincs eltérés.",
+        "subject": "Tárgy",
+        "subjectNone": "nincs sablon-tárgy",
+        "subjectHint": "Opcionális. Ha a küldési kérés nem ad tárgyat, ez megy; a {example} helyőrzők ugyanúgy töltődnek, mint a törzsben. Egy sor.",
+        "newVersion": "Új verzió",
+        "newVersionNote": "A meglévő verzió nem módosítható — a mentés új verziót hoz létre.",
+        "body": "HTML törzs",
+        "bodyText": "Szöveges változat (opcionális)",
+        "activateNow": "Mentés után azonnal élő",
+        "save": "Új verzió mentése"
     },
     "invitations": {
         "title": "Meghívóid",

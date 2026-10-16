@@ -304,3 +304,25 @@ it('többcímzettes üzenetnél egy címzett bounce-a nem jelöli bounced-nak az
 
     expect(Message::query()->withoutGlobalScopes()->find($this->message->id)->status)->toBe('sent');
 });
+
+it('a Postal-eseményekre a webhook megkapja az üzenet v: változóit (a hívó így korrelál)', function () {
+    $this->message->forceFill(['variables' => ['notification_id' => '01J0000000000000000000000A', 'recipient-variables' => ['x' => 1]]])->save();
+
+    postWebhook('transactional', postalBody('MessageSent', [
+        'message' => postalMessage(), 'status' => 'Sent', 'details' => 'ok',
+        'output' => '250 2.0.0 OK', 'sent_with_ssl' => true, 'timestamp' => microtime(true), 'time' => 0.2,
+    ]), $this->txPrivate)->assertNoContent();
+
+    postWebhook('transactional', postalBody('MessageBounced', [
+        'original_message' => postalMessage(),
+        'bounce' => postalMessage('bounce-tok') + ['direction' => 'incoming'],
+    ]), $this->txPrivate)->assertNoContent();
+
+    $events = MessageEvent::query()->withoutGlobalScopes()->where('message_uuid', $this->message->uuid)
+        ->whereIn('type', ['delivered', 'bounced'])->get();
+
+    expect($events)->toHaveCount(2);
+    foreach ($events as $event) {
+        expect($event->variables)->toBe(['notification_id' => '01J0000000000000000000000A']);
+    }
+});

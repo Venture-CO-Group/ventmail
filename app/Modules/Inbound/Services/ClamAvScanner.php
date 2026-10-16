@@ -17,7 +17,7 @@ use Throwable;
  */
 final class ClamAvScanner implements VirusScanner
 {
-    public function scan(string $filename, string $contents): ScanResult
+    public function scan(string $filename, string $contents, ?string $reference = null): ScanResult
     {
         $socket = @stream_socket_client(
             (string) config('inbound.clamav.dsn'),
