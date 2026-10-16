@@ -389,7 +389,7 @@ final class MessageDispatcher
      */
     private function events(Message $message, string $type, array $rendered, array $payload = [], ?array $recipients = null): void
     {
-        $shared = collect($message->variables)->except('recipient-variables')->all();
+        $shared = $message->echoedVariables();
 
         // MINDEN címzett kap eseményt: egyetlen sor batch esetén 999 címzettről nem tudna
         // semmit az A3 trace és a kézbesítési statisztika.

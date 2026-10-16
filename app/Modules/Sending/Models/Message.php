@@ -268,6 +268,19 @@ final class Message extends Model
     }
 
     /**
+     * A hívó `v:` változói, ahogy az eseményekben és a webhookban visszhangzanak.
+     *
+     * A címzettenkénti `recipient-variables` SOHA nem megy ki: batch-ben más címzett adatát
+     * is hordozza. Minden eseményíró ezt használja, hogy a szabály egy helyen éljen.
+     *
+     * @return array<string, mixed>
+     */
+    public function echoedVariables(): array
+    {
+        return collect((array) $this->variables)->except('recipient-variables')->all();
+    }
+
+    /**
      * A TÖRZSBE BEHELYETTESÍTHETŐ linkek erre a címzettre.
      *
      * Miért kell: a block editor `unsubscribe` blokkja `{{ unsubscribe_url }}`-t és

@@ -6,6 +6,7 @@ A részletes döntési nyomvonal: `docs/plans/v1.1.md` (D1–D300).
 ## [Unreleased]
 
 ### Added
+- **`unsubscribed` esemény + v: változók az eseményekben (FO18).** Az egykattintásos leiratkozás `unsubscribed` eseményt ír (üzenet + címzett párosonként egyszer, webhookra megy); a Postal `delivered`/`deferred` és a `bounced` esemény a hívó `v:` változóit is viszi (Mailgun-paritás, a kliens ebből korrelál).
 - **Family onboarding (FO1–FO13, `docs/plans/family-onboarding.md`).**
   - Tárolt sablonverzió **tárgya** (nullable `subject`): `ventmail:templates:import` olvassa a `<név>.subject` fájlt; ha a küldési kérés nem ad tárgyat, a sablon tárgya megy, `{{ var }}` helyőrzőkkel (sima szöveg, CR/LF nélkül, a törzsével azonos változó-szemantika); a kérés tárgya mindig nyer. A felületen a verziók tárgya látszik, és új verzió hozható létre tárggyal (7 nyelv). `/v1` változatlan.
   - **ventSec**: `VentSecScanner` (`INBOUND_SCANNER=clamav|ventsec`, alap `clamav`) — Ed25519-ellenőrzött, fail-closed ítélet (a ventSec független vektorán mérve), m2m token a ventSSO-tól, kulcs-cache + rotáció; VSES eseménykibocsátó (`VENTSEC_EVENTS_ENABLED=false` alapból), `ventsec:heartbeat` percenként, `inbound.attachment_verdict` és `smtp.auth_failed` események. Éles boot-guard hiányos konfigurációra.

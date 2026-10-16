@@ -219,7 +219,7 @@ final class TrackingController
                 'recipient' => $claim->recipient,
                 'channel' => $message->channel,
                 'tags' => $message->tags,
-                'variables' => collect($message->variables)->except('recipient-variables')->all(),
+                'variables' => $message->echoedVariables(),
                 // A KATTINTOTT CÍM nem kerül az eseménybe: a webhook harmadik félhez viszi
                 // ki, és egy link gyakran tokent vagy azonosítót hordoz.
                 'payload' => [],

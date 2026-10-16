@@ -156,6 +156,9 @@ final class PostalWebhookController
             'recipient' => $recipient,
             'channel' => $message->channel,
             'tags' => $message->tags,
+            // A hívó a saját `v:` változóival korrelál (Mailgun-paritás); a címzettenkénti
+            // `recipient-variables` nem megy ki, az másik címzett adata is lehet.
+            'variables' => $message->echoedVariables(),
             'payload' => ['source' => 'postal', ...$payload],
         ]);
     }

@@ -151,6 +151,14 @@ leiratkozás kulcsa tartalmazza az üzenet-uuid-t ÉS a consent állapot-verzió
 withdraw → re-optin → withdraw ugyanabból a régi levélből új kulcsot kap, a levélkliens újrapróbálása azonosat. A 409 külön
 `consent.ledger.idempotency_conflict` WARNING (PII nélkül). A nyugta-írás `lockForUpdate`-tel.
 
+**FO18 — Leiratkozás és bounce eseményként, a hívó változóival.** Az egykattintásos leiratkozás eddig csak suppressiont írt:
+a deklarált `unsubscribed` esemény (OpenAPI, webhook-típusok) soha nem keletkezett, így a webhook-előfizető (a Vemoa ebből
+állítja le a WhatsApp-marketinget is) nem tudott róla. Most üzenet + címzett párosonként EGY `unsubscribed` esemény íródik
+(a Gmail one-click újrapróbálása nem duplikál), a normál webhook-úton. A Postal-eredetű `delivered`/`deferred` és a
+`bounced` esemény sem vitte a hívó `v:` változóit, így a kliens nem tudott korrelálni (a Vemoa `v:notification_id`-vel
+dolgozik). Minden eseményíró a `Message::echoedVariables()`-t használja (a `recipient-variables` soha nem megy ki).
+Megjegyzés: a Postal nem küld panasz- (FBL) eseményt, így `complained` jelenleg nem keletkezik.
+
 **FO13 — Konfig.** Minden kulcs `config/*.php`-ban (`env()` csak ott), `.env.example` és `deploy/init-env.sh` üres/`false`/`fake`
 alapértékkel; a titkok (`VENTSEC_CLIENT_SECRET`, `VENTSEC_INGEST_SECRET`, `CONSENT_LEDGER_TOKEN`, `CONSENT_LEDGER_SUBJECT_KEY`)
 `set-env.sh`-val érkeznek.

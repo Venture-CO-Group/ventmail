@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Suppression\Http\Controllers;
 
 use App\Modules\Consent\Services\ConsentLedgerReporter;
+use App\Modules\Events\Models\MessageEvent;
 use App\Modules\Sending\Models\Message;
 use App\Modules\Sending\Services\DomainNormalizer;
 use App\Modules\Suppression\Services\SuppressionStore;
@@ -101,6 +102,47 @@ final class UnsubscribeController
         return in_array(DomainNormalizer::listKey($claim['recipient']), $recipients, true);
     }
 
+    /**
+     * `unsubscribed` ESEMÉNY az üzenetre — a webhook-előfizető (pl. a Vemoa, ami ebből állítja
+     * le a WhatsApp-marketinget is) enélkül nem tudna a leiratkozásról. Mailgun-paritás.
+     *
+     * Üzenet + címzett párosonként EGYSZER: a Gmail a one-click POST-ot újrapróbálja, és
+     * minden ismétlés egy újabb kimenő webhook lenne. Az esemény a hívó `v:` változóit viszi
+     * (korreláció), a kattintás körülményeit (IP, UA) nem.
+     *
+     * @param  array{workspaceId: int, messageUuid: string, recipient: string}  $claim
+     */
+    private function recordEvent(array $claim): void
+    {
+        $recipient = DomainNormalizer::listKey((string) $claim['recipient']);
+
+        $message = Message::query()->where('uuid', $claim['messageUuid'])->first();
+
+        if ($message === null) {
+            return;
+        }
+
+        $already = MessageEvent::query()
+            ->where('message_uuid', $message->uuid)
+            ->where('type', 'unsubscribed')
+            ->where('recipient', $recipient)
+            ->exists();
+
+        if ($already) {
+            return;
+        }
+
+        MessageEvent::create([
+            'message_uuid' => $message->uuid,
+            'type' => 'unsubscribed',
+            'recipient' => $recipient,
+            'channel' => $message->channel,
+            'tags' => $message->tags,
+            'variables' => $message->echoedVariables(),
+            'payload' => [],
+        ]);
+    }
+
     private function suppress(string $token, WorkspaceContext $context): bool
     {
         $claim = $this->tokens->parse($token);
@@ -153,6 +195,8 @@ final class UnsubscribeController
                 (string) $claim['recipient'],
                 detail: 'message:'.$claim['messageUuid'],
             );
+
+            $this->recordEvent($claim);
 
             // FO3: a leiratkozás a consent VISSZAVONÁSA — a ventCookie főkönyvbe is bizonyíték.
             // A helyi consent-sort nem érinti (a suppression a hivatalos tiltás), és a főkönyv

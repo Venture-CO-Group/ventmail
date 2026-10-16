@@ -81,6 +81,7 @@ final class RecordDeliveryOutcome
             'channel' => $message->channel,
             'reason' => $class->value,
             'tags' => $message->tags,
+            'variables' => $message->echoedVariables(),
             // A fogadó szövege NEM megy az eseménybe: az A3 webhook harmadik félnek küldi
             // ki, és a bounce-szöveg gyakran az eredeti tárgyat is tartalmazza.
             'payload' => ['code' => $code, 'enhanced_code' => $enhanced, 'classification' => $class->value],
