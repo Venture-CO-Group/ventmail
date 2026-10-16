@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { router } from '@inertiajs/vue3';
-import { VtBadge, VtButton, type VtColumn } from '@venture/ui';
+import { VtBadge, VtButton, type VtColumn } from '@venture-co-group/ui';
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import VmCard from '../../Components/Form/VmCard.vue';
@@ -73,23 +73,22 @@ const rows = computed<Row[]>(() =>
     <AppLayout>
         <header class="vm-contact-head">
             <div>
-                <h1 class="vt-text-display vm-wrap" data-testid="contact-email">{{ contact.email }}</h1>
+                <h1 class="vt-num vm-wrap" data-testid="contact-email">{{ contact.email }}</h1>
                 <p class="vm-contact-name">{{ fullName }}</p>
             </div>
             <VtButton variant="ghost" @click="router.visit('/audience')">{{ t('audience.contact.back') }}</VtButton>
         </header>
 
-        <VmCard>
-            <h2>{{ t('audience.contact.fields') }}</h2>
+        <VmCard :title="t('audience.contact.fields')">
             <dl class="vm-contact-facts" data-testid="contact-fields">
                 <dt>{{ t('audience.status') }}</dt>
                 <dd><VtBadge :tone="contact.status === 'subscribed' ? 'success' : 'warning'" data-testid="contact-status" :data-status="contact.status">{{ code('contactStatus', contact.status) }}</VtBadge></dd>
                 <dt>{{ t('audience.validation') }}</dt>
                 <dd>{{ contact.validation ?? '—' }}</dd>
                 <dt>{{ t('audience.contact.subscribedAt') }}</dt>
-                <dd class="vt-text-mono">{{ fmt(contact.subscribedAt) }}</dd>
+                <dd class="vt-mono">{{ fmt(contact.subscribedAt) }}</dd>
                 <dt>{{ t('audience.contact.createdAt') }}</dt>
-                <dd class="vt-text-mono">{{ fmt(contact.createdAt) }}</dd>
+                <dd class="vt-mono">{{ fmt(contact.createdAt) }}</dd>
                 <template v-for="attribute in contact.attributes" :key="attribute.key">
                     <dt>{{ attribute.label }}</dt>
                     <dd class="vm-wrap">{{ attribute.value }}</dd>
@@ -97,8 +96,7 @@ const rows = computed<Row[]>(() =>
             </dl>
         </VmCard>
 
-        <VmCard>
-            <h2>{{ t('audience.contact.listsAndTags') }}</h2>
+        <VmCard :title="t('audience.contact.listsAndTags')">
             <p v-if="!lists.length && !tags.length" class="vm-contact-muted">{{ t('audience.contact.none') }}</p>
             <div class="vm-contact-chips" data-testid="contact-lists">
                 <VtBadge v-for="list in lists" :key="list.uuid" tone="accent">{{ list.name }} · {{ code('contactStatus', list.status) }}</VtBadge>
@@ -106,8 +104,7 @@ const rows = computed<Row[]>(() =>
             </div>
         </VmCard>
 
-        <VmCard>
-            <h2>{{ t('audience.contact.consent') }}</h2>
+        <VmCard :title="t('audience.contact.consent')">
             <p v-if="!consent" class="vm-contact-muted">{{ t('audience.contact.noConsent') }}</p>
             <dl v-else class="vm-contact-facts" data-testid="contact-consent">
                 <dt>{{ t('audience.status') }}</dt>
@@ -143,7 +140,7 @@ h3 {
 
 .vm-contact-name,
 .vm-contact-muted {
-    color: var(--vt-text-muted);
+    color: var(--vt-text-secondary);
 }
 
 .vm-contact-facts {
@@ -154,7 +151,7 @@ h3 {
 }
 
 .vm-contact-facts dt {
-    color: var(--vt-text-muted);
+    color: var(--vt-text-secondary);
 }
 
 .vm-contact-facts dd {

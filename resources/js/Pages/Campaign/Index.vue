@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Head, Link, router } from '@inertiajs/vue3';
-import { VtButton, VtField, VtInput, type VtColumn } from '@venture/ui';
+import { VtButton, VtChip, VtEmptyState, VtField, VtInput, VtPageHeader, type VtColumn } from '@venture-co-group/ui';
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import VmCard from '../../Components/Form/VmCard.vue';
@@ -10,7 +10,6 @@ import VmFormRow from '../../Components/Form/VmFormRow.vue';
 import VmFormSection from '../../Components/Form/VmFormSection.vue';
 import VmTable from '../../Components/Form/VmTable.vue';
 import VmIcon from '../../Components/Shell/VmIcon.vue';
-import VmPageHeader from '../../Components/Studio/VmPageHeader.vue';
 import VmStatusBadge from '../../Components/Studio/VmStatusBadge.vue';
 import AppLayout from '../../Layouts/AppLayout.vue';
 import { useFormat } from '../../composables/useFormat';
@@ -112,13 +111,13 @@ function create(): void {
     <Head :title="t('campaigns.title')" />
 
     <AppLayout>
-        <VmPageHeader :eyebrow="t('campaigns.eyebrow')" :title="t('campaigns.title')" :lead="t('campaigns.lead')">
-            <VtButton glow data-testid="campaign-new" @click="creating = !creating"><VmIcon name="plus" /> {{ t('campaigns.new') }}</VtButton>
-        </VmPageHeader>
+        <VtPageHeader :overline="t('nav.studio')" :title="t('campaigns.title')" :description="t('page.campaigns.lead')">
+            <template #actions>
+                <VtButton data-testid="campaign-new" @click="creating = !creating"><VmIcon name="plus" /> {{ t('campaigns.new') }}</VtButton>
+            </template>
+        </VtPageHeader>
 
-        <VmCard v-if="creating || !campaigns.length">
-            <h2>{{ t('campaigns.new') }}</h2>
-
+        <VmCard v-if="creating || !campaigns.length" :title="t('campaigns.new')">
             <VmForm @submit.prevent="create">
                 <VmFormSection>
                     <VmFormRow>
@@ -140,30 +139,31 @@ function create(): void {
             </VmForm>
         </VmCard>
 
-        <VmCard>
-            <div class="vm-camp-tools">
-                <h2>{{ t('campaigns.list') }}</h2>
-                <div class="vm-camp-filters" role="group" :aria-label="t('campaigns.filterLabel')">
-                    <button
-                        v-for="status in FILTERS"
-                        :key="status"
-                        type="button"
-                        class="vm-camp-filter"
-                        :aria-pressed="filters.status === status"
-                        :data-testid="`campaign-filter-${status}`"
-                        @click="filter(status)"
-                    >
-                        {{ t(`campaigns.filter.${status}`) }}
-                    </button>
-                </div>
-                <form class="vm-camp-search" role="search" @submit.prevent="applySearch">
-                    <label class="vm-visually-hidden" for="campaign-search-input">{{ t('campaigns.search') }}</label>
-                    <VtInput id="campaign-search-input" v-model="search" :placeholder="t('campaigns.search')" data-testid="campaign-search" />
-                    <VtButton type="submit" variant="ghost" data-testid="campaign-search-submit"><VmIcon name="search" /></VtButton>
-                </form>
-            </div>
+        <!-- A SZŰRŐSOR (Figma Campaigns): állapot-chipek · köz · kereső. -->
+        <div class="vm-camp-filters" role="group" :aria-label="t('campaigns.filterLabel')">
+            <VtChip
+                v-for="status in FILTERS"
+                :key="status"
+                :selected="filters.status === status"
+                :data-testid="`campaign-filter-${status}`"
+                @update:selected="() => filter(status)"
+            >
+                {{ t(`campaigns.filter.${status}`) }}
+            </VtChip>
+            <form class="vm-camp-search" role="search" @submit.prevent="applySearch">
+                <VtInput v-model="search" type="search" icon="search" :placeholder="t('campaigns.search')" :aria-label="t('campaigns.search')" data-testid="campaign-search" />
+                <button type="submit" class="vm-visually-hidden" data-testid="campaign-search-submit">{{ t('campaigns.search') }}</button>
+            </form>
+        </div>
 
-            <p v-if="!rows.length" data-testid="campaigns-empty">{{ filters.status === 'all' && !filters.search ? t('campaigns.empty') : t('campaigns.noMatch') }}</p>
+        <VmCard :flush="rows.length > 0" data-testid="campaigns-card">
+
+            <VtEmptyState
+                v-if="!rows.length"
+                :title="filters.status === 'all' && !filters.search ? t('campaigns.empty') : t('campaigns.noMatch')"
+                icon="send"
+                data-testid="campaigns-empty"
+            />
             <VmTable v-else :columns="columns" :rows="rows" :caption="t('campaigns.list')" data-testid="campaigns-table">
                 <template #cell="{ column, row, value }">
                     <span v-if="column.key === 'name'" class="vm-camp-name">
@@ -186,62 +186,33 @@ function create(): void {
                 </template>
             </VmTable>
 
-            <nav v-if="pagination.last > 1" class="vm-camp-pages" :aria-label="t('campaigns.pages')">
-                <span>{{ t('campaigns.page', { current: pagination.current, last: pagination.last, total: pagination.total }) }}</span>
-                <VtButton variant="ghost" size="sm" :disabled="!pagination.prev" data-testid="campaign-prev" @click="pagination.prev && router.visit(pagination.prev)">‹</VtButton>
-                <VtButton variant="ghost" size="sm" :disabled="!pagination.next" data-testid="campaign-next" @click="pagination.next && router.visit(pagination.next)">›</VtButton>
-            </nav>
+            <template v-if="pagination.last > 1" #footer>
+                <nav class="vm-camp-pages" :aria-label="t('campaigns.pages')">
+                    <span>{{ t('campaigns.page', { current: pagination.current, last: pagination.last, total: pagination.total }) }}</span>
+                    <VtButton variant="ghost" size="sm" :disabled="!pagination.prev" data-testid="campaign-prev" @click="pagination.prev && router.visit(pagination.prev)">‹</VtButton>
+                    <VtButton variant="ghost" size="sm" :disabled="!pagination.next" data-testid="campaign-next" @click="pagination.next && router.visit(pagination.next)">›</VtButton>
+                </nav>
+            </template>
         </VmCard>
     </AppLayout>
 </template>
 
 <style scoped>
-.vm-camp-tools {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--vt-space-3);
-}
-
-.vm-camp-tools h2 {
-    margin: 0;
-}
-
 .vm-camp-filters {
     display: flex;
     flex-wrap: wrap;
-    gap: var(--vt-space-1);
-    padding: var(--vt-space-1);
-    border: thin solid var(--vt-border);
-    border-radius: var(--vt-radius-md);
-}
-
-.vm-camp-filter {
-    padding: var(--vt-space-1) var(--vt-space-3);
-    border: 0;
-    border-radius: var(--vt-radius-sm);
-    background: transparent;
-    color: var(--vt-text-muted);
-    font: inherit;
-    font-size: var(--vt-fs-body-sm);
-    cursor: pointer;
-}
-
-.vm-camp-filter[aria-pressed='true'] {
-    background-color: var(--vt-surface-2);
-    color: var(--vt-text);
-}
-
-.vm-camp-filter:focus-visible {
-    outline: none;
-    box-shadow: var(--vt-ring);
+    align-items: center;
+    gap: var(--vt-space-2);
 }
 
 .vm-camp-search {
-    display: flex;
-    gap: var(--vt-space-2);
-    min-width: 0;
+    margin-inline-start: auto;
+    inline-size: calc(var(--vt-space-12) * 6 - var(--vt-space-6));
+    max-inline-size: 100%;
+}
+
+.vm-camp-search > .vt-input {
+    inline-size: 100%;
 }
 
 .vm-camp-name {
@@ -252,7 +223,7 @@ function create(): void {
 }
 
 .vm-camp-name small {
-    color: var(--vt-text-subtle);
+    color: var(--vt-text-tertiary);
 }
 
 .vm-camp-status {
@@ -263,10 +234,10 @@ function create(): void {
 
 .vm-camp-progress {
     display: block;
-    inline-size: calc(var(--vt-space-24) + var(--vt-space-4));
+    inline-size: calc(calc(var(--vt-space-12) * 2) + var(--vt-space-4));
     block-size: var(--vt-space-1);
     border-radius: var(--vt-radius-full);
-    background-color: var(--vt-glass-thin-fill);
+    background-color: var(--vt-surface-2);
     overflow: hidden;
 }
 
@@ -281,7 +252,7 @@ function create(): void {
     align-items: center;
     justify-content: flex-end;
     gap: var(--vt-space-2);
-    color: var(--vt-text-muted);
-    font-size: var(--vt-fs-body-sm);
+    color: var(--vt-text-secondary);
+    font-size: var(--vt-type-body-m-size);
 }
 </style>

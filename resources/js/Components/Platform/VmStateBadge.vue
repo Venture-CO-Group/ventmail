@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { VtBadge, type VtBadgeTone } from '@venture/ui';
+import { VtBadge, type VtBadgeTone } from '@venture-co-group/ui';
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 
@@ -24,7 +24,7 @@ const TONES: Record<string, VtBadgeTone> = {
     rotating: 'info',
     pending: 'warning',
     propagating: 'warning',
-    test: 'accent-2',
+    test: 'neutral',
     deferred: 'warning',
     failed: 'danger',
     rejected: 'danger',
@@ -46,7 +46,7 @@ const label = computed(() => (te(`plat.state.${props.state}`) ? t(`plat.state.${
 
 <template>
     <span class="vm-state" :data-state="state" :data-testid="testid">
-        <VtBadge :tone="tone" size="sm">{{ label }}</VtBadge>
+        <VtBadge :tone="tone">{{ label }}</VtBadge>
     </span>
 </template>
 

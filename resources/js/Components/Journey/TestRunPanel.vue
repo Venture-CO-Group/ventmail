@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { VtButton } from '@venture/ui';
+import { VtBanner, VtButton } from '@venture-co-group/ui';
 import { useI18n } from 'vue-i18n';
 import VmIcon from '../Shell/VmIcon.vue';
 import { formatMinutes, type TestRunResult } from './catalog';
@@ -25,9 +25,9 @@ const { t } = useI18n();
 
         <p class="vm-jtest__note">{{ t('journeyCanvas.test.note', { contact: result.contact }) }}</p>
 
-        <p v-if="result.stopped" class="vm-banner vm-banner--warning" role="status" data-testid="test-run-stopped">
+        <VtBanner v-if="result.stopped" tone="warning" role="status" data-testid="test-run-stopped">
             {{ t(`journeyCanvas.test.stopped.${result.stopped}`) }}
-        </p>
+        </VtBanner>
 
         <ol class="vm-jtest__steps">
             <li v-for="(step, index) in result.steps" :key="index" class="vm-jtest__step" :class="`vm-jtest__step--${step.outcome}`" :data-testid="`test-step-${index}`" :data-outcome="step.outcome">

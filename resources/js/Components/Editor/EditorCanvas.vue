@@ -168,8 +168,7 @@ function sectionStyle(section: Block): Record<string, string | undefined> {
 
             <section
                 class="vm-ed-section"
-                :class="{
-                    'vm-ed-section--selected': selection?.kind === 'section' && selection.s === s,
+                :class="{ 'vm-ed-section--selected': selection?.kind === 'section' && selection.s === s,
                     'vm-ed-hide-mobile': section.attrs?.hide_on_mobile === true,
                 }"
                 :style="sectionStyle(section)"

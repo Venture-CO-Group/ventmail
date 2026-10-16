@@ -11,7 +11,7 @@ import VmChart from './VmChart.vue';
 export interface VmChartSeries {
     name: string;
     data: number[];
-    /** A szín token NEVE, pl. `--vt-color-accent-500`. */
+    /** A szín token NEVE, pl. `--vt-accent`. */
     token: string;
     area?: boolean;
 }
@@ -34,7 +34,7 @@ const inner = ref<InstanceType<typeof VmChart> | null>(null);
 const format = useFormat();
 
 function build(token: TokenResolver): Record<string, unknown> {
-    const text = token('--vt-text-muted');
+    const text = token('--vt-text-secondary');
     const grid = token('--vt-border');
     const formatter = (value: number): string => (props.percent ? format.percent(value, 2) : format.number(value, { maximumFractionDigits: 2 }));
 

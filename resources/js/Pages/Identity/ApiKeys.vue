@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { router, usePage } from '@inertiajs/vue3';
-import { VtButton, VtCheckbox, VtField, VtInput, VtModal, VtTextarea, type VtColumn } from '@venture/ui';
+import { VtButton, VtCheckbox, VtEmptyState, VtField, VtInput, VtModal, VtPageHeader, VtTextarea, type VtColumn } from '@venture-co-group/ui';
 import { computed, ref, type Ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import VmCard from '../../Components/Form/VmCard.vue';
@@ -11,7 +11,6 @@ import VmFormSection from '../../Components/Form/VmFormSection.vue';
 import VmTable from '../../Components/Form/VmTable.vue';
 import VmSecretReveal from '../../Components/Platform/VmSecretReveal.vue';
 import VmStateBadge from '../../Components/Platform/VmStateBadge.vue';
-import VmPageHeader from '../../Components/Studio/VmPageHeader.vue';
 import AppLayout from '../../Layouts/AppLayout.vue';
 import { useFormat } from '../../composables/useFormat';
 
@@ -144,9 +143,11 @@ function revoke(): void {
 
 <template>
     <AppLayout>
-        <VmPageHeader :eyebrow="t('plat.eyebrow.apiKeys')" :title="t('apiKeys.title')" :lead="t('plat.keys.lead')">
-            <VtButton data-testid="key-new" @click="creating = true">{{ t('apiKeys.new') }}</VtButton>
-        </VmPageHeader>
+        <VtPageHeader :overline="t('nav.platform')" :title="t('apiKeys.title')" :description="t('page.apiKeys.lead')">
+            <template #actions>
+                <VtButton data-testid="key-new" @click="creating = true">{{ t('apiKeys.new') }}</VtButton>
+            </template>
+        </VtPageHeader>
 
         <!-- EGYSZER látszik. A szöveg ezt ki is mondja: aki elveszíti, újat állít ki. -->
         <VmSecretReveal
@@ -158,7 +159,7 @@ function revoke(): void {
         />
 
         <VmCard>
-            <p v-if="!rows.length" data-testid="keys-empty">{{ t('apiKeys.empty') }}</p>
+            <VtEmptyState v-if="!rows.length" :title="t('apiKeys.empty')" icon="inbox" data-testid="keys-empty" />
             <VmTable v-else :columns="columns" :rows="rows" :caption="t('apiKeys.existing')" data-testid="keys-table">
                 <template #cell="{ row, column, value }">
                     <span v-if="column.key === 'state'" class="vm-cluster vm-nowrap">
@@ -247,7 +248,7 @@ function revoke(): void {
 <style scoped>
 .vm-scope-cards {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(var(--vt-space-32) * 2)), 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(calc(var(--vt-space-8) * 4) * 2)), 1fr));
     gap: var(--vt-space-4);
 }
 
@@ -257,9 +258,9 @@ function revoke(): void {
 
 .vm-eyebrow {
     margin: 0;
-    color: var(--vt-text-muted);
-    font-size: var(--vt-fs-caption);
-    letter-spacing: var(--vt-tracking-wider);
+    color: var(--vt-text-secondary);
+    font-size: var(--vt-type-caption-size);
+    letter-spacing: var(--vt-type-overline-tracking);
     text-transform: uppercase;
 }
 </style>

@@ -14,6 +14,8 @@ test('a betűk a saját originről töltődnek, és nincs kérés Google felé',
     page.on('request', (request) => requests.push(request.url()));
 
     await page.goto('/');
+    // Az Inertia-felület a JS után csatolódik: előtte a `fonts.ready` üres listával teljesülne.
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
     await page.evaluate(() => document.fonts.ready);
 
     // A tényleg betöltött arcok (nem csak a deklaráltak): a belépő Inter + Space Grotesk-et használ.

@@ -22,8 +22,8 @@ const format = useFormat();
 const size = computed(() => (props.rows.length > 8 ? 'lg' : 'md'));
 
 function build(token: TokenResolver): Record<string, unknown> {
-    const text = token('--vt-text');
-    const muted = token('--vt-text-muted');
+    const text = token('--vt-text-primary');
+    const muted = token('--vt-text-secondary');
     const grid = token('--vt-border');
     const rows = [...props.rows].reverse();
 
@@ -37,7 +37,7 @@ function build(token: TokenResolver): Record<string, unknown> {
                 type: 'bar',
                 barMaxWidth: 16,
                 data: rows.map((row) => row.value),
-                itemStyle: { color: token('--vt-color-accent-500') || undefined, borderRadius: 4 },
+                itemStyle: { color: token('--vt-accent') || undefined, borderRadius: 4 },
                 label: { show: true, position: 'right', color: muted, formatter: (params: { dataIndex: number }) => rows[params.dataIndex]?.note ?? '' },
             },
         ],

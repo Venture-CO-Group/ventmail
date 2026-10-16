@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { VtButton, VtField, VtInput, VtModal } from '@venture/ui';
+import { VtButton, VtField, VtInput, VtModal } from '@venture-co-group/ui';
 import { ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import VmForm from '../Form/VmForm.vue';

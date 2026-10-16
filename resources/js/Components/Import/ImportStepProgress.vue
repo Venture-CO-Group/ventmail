@@ -68,7 +68,7 @@ const steps = computed(() => [
             </div>
             <div>
                 <dt>{{ t('audience.import.fact.job') }}</dt>
-                <dd class="vt-text-mono">IMP-{{ state.uuid.slice(0, 8) }}</dd>
+                <dd class="vt-mono">IMP-{{ state.uuid.slice(0, 8) }}</dd>
             </div>
             <div>
                 <dt>{{ t('audience.import.fact.memory') }}</dt>
@@ -99,7 +99,7 @@ p {
 }
 
 .vt-text-muted {
-    color: var(--vt-text-muted);
+    color: var(--vt-text-secondary);
 }
 
 .vm-import-counter {
@@ -112,19 +112,20 @@ p {
 
 .vm-import-counter__value {
     font-family: var(--vt-font-display);
-    font-size: var(--vt-fs-h4);
+    font-size: var(--vt-type-display-m-size);
+    line-height: var(--vt-type-display-m-line-height);
 }
 
 .vm-import-facts {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(var(--vt-space-24) * 2)), 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(calc(var(--vt-space-12) * 2) * 2)), 1fr));
     gap: var(--vt-space-4);
     margin: 0;
 }
 
 .vm-import-facts dt {
-    font-size: var(--vt-fs-caption);
-    color: var(--vt-text-muted);
+    font-size: var(--vt-type-caption-size);
+    color: var(--vt-text-secondary);
 }
 
 .vm-import-facts dd {
@@ -146,14 +147,14 @@ p {
 .vm-import-phases li {
     display: flex;
     gap: var(--vt-space-3);
-    color: var(--vt-text-muted);
+    color: var(--vt-text-secondary);
 }
 
 .vm-import-phases li.is-done {
-    color: var(--vt-color-success);
+    color: var(--vt-status-success);
 }
 
 .vm-import-phases li.is-active {
-    color: var(--vt-text);
+    color: var(--vt-text-primary);
 }
 </style>

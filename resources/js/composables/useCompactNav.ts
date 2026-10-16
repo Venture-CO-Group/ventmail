@@ -5,7 +5,7 @@ import { onBeforeUnmount, onMounted, ref, type Ref } from 'vue';
  *
  * A CSS media query nem tud `var()`-t olvasni, a design-rendszernek pedig nincs
  * töréspont-tokenje; nyers hossz beégetése viszont tilos. A küszöb ezért a spacing-
- * tokenből SZÁMOLT érték (`calc(var(--vt-space-32) * 6)`), amit egy rejtett próba-elem
+ * tokenből SZÁMOLT érték (`calc(calc(var(--vt-space-8) * 4) * 6)`), amit egy rejtett próba-elem
  * méretéből olvasunk ki: ez a böngészőben tablet-szélesség, és a token skálájával együtt
  * mozog.
  *
@@ -25,7 +25,7 @@ export function useCompactNav(): Ref<boolean> {
         probe.style.position = 'absolute';
         probe.style.visibility = 'hidden';
         probe.style.pointerEvents = 'none';
-        probe.style.inlineSize = `calc(var(--vt-space-32) * ${BREAKPOINT_FACTOR})`;
+        probe.style.inlineSize = `calc(calc(var(--vt-space-8) * 4) * ${BREAKPOINT_FACTOR})`;
         document.body.appendChild(probe);
 
         const width = probe.getBoundingClientRect().width;

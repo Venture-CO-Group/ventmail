@@ -2,23 +2,23 @@
  | GRAFIKON-TÉMA (v1.1 · 8. modul) — a Venture palettája TOKENBŐL, a PNG-export segédei.
  |
  | A canvas CSS-változót nem ért: a token ÉRTÉKÉT a mount után a dokumentum számított stílusából
- | olvassuk. A sötét export-háttér a `--vt-bg` a SÖTÉT témában (egy ideiglenes, `data-theme="dark"`
+ | olvassuk. A sötét export-háttér a `--vt-bg-base` a SÖTÉT témában (egy ideiglenes, `data-theme="dark"`
  | elemről mérve) — nem beégetett szín, és világos felületen is sötét PNG-t ad.
  */
 
 /** A kategória-sorozatok palettája (a Venture tokenek NEVEI, sorrendben). */
 export const CATEGORY_TOKENS = [
-    '--vt-color-accent-500',
-    '--vt-color-cyan-400',
-    '--vt-color-violet-400',
-    '--vt-color-success',
-    '--vt-color-warning',
-    '--vt-color-danger',
-    '--vt-color-accent-300',
-    '--vt-color-cyan-600',
-    '--vt-color-violet-600',
-    '--vt-color-neutral-400',
-    '--vt-color-neutral-600',
+    '--vt-chart-series-1',
+    '--vt-chart-series-2',
+    '--vt-chart-series-3',
+    '--vt-status-success',
+    '--vt-status-warning',
+    '--vt-status-danger',
+    '--vt-chart-series-4',
+    '--vt-chart-series-5',
+    '--vt-chart-series-6',
+    '--vt-chart-neutral-1',
+    '--vt-chart-neutral-3',
 ];
 
 export type TokenResolver = (token: string) => string;
@@ -35,10 +35,10 @@ export function darkBackground(): string {
     probe.setAttribute('data-theme', 'dark');
     probe.style.display = 'none';
     document.body.appendChild(probe);
-    const value = getComputedStyle(probe).getPropertyValue('--vt-bg').trim();
+    const value = getComputedStyle(probe).getPropertyValue('--vt-bg-base').trim();
     probe.remove();
 
-    return value || tokenResolver()('--vt-bg');
+    return value || tokenResolver()('--vt-bg-base');
 }
 
 /** ASCII-szlag a fájlnévhez (ékezet nélkül, kötőjellel). */

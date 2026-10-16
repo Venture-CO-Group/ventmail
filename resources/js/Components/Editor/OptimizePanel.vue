@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { VtButton } from '@venture/ui';
+import { VtBanner, VtButton } from '@venture-co-group/ui';
 import axios from 'axios';
 import { computed, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
@@ -86,7 +86,7 @@ const deviceOptions = computed(() => [
             <VtButton size="sm" variant="ghost" :loading="loading" data-testid="optimize-run" @click="run">{{ t('editor.optimize.rerun') }}</VtButton>
         </div>
 
-        <p v-if="failed" class="vm-banner vm-banner--danger" role="status">{{ failed }}</p>
+        <VtBanner v-if="failed" tone="danger" role="status">{{ failed }}</VtBanner>
 
         <template v-if="report">
             <article class="vm-ed-card" :class="tone(report.links.broken > 0, report.links.missingUtm > 0)" data-testid="optimize-links">

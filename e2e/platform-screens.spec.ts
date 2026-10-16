@@ -24,11 +24,11 @@ test('a menüből minden platform-képernyő elérhető', async ({ page }) => {
         ['nav-suppressions', '/suppressions'],
         ['nav-webhooks', '/webhooks'],
         ['nav-ip-pools', '/ip-pools'],
-        ['nav-validation', '/validation'],
         ['nav-deliverability', '/deliverability'],
+        ['nav-validation', '/validation'],
         ['nav-billing', '/billing'],
     ] as const) {
-        await clickNav(page, 'platform', testid);
+        await clickNav(page, testid === 'nav-validation' || testid === 'nav-billing' ? 'settings' : 'platform', testid);
         await expect(page).toHaveURL(new RegExp(`${url}$`));
         // A héj minden képernyőn ott van: enélkül a felhasználó zsákutcába kerülne.
         await expect(page.getByTestId('app-nav')).toBeVisible();

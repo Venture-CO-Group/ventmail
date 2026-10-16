@@ -43,7 +43,7 @@ onMounted(() => {
 
 const option = computed<ChartOption>(() => {
     const token = resolver.value;
-    const text = token('--vt-text-muted');
+    const text = token('--vt-text-secondary');
     const font = token('--vt-font-body');
 
     return {
@@ -82,14 +82,14 @@ defineExpose({ toPng });
 
 .vm-chart__canvas {
     width: 100%;
-    height: calc(var(--vt-space-32) * 2.5);
+    height: calc(calc(var(--vt-space-8) * 4) * 2.5);
 }
 
 .vm-chart--sm .vm-chart__canvas {
-    height: calc(var(--vt-space-32) * 1.5);
+    height: calc(calc(var(--vt-space-8) * 4) * 1.5);
 }
 
 .vm-chart--lg .vm-chart__canvas {
-    height: calc(var(--vt-space-32) * 3);
+    height: calc(calc(var(--vt-space-8) * 4) * 3);
 }
 </style>

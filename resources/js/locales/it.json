@@ -105,7 +105,15 @@
             "author": "Autore",
             "analyst": "Analista"
         },
-        "editorNav": "Navigazione compatta"
+        "editorNav": "Navigazione compatta",
+        "appSubtitle": "Piattaforma e-mail",
+        "allApps": "Tutte le app Venture",
+        "search": "Cerca o vai a…",
+        "searchEmpty": "Nessun risultato.",
+        "env": {
+            "live": "Live",
+            "restricted": "Modalità limitata"
+        }
     },
     "dashboard": {
         "title": "Panoramica",
@@ -186,7 +194,10 @@
             "subject": "Oggetto",
             "recipient": "Destinatario",
             "status": "Stato"
-        }
+        },
+        "domainsAllVerified": "tutti verificati",
+        "domainsUnverified": "{count} non verificati",
+        "suppressionsHint": "bounce e reclami"
     },
     "domains": {
         "title": "Domini",
@@ -725,7 +736,18 @@
         "preferenceVisible": "Visibile nel centro preferenze",
         "listSearch": "Cerca liste",
         "segmentSearch": "Cerca segmenti",
-        "noMatch": "Nessun risultato per questa ricerca."
+        "noMatch": "Nessun risultato per questa ricerca.",
+        "filter": {
+            "all": "Tutti",
+            "subscribed": "Iscritti",
+            "pending": "Doppio opt-in in attesa",
+            "unsubscribed": "Disiscritti",
+            "cleaned": "Rimbalzati",
+            "label": "Filtra i contatti per stato"
+        },
+        "searchPlaceholder": "Cerca e-mail o nome",
+        "importCsv": "Importa CSV",
+        "addContact": "Aggiungi contatto"
     },
     "templates": {
         "title": "Modelli",
@@ -1768,7 +1790,8 @@
             "subjectHint": "Facoltativo — il modello di partenza ne suggerisce uno.",
             "marketing": "Email di marketing (richiede il piè di pagina con indirizzo postale e disiscrizione)",
             "submit": "Crea modello"
-        }
+        },
+        "gallery": "Galleria"
     },
     "segments": {
         "title": "Segmenti",
@@ -2737,5 +2760,82 @@
         "clear": "Rimuovi",
         "typeError": "Questo tipo di file non è consentito ({types}).",
         "sizeError": "Il file è troppo grande (al massimo {mb} MB)."
+    },
+    "page": {
+        "overview": {
+            "lead": "Traffico in uscita, pubblico e deliverability in un unico posto."
+        },
+        "audience": {
+            "lead": "Contatti, stato del consenso e campi personalizzati."
+        },
+        "segments": {
+            "lead": "Pubblici dinamici costruiti con condizioni AND / OR. Ricalcolati a ogni invio."
+        },
+        "forms": {
+            "lead": "Moduli di iscrizione e centri preferenze con doppio opt-in."
+        },
+        "templates": {
+            "lead": "Template visivi e in codice con varianti di lingua. Usati da campagne e invii transazionali."
+        },
+        "campaigns": {
+            "lead": "Invii singoli e test A/B. Gli invii marketing sono bloccati finché è attiva la modalità limitata."
+        },
+        "journeys": {
+            "lead": "Flussi automatici attivati da eventi, date o ingresso in un segmento."
+        },
+        "analytics": {
+            "lead": "Coinvolgimento su campagne e posta transazionale."
+        },
+        "domains": {
+            "lead": "Domini di invio con record DNS e stato di autenticazione."
+        },
+        "apiKeys": {
+            "lead": "Chiavi legate al workspace con scope e allowlist IP. Il valore della chiave è mostrato una sola volta, alla creazione."
+        },
+        "smtp": {
+            "lead": "Credenziali relay per le app che parlano solo SMTP."
+        },
+        "suppressions": {
+            "lead": "Bounce, reclami e disiscrizioni. Gli indirizzi soppressi vengono saltati a ogni invio."
+        },
+        "webhooks": {
+            "lead": "Eventi firmati e cronologia delle consegne."
+        },
+        "storedTemplates": {
+            "lead": "Template API con versioni, richiamati per chiave dagli invii transazionali."
+        },
+        "ipPools": {
+            "lead": "IP dedicati, piani di warm-up e regole di instradamento."
+        },
+        "deliverability": {
+            "lead": "Blocklist, reputazione e posizionamento in inbox."
+        },
+        "logs": {
+            "lead": "Cerca e traccia ogni messaggio."
+        },
+        "tagStats": {
+            "lead": "Contatori per tag del messaggio."
+        },
+        "sendingStats": {
+            "lead": "Inviati, consegnati e falliti, per dominio e nel tempo."
+        },
+        "docs": {
+            "lead": "Riferimento API REST, SDK ed esempi."
+        },
+        "billing": {
+            "lead": "Utilizzo, piano e fatture — gestiti da ventPay."
+        },
+        "inbound": {
+            "lead": "Instrada la posta in arrivo verso webhook, indirizzi di inoltro o ventSupport."
+        },
+        "validation": {
+            "lead": "Verifica gli indirizzi prima che entrino nel pubblico: sintassi, MX, account usa e getta e di ruolo."
+        },
+        "members": {
+            "lead": "Inviti e ruoli. L’identità è gestita in ventSSO."
+        },
+        "branding": {
+            "lead": "Logo, colori e piè di pagina per report e pagine ospitate."
+        }
     }
 }

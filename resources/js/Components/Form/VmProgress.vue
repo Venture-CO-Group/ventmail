@@ -34,7 +34,7 @@ const percent = computed(() => (props.max > 0 ? Math.min(100, Math.round((props.
     inline-size: 100%;
     block-size: var(--vt-space-2);
     border-radius: var(--vt-radius-full);
-    background-color: var(--vt-glass-thin-fill);
+    background-color: var(--vt-surface-2);
     border: thin solid var(--vt-border);
     overflow: hidden;
 }

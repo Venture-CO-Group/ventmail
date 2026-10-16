@@ -3,8 +3,6 @@
 declare(strict_types=1);
 
 use App\Modules\Audience\Models\Contact;
-use App\Modules\Campaign\Jobs\RefreshCampaignStats;
-use App\Modules\Campaign\Models\Campaign;
 use App\Modules\Domains\Models\Domain;
 use App\Modules\Logs\Models\DomainDailyStat;
 use App\Modules\Tenancy\Models\Workspace;
@@ -14,7 +12,6 @@ use App\Modules\Webhooks\Models\WebhookEndpoint;
 use App\Support\QueryBudget;
 use App\Support\QueryTooExpensive;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Queue;
 use Tests\Support\AnalyticsFixtures;
 
@@ -65,31 +62,6 @@ it('a KPI-sor a küldött / kézbesítési / megnyitási arányt és az aktív k
         );
 });
 
-it('a legutóbbi kampányok táblája az öt legfrissebbet adja, a felületi állapottal és a gyorsítótárazott arányokkal', function () {
-    Queue::fake();
-    [$workspace, $user] = AnalyticsFixtures::tenant();
-
-    $old = AnalyticsFixtures::campaign(['name' => 'Régi']);
-    $campaigns = collect(range(1, 5))->map(fn ($i) => AnalyticsFixtures::campaign(['name' => "Friss {$i}", 'recipient_count' => 10, 'sent_count' => 10]));
-    $failed = $campaigns->last();
-    $failed->forceFill(['sent_count' => 0])->saveQuietly();
-
-    Cache::put(RefreshCampaignStats::cacheKey((string) $campaigns->first()->uuid), ['delivered' => 10, 'opened' => 5, 'clicked' => 1], 60);
-
-    overviewGet($workspace, $user)
-        ->assertInertia(fn ($page) => $page
-            ->has('campaigns', 5)
-            ->where('campaigns.0.uuid', (string) $failed->uuid)
-            ->where('campaigns.0.displayStatus', 'failed')
-            ->where('campaigns.4.uuid', (string) $campaigns->first()->uuid)
-            ->where('campaigns.4.openRate', 50)
-            ->where('campaigns.4.recipients', 10)
-            ->where('campaigns', fn ($rows) => collect($rows)->pluck('name')->doesntContain('Régi'))
-        );
-
-    expect($old)->toBeInstanceOf(Campaign::class);
-});
-
 it('a kézbesíthetőség-kártya a bounce/panasz arányt és a domain-rekordok összesített állapotát adja', function () {
     Queue::fake();
     [$workspace, $user] = AnalyticsFixtures::tenant();
@@ -138,7 +110,7 @@ it('a szerep szerint rejtett blokkok null-t kapnak (az áttekintés nem kiskapu)
 
     overviewGet($workspace, $analyst)
         ->assertInertia(fn ($page) => $page
-            ->where('campaigns', null)
+            ->missing('campaigns')
             ->has('kpis.sent')
             ->where('todos', fn ($todos) => collect($todos)->pluck('key')->doesntContain('drafts'))
         );
@@ -156,7 +128,7 @@ it('más workspace adata nem szivárog az áttekintésbe', function () {
     overviewGet($workspace, $user)
         ->assertInertia(fn ($page) => $page
             ->where('kpis.sent.value', 0)
-            ->has('campaigns', 0)
+            ->missing('campaigns')
         );
 
     expect($other->getKey())->not->toBe($workspace->getKey());

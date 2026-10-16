@@ -4,7 +4,7 @@ import { MiniMap } from '@vue-flow/minimap';
 import { Background } from '@vue-flow/background';
 import { VueFlow, useVueFlow, type NodeMouseEvent } from '@vue-flow/core';
 import '@vue-flow/core/dist/style.css';
-import { VtBadge, VtButton, VtInput } from '@venture/ui';
+import { VtBadge, VtBanner, VtButton, VtInput } from '@venture-co-group/ui';
 import axios, { AxiosError } from 'axios';
 import { computed, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
@@ -353,9 +353,9 @@ function issueText(issue: Issue): string {
                     <VtButton v-if="can.publish" size="sm" :loading="busy === 'publish'" data-testid="journey-publish" @click="publish">{{ publishLabel }}</VtButton>
                 </div>
 
-                <p v-if="notice" class="vm-banner vm-jc-top__notice" :class="{ 'vm-banner--danger': notice.tone === 'danger' }" role="status" data-testid="journey-notice" @click="notice = null">
+                <VtBanner v-if="notice" tone="info" class="vm-jc-top__notice" :class="{ 'vm-banner--danger': notice.tone === 'danger' }" role="status" data-testid="journey-notice" @click="notice = null">
                     {{ notice.text }}
-                </p>
+                </VtBanner>
             </header>
 
             <div class="vm-jc-body">

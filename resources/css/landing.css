@@ -4,16 +4,16 @@
  | Töréspont nélküli, folyékony elrendezés: `flex-wrap`, `auto-fit` rács és `min()` —
  | a media query nem olvas `var()`-t, és 375 szélességen sem szabad vízszintes görgetés.
  */
-@import '@venture/design/fonts.css';
-@import '@venture/design/styles.css';
+@import '@venture-co-group/design/fonts.css';
+@import '@venture-co-group/design/styles.css';
 @import '../js/glow.css';
 @import '../js/brand.css';
 
 html,
 body {
     margin: 0;
-    background: var(--vt-bg);
-    color: var(--vt-text);
+    background: var(--vt-bg-base);
+    color: var(--vt-text-primary);
     font-family: var(--vt-font-body);
 }
 
@@ -27,7 +27,7 @@ body {
     position: relative;
     min-height: 100vh;
     overflow-x: clip;
-    line-height: var(--vt-leading-relaxed);
+    line-height: 1.7;
 }
 
 .landing > :not(.landing__blobs) {
@@ -45,30 +45,30 @@ body {
 
 .landing__blob {
     position: absolute;
-    width: min(calc(var(--vt-space-32) * 5), 90vw);
+    width: min(calc(calc(var(--vt-space-8) * 4) * 5), 90vw);
     aspect-ratio: 1;
     border-radius: var(--vt-radius-full);
-    filter: blur(calc(var(--vt-space-16) + var(--vt-space-8)));
+    filter: blur(calc(calc(var(--vt-space-8) * 2) + var(--vt-space-8)));
     opacity: 0.28;
 }
 
 .landing__blob--a {
-    top: calc(var(--vt-space-24) * -1);
+    top: calc(calc(var(--vt-space-12) * 2) * -1);
     left: 10%;
     background: var(--vt-accent);
 }
 
 .landing__blob--b {
-    top: calc(var(--vt-space-32) * 2);
+    top: calc(calc(var(--vt-space-8) * 4) * 2);
     right: 0;
-    background: var(--vt-color-violet-400);
+    background: var(--vt-accent-hover);
     opacity: 0.2;
 }
 
 .landing__blob--c {
-    top: calc(var(--vt-space-32) * 6);
+    top: calc(calc(var(--vt-space-8) * 4) * 6);
     left: 0;
-    background: var(--vt-color-cyan-400);
+    background: var(--vt-accent-hover);
     opacity: 0.14;
 }
 
@@ -83,13 +83,13 @@ body {
 
 .landing__skip {
     padding: var(--vt-space-2) var(--vt-space-4);
-    color: var(--vt-text);
+    color: var(--vt-text-primary);
 }
 
 .landing__header,
 main,
 .landing__footer {
-    width: min(calc(var(--vt-space-32) * 8), 100%);
+    width: min(calc(calc(var(--vt-space-8) * 4) * 8), 100%);
     margin-inline: auto;
     padding-inline: var(--vt-space-6);
 }
@@ -111,10 +111,10 @@ main,
     padding: 0 var(--vt-space-6);
     border-radius: var(--vt-radius-md);
     background-color: var(--vt-accent);
-    color: var(--vt-on-accent);
+    color: var(--vt-text-on-accent);
     font-weight: var(--vt-weight-semibold);
     text-decoration: none;
-    box-shadow: var(--vt-glow-line-bloom);
+    box-shadow: var(--vt-glow-accent);
 }
 
 .landing__btn:hover {
@@ -123,42 +123,42 @@ main,
 
 .landing__btn--ghost {
     background: transparent;
-    color: var(--vt-text);
+    color: var(--vt-text-primary);
     border: thin solid var(--vt-border-strong);
     box-shadow: none;
 }
 
 .landing__btn--ghost:hover {
-    background: var(--vt-glass-thin-fill);
+    background: var(--vt-surface-2);
 }
 
 .landing__btn:focus-visible,
 .landing__legal a:focus-visible,
 .landing__skip:focus-visible {
     outline: thin solid transparent; /* kényszerített színeknél (High Contrast) a fókusz így is látszik */
-    box-shadow: 0 0 0 var(--vt-space-1) var(--vt-ring);
+    box-shadow: 0 0 0 var(--vt-space-1) var(--vt-accent-line);
 }
 
 .landing__hero {
-    padding-block: var(--vt-space-16) var(--vt-space-10);
+    padding-block: calc(var(--vt-space-8) * 2) var(--vt-space-10);
 }
 
 .landing__title {
-    max-width: calc(var(--vt-space-32) * 5);
+    max-width: calc(calc(var(--vt-space-8) * 4) * 5);
     margin: var(--vt-space-3) 0 var(--vt-space-5);
     font-family: var(--vt-font-display);
-    font-size: clamp(var(--vt-fs-h4), 7vw, var(--vt-fs-h1));
+    font-size: clamp(var(--vt-type-display-m-size), 7vw, var(--vt-type-display-l-size));
     font-weight: var(--vt-weight-bold);
-    letter-spacing: var(--vt-tracking-display);
-    line-height: var(--vt-leading-display);
+    letter-spacing: var(--vt-type-display-xl-tracking);
+    line-height: 1.05;
     overflow-wrap: anywhere;
 }
 
 .landing__lede {
-    max-width: calc(var(--vt-space-32) * 5);
+    max-width: calc(calc(var(--vt-space-8) * 4) * 5);
     margin: 0 0 var(--vt-space-6);
-    color: var(--vt-text-muted);
-    font-size: var(--vt-fs-lead);
+    color: var(--vt-text-secondary);
+    font-size: var(--vt-type-heading-h2-size);
 }
 
 .landing__cta {
@@ -169,7 +169,7 @@ main,
 
 .landing__pillars {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(calc(var(--vt-space-32) * 2.5), 100%), 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(calc(calc(var(--vt-space-8) * 4) * 2.5), 100%), 1fr));
     gap: var(--vt-space-6);
     padding-block: 0 var(--vt-space-12);
 }
@@ -182,21 +182,21 @@ main,
 .landing__h2 {
     margin: 0 0 var(--vt-space-2);
     font-family: var(--vt-font-display);
-    font-size: var(--vt-fs-h5);
+    font-size: var(--vt-type-heading-h1-size);
     font-weight: var(--vt-weight-semibold);
-    letter-spacing: var(--vt-tracking-tight);
+    letter-spacing: var(--vt-type-heading-h1-tracking);
 }
 
 .landing__h3 {
     margin: 0 0 var(--vt-space-2);
     font-family: var(--vt-font-display);
-    font-size: var(--vt-fs-h6);
+    font-size: var(--vt-type-heading-h2-size);
     font-weight: var(--vt-weight-semibold);
 }
 
 .landing__muted {
     margin: 0;
-    color: var(--vt-text-muted);
+    color: var(--vt-text-secondary);
 }
 
 .landing__list {
@@ -237,7 +237,7 @@ main,
 .landing__grid {
     display: grid;
     /* Hat kártya: szélesen 3×2, közepesen 2×3, mobilon egy oszlop — árva kártya nélkül. */
-    grid-template-columns: repeat(auto-fit, minmax(min(calc(var(--vt-space-32) * 2.2), 100%), 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(calc(calc(var(--vt-space-8) * 4) * 2.2), 100%), 1fr));
     gap: var(--vt-space-4);
     margin: 0;
     padding: 0;
@@ -262,7 +262,7 @@ main,
     gap: var(--vt-space-4);
     padding-block: var(--vt-space-8);
     border-top: thin solid var(--vt-border);
-    font-size: var(--vt-fs-body-sm);
+    font-size: var(--vt-type-body-m-size);
 }
 
 .landing__legal {
@@ -272,11 +272,11 @@ main,
 }
 
 .landing__legal a {
-    color: var(--vt-text-muted);
+    color: var(--vt-text-secondary);
 }
 
 .landing__legal a:hover {
-    color: var(--vt-text);
+    color: var(--vt-text-primary);
 }
 
 .landing__venture {
@@ -293,9 +293,9 @@ main,
 
 .landing__copy {
     margin: 0;
-    color: var(--vt-text-subtle);
+    color: var(--vt-text-tertiary);
     font-family: var(--vt-font-mono);
-    font-size: var(--vt-fs-caption);
+    font-size: var(--vt-type-caption-size);
 }
 
 /*

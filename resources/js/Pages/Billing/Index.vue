@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { type VtColumn } from '@venture/ui';
+import { VtBanner, VtEmptyState, VtKpiCard, VtPageHeader, type VtColumn } from '@venture-co-group/ui';
 import VmTable from '../../Components/Form/VmTable.vue';
 import VmCard from '../../Components/Form/VmCard.vue';
 import { computed } from 'vue';
@@ -55,39 +55,29 @@ const enabledFeatures = computed(() => props.features.filter((feature) => featur
 
 <template>
     <AppLayout>
-        <h1 class="vt-text-display">{{ t('billing.title') }}</h1>
+        <VtPageHeader :overline="t('nav.settings')" :title="t('billing.title')" :description="t('page.billing.lead')" />
 
         <!-- A FELFÜGGESZTÉS nem lehet meglepetés: a PreSendGate 4. kapuja
              `QUOTA_EXCEEDED`-et ad, és ha ezt csak a hibaüzenetből tudná meg az ügyfél, a
              támogatás értesülne róla először. -->
-        <p v-if="suspended" class="vm-banner vm-banner--danger" role="status" data-testid="billing-suspended">
+        <VtBanner v-if="suspended" tone="danger" role="status" data-testid="billing-suspended">
             {{ t('billing.suspendedWarning') }}
-        </p>
+        </VtBanner>
 
         <div class="vm-metrics">
-            <VmCard>
-                <p class="vm-metric__label">{{ t('billing.remainingQuota') }}</p>
-                <p class="vm-metric__value" data-testid="billing-quota">{{ format.number(remainingQuota) }}</p>
-            </VmCard>
-
-            <VmCard>
-                <p class="vm-metric__label">{{ t('billing.currentPeriod') }}</p>
-                <p class="vm-metric__value" data-testid="billing-period">{{ period }}</p>
-            </VmCard>
+            <VtKpiCard :label="t('billing.remainingQuota')" :value="format.number(remainingQuota)" data-testid="billing-quota" />
+            <VtKpiCard :label="t('billing.currentPeriod')" :value="period" data-testid="billing-period" />
         </div>
 
-        <VmCard>
-            <h2>{{ t('billing.usage') }}</h2>
-
+        <VmCard :title="t('billing.usage')">
             <div v-for="item in usage" :key="item.dimension" class="vm-cluster" :data-testid="`usage-${item.dimension}`">
                 <span>{{ item.dimension }}</span>
                 <strong>{{ format.number(item.current) }}</strong>
             </div>
         </VmCard>
 
-        <VmCard>
-            <h2>{{ t('billing.features') }}</h2>
-            <p v-if="!enabledFeatures.length" data-testid="features-empty">{{ t('billing.noFeatures') }}</p>
+        <VmCard :title="t('billing.features')">
+            <VtEmptyState v-if="!enabledFeatures.length" :title="t('billing.noFeatures')" icon="inbox" data-testid="features-empty" />
 
             <div class="vm-cluster">
                 <span v-for="feature in features" :key="feature.feature" :data-testid="`feature-${feature.feature}`">
@@ -96,9 +86,8 @@ const enabledFeatures = computed(() => props.features.filter((feature) => featur
             </div>
         </VmCard>
 
-        <VmCard>
-            <h2>{{ t('billing.invoices') }}</h2>
-            <p v-if="!rows.length" data-testid="invoices-empty">{{ t('billing.noInvoices') }}</p>
+        <VmCard :title="t('billing.invoices')">
+            <VtEmptyState v-if="!rows.length" :title="t('billing.noInvoices')" icon="inbox" data-testid="invoices-empty" />
             <VmTable v-else :columns="columns" :rows="rows" :caption="t('billing.invoices')" data-testid="invoices-table" />
         </VmCard>
     </AppLayout>

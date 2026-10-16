@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { router, usePage } from '@inertiajs/vue3';
-import { VtButton, VtCheckbox, VtField, VtInput, VtSelect, type VtColumn } from '@venture/ui';
+import { VtBanner, VtButton, VtCheckbox, VtField, VtInput, VtPageHeader, VtSelect, type VtColumn } from '@venture-co-group/ui';
 import { computed, reactive, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import VmCard from '../../Components/Form/VmCard.vue';
@@ -10,7 +10,6 @@ import VmFormRow from '../../Components/Form/VmFormRow.vue';
 import VmFormSection from '../../Components/Form/VmFormSection.vue';
 import VmTable from '../../Components/Form/VmTable.vue';
 import VmStateBadge from '../../Components/Platform/VmStateBadge.vue';
-import VmPageHeader from '../../Components/Studio/VmPageHeader.vue';
 import AppLayout from '../../Layouts/AppLayout.vue';
 import { useFormat } from '../../composables/useFormat';
 import { useCodes } from '../../composables/useCodes';
@@ -189,14 +188,16 @@ function openTrace(row: Row): void {
 
 <template>
     <AppLayout>
-        <VmPageHeader :eyebrow="t('plat.eyebrow.logs')" :title="t('logs.title')" :lead="t('plat.logs.lead')">
-            <div class="vm-export">
-                <VtCheckbox v-if="canExportPii" v-model="pii" data-testid="export-pii">{{ t('plat.logs.includePii') }}</VtCheckbox>
-                <VtButton variant="glass" data-testid="log-export" :disabled="exporting" @click="downloadExport">{{ t('plat.logs.export') }}</VtButton>
-            </div>
-        </VmPageHeader>
+        <VtPageHeader :overline="t('nav.platform')" :title="t('logs.title')" :description="t('page.logs.lead')">
+            <template #actions>
+                <div class="vm-export">
+                    <VtCheckbox v-if="canExportPii" v-model="pii" data-testid="export-pii">{{ t('plat.logs.includePii') }}</VtCheckbox>
+                    <VtButton variant="secondary" data-testid="log-export" :disabled="exporting" @click="downloadExport">{{ t('plat.logs.export') }}</VtButton>
+                </div>
+            </template>
+        </VtPageHeader>
 
-        <p v-if="exportError" class="vm-banner vm-banner--danger" role="alert" data-testid="export-error">{{ exportError }}</p>
+        <VtBanner v-if="exportError" tone="danger" role="alert" data-testid="export-error">{{ exportError }}</VtBanner>
 
         <VmCard>
             <VmForm data-testid="log-filters" @submit.prevent="search">
@@ -249,7 +250,7 @@ function openTrace(row: Row): void {
                     <span v-else-if="column.key === 'status'" class="vm-status-cell" :title="reasons.get(row.uuid) ?? ''">
                         <VmStateBadge :state="String(value)" />
                     </span>
-                    <span v-else-if="column.key === 'uuid'" class="vt-text-mono" :title="String(value)" :data-message-id="value">{{ String(value).slice(0, 8) }}…</span>
+                    <span v-else-if="column.key === 'uuid'" class="vt-mono" :title="String(value)" :data-message-id="value">{{ String(value).slice(0, 8) }}…</span>
                     <span v-else-if="column.key === 'subject' || column.key === 'tags'" class="vm-truncate vm-subject" :title="String(value ?? '')">{{ value }}</span>
                     <span v-else class="vm-truncate" :title="String(value ?? '')">{{ value }}</span>
                 </template>
@@ -259,7 +260,7 @@ function openTrace(row: Row): void {
                 <span class="vm-muted" data-testid="log-retention">
                     {{ t('plat.logs.footer', { count: messages.items.length, days: retentionDays }) }}
                 </span>
-                <VtButton v-if="props.messages.next_cursor" variant="glass" data-testid="log-more" @click="loadMore">
+                <VtButton v-if="props.messages.next_cursor" variant="secondary" data-testid="log-more" @click="loadMore">
                     {{ t('logs.more') }}
                 </VtButton>
             </div>
@@ -284,12 +285,12 @@ function openTrace(row: Row): void {
 
 .vm-subject {
     display: inline-block;
-    max-width: calc(var(--vt-space-32) * 2);
+    max-width: calc(calc(var(--vt-space-8) * 4) * 2);
 }
 
 .vm-muted {
-    color: var(--vt-text-muted);
-    font-size: var(--vt-fs-body-sm);
+    color: var(--vt-text-secondary);
+    font-size: var(--vt-type-body-m-size);
 }
 
 .vm-foot {

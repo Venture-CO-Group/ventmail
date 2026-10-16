@@ -68,7 +68,7 @@ it('nincs egyélű (részleges) kártya-glow a ventMail stílusaiban', function 
     expect($offenders)->toBe([]);
 });
 
-it('a részleges glow-utility-k kivezetve, a kártya glow-ja egyetlen boolean prop', function () {
+it('a részleges glow-utility-k kivezetve, és a kártyának nincs glow-ja (Unified UI v2: a glow a héj glow-line-ja)', function () {
     $sources = collect(File::allFiles(resource_path('js')))
         ->filter(fn ($file) => in_array($file->getExtension(), ['vue', 'css', 'ts'], true))
         ->map(fn ($file) => (string) file_get_contents($file->getPathname()))
@@ -80,5 +80,6 @@ it('a részleges glow-utility-k kivezetve, a kártya glow-ja egyetlen boolean pr
 
     $card = (string) file_get_contents(resource_path('js/Components/Form/VmCard.vue'));
 
-    expect($card)->toContain('glow?: boolean')->toContain(':glow="glow"');
+    expect($card)->not->toContain('glow')
+        ->and($sources)->not->toMatch('/<VmCard\b[^>]*\sglow\b/');
 });

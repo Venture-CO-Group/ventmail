@@ -1,13 +1,11 @@
 <script setup lang="ts">
 import { router } from '@inertiajs/vue3';
-import { VtSegmented, VtSelect, type VtColumn } from '@venture/ui';
+import { VtBanner, VtEmptyState, VtKpiCard, VtPageHeader, VtSegmented, VtSelect, type VtColumn } from '@venture-co-group/ui';
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import VmLineChart from '../../Components/Charts/VmLineChart.vue';
 import VmCard from '../../Components/Form/VmCard.vue';
-import VmStat from '../../Components/Form/VmStat.vue';
 import VmTable from '../../Components/Form/VmTable.vue';
-import VmPageHeader from '../../Components/Studio/VmPageHeader.vue';
 import AppLayout from '../../Layouts/AppLayout.vue';
 import { useFormat } from '../../composables/useFormat';
 
@@ -67,12 +65,12 @@ const chartSeries = computed(() => {
     const series = props.report?.series ?? [];
 
     return [
-        { name: t('plat.stats.metric.sent'), data: series.map((row) => row.sent), token: '--vt-color-accent-400' },
-        { name: t('plat.stats.metric.delivered'), data: series.map((row) => row.delivered), token: '--vt-color-success' },
-        { name: t('plat.stats.metric.bounced'), data: series.map((row) => row.bounced), token: '--vt-color-danger' },
-        { name: t('plat.stats.metric.complained'), data: series.map((row) => row.complained), token: '--vt-color-warning' },
-        { name: t('plat.stats.metric.opened'), data: series.map((row) => row.opened), token: '--vt-color-cyan-400' },
-        { name: t('plat.stats.metric.clicked'), data: series.map((row) => row.clicked), token: '--vt-color-violet-400' },
+        { name: t('plat.stats.metric.sent'), data: series.map((row) => row.sent), token: '--vt-chart-series-7' },
+        { name: t('plat.stats.metric.delivered'), data: series.map((row) => row.delivered), token: '--vt-status-success' },
+        { name: t('plat.stats.metric.bounced'), data: series.map((row) => row.bounced), token: '--vt-status-danger' },
+        { name: t('plat.stats.metric.complained'), data: series.map((row) => row.complained), token: '--vt-status-warning' },
+        { name: t('plat.stats.metric.opened'), data: series.map((row) => row.opened), token: '--vt-chart-series-2' },
+        { name: t('plat.stats.metric.clicked'), data: series.map((row) => row.clicked), token: '--vt-chart-series-3' },
     ];
 });
 
@@ -103,7 +101,7 @@ const rows = computed<Row[]>(() =>
 
 <template>
     <AppLayout>
-        <VmPageHeader :eyebrow="t('plat.eyebrow.stats')" :title="t('plat.stats.title')" :lead="t('plat.stats.lead')" />
+        <VtPageHeader :overline="t('nav.platform')" :title="t('plat.stats.title')" :description="t('page.sendingStats.lead')" />
 
             <div class="vm-filters">
             <div class="vm-filters__domain">
@@ -126,22 +124,21 @@ const rows = computed<Row[]>(() =>
             </div>
         </div>
 
-        <p v-if="report === null" class="vm-banner vm-banner--warning" role="status" data-testid="stats-too-expensive">
+        <VtBanner v-if="report === null" tone="warning" role="status" data-testid="stats-too-expensive">
             {{ t('plat.stats.tooExpensive') }}
-        </p>
+        </VtBanner>
 
         <div class="vm-tiles" data-testid="stats-tiles">
-            <VmStat :label="t('plat.stats.metric.sent')" :value="fmt(sum.sent)" />
-            <VmStat :label="t('plat.stats.metric.delivered')" :value="fmt(sum.delivered)" :hint="pct(rate(sum.delivered, sum.sent))" />
-            <VmStat :label="t('plat.stats.metric.bounced')" :value="fmt(sum.bounced)" :hint="pct(rate(sum.bounced, sum.sent, 2))" :tone="(rate(sum.bounced, sum.sent) ?? 0) > 2 ? 'danger' : 'neutral'" />
-            <VmStat :label="t('plat.stats.metric.complained')" :value="fmt(sum.complained)" :hint="pct(rate(sum.complained, sum.sent, 3))" :tone="(rate(sum.complained, sum.sent, 3) ?? 0) >= 0.3 ? 'danger' : 'neutral'" />
-            <VmStat :label="t('plat.stats.metric.opened')" :value="fmt(sum.opened)" :hint="pct(rate(sum.opened, sum.delivered))" />
-            <VmStat :label="t('plat.stats.metric.clicked')" :value="fmt(sum.clicked)" :hint="pct(rate(sum.clicked, sum.delivered))" />
+            <VtKpiCard :label="t('plat.stats.metric.sent')" :value="fmt(sum.sent)" />
+            <VtKpiCard :label="t('plat.stats.metric.delivered')" :value="fmt(sum.delivered)" :delta="pct(rate(sum.delivered, sum.sent))" />
+            <VtKpiCard :label="t('plat.stats.metric.bounced')" :value="fmt(sum.bounced)" :delta="pct(rate(sum.bounced, sum.sent, 2))" />
+            <VtKpiCard :label="t('plat.stats.metric.complained')" :value="fmt(sum.complained)" :delta="pct(rate(sum.complained, sum.sent, 3))" />
+            <VtKpiCard :label="t('plat.stats.metric.opened')" :value="fmt(sum.opened)" :delta="pct(rate(sum.opened, sum.delivered))" />
+            <VtKpiCard :label="t('plat.stats.metric.clicked')" :value="fmt(sum.clicked)" :delta="pct(rate(sum.clicked, sum.delivered))" />
         </div>
 
-        <VmCard>
-            <h2>{{ t('plat.stats.overTime') }}</h2>
-            <p v-if="!(report?.series.length)" data-testid="stats-empty">{{ t('plat.stats.empty') }}</p>
+        <VmCard :title="t('plat.stats.overTime')">
+            <VtEmptyState v-if="!(report?.series.length)" :title="t('plat.stats.empty')" icon="inbox" data-testid="stats-empty" />
             <VmLineChart
                 v-else
                 :categories="report!.series.map((row) => row.day)"
@@ -151,8 +148,7 @@ const rows = computed<Row[]>(() =>
             />
         </VmCard>
 
-        <VmCard>
-            <h2>{{ t('plat.stats.byDomain') }}</h2>
+        <VmCard :title="t('plat.stats.byDomain')">
             <VmTable :columns="columns" :rows="rows" :caption="t('plat.stats.byDomain')" data-testid="stats-domains" />
             <p class="vm-muted">{{ t('plat.stats.note') }}</p>
         </VmCard>
@@ -175,17 +171,17 @@ const rows = computed<Row[]>(() =>
 }
 
 .vm-filters__domain {
-    width: min(100%, calc(var(--vt-space-32) * 2));
+    width: min(100%, calc(calc(var(--vt-space-8) * 4) * 2));
 }
 
 .vm-tiles {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(var(--vt-space-32) * 1.25)), 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(calc(var(--vt-space-8) * 4) * 1.25)), 1fr));
     gap: var(--vt-space-4);
 }
 
 .vm-muted {
-    color: var(--vt-text-muted);
-    font-size: var(--vt-fs-body-sm);
+    color: var(--vt-text-secondary);
+    font-size: var(--vt-type-body-m-size);
 }
 </style>

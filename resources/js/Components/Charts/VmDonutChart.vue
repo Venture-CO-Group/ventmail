@@ -18,8 +18,8 @@ const props = withDefaults(
 const inner = ref<InstanceType<typeof VmChart> | null>(null);
 
 function build(token: TokenResolver): Record<string, unknown> {
-    const text = token('--vt-text');
-    const muted = token('--vt-text-muted');
+    const text = token('--vt-text-primary');
+    const muted = token('--vt-text-secondary');
 
     return {
         tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },

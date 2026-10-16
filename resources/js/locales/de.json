@@ -105,7 +105,15 @@
             "author": "Autor",
             "analyst": "Analyst"
         },
-        "editorNav": "Kompakte Navigation"
+        "editorNav": "Kompakte Navigation",
+        "appSubtitle": "E-Mail-Plattform",
+        "allApps": "Alle Venture-Apps",
+        "search": "Suchen oder springen…",
+        "searchEmpty": "Keine Treffer.",
+        "env": {
+            "live": "Live",
+            "restricted": "Eingeschränkter Modus"
+        }
     },
     "dashboard": {
         "title": "Übersicht",
@@ -186,7 +194,10 @@
             "subject": "Betreff",
             "recipient": "Empfänger",
             "status": "Status"
-        }
+        },
+        "domainsAllVerified": "alle verifiziert",
+        "domainsUnverified": "{count} nicht verifiziert",
+        "suppressionsHint": "Bounces & Beschwerden"
     },
     "domains": {
         "title": "Domains",
@@ -725,7 +736,18 @@
         "preferenceVisible": "Im Preference Center sichtbar",
         "listSearch": "Listen durchsuchen",
         "segmentSearch": "Segmente durchsuchen",
-        "noMatch": "Keine Treffer für diese Suche."
+        "noMatch": "Keine Treffer für diese Suche.",
+        "filter": {
+            "all": "Alle",
+            "subscribed": "Abonniert",
+            "pending": "Double-Opt-in ausstehend",
+            "unsubscribed": "Abgemeldet",
+            "cleaned": "Unzustellbar",
+            "label": "Kontakte nach Status filtern"
+        },
+        "searchPlaceholder": "E-Mail oder Name suchen",
+        "importCsv": "CSV importieren",
+        "addContact": "Kontakt hinzufügen"
     },
     "templates": {
         "title": "Vorlagen",
@@ -1768,7 +1790,8 @@
             "subjectHint": "Optional — die Startvorlage schlägt einen vor.",
             "marketing": "Marketing-E-Mail (Fußzeile mit Postanschrift und Abmeldung erforderlich)",
             "submit": "Vorlage erstellen"
-        }
+        },
+        "gallery": "Galerie"
     },
     "segments": {
         "title": "Segmente",
@@ -2737,5 +2760,82 @@
         "clear": "Entfernen",
         "typeError": "Dieser Dateityp ist nicht erlaubt ({types}).",
         "sizeError": "Die Datei ist zu groß (höchstens {mb} MB)."
+    },
+    "page": {
+        "overview": {
+            "lead": "Ausgehender Verkehr, Zielgruppe und Zustellbarkeit an einem Ort."
+        },
+        "audience": {
+            "lead": "Kontakte, Einwilligungsstatus und benutzerdefinierte Felder."
+        },
+        "segments": {
+            "lead": "Dynamische Zielgruppen aus UND-/ODER-Bedingungen. Bei jedem Versand neu berechnet."
+        },
+        "forms": {
+            "lead": "Anmeldeformulare und Präferenzcenter mit Double-Opt-in."
+        },
+        "templates": {
+            "lead": "Visuelle und Code-Vorlagen mit Sprachvarianten. Genutzt von Kampagnen und Transaktions-Mails."
+        },
+        "campaigns": {
+            "lead": "Einmalige Sendungen und A/B-Tests. Im eingeschränkten Modus sind Marketing-Sendungen gesperrt."
+        },
+        "journeys": {
+            "lead": "Automatisierte Abläufe, ausgelöst durch Ereignisse, Daten oder Segmenteintritt."
+        },
+        "analytics": {
+            "lead": "Interaktion über Kampagnen und Transaktions-Mails hinweg."
+        },
+        "domains": {
+            "lead": "Absenderdomains mit DNS-Einträgen und Authentifizierungsstatus."
+        },
+        "apiKeys": {
+            "lead": "Workspace-gebundene Schlüssel mit Scopes und IP-Allowlist. Der Schlüsselwert wird nur einmal, bei der Erstellung, angezeigt."
+        },
+        "smtp": {
+            "lead": "Relay-Zugangsdaten für Apps, die nur SMTP sprechen."
+        },
+        "suppressions": {
+            "lead": "Bounces, Beschwerden und Abmeldungen. Gesperrte Adressen werden bei jedem Versand übersprungen."
+        },
+        "webhooks": {
+            "lead": "Signierte Ereignisse und Zustellverlauf."
+        },
+        "storedTemplates": {
+            "lead": "Versionierte API-Vorlagen, auf die Transaktions-Mails per Schlüssel verweisen."
+        },
+        "ipPools": {
+            "lead": "Dedizierte IPs, Warm-up-Pläne und Routing-Regeln."
+        },
+        "deliverability": {
+            "lead": "Blocklisten, Reputation und Posteingangsplatzierung."
+        },
+        "logs": {
+            "lead": "Jede Nachricht suchen und nachverfolgen."
+        },
+        "tagStats": {
+            "lead": "Zähler pro Nachrichten-Tag."
+        },
+        "sendingStats": {
+            "lead": "Gesendet, zugestellt und fehlgeschlagen – pro Domain und im Zeitverlauf."
+        },
+        "docs": {
+            "lead": "REST-API-Referenz, SDKs und Beispiele."
+        },
+        "billing": {
+            "lead": "Nutzung, Tarif und Rechnungen – verwaltet von ventPay."
+        },
+        "inbound": {
+            "lead": "Eingehende Mails an Webhooks, Weiterleitungsadressen oder ventSupport leiten."
+        },
+        "validation": {
+            "lead": "Adressen prüfen, bevor sie in die Zielgruppe gelangen: Syntax, MX, Wegwerf- und Rollenkonten."
+        },
+        "members": {
+            "lead": "Einladungen und Rollen. Die Identität wird in ventSSO verwaltet."
+        },
+        "branding": {
+            "lead": "Logo, Farben und Fußzeile für Berichte und gehostete Seiten."
+        }
     }
 }

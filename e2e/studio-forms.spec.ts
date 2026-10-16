@@ -20,7 +20,7 @@ test('űrlap építése, hosztolt beküldés → a kontakt függő, megerősít�
     await page.getByTestId('form-consent-text').fill('Hozzájárulok a kávés hírlevélhez.');
     await expect(page.getByTestId('form-doi')).toBeVisible();
     await page.getByTestId('builder-required-first_name').click();
-    await page.getByTestId('builder-new-field').locator('select').selectOption('last_name');
+    await page.getByTestId('builder-new-field').locator('xpath=descendant-or-self::select').selectOption('last_name');
     await page.getByTestId('builder-add-field').click();
     await expect(page.getByTestId('builder-field-last_name')).toBeVisible();
     await page.getByTestId('form-page-title').fill(`Kávés hírek ${run}`);

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { VtBadge, VtButton, type VtColumn } from '@venture/ui';
+import { VtBadge, VtBanner, VtButton, type VtColumn } from '@venture-co-group/ui';
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import VmFormActions from '../Form/VmFormActions.vue';
@@ -55,9 +55,9 @@ const tone = (code: string): 'danger' | 'warning' => (['invalid_email', 'missing
 
         <p v-if="computing" class="vt-text-muted" role="status" data-testid="import-previewing">{{ t('audience.import.step4.computing') }}</p>
 
-        <p v-else-if="failed" class="vm-banner vm-banner--danger" role="alert" data-testid="import-failed">
+        <VtBanner v-else-if="failed" tone="danger" role="alert" data-testid="import-failed">
             {{ t('audience.import.failed', { reason: t(`audience.import.failure.${state.failureReason ?? 'error'}`) }) }}
-        </p>
+        </VtBanner>
 
         <template v-else>
             <p class="vt-text-muted">{{ t('audience.import.step4.subtitle', { count: n(counts.total) }) }}</p>
@@ -128,7 +128,7 @@ const tone = (code: string): 'danger' | 'warning' => (['invalid_email', 'missing
                 <h3>{{ t('audience.import.step4.sampleHeading') }}</h3>
                 <VmTable :columns="columns" :rows="rows" :caption="t('audience.import.step4.sampleHeading')" data-testid="preview-samples">
                     <template #cell="{ column, row, value }">
-                        <VtBadge v-if="column.key === 'finding'" :tone="tone(row.code)" size="sm">{{ value }}</VtBadge>
+                        <VtBadge v-if="column.key === 'finding'" :tone="tone(row.code)">{{ value }}</VtBadge>
                         <span v-else class="vm-truncate" :title="String(value ?? '')">{{ value }}</span>
                     </template>
                 </VmTable>
@@ -136,7 +136,7 @@ const tone = (code: string): 'danger' | 'warning' => (['invalid_email', 'missing
         </template>
 
         <VmFormActions>
-            <VtButton variant="glass" data-testid="import-back" @click="emit('back')">{{ t('audience.import.back') }}</VtButton>
+            <VtButton variant="secondary" data-testid="import-back" @click="emit('back')">{{ t('audience.import.back') }}</VtButton>
             <VtButton
                 :disabled="computing || failed || starting || importable === 0"
                 data-testid="import-start"
@@ -145,9 +145,9 @@ const tone = (code: string): 'danger' | 'warning' => (['invalid_email', 'missing
                 {{ t('audience.import.start') }}
             </VtButton>
         </VmFormActions>
-        <p v-if="!computing && !failed && importable === 0" class="vm-banner vm-banner--warning" role="status">
+        <VtBanner v-if="!computing && !failed && importable === 0" tone="warning" role="status">
             {{ t('audience.import.step4.nothing') }}
-        </p>
+        </VtBanner>
     </section>
 </template>
 
@@ -166,12 +166,12 @@ p {
 }
 
 .vt-text-muted {
-    color: var(--vt-text-muted);
+    color: var(--vt-text-secondary);
 }
 
 .vm-import-stats {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(var(--vt-space-24) * 2)), 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(calc(var(--vt-space-12) * 2) * 2)), 1fr));
     gap: var(--vt-space-4);
 }
 </style>

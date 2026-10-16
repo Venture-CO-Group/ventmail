@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { router } from '@inertiajs/vue3';
-import { VtButton } from '@venture/ui';
+import { VtBanner, VtButton, VtEmptyState } from '@venture-co-group/ui';
 import VmCard from '../../Components/Form/VmCard.vue';
 import { useI18n } from 'vue-i18n';
 import { useFormat } from '../../composables/useFormat';
@@ -34,19 +34,17 @@ function decline(uuid: string): void {
 
 <template>
     <main class="vm-stack" id="main">
-        <h1 class="vt-text-display">{{ t('invitations.title') }}</h1>
+        <h1 class="vt-num">{{ t('invitations.title') }}</h1>
 
-        <p class="vm-banner" role="status">{{ t('invitations.note') }}</p>
+        <VtBanner tone="info" role="status">{{ t('invitations.note') }}</VtBanner>
 
         <!-- A MEGERŐSÍTETLEN cím külön üzenet: a meghívó létezhet, de amíg a ventSSO nem
              igazolta a címet, nem váltható be — ne találgassa, miért üres a lista. -->
-        <p v-if="unverified" class="vm-banner vm-banner--warning" data-testid="invitations-unverified">
+        <VtBanner v-if="unverified" tone="warning" data-testid="invitations-unverified">
             {{ t('invitations.unverified') }}
-        </p>
+        </VtBanner>
 
-        <VmCard v-for="invitation in invitations" :key="invitation.uuid" :data-testid="`invitation-${invitation.uuid}`">
-            <h2>{{ invitation.workspace }}</h2>
-
+        <VmCard v-for="invitation in invitations" :key="invitation.uuid" :data-testid="`invitation-${invitation.uuid}`" :title="invitation.workspace">
             <p>{{ t('invitations.roles', { roles: invitation.roles.join(', ') }) }}</p>
 
             <p v-if="invitation.expiresAt">
@@ -64,6 +62,6 @@ function decline(uuid: string): void {
             </div>
         </VmCard>
 
-        <p v-if="!invitations.length && !unverified" data-testid="invitations-empty">{{ t('invitations.empty') }}</p>
+        <VtEmptyState v-if="!invitations.length && !unverified" :title="t('invitations.empty')" icon="inbox" data-testid="invitations-empty" />
     </main>
 </template>

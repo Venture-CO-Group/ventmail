@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { VtBadge, VtInput } from '@venture/ui';
+import { VtBadge, VtInput } from '@venture-co-group/ui';
 import { ref } from 'vue';
 
 /**

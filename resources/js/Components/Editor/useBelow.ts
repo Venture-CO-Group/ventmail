@@ -19,7 +19,7 @@ export function useBelow(factor: number): Ref<boolean> {
         probe.style.position = 'absolute';
         probe.style.visibility = 'hidden';
         probe.style.pointerEvents = 'none';
-        probe.style.inlineSize = `calc(var(--vt-space-32) * ${factor})`;
+        probe.style.inlineSize = `calc(calc(var(--vt-space-8) * 4) * ${factor})`;
         document.body.appendChild(probe);
 
         const width = probe.getBoundingClientRect().width;

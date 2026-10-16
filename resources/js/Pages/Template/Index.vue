@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Head, Link, router } from '@inertiajs/vue3';
-import { VtButton, VtCheckbox, VtField, VtInput, VtModal } from '@venture/ui';
+import { VtBanner, VtButton, VtCheckbox, VtChip, VtEmptyState, VtField, VtInput, VtModal, VtPageHeader } from '@venture-co-group/ui';
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import TemplateThumb from '../../Components/Editor/TemplateThumb.vue';
@@ -130,28 +130,24 @@ const blockIcon: Record<string, string> = {
     <Head :title="t('library.title')" />
 
     <AppLayout>
-        <header class="vm-row" data-testid="library-header">
-            <div class="vm-stack">
-                <p class="vm-ed-heading">{{ t('library.eyebrow') }}</p>
-                <h1 class="vt-text-display">{{ t('library.title') }}</h1>
-                <p class="vt-text-lead">{{ t('library.lead') }}</p>
-            </div>
-            <div class="vm-cluster">
-                <VtInput v-model="search" :placeholder="t('library.search')" :aria-label="t('library.search')" data-testid="library-search" />
-                <VtButton glow data-testid="template-new" @click="openCreate()"><VmIcon name="plus" /> {{ t('library.new') }}</VtButton>
-            </div>
-        </header>
+        <VtPageHeader :overline="t('nav.studio')" :title="t('library.title')" :description="t('page.templates.lead')" data-testid="library-header">
+            <template #actions>
+                <VtButton variant="secondary" data-testid="template-gallery" @click="filter = 'starters'"><VmIcon name="layout" /> {{ t('library.gallery') }}</VtButton>
+                <VtButton data-testid="template-new" @click="openCreate()"><VmIcon name="plus" /> {{ t('library.new') }}</VtButton>
+            </template>
+        </VtPageHeader>
 
         <div class="vm-lib-filters" role="group" :aria-label="t('library.filter')">
-            <button type="button" :aria-pressed="filter === 'all'" data-testid="filter-all" @click="filter = 'all'">{{ t('library.filters.all') }}</button>
-            <button type="button" :aria-pressed="filter === 'own'" data-testid="filter-own" @click="filter = 'own'">{{ t('library.filters.own', { count: templates.length }) }}</button>
-            <button type="button" :aria-pressed="filter === 'blocks'" data-testid="filter-blocks" @click="filter = 'blocks'">{{ t('library.filters.blocks', { count: savedBlocks.length }) }}</button>
-            <button type="button" :aria-pressed="filter === 'starters'" data-testid="filter-starters" @click="filter = 'starters'">{{ t('library.filters.starters', { count: starters.length }) }}</button>
+            <VtChip :selected="filter === 'all'" data-testid="filter-all" @update:selected="() => (filter = 'all')">{{ t('library.filters.all') }}</VtChip>
+            <VtChip :selected="filter === 'own'" data-testid="filter-own" @update:selected="() => (filter = 'own')">{{ t('library.filters.own', { count: templates.length }) }}</VtChip>
+            <VtChip :selected="filter === 'blocks'" data-testid="filter-blocks" @update:selected="() => (filter = 'blocks')">{{ t('library.filters.blocks', { count: savedBlocks.length }) }}</VtChip>
+            <VtChip :selected="filter === 'starters'" data-testid="filter-starters" @update:selected="() => (filter = 'starters')">{{ t('library.filters.starters', { count: starters.length }) }}</VtChip>
+            <VtInput v-model="search" class="vm-lib-search" type="search" :placeholder="t('library.search')" :aria-label="t('library.search')" data-testid="library-search" />
         </div>
 
         <section v-if="show('own')" class="vm-stack" data-testid="library-own">
             <h2>{{ t('library.own') }}</h2>
-            <p v-if="!own.length" data-testid="templates-empty">{{ t('library.ownEmpty') }}</p>
+            <VtEmptyState v-if="!own.length" :title="t('library.ownEmpty')" icon="inbox" data-testid="templates-empty" />
             <div v-else class="vm-lib-grid">
                 <article v-for="template in own" :key="template.uuid" class="vm-lib-card" :data-testid="`template-card-${template.uuid}`">
                     <Link :href="`/templates/${template.uuid}`" class="vm-stack" :data-testid="`edit-${template.uuid}`" :aria-label="t('library.edit', { name: template.name })">
@@ -214,17 +210,16 @@ const blockIcon: Record<string, string> = {
                     <div class="vm-stack">
                         <span>{{ t('library.create.source') }}</span>
                         <div class="vm-lib-filters" role="group" :aria-label="t('library.create.source')">
-                            <button type="button" :aria-pressed="source.kind === 'blank'" data-testid="create-blank" @click="source = { kind: 'blank' }">{{ t('library.create.blank') }}</button>
-                            <button
+                            <VtChip :selected="source.kind === 'blank'" data-testid="create-blank" @update:selected="() => (source = { kind: 'blank' })">{{ t('library.create.blank') }}</VtChip>
+                            <VtChip
                                 v-for="starter in props.starters"
                                 :key="starter.key"
-                                type="button"
-                                :aria-pressed="source.kind === 'starter' && source.key === starter.key"
+                                :selected="source.kind === 'starter' && source.key === starter.key"
                                 :data-testid="`create-starter-${starter.key}`"
-                                @click="source = { kind: 'starter', key: starter.key }"
+                                @update:selected="() => (source = { kind: 'starter', key: starter.key })"
                             >
                                 {{ starter.name }}
-                            </button>
+                            </VtChip>
                         </div>
                         <small v-if="copyName !== null" class="vm-ed-hint">{{ t('library.create.copyOf', { name: copyName }) }}</small>
                     </div>
@@ -235,7 +230,7 @@ const blockIcon: Record<string, string> = {
                         <VtInput v-model="subject" data-testid="template-subject" />
                     </VtField>
                     <VtCheckbox v-if="source.kind !== 'copy'" v-model="marketing" data-testid="template-marketing">{{ t('library.create.marketing') }}</VtCheckbox>
-                    <p v-if="errors.blocks" class="vm-banner vm-banner--danger" role="status">{{ errors.blocks }}</p>
+                    <VtBanner v-if="errors.blocks" tone="danger" role="status">{{ errors.blocks }}</VtBanner>
                 </VmFormSection>
                 <VmFormActions>
                     <VtButton variant="ghost" @click="createOpen = false">{{ t('editor.common.cancel') }}</VtButton>

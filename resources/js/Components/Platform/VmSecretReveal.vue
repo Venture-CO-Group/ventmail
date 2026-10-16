@@ -16,7 +16,7 @@ defineProps<{ title: string; hint: string; value: string; testid?: string; extra
         <div class="vm-secret" role="status">
             <strong>{{ title }}</strong>
             <span class="vm-secret__hint">{{ hint }}</span>
-            <p v-if="extra" class="vt-text-mono vm-wrap">{{ extra }}</p>
+            <p v-if="extra" class="vt-mono vm-wrap">{{ extra }}</p>
             <div class="vm-secret__row">
                 <code class="vm-secret__value vm-wrap" :data-testid="testid ? `${testid}-value` : undefined">{{ value }}</code>
                 <VmCopyButton :value="value" :testid="testid ? `${testid}-copy` : undefined" />
@@ -34,8 +34,8 @@ defineProps<{ title: string; hint: string; value: string; testid?: string; extra
 }
 
 .vm-secret__hint {
-    color: var(--vt-text-muted);
-    font-size: var(--vt-fs-body-sm);
+    color: var(--vt-text-secondary);
+    font-size: var(--vt-type-body-m-size);
 }
 
 .vm-secret__row {
@@ -50,10 +50,10 @@ defineProps<{ title: string; hint: string; value: string; testid?: string; extra
     flex: 1 1 auto;
     min-width: 0;
     font-family: var(--vt-font-mono);
-    font-size: var(--vt-fs-body-sm);
+    font-size: var(--vt-type-body-m-size);
     padding: var(--vt-space-2) var(--vt-space-3);
     border: thin solid var(--vt-border);
     border-radius: var(--vt-radius-md);
-    background: var(--vt-bg-elevated);
+    background: var(--vt-bg-raised);
 }
 </style>

@@ -9,7 +9,6 @@ use App\Modules\Analytics\Services\AnalyticsSections;
 use App\Modules\Audience\Models\Contact;
 use App\Modules\Billing\Services\EntitlementChecker;
 use App\Modules\Campaign\Models\Campaign;
-use App\Modules\Campaign\Services\CampaignRowStats;
 use App\Modules\Domains\Models\Domain;
 use App\Modules\Logs\Services\TagStatistics;
 use App\Modules\Sending\Models\Message;
@@ -43,17 +42,16 @@ use Inertia\Response;
  * ## v1.1 · D284 — a mockup áttekintése
  *
  * KPI-sor sparkline-nal (`AnalyticsSections::overview` — QueryBudget + 5 perces gyorsítótár),
- * legutóbbi kampányok (`CampaignRowStats`, ugyanaz, mint a kampánylista), kézbesíthetőség-kártya
+ * kézbesíthetőség-kártya
  * (arányok + a domain-rekordok összesített állapota) és teendők. Minden blokk a SAJÁT képessége
  * mögött: amit a szerep a saját képernyőjén nem láthat, azt itt `null`-ként kapja.
+ *
+ * Unified UI v2: a Figma áttekintésén nincs kampánylista — az a `/campaigns` képernyő.
  */
 final class DashboardController
 {
     /** Az áttekintés időszaka (nap) — a mockup „elmúlt 30 nap"-ja. */
     private const DAYS = '30';
-
-    /** A „Legutóbbi kampányok" sorai. */
-    private const RECENT_CAMPAIGNS = 5;
 
     public function __invoke(
         Request $request,
@@ -61,7 +59,6 @@ final class DashboardController
         EntitlementChecker $entitlements,
         TagStatistics $statistics,
         AnalyticsSections $sections,
-        CampaignRowStats $rowStats,
     ): Response {
         $workspace = $context->workspace();
 
@@ -90,7 +87,6 @@ final class DashboardController
             'recent' => $mayViewLogs ? $this->recent() : [],
             'workspaceName' => (string) $workspace->name,
             'kpis' => $kpis,
-            'campaigns' => Gate::allows('campaign.create') ? $this->campaigns($rowStats) : null,
             'deliverability' => $mayAnalyse ? $this->deliverability($kpis ?? [], $domains) : null,
             'todos' => $this->todos($domains),
             // CSAK MEGJELENÍTÉS: a küldési mód (a tulajdonos kapcsolja, RUNBOOK-mail §13).
@@ -100,25 +96,6 @@ final class DashboardController
                 'marketingEnabled' => (bool) config('sending.marketing_enabled'),
             ],
         ]);
-    }
-
-    /**
-     * A LEGUTÓBBI KAMPÁNYOK — ugyanaz a sor-statisztika, mint a kampánylistán.
-     *
-     * @return list<array<string, mixed>>
-     */
-    private function campaigns(CampaignRowStats $rowStats): array
-    {
-        $campaigns = Campaign::query()->orderByDesc('id')->limit(self::RECENT_CAMPAIGNS)->get();
-        $stats = $rowStats->engagement($campaigns);
-
-        return $campaigns->map(fn (Campaign $campaign) => [
-            'uuid' => (string) $campaign->uuid,
-            'name' => (string) $campaign->name,
-            'displayStatus' => $rowStats->displayStatus($campaign),
-            'recipients' => (int) $campaign->recipient_count,
-            ...$rowStats->rates($stats[(string) $campaign->uuid] ?? null),
-        ])->values()->all();
     }
 
     /**

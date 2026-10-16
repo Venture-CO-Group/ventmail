@@ -12,9 +12,9 @@
     },
     "dependencies": {
         "@inertiajs/vue3": "^2.0.0",
-        "@venture/design": "file:../venture-design",
+        "@venture-co-group/design": "^2.1.0",
+        "@venture-co-group/ui": "^2.1.1",
         "@venture/sdk": "file:../venture-sdk",
-        "@venture/ui": "file:../venture-ui",
         "@vue-flow/background": "1.3.2",
         "@vue-flow/core": "1.48.2",
         "@vue-flow/minimap": "1.5.4",

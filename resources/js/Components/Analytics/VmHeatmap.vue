@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { VtBanner, VtEmptyState } from '@venture-co-group/ui';
 import axios from 'axios';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
@@ -107,9 +108,9 @@ const percent = (value: number) => `${format.number(value, { maximumFractionDigi
 
 <template>
     <div class="vm-heat" data-testid="heatmap">
-        <p v-if="changed" class="vm-banner vm-banner--warning" role="status" data-testid="heatmap-changed">{{ t('analytics.templateChanged') }}</p>
+        <VtBanner v-if="changed" tone="warning" role="status" data-testid="heatmap-changed">{{ t('analytics.templateChanged') }}</VtBanner>
         <p v-if="state === 'loading'" class="vm-heat__state">…</p>
-        <p v-else-if="state === 'empty' || state === 'error'" class="vm-heat__state" data-testid="heatmap-empty">{{ t('analytics.heatmapEmpty') }}</p>
+        <VtEmptyState v-else-if="state === 'empty' || state === 'error'" :title="t('analytics.heatmapEmpty')" icon="inbox" data-testid="heatmap-empty" />
         <p v-else-if="!totalUnique" class="vm-heat__state" data-testid="heatmap-noclicks">{{ t('analytics.noClicks') }}</p>
 
         <div v-if="state === 'ready' && html" class="vm-heat__stage">
@@ -153,13 +154,13 @@ const percent = (value: number) => `${format.number(value, { maximumFractionDigi
 
 .vm-heat__state {
     margin: 0;
-    color: var(--vt-text-muted);
+    color: var(--vt-text-secondary);
 }
 
 .vm-heat__stage {
     display: flex;
     justify-content: center;
-    max-height: calc(var(--vt-space-32) * 5);
+    max-height: calc(calc(var(--vt-space-8) * 4) * 5);
     overflow: auto;
     border-radius: var(--vt-radius-lg);
     background: var(--vt-surface-2);
@@ -169,10 +170,10 @@ const percent = (value: number) => `${format.number(value, { maximumFractionDigi
 .vm-heat__paper {
     position: relative;
     width: 100%;
-    max-width: calc(var(--vt-space-32) * 4.7);
-    min-height: calc(var(--vt-space-32) * 2);
+    max-width: calc(calc(var(--vt-space-8) * 4) * 4.7);
+    min-height: calc(calc(var(--vt-space-8) * 4) * 2);
     flex: none;
-    background: var(--vt-color-neutral-0);
+    background: var(--vt-print-paper);
     border-radius: var(--vt-radius-md);
     overflow: hidden;
 }
@@ -200,15 +201,15 @@ const percent = (value: number) => `${format.number(value, { maximumFractionDigi
 }
 
 .vm-heat__spot--hot {
-    background: var(--vt-color-danger);
+    background: var(--vt-status-danger);
 }
 
 .vm-heat__spot--warm {
-    background: var(--vt-color-warning);
+    background: var(--vt-status-warning);
 }
 
 .vm-heat__spot--cool {
-    background: var(--vt-color-cyan-400);
+    background: var(--vt-chart-series-2);
 }
 
 .vm-heat__pct {
@@ -216,10 +217,10 @@ const percent = (value: number) => `${format.number(value, { maximumFractionDigi
     transform: translate(-50%, -50%);
     padding: var(--vt-space-1) var(--vt-space-2);
     border-radius: var(--vt-radius-full);
-    background: var(--vt-color-neutral-900);
-    color: var(--vt-color-neutral-0);
+    background: var(--vt-print-text);
+    color: var(--vt-print-paper);
     font-family: var(--vt-font-mono);
-    font-size: var(--vt-fs-caption);
+    font-size: var(--vt-type-caption-size);
     white-space: nowrap;
 }
 </style>

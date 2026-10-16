@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { VtButton, VtField, VtInput, VtSelect } from '@venture/ui';
+import { VtButton, VtField, VtInput, VtSelect } from '@venture-co-group/ui';
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import VmIcon from '../Shell/VmIcon.vue';

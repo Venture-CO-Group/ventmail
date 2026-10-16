@@ -157,7 +157,7 @@ test('napló: Message-ID szűrő, idővonal, CSV-export (maszkolt címzettel)', 
     await page.goto('/logs');
     await page.getByTestId('filter-message-id').fill(`<${firstId}@mail.example.test>`);
     await page.getByTestId('log-search').click();
-    await expect(page.getByTestId('log-table').locator('tbody tr')).toHaveCount(1);
+    await expect(page.getByTestId('log-table').locator('tbody tr.vt-dt__row')).toHaveCount(1);
 
     await page.getByTestId('log-trace').click();
     await expect(page.getByTestId('trace-timeline')).toBeVisible();
@@ -181,7 +181,7 @@ test('suppression: külön listák, a panasz nem törölhető', async ({ page })
 
     await page.getByTestId('suppression-new').click();
     await page.getByTestId('suppression-email').fill(`panasz-${run}@pelda.hu`);
-    await page.getByTestId('suppression-reason').locator('select').selectOption('complaint');
+    await page.getByTestId('suppression-reason').locator('xpath=descendant-or-self::select').selectOption('complaint');
     await page.getByTestId('suppression-submit').click();
 
     await expect(page).toHaveURL(/list=complaints/);

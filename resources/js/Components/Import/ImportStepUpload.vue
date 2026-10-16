@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { router } from '@inertiajs/vue3';
-import { VtButton, VtField, VtFileUpload, VtInput, VtTabs, VtTextarea, type VtTab } from '@venture/ui';
+import { VtBanner, VtButton, VtField, VtFileUpload, VtInput, VtTabs, VtTextarea, type VtTab } from '@venture-co-group/ui';
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import VmForm from '../Form/VmForm.vue';
@@ -31,7 +31,18 @@ const format = useFormat();
 // A számok a PROFIL számformátuma szerint (D11), nem a vue-i18n locale-ja szerint.
 const n = (value: number): string => format.number(value);
 
-const tab = ref<string>(props.state?.sourceType === 'xlsx' ? 'xlsx' : props.state?.sourceType === 'csv' ? 'csv' : 'manual');
+// Új import: a hívó gomb választhat fület (`?source=csv` — „CSV importálása" az Audience fejlécén);
+// folyamatban lévő importnál a forrása dönt.
+const requested = typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('source');
+const tab = ref<string>(
+    props.state?.sourceType === 'xlsx'
+        ? 'xlsx'
+        : props.state?.sourceType === 'csv'
+          ? 'csv'
+          : !props.state && requested !== null && ['manual', 'paste', 'csv', 'xlsx'].includes(requested)
+            ? requested
+            : 'manual',
+);
 const busy = ref(false);
 
 const manual = ref({ email: '', first_name: '', last_name: '' });
@@ -190,7 +201,7 @@ function sizeLabel(bytes: number | null): string {
                             @update:model-value="uploadFile"
                         />
                     </VtField>
-                    <p v-if="errors.file" class="vm-banner vm-banner--danger" role="alert" data-testid="import-file-error">{{ errors.file }}</p>
+                    <VtBanner v-if="errors.file" tone="danger" role="alert" data-testid="import-file-error">{{ errors.file }}</VtBanner>
                 </template>
 
                 <template #xlsx>
@@ -205,7 +216,7 @@ function sizeLabel(bytes: number | null): string {
                             @update:model-value="uploadFile"
                         />
                     </VtField>
-                    <p v-if="errors.file" class="vm-banner vm-banner--danger" role="alert" data-testid="import-file-error">{{ errors.file }}</p>
+                    <VtBanner v-if="errors.file" tone="danger" role="alert" data-testid="import-file-error">{{ errors.file }}</VtBanner>
                 </template>
             </VtTabs>
         </template>
@@ -233,7 +244,7 @@ p {
     padding: var(--vt-space-4);
     border: thin solid var(--vt-border);
     border-radius: var(--vt-radius-md);
-    background-color: var(--vt-glass-thin-fill);
+    background-color: var(--vt-surface-2);
 }
 
 .vm-import-file > :last-child {
@@ -242,14 +253,14 @@ p {
 
 .vm-import-facts {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(var(--vt-space-24) * 2)), 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(calc(var(--vt-space-12) * 2) * 2)), 1fr));
     gap: var(--vt-space-4);
     margin: 0;
 }
 
 .vm-import-facts dt {
-    font-size: var(--vt-fs-caption);
-    color: var(--vt-text-muted);
+    font-size: var(--vt-type-caption-size);
+    color: var(--vt-text-secondary);
 }
 
 .vm-import-facts dd {
@@ -258,6 +269,6 @@ p {
 }
 
 .vt-text-muted {
-    color: var(--vt-text-muted);
+    color: var(--vt-text-secondary);
 }
 </style>

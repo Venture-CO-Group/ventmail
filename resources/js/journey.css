@@ -18,9 +18,10 @@
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto minmax(0, 1fr);
     min-inline-size: 0;
-    block-size: calc(100dvh - var(--vt-space-16));
-    min-block-size: calc(var(--vt-space-32) * 4);
-    background: var(--vt-bg);
+    /* A héj tartalom-oszlopa, mínusz a felső (32) és alsó (48) belső margó. */
+    block-size: calc(var(--vm-shell-viewport) - var(--vt-space-8) - var(--vt-space-12));
+    min-block-size: calc(calc(var(--vt-space-8) * 4) * 4);
+    background: var(--vt-bg-base);
 }
 
 /* ------------------------------------------------------------------ felső sáv */
@@ -32,12 +33,12 @@
     gap: var(--vt-space-3);
     padding: var(--vt-space-3) var(--vt-space-4);
     border-block-end: thin solid var(--vt-border);
-    background: var(--vt-surface);
+    background: var(--vt-surface-1);
 }
 
 .vm-jc-top__name {
     display: flex;
-    flex: 1 1 calc(var(--vt-space-32) * 2);
+    flex: 1 1 calc(calc(var(--vt-space-8) * 4) * 2);
     flex-wrap: wrap;
     align-items: center;
     gap: var(--vt-space-2);
@@ -45,15 +46,16 @@
 }
 
 .vm-jc-top__name input {
-    flex: 1 1 calc(var(--vt-space-32) * 1.5);
+    flex: 1 1 calc(calc(var(--vt-space-8) * 4) * 1.5);
     min-inline-size: 0;
     padding: var(--vt-space-1) var(--vt-space-2);
     border: thin solid transparent;
     border-radius: var(--vt-radius-sm);
     background: transparent;
-    color: var(--vt-text);
+    color: var(--vt-text-primary);
     font-family: var(--vt-font-display);
-    font-size: var(--vt-fs-h5);
+    font-size: var(--vt-type-heading-h1-size);
+    line-height: var(--vt-type-heading-h1-line-height);
     font-weight: var(--vt-weight-semibold);
 }
 
@@ -64,8 +66,8 @@
 }
 
 .vm-jc-top__hint {
-    color: var(--vt-color-warning);
-    font-size: var(--vt-fs-caption);
+    color: var(--vt-status-warning);
+    font-size: var(--vt-type-caption-size);
 }
 
 .vm-jc-top__actions {
@@ -85,8 +87,8 @@
 }
 
 .vm-jc-top__test .vt-input {
-    flex: 1 1 calc(var(--vt-space-32) * 1.75);
-    inline-size: calc(var(--vt-space-32) * 1.75);
+    flex: 1 1 calc(calc(var(--vt-space-8) * 4) * 1.75);
+    inline-size: calc(calc(var(--vt-space-8) * 4) * 1.75);
     min-inline-size: 0;
 }
 
@@ -104,7 +106,7 @@
 
 .vm-jc-body {
     display: grid;
-    grid-template-columns: calc(var(--vt-space-32) * 1.75) minmax(0, 1fr) calc(var(--vt-space-32) * 2.5);
+    grid-template-columns: calc(calc(var(--vt-space-8) * 4) * 1.75) minmax(0, 1fr) calc(calc(var(--vt-space-8) * 4) * 2.5);
     min-block-size: 0;
 }
 
@@ -112,7 +114,7 @@
 .vm-jc-panel {
     min-block-size: 0;
     overflow-y: auto;
-    background: var(--vt-surface);
+    background: var(--vt-surface-1);
 }
 
 .vm-jc-palette {
@@ -128,8 +130,8 @@
     display: flex;
     flex-direction: column;
     gap: var(--vt-space-3);
-    color: var(--vt-text-muted);
-    font-size: var(--vt-fs-body-sm);
+    color: var(--vt-text-secondary);
+    font-size: var(--vt-type-body-m-size);
 }
 
 .vm-jc-versions {
@@ -140,16 +142,16 @@
 }
 
 .vm-jc-versions dt {
-    color: var(--vt-text-subtle);
-    font-size: var(--vt-fs-caption);
+    color: var(--vt-text-tertiary);
+    font-size: var(--vt-type-caption-size);
     text-transform: uppercase;
-    letter-spacing: var(--vt-tracking-wide);
+    letter-spacing: var(--vt-type-overline-tracking);
 }
 
 .vm-jc-versions dd {
     margin: 0;
     font-family: var(--vt-font-mono);
-    font-size: var(--vt-fs-caption);
+    font-size: var(--vt-type-caption-size);
 }
 
 .vm-jc-stage {
@@ -171,9 +173,9 @@
 
 .vm-jpal__group {
     margin: var(--vt-space-3) 0 var(--vt-space-1);
-    color: var(--vt-text-subtle);
-    font-size: var(--vt-fs-caption);
-    letter-spacing: var(--vt-tracking-wider);
+    color: var(--vt-text-tertiary);
+    font-size: var(--vt-type-caption-size);
+    letter-spacing: var(--vt-type-overline-tracking);
     text-transform: uppercase;
 }
 
@@ -185,9 +187,9 @@
     border: thin solid transparent;
     border-radius: var(--vt-radius-md);
     background: transparent;
-    color: var(--vt-text);
+    color: var(--vt-text-primary);
     font: inherit;
-    font-size: var(--vt-fs-body-sm);
+    font-size: var(--vt-type-body-m-size);
     text-align: start;
     cursor: grab;
 }
@@ -200,7 +202,7 @@
 }
 
 .vm-jpal__item:disabled {
-    color: var(--vt-text-subtle);
+    color: var(--vt-text-tertiary);
     cursor: not-allowed;
 }
 
@@ -217,8 +219,8 @@
     padding: 0 var(--vt-space-2);
     border-radius: var(--vt-radius-full);
     background: var(--vt-surface-2);
-    color: var(--vt-text-muted);
-    font-size: var(--vt-fs-caption);
+    color: var(--vt-text-secondary);
+    font-size: var(--vt-type-caption-size);
     white-space: nowrap;
 }
 
@@ -234,7 +236,7 @@
 }
 
 .vm-jpal__icon--end {
-    color: var(--vt-color-warning);
+    color: var(--vt-status-warning);
 }
 
 .vm-jpal__label {
@@ -248,7 +250,7 @@
 .vm-jc-issues {
     padding: var(--vt-space-2) var(--vt-space-3);
     border-block-end: thin solid var(--vt-border);
-    background: var(--vt-surface);
+    background: var(--vt-surface-1);
 }
 
 .vm-jc-issues__toggle {
@@ -259,18 +261,18 @@
     border: thin solid var(--vt-border-strong);
     border-radius: var(--vt-radius-md);
     background: transparent;
-    color: var(--vt-color-success);
+    color: var(--vt-status-success);
     font: inherit;
-    font-size: var(--vt-fs-body-sm);
+    font-size: var(--vt-type-body-m-size);
     cursor: pointer;
 }
 
 .vm-jc-issues--bad .vm-jc-issues__toggle {
-    color: var(--vt-color-warning);
+    color: var(--vt-status-warning);
 }
 
 .vm-jc-issues__list {
-    max-block-size: calc(var(--vt-space-24) * 1.25);
+    max-block-size: calc(calc(var(--vt-space-12) * 2) * 1.25);
     overflow-y: auto;
     display: flex;
     flex-direction: column;
@@ -278,14 +280,14 @@
     margin: var(--vt-space-2) 0 0;
     padding: 0;
     list-style: none;
-    font-size: var(--vt-fs-body-sm);
+    font-size: var(--vt-type-body-m-size);
 }
 
 .vm-jc-issues__list li {
     display: flex;
     flex-wrap: wrap;
     gap: var(--vt-space-2);
-    color: var(--vt-text-muted);
+    color: var(--vt-text-secondary);
 }
 
 .vm-jc-issues__list button {
@@ -299,12 +301,12 @@
 }
 
 .vm-jc-issues__item--error {
-    border-inline-start: thin solid var(--vt-color-danger);
+    border-inline-start: thin solid var(--vt-status-danger);
     padding-inline-start: var(--vt-space-2);
 }
 
 .vm-jc-issues__item--warning {
-    border-inline-start: thin solid var(--vt-color-warning);
+    border-inline-start: thin solid var(--vt-status-warning);
     padding-inline-start: var(--vt-space-2);
 }
 
@@ -314,7 +316,7 @@
     position: relative;
     min-block-size: 0;
     overflow: hidden;
-    background: var(--vt-bg);
+    background: var(--vt-bg-base);
 }
 
 .vm-jc-flow .vue-flow {
@@ -349,7 +351,7 @@
 .vm-jc-minimap {
     border: thin solid var(--vt-border-strong);
     border-radius: var(--vt-radius-md);
-    background: var(--vt-surface);
+    background: var(--vt-surface-1);
 }
 
 .vm-jc-minimap .vue-flow__minimap-node,
@@ -358,12 +360,12 @@
 }
 
 .vm-jc-minimap svg {
-    inline-size: calc(var(--vt-space-32) * 1.25);
-    block-size: calc(var(--vt-space-20));
+    inline-size: calc(calc(var(--vt-space-8) * 4) * 1.25);
+    block-size: calc(calc(var(--vt-space-10) * 2));
 }
 
 .vm-jc-minimap .vue-flow__minimap-mask {
-    fill: var(--vt-glass-thin-fill);
+    fill: var(--vt-surface-2);
 }
 
 .vm-jc-zoom {
@@ -375,7 +377,7 @@
     flex-direction: column;
     border: thin solid var(--vt-border-strong);
     border-radius: var(--vt-radius-md);
-    background: var(--vt-surface);
+    background: var(--vt-surface-1);
     overflow: hidden;
 }
 
@@ -386,14 +388,14 @@
     block-size: var(--vt-space-8);
     border: 0;
     background: transparent;
-    color: var(--vt-text-muted);
+    color: var(--vt-text-secondary);
     cursor: pointer;
 }
 
 .vm-jc-zoom button:hover,
 .vm-jc-zoom button:focus-visible {
     background: var(--vt-surface-2);
-    color: var(--vt-text);
+    color: var(--vt-text-primary);
     outline: none;
 }
 
@@ -405,30 +407,30 @@
 /* ------------------------------------------------------------------ csomópont */
 
 .vm-jn {
-    inline-size: calc(var(--vt-space-32) * 1.75);
+    inline-size: calc(calc(var(--vt-space-8) * 4) * 1.75);
     border: thin solid var(--vt-border-strong);
     border-radius: var(--vt-radius-md);
-    background: var(--vt-surface);
-    color: var(--vt-text);
-    font-size: var(--vt-fs-caption);
-    box-shadow: var(--vt-shadow-sm);
+    background: var(--vt-surface-1);
+    color: var(--vt-text-primary);
+    font-size: var(--vt-type-caption-size);
+    box-shadow: var(--vt-elevation-card);
 }
 
 .vm-jn.is-selected {
     border-color: var(--vt-accent);
-    box-shadow: 0 0 0 var(--vt-space-1) var(--vt-ring);
+    box-shadow: 0 0 0 var(--vt-space-1) var(--vt-accent-line);
 }
 
 .vm-jn.is-on-path {
-    border-color: var(--vt-color-success);
+    border-color: var(--vt-status-success);
 }
 
 .vm-jn.has-error {
-    border-color: var(--vt-color-danger);
+    border-color: var(--vt-status-danger);
 }
 
 .vm-jn.has-warning:not(.is-selected) {
-    border-color: var(--vt-color-warning);
+    border-color: var(--vt-status-warning);
 }
 
 .vm-jn__head {
@@ -450,7 +452,7 @@
 }
 
 .vm-jn--trigger .vm-jn__icon {
-    color: var(--vt-color-success);
+    color: var(--vt-status-success);
 }
 
 .vm-jn__text {
@@ -469,18 +471,18 @@
 
 .vm-jn__summary {
     overflow: hidden;
-    color: var(--vt-text-muted);
+    color: var(--vt-text-secondary);
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
 .vm-jn__flag {
     flex: none;
-    color: var(--vt-color-warning);
+    color: var(--vt-status-warning);
 }
 
 .vm-jn.has-error .vm-jn__flag {
-    color: var(--vt-color-danger);
+    color: var(--vt-status-danger);
 }
 
 .vm-jn__outputs {
@@ -495,7 +497,7 @@
     justify-content: flex-end;
     min-block-size: var(--vt-space-5);
     padding-inline: var(--vt-space-2) var(--vt-space-3);
-    color: var(--vt-text-muted);
+    color: var(--vt-text-secondary);
 }
 
 .vm-jn__output-label {
@@ -509,7 +511,7 @@
     gap: var(--vt-space-3);
     padding: var(--vt-space-1) var(--vt-space-2);
     border-block-start: thin solid var(--vt-border);
-    color: var(--vt-text-muted);
+    color: var(--vt-text-secondary);
     font-family: var(--vt-font-mono);
 }
 
@@ -520,11 +522,11 @@
 }
 
 .vm-jn__stat--waiting {
-    color: var(--vt-color-warning);
+    color: var(--vt-status-warning);
 }
 
 .vm-jn__stat--moved {
-    color: var(--vt-color-success);
+    color: var(--vt-status-success);
 }
 
 .vm-jn__handle.vue-flow__handle {
@@ -532,7 +534,7 @@
     block-size: var(--vt-space-3);
     border: medium solid var(--vt-accent);
     border-radius: var(--vt-radius-full);
-    background: var(--vt-bg);
+    background: var(--vt-bg-base);
 }
 
 /*
@@ -576,15 +578,16 @@
 }
 
 .vm-jcfg__kind {
-    color: var(--vt-text-subtle);
-    font-size: var(--vt-fs-caption);
-    letter-spacing: var(--vt-tracking-wider);
+    color: var(--vt-text-tertiary);
+    font-size: var(--vt-type-caption-size);
+    letter-spacing: var(--vt-type-overline-tracking);
     text-transform: uppercase;
 }
 
 .vm-jcfg__name {
     font-family: var(--vt-font-display);
-    font-size: var(--vt-fs-h5);
+    font-size: var(--vt-type-heading-h1-size);
+    line-height: var(--vt-type-heading-h1-line-height);
     overflow-wrap: anywhere;
 }
 
@@ -603,23 +606,24 @@
 }
 
 .vm-jcfg__stats dt {
-    color: var(--vt-text-muted);
-    font-size: var(--vt-fs-caption);
+    color: var(--vt-text-secondary);
+    font-size: var(--vt-type-caption-size);
     overflow-wrap: anywhere;
 }
 
 .vm-jcfg__stats dd {
     margin: 0;
     font-family: var(--vt-font-display);
-    font-size: var(--vt-fs-h4);
+    font-size: var(--vt-type-display-m-size);
+    line-height: var(--vt-type-display-m-line-height);
 }
 
 .vm-jcfg__stat--waiting dd {
-    color: var(--vt-color-warning);
+    color: var(--vt-status-warning);
 }
 
 .vm-jcfg__stat--moved dd {
-    color: var(--vt-color-success);
+    color: var(--vt-status-success);
 }
 
 .vm-jcfg__issues {
@@ -629,7 +633,7 @@
     margin: 0;
     padding: 0;
     list-style: none;
-    font-size: var(--vt-fs-body-sm);
+    font-size: var(--vt-type-body-m-size);
 }
 
 .vm-jcfg__issues li {
@@ -639,11 +643,11 @@
 }
 
 .vm-jcfg__issue--error {
-    color: var(--vt-color-danger);
+    color: var(--vt-status-danger);
 }
 
 .vm-jcfg__issue--warning {
-    color: var(--vt-color-warning);
+    color: var(--vt-status-warning);
 }
 
 .vm-jcfg__group,
@@ -655,9 +659,9 @@
 
 .vm-jcfg__section {
     margin: 0;
-    color: var(--vt-text-subtle);
-    font-size: var(--vt-fs-caption);
-    letter-spacing: var(--vt-tracking-wider);
+    color: var(--vt-text-tertiary);
+    font-size: var(--vt-type-caption-size);
+    letter-spacing: var(--vt-type-overline-tracking);
     text-transform: uppercase;
 }
 
@@ -669,7 +673,7 @@
 }
 
 .vm-jcfg__row > * {
-    flex: 1 1 calc(var(--vt-space-24));
+    flex: 1 1 calc(calc(var(--vt-space-12) * 2));
     min-inline-size: 0;
 }
 
@@ -688,12 +692,12 @@
 
 .vm-jcfg__note {
     margin: 0;
-    color: var(--vt-text-muted);
-    font-size: var(--vt-fs-body-sm);
+    color: var(--vt-text-secondary);
+    font-size: var(--vt-type-body-m-size);
 }
 
 .vm-jcfg__note--bad {
-    color: var(--vt-color-danger);
+    color: var(--vt-status-danger);
 }
 
 .vm-jcfg__actions {
@@ -722,8 +726,8 @@
 .vm-jtest__note,
 .vm-jtest__summary {
     margin: 0;
-    color: var(--vt-text-muted);
-    font-size: var(--vt-fs-body-sm);
+    color: var(--vt-text-secondary);
+    font-size: var(--vt-type-body-m-size);
     overflow-wrap: anywhere;
 }
 
@@ -735,7 +739,7 @@
     padding: 0;
     list-style: none;
     font-family: var(--vt-font-mono);
-    font-size: var(--vt-fs-caption);
+    font-size: var(--vt-type-caption-size);
 }
 
 .vm-jtest__step {
@@ -743,7 +747,7 @@
     flex-direction: column;
     gap: var(--vt-space-1);
     padding: var(--vt-space-2);
-    border-inline-start: medium solid var(--vt-color-success);
+    border-inline-start: medium solid var(--vt-status-success);
     background: var(--vt-surface-2);
     border-radius: var(--vt-radius-sm);
 }
@@ -751,14 +755,14 @@
 .vm-jtest__step--blocked,
 .vm-jtest__step--condition_false,
 .vm-jtest__step--event_timeout {
-    border-inline-start-color: var(--vt-color-warning);
+    border-inline-start-color: var(--vt-status-warning);
 }
 
 .vm-jtest__node {
     padding: 0;
     border: 0;
     background: transparent;
-    color: var(--vt-text);
+    color: var(--vt-text-primary);
     font: inherit;
     font-weight: var(--vt-weight-semibold);
     text-align: start;
@@ -768,7 +772,7 @@
 
 .vm-jtest__outcome,
 .vm-jtest__time {
-    color: var(--vt-text-muted);
+    color: var(--vt-text-secondary);
     overflow-wrap: anywhere;
 }
 
@@ -820,7 +824,7 @@
 }
 
 .vm-jc--compact .vm-jc-stage {
-    block-size: calc(var(--vt-space-32) * 3.5);
+    block-size: calc(calc(var(--vt-space-8) * 4) * 3.5);
 }
 
 .vm-jc--compact .vm-jc-panel {

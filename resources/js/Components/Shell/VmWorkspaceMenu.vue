@@ -1,6 +1,7 @@
 <script setup lang="ts">
 /*
- | WORKSPACE-VÁLTÓ: legördülő keresővel, a szerepköröddel az adott workspace-ben, és „Új
+ | WORKSPACE-VÁLTÓ — a TARTALOM. A gomb a `VtSidebar` Figma-gombja (workspace-menu slot);
+ | itt a legördülő belseje: keresővel, a szerepköröddel az adott workspace-ben, és „Új
  | workspace" menüponttal (inline létrehozó űrlap).
  |
  | A lista kizárólag a SAJÁT tagságokat tartalmazza (a szerver szűri) — a váltó maga is
@@ -8,8 +9,8 @@
  | (`/workspaces`): a szerver ellenőriz, a kliens csak kér.
  */
 import { router, usePage } from '@inertiajs/vue3';
-import { VtAvatar, VtBadge, VtButton, VtDropdown, VtInput } from '@venture/ui';
-import { computed, nextTick, ref } from 'vue';
+import { VtAvatar, VtBadge, VtButton, VtInput } from '@venture-co-group/ui';
+import { computed, nextTick, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useShellMenu } from '../../composables/useMenuState';
 import VmIcon from './VmIcon.vue';
@@ -20,7 +21,7 @@ interface WorkspaceRow {
     roles?: string[];
 }
 
-defineProps<{ compact?: boolean }>();
+const props = defineProps<{ close: (returnFocus?: boolean) => void }>();
 
 const page = usePage<{
     workspace: { uuid: string; name: string } | null;
@@ -32,7 +33,7 @@ const { t } = useI18n({ useScope: 'global' });
 const menu = useShellMenu('workspace');
 const search = ref('');
 // A `VtInput` gyökéreleme maga az `<input>` — a komponens-ref `$el`-je a mező.
-const searchField = ref<{ $el: HTMLElement } | null>(null);
+const searchField = ref<{ focus: () => void } | null>(null);
 const creating = ref(false);
 const newName = ref('');
 const submitting = ref(false);
@@ -64,15 +65,17 @@ const filtered = computed(() => {
         : workspaces.value.filter((row) => row.name.toLocaleLowerCase().includes(needle));
 });
 
+onMounted(onOpen);
+
 function onOpen(): void {
     search.value = '';
     creating.value = false;
     error.value = null;
-    void nextTick(() => searchField.value?.$el.focus());
+    void nextTick(() => searchField.value?.focus());
 }
 
-function choose(row: WorkspaceRow, close: (returnFocus?: boolean) => void): void {
-    close(true);
+function choose(row: WorkspaceRow): void {
+    props.close(true);
 
     if (row.uuid === current.value?.uuid) return;
 
@@ -113,20 +116,10 @@ function create(): void {
 </script>
 
 <template>
-    <VtDropdown class="vm-switcher-dd" :label="t('shell.workspaceSwitcher')" :open="menu.open.value" @update:open="menu.setOpen" @open="onOpen">
-        <template #trigger="{ open, ...trigger }">
-            <button type="button" class="vm-chip" v-bind="trigger" data-testid="workspace-switch" :data-open="open ? 'true' : undefined">
-                <VtAvatar :name="current?.name ?? ''" size="xs" class="vm-chip__avatar" />
-                <span v-if="!compact" class="vm-chip__label" data-testid="workspace-current">{{ current?.name }}</span>
-                <VmIcon v-if="!compact" name="chevron" class="vm-chip__chevron" />
-            </button>
-        </template>
-
-        <template #default="{ close }">
           <div class="vm-switcher">
             <div class="vm-switcher__search">
-                <VmIcon name="search" />
                 <VtInput
+                    icon="search"
                     ref="searchField"
                     v-model="search"
                     data-testid="workspace-search"
@@ -136,7 +129,7 @@ function create(): void {
                 />
             </div>
 
-            <p class="vm-switcher__heading vt-eyebrow">{{ t('shell.workspaceList', { count: workspaces.length }) }}</p>
+            <p class="vm-switcher__heading vt-overline">{{ t('shell.workspaceList', { count: workspaces.length }) }}</p>
 
             <ul class="vm-switcher__list" role="list" data-testid="workspace-list">
                 <li v-for="row in filtered" :key="row.uuid">
@@ -145,12 +138,12 @@ function create(): void {
                         class="vm-switcher__row"
                         :data-testid="`workspace-option-${row.uuid}`"
                         :aria-current="row.uuid === current?.uuid ? 'true' : undefined"
-                        @click="choose(row, close)"
+                        @click="choose(row)"
                     >
                         <VtAvatar :name="row.name" size="sm" />
                         <span class="vm-switcher__name">{{ row.name }}</span>
                         <VmIcon v-if="row.uuid === current?.uuid" name="check" class="vm-switcher__check" data-testid="workspace-current-check" />
-                        <VtBadge :tone="primaryRole(row) === 'owner' ? 'accent' : 'neutral'" size="sm">
+                        <VtBadge :tone="primaryRole(row) === 'owner' ? 'accent' : 'neutral'">
                             {{ roleLabel(primaryRole(row)) }}
                         </VtBadge>
                     </button>
@@ -183,6 +176,4 @@ function create(): void {
                 </form>
             </div>
           </div>
-        </template>
-    </VtDropdown>
 </template>

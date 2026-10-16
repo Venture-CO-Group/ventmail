@@ -39,15 +39,16 @@ defineProps<{
 .vm-form-section__title {
     margin: 0;
     font-family: var(--vt-font-display);
-    font-size: var(--vt-fs-h6);
+    font-size: var(--vt-type-heading-h2-size);
+    line-height: var(--vt-type-heading-h2-line-height);
     font-weight: var(--vt-weight-semibold);
     overflow-wrap: anywhere;
 }
 
 .vm-form-section__description {
     margin: 0;
-    font-size: var(--vt-fs-body-sm);
-    color: var(--vt-text-muted);
+    font-size: var(--vt-type-body-m-size);
+    color: var(--vt-text-secondary);
 }
 
 .vm-form-section__body {

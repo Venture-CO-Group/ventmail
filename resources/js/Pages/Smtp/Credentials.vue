@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { router, usePage } from '@inertiajs/vue3';
-import { VtButton, VtField, VtInput, VtModal, VtSelect, type VtColumn } from '@venture/ui';
+import { VtBanner, VtButton, VtEmptyState, VtField, VtInput, VtModal, VtPageHeader, VtSelect, type VtColumn } from '@venture-co-group/ui';
 import VmTable from '../../Components/Form/VmTable.vue';
 import VmCard from '../../Components/Form/VmCard.vue';
 import VmForm from '../../Components/Form/VmForm.vue';
@@ -9,7 +9,6 @@ import VmFormRow from '../../Components/Form/VmFormRow.vue';
 import VmFormSection from '../../Components/Form/VmFormSection.vue';
 import VmCopyButton from '../../Components/Platform/VmCopyButton.vue';
 import VmStateBadge from '../../Components/Platform/VmStateBadge.vue';
-import VmPageHeader from '../../Components/Studio/VmPageHeader.vue';
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import AppLayout from '../../Layouts/AppLayout.vue';
@@ -122,39 +121,36 @@ function confirmAction(): void {
 
 <template>
     <AppLayout>
-        <VmPageHeader :eyebrow="t('plat.eyebrow.smtp')" :title="t('smtp.title')" :lead="t('plat.smtp.lead')" />
+        <VtPageHeader :overline="t('nav.platform')" :title="t('smtp.title')" :description="t('page.smtp.lead')" />
 
-        <p class="vm-banner" role="status">{{ t('smtp.relayNote') }}</p>
+        <VtBanner tone="info" role="status">{{ t('smtp.relayNote') }}</VtBanner>
 
         <VmCard v-if="issued" data-testid="issued-credential">
             <strong>{{ t('plat.smtp.issuedTitle') }}</strong>
             <p>{{ t('smtp.issuedOnce') }}</p>
             <div class="vm-cluster">
-                <code class="vt-text-mono vm-wrap" data-testid="issued-username">{{ issued.username }}</code>
+                <code class="vt-mono vm-wrap" data-testid="issued-username">{{ issued.username }}</code>
                 <VmCopyButton :value="issued.username ?? ''" testid="copy-username" />
             </div>
             <div class="vm-cluster">
-                <code class="vt-text-mono vm-wrap" data-testid="issued-password">{{ issued.password }}</code>
+                <code class="vt-mono vm-wrap" data-testid="issued-password">{{ issued.password }}</code>
                 <VmCopyButton :value="issued.password ?? ''" testid="copy-password" />
             </div>
         </VmCard>
 
-        <VmCard data-testid="smtp-submission">
-            <h2>{{ t('plat.smtp.connection') }}</h2>
+        <VmCard data-testid="smtp-submission" :title="t('plat.smtp.connection')">
             <dl class="vm-kv">
                 <dt>{{ t('plat.smtp.host') }}</dt>
-                <dd class="vt-text-mono">{{ submission.host }}</dd>
+                <dd class="vt-mono">{{ submission.host }}</dd>
                 <template v-for="port in submission.ports" :key="port.port">
                     <dt>{{ t('plat.smtp.port') }}</dt>
-                    <dd class="vt-text-mono">{{ port.port }} · {{ port.tls }}</dd>
+                    <dd class="vt-mono">{{ port.port }} · {{ port.tls }}</dd>
                 </template>
             </dl>
             <p>{{ t('plat.smtp.perDomain') }}</p>
         </VmCard>
 
-        <VmCard>
-            <h2>{{ t('smtp.new') }}</h2>
-
+        <VmCard :title="t('smtp.new')">
             <VmForm @submit.prevent="issue">
                 <VmFormSection>
                     <VtField :label="t('smtp.name')">
@@ -182,10 +178,8 @@ function confirmAction(): void {
             </VmForm>
         </VmCard>
 
-        <VmCard>
-            <h2>{{ t('smtp.existing') }}</h2>
-
-            <p v-if="!rows.length" data-testid="credentials-empty">{{ t('smtp.empty') }}</p>
+        <VmCard :title="t('smtp.existing')">
+            <VtEmptyState v-if="!rows.length" :title="t('smtp.empty')" icon="inbox" data-testid="credentials-empty" />
             <VmTable v-else :columns="columns" :rows="rows" :caption="t('smtp.existing')" data-testid="credentials-table">
                 <template #cell="{ row, column, value }">
                     <VmStateBadge v-if="column.key === 'state'" :state="String(value)" />
@@ -235,7 +229,7 @@ function confirmAction(): void {
 }
 
 .vm-kv dt {
-    color: var(--vt-text-muted);
+    color: var(--vt-text-secondary);
 }
 
 .vm-kv dd {

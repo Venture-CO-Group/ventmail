@@ -4,7 +4,7 @@
  | Vue nélkül, csak `echarts/core` + vonal/oszlop/kör + SVG-renderer (éles vektor a PDF-ben),
  | animáció nélkül. Az adat a szerver által írt `<script type="application/json" id="vm-report-data">`
  | blokkból jön (JSON_HEX_* kódolással). A színek a `--vt-*` tokenek számított értékei (a
- | report.css a `@venture/design` tokenjeit hozza). Kirajzolás után egy képkocka múlva
+ | report.css a `@venture-co-group/design` tokenjeit hozza). Kirajzolás után egy képkocka múlva
  | `window.__vmReportReady = true` — erre vár a Gotenberg (`waitForExpression`); egy JS-hiba a
  | `failOnConsoleExceptions` miatt a renderelést bukja, nem ad grafikon nélküli PDF-et.
  */
@@ -42,22 +42,22 @@ declare global {
 }
 
 const PALETTE = [
-    '--vt-color-accent-500',
-    '--vt-color-cyan-500',
-    '--vt-color-violet-500',
-    '--vt-color-success',
-    '--vt-color-warning',
-    '--vt-color-danger',
-    '--vt-color-accent-300',
-    '--vt-color-neutral-500',
+    '--vt-print-series-1',
+    '--vt-print-series-2',
+    '--vt-print-series-3',
+    '--vt-status-success',
+    '--vt-status-warning',
+    '--vt-status-danger',
+    '--vt-print-series-4',
+    '--vt-print-text-muted',
 ];
 
 const style = getComputedStyle(document.documentElement);
 const token = (name: string): string => style.getPropertyValue(name).trim();
 
 function option(def: ChartDef): Record<string, unknown> {
-    const text = token('--vt-color-neutral-600');
-    const grid = token('--vt-color-neutral-200');
+    const text = token('--vt-print-text-secondary');
+    const grid = token('--vt-print-rule');
     const base = { animation: false, textStyle: { color: text, fontFamily: token('--vt-font-body') || undefined } };
 
     if (def.type === 'pie') {
@@ -98,7 +98,7 @@ function option(def: ChartDef): Record<string, unknown> {
                 lineStyle: asLine ? { color } : undefined,
                 markLine:
                     serie.threshold && def.threshold
-                        ? { symbol: 'none', silent: true, label: { formatter: def.threshold.name, color: text, position: 'insideEndTop' }, lineStyle: { color: token('--vt-color-danger'), type: 'dashed' }, data: [{ yAxis: def.threshold.value }] }
+                        ? { symbol: 'none', silent: true, label: { formatter: def.threshold.name, color: text, position: 'insideEndTop' }, lineStyle: { color: token('--vt-status-danger'), type: 'dashed' }, data: [{ yAxis: def.threshold.value }] }
                         : undefined,
             };
         }),

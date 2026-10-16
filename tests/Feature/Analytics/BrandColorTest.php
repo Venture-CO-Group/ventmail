@@ -30,16 +30,16 @@ it('csak #RRGGBB alak', function (string $hex) {
     expect(BrandColor::isValid($hex))->toBeFalse();
 })->with(['red', '#FFF', '#GGGGGG', '#0E1322;', 'url(x)', '#0E1322 ']);
 
-it('a referenciaszínek egyeznek a @venture/design tokenekkel', function () {
-    $tokens = base_path('node_modules/@venture/design/dist/tokens.css');
+it('a referenciaszínek egyeznek a @venture-co-group/design tokenekkel', function () {
+    $tokens = base_path('node_modules/@venture-co-group/design/dist/tokens.css');
 
     if (! is_file($tokens)) {
-        $this->markTestSkipped('A @venture/design csomag nincs telepítve (PHP-only CI job).');
+        $this->markTestSkipped('A @venture-co-group/design csomag nincs telepítve (PHP-only CI job).');
     }
 
-    $css = (string) file_get_contents($tokens);
+    $css = strtolower((string) file_get_contents($tokens));
 
-    expect($css)->toContain('--vt-color-neutral-0: '.BrandColor::LIGHT_TEXT)
-        ->toContain('--vt-color-neutral-900: '.BrandColor::DARK_TEXT)
-        ->toContain('--vt-bg: '.BrandColor::DARK_SURFACE);
+    expect($css)->toContain('--vt-print-paper: '.strtolower(BrandColor::LIGHT_TEXT))
+        ->toContain('--vt-print-text: '.strtolower(BrandColor::DARK_TEXT))
+        ->toContain('--vt-bg-base: '.strtolower(BrandColor::DARK_SURFACE));
 });

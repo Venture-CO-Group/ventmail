@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { VtButton } from '@venture/ui';
+import { VtButton } from '@venture-co-group/ui';
 import { useI18n } from 'vue-i18n';
 import { useFormat } from '../../composables/useFormat';
 
@@ -42,7 +42,7 @@ const go = (page: number): void => {
 }
 
 .vm-pager__info {
-    color: var(--vt-text-muted);
+    color: var(--vt-text-secondary);
 }
 
 .vm-pager__buttons {

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { router } from '@inertiajs/vue3';
-import { VtBadge, VtButton, VtField, VtInput, VtSelect, type VtSelectOption } from '@venture/ui';
+import { VtBadge, VtBanner, VtButton, VtField, VtInput, VtSelect, type VtSelectOption } from '@venture-co-group/ui';
 import { computed, reactive, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import VmChoiceCard from '../Form/VmChoiceCard.vue';
@@ -109,13 +109,13 @@ function save(): void {
                     :data-testid="`update-mode-${mode}`"
                 />
             </div>
-            <p v-if="errors.updateMode" class="vm-banner vm-banner--danger" role="alert">{{ errors.updateMode }}</p>
+            <VtBanner v-if="errors.updateMode" tone="danger" role="alert">{{ errors.updateMode }}</VtBanner>
         </fieldset>
 
         <fieldset class="vm-import-group">
             <legend>
                 {{ t('audience.import.legal.heading') }}
-                <VtBadge tone="danger" size="sm">{{ t('audience.import.required') }}</VtBadge>
+                <VtBadge tone="danger">{{ t('audience.import.required') }}</VtBadge>
             </legend>
             <div class="vm-import-choices">
                 <VmChoiceCard
@@ -129,7 +129,7 @@ function save(): void {
                     :data-testid="`legal-${basis}`"
                 />
             </div>
-            <p v-if="errors.legalBasis" class="vm-banner vm-banner--danger" role="alert" data-testid="legal-error">{{ errors.legalBasis }}</p>
+            <VtBanner v-if="errors.legalBasis" tone="danger" role="alert" data-testid="legal-error">{{ errors.legalBasis }}</VtBanner>
 
             <VmFormRow>
                 <VtField
@@ -166,11 +166,11 @@ function save(): void {
             </VtField>
         </VmFormRow>
 
-        <p class="vm-banner vm-banner--warning" role="note">{{ t('audience.import.suppressionNotice') }}</p>
+        <VtBanner tone="warning" role="note">{{ t('audience.import.suppressionNotice') }}</VtBanner>
         <p class="vt-text-muted">{{ t('audience.import.noMail') }}</p>
 
         <VmFormActions>
-            <VtButton variant="glass" data-testid="import-back" @click="emit('back')">{{ t('audience.import.back') }}</VtButton>
+            <VtButton variant="secondary" data-testid="import-back" @click="emit('back')">{{ t('audience.import.back') }}</VtButton>
             <VtButton :disabled="busy || !ready" data-testid="import-next" @click="save">{{ t('audience.import.makePreview') }}</VtButton>
         </VmFormActions>
     </section>
@@ -190,7 +190,7 @@ p {
 }
 
 .vt-text-muted {
-    color: var(--vt-text-muted);
+    color: var(--vt-text-secondary);
 }
 
 .vm-import-group {
@@ -216,7 +216,7 @@ p {
 
 .vm-import-choices {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(var(--vt-space-24) * 2)), 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(calc(var(--vt-space-12) * 2) * 2)), 1fr));
     gap: var(--vt-space-3);
 }
 
@@ -225,11 +225,11 @@ p {
     flex-direction: column;
     gap: var(--vt-space-1);
     padding: var(--vt-space-4);
-    border: thin solid var(--vt-color-warning);
+    border: thin solid var(--vt-status-warning);
     border-radius: var(--vt-radius-md);
 }
 
 .vm-import-status.is-subscribed {
-    border-color: var(--vt-color-success);
+    border-color: var(--vt-status-success);
 }
 </style>

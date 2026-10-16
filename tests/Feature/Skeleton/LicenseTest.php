@@ -37,12 +37,12 @@ it('a composer.lock minden csomagja megengedő licencű', function () {
     expect($offenders)->toBe([]);
 });
 
-it('a package-lock.json minden csomagja megengedő licencű (a saját @venture/* kivételével)', function () {
+it('a package-lock.json minden csomagja megengedő licencű (a saját @venture/* és @venture-co-group/* kivételével)', function () {
     $lock = json_decode((string) file_get_contents(base_path('package-lock.json')), true);
     $offenders = [];
 
     foreach ($lock['packages'] ?? [] as $path => $package) {
-        if ($path === '' || str_starts_with($path, '../venture-') || str_starts_with($path, 'node_modules/@venture/')) {
+        if ($path === '' || str_starts_with($path, '../venture-') || str_starts_with($path, 'node_modules/@venture/') || str_starts_with($path, 'node_modules/@venture-co-group/')) {
             continue;
         }
 

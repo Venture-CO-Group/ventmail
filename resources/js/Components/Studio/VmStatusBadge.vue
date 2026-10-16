@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { VtBadge, type VtBadgeTone } from '@venture/ui';
+import { VtBadge, type VtBadgeTone } from '@venture-co-group/ui';
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 
@@ -28,7 +28,7 @@ const label = computed(() => (te(`campaigns.statusLabel.${props.status}`) ? t(`c
 
 <template>
     <span class="vm-status" :data-status="status" :data-testid="testid">
-        <VtBadge :tone="tone" size="sm">{{ label }}</VtBadge>
+        <VtBadge :tone="tone">{{ label }}</VtBadge>
     </span>
 </template>
 

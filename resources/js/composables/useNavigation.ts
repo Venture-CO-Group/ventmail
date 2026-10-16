@@ -102,9 +102,15 @@ export function useNavigation(): {
                 icon: 'file-code',
                 show: can('apiKey.manage') || can('webhook.manage') || can('logs.view'),
             },
+        ]);
+
+        /*
+         | BEÁLLÍTÁSOK (Figma Unified UI v2): számlázás, bejövő útvonalak, címellenőrzés, tagok,
+         | branding. A profil a fiókmenüből érhető el (mindenkinek, nincs hozzá képesség).
+         */
+        const settings = build([
             { href: '/billing', testid: 'nav-billing', key: 'billing', icon: 'credit-card', show: can('billing.manage') },
-            // D15: „hamarosan" jelzés — a meglévő képernyők a régi útvonalon elérhetők maradnak.
-            { href: '/inbound', testid: 'nav-inbound', key: 'inbound', icon: 'inbox', show: can('domain.manage'), soon: true },
+            { href: '/inbound', testid: 'nav-inbound', key: 'inbound', icon: 'inbox', show: can('domain.manage') },
             {
                 href: '/validation',
                 testid: 'nav-validation',
@@ -112,19 +118,10 @@ export function useNavigation(): {
                 labelKey: 'nav.validationApi',
                 icon: 'check-circle',
                 show: can('validation.run'),
-                soon: true,
             },
-        ]);
-
-        /*
-         | BEÁLLÍTÁSOK: ami a WORKSPACE-ről és a FIÓKRÓL szól, nem a küldésről. A profil
-         | mindenkinek elérhető (saját beállítás, nincs hozzá képesség).
-         */
-        const settings = build([
             { href: '/members', testid: 'nav-members', key: 'members', icon: 'users', show: can('member.manage') },
             // v1.1 · 8. modul: a PDF-riport borítója és lábléce (logó, szín, láblécszöveg).
             { href: '/settings/branding', testid: 'nav-branding', key: 'branding', icon: 'palette', show: can('workspace.manage') },
-            { href: '/profile', testid: 'nav-profile', key: 'profile', labelKey: 'nav.profile', icon: 'user', show: true },
         ]);
 
         // A PLATFORM-KONZOL csak platform-adminnak látszik. KÉNYELEM, nem védelem: a kaput a

@@ -42,15 +42,23 @@ use Inertia\Response;
  */
 final class AudienceController
 {
+    /** A kontakt-állapotok, amelyekre a lista szűrhető. */
+    private const STATUSES = ['subscribed', 'pending', 'unsubscribed', 'cleaned'];
+
     public function index(Request $request, SegmentEngine $segments): Response
     {
         Gate::authorize('audience.manage');
 
         $search = $request->string('search')->toString();
 
+        // Unified UI v2 · az állapot-chipek (Figma Audience): csak az engedélylistás állapot szűr;
+        // ismeretlen érték = nincs szűrés.
+        $status = in_array($request->string('status')->toString(), self::STATUSES, true) ? $request->string('status')->toString() : null;
+
         $contacts = Contact::query()
             // v1.1 · a CÍMKÉK a sor mellett (egy eager load a lapra, nem soronként).
             ->with('tags:contact_tags.id,contact_tags.uuid,contact_tags.name')
+            ->when($status !== null, fn ($query) => $query->where('status', $status))
             ->when($search !== '', fn ($query) => $query->where(
                 'email',
                 'like',
@@ -71,6 +79,7 @@ final class AudienceController
 
         return Inertia::render('Audience/Index', [
             'search' => $search,
+            'status' => $status,
             // v1.1 · D284: a listák és a szegmensek SZERVEROLDALON lapozva + kereshetően (a száz listás
             // tenant oldala nem lehet 10 000 px, és a böngésző nem kap meg minden sort).
             'lists' => Paged::names($request, ContactList::query()->withCount('contacts'), 'lists', fn (ContactList $list) => [

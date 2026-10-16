@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { router } from '@inertiajs/vue3';
-import { VtBadge, VtButton } from '@venture/ui';
+import { VtBadge, VtBanner, VtButton } from '@venture-co-group/ui';
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import VmCard from '../Form/VmCard.vue';
@@ -53,9 +53,9 @@ function download(): void {
             </VtBadge>
         </h2>
 
-        <p v-if="failed" class="vm-banner vm-banner--danger" role="alert" data-testid="import-failed">
+        <VtBanner v-if="failed" tone="danger" role="alert" data-testid="import-failed">
             {{ t('audience.import.failed', { reason: t(`audience.import.failure.${state.failureReason ?? 'error'}`) }) }}
-        </p>
+        </VtBanner>
 
         <div class="vm-import-stats">
             <VmStat :label="t('audience.import.result.new')" :value="n(counts.new)" tone="success" data-testid="result-new" />
@@ -74,7 +74,7 @@ function download(): void {
             <VtButton v-if="state.hasReport" data-testid="import-download-errors" @click="download">
                 {{ t('audience.import.result.downloadReport') }}
             </VtButton>
-            <VtButton variant="glass" data-testid="import-view-contacts" @click="router.visit('/audience')">
+            <VtButton variant="secondary" data-testid="import-view-contacts" @click="router.visit('/audience')">
                 {{ t('audience.import.result.viewContacts') }}
             </VtButton>
             <VtButton variant="ghost" data-testid="import-new" @click="router.visit('/audience/import')">
@@ -82,13 +82,12 @@ function download(): void {
             </VtButton>
         </VmFormActions>
 
-        <VmCard data-testid="import-audit">
-            <h3>{{ t('audience.import.audit.title') }}</h3>
+        <VmCard data-testid="import-audit" :title="t('audience.import.audit.title')" :heading-level="3">
             <dl class="vm-import-audit">
                 <dt>{{ t('audience.import.audit.who') }}</dt>
                 <dd>{{ state.startedBy ?? '—' }}</dd>
                 <dt>{{ t('audience.import.audit.when') }}</dt>
-                <dd class="vt-text-mono">{{ fmt(state.startedAt) }}</dd>
+                <dd class="vt-mono">{{ fmt(state.startedAt) }}</dd>
                 <dt>{{ t('audience.import.audit.legalBasis') }}</dt>
                 <dd>{{ state.settings.legalBasis ? t(`audience.import.legal.${state.settings.legalBasis}.title`) : '—' }}</dd>
                 <dt>{{ t('audience.import.audit.source') }}</dt>
@@ -128,12 +127,12 @@ h2 {
 }
 
 .vt-text-muted {
-    color: var(--vt-text-muted);
+    color: var(--vt-text-secondary);
 }
 
 .vm-import-stats {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(var(--vt-space-24) * 2)), 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(calc(var(--vt-space-12) * 2) * 2)), 1fr));
     gap: var(--vt-space-4);
 }
 
@@ -145,7 +144,7 @@ h2 {
 }
 
 .vm-import-audit dt {
-    color: var(--vt-text-muted);
+    color: var(--vt-text-secondary);
 }
 
 .vm-import-audit dd {

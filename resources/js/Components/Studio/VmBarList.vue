@@ -72,7 +72,7 @@ const rows = computed(() =>
     gap: var(--vt-space-1);
     block-size: var(--vt-space-2);
     border-radius: var(--vt-radius-full);
-    background-color: var(--vt-glass-thin-fill);
+    background-color: var(--vt-surface-2);
     overflow: hidden;
 }
 
@@ -95,7 +95,7 @@ const rows = computed(() =>
     grid-template-columns: auto minmax(0, 1fr) auto auto;
     align-items: center;
     gap: var(--vt-space-3);
-    font-size: var(--vt-fs-body-sm);
+    font-size: var(--vt-type-body-m-size);
 }
 
 .vm-bars__dot {
@@ -105,7 +105,7 @@ const rows = computed(() =>
 }
 
 .vm-bars__label {
-    color: var(--vt-text-muted);
+    color: var(--vt-text-secondary);
 }
 
 .vm-bars__count {
@@ -123,18 +123,18 @@ const rows = computed(() =>
 }
 
 .vm-bars__tone--1 {
-    background-color: var(--vt-color-cyan-400);
+    background-color: var(--vt-chart-series-2);
 }
 
 .vm-bars__tone--2 {
-    background-color: var(--vt-color-violet-400);
+    background-color: var(--vt-chart-series-3);
 }
 
 .vm-bars__tone--3 {
-    background-color: var(--vt-color-success);
+    background-color: var(--vt-status-success);
 }
 
 .vm-bars__tone--4 {
-    background-color: var(--vt-color-warning);
+    background-color: var(--vt-status-warning);
 }
 </style>

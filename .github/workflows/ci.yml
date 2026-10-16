@@ -152,20 +152,6 @@ jobs:
       # kerülne, ahonnan egy PR-ből érkező npm lifecycle-script kiolvashatná (security-review B2).
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          repository: Venture-CO-Group/venture-design
-          path: _packages/venture-design
-          token: ${{ secrets.VENTURE_PACKAGES_TOKEN }}
-          persist-credentials: false
-
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: Venture-CO-Group/venture-ui
-          path: _packages/venture-ui
-          token: ${{ secrets.VENTURE_PACKAGES_TOKEN }}
-          persist-credentials: false
-
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
           repository: Venture-CO-Group/venture-sdk
           path: _packages/venture-sdk
           token: ${{ secrets.VENTURE_PACKAGES_TOKEN }}
@@ -173,7 +159,7 @@ jobs:
 
       - name: 'testvér-elrendezés (a file: linkek feloldása)'
         run: |
-          for pkg in venture-design venture-ui venture-sdk; do
+          for pkg in venture-sdk; do
             ln -sfn "${GITHUB_WORKSPACE}/_packages/${pkg}" "$(dirname "${GITHUB_WORKSPACE}")/${pkg}"
           done
 
@@ -181,30 +167,26 @@ jobs:
         with:
           node-version: '22'
 
-      # A @venture/* csomagok FORRÁSKÓDBAN jönnek (`file:` link a testvér-könyvtárra), nem
+      # A @venture-co-group/design és /ui (Unified UI v2, 2.x) a GitHub Packages regiszteréből
+      # jön (lásd lent, `npm ci`). Csak a @venture/sdk marad FORRÁSKÓDBAN (`file:` link a
+      # testvér-könyvtárra), nem
       # publikált tarballként — a `dist/` tehát NINCS bennük. A csomag `prepare` scriptje
       # építene, de a saját devDependencyjei (tsup, vite) csak akkor vannak meg, ha a
       # csomagban MAGÁBAN is lefutott az install. Enélkül a ventMail `npm ci`-je
       # `tsup: not found` (127) hibával áll meg — mérve, az első futáson, amikor a
       # `VENTURE_PACKAGES_TOKEN` végre megvolt.
-      - name: '@venture csomagok telepítése és építése'
+      - name: '@venture/sdk telepítése és építése'
         env:
           PACKAGES_TOKEN: ${{ secrets.VENTURE_PACKAGES_TOKEN }}
-          # A `venture-ui` a @venture-co-group/design-t a GitHub Packages npm-regiszteréből
-          # telepíti (a saját .npmrc-je `NODE_AUTH_TOKEN`-t olvas). A job SAJÁT, csak
-          # olvasó tokenje (a csomag „Manage Actions access” beállításában a ventmail
-          # repónak Read jog kell) — és csak ebben a lépésben, a ventMail `npm ci`-je nem látja.
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # A csomagok EGYMÁST `git+ssh` URL-lel hivatkozzák (a `venture-ui` a
-          # `venture-design`-t), a runneren viszont nincs SSH-kulcs: `Permission denied
-          # (publickey)`, exit 128 — mérve. A rewrite ezért kell.
+          # Egy esetleges `git+ssh` függőség miatt: a runneren nincs SSH-kulcs (`Permission
+          # denied (publickey)`, exit 128 — mérve). A rewrite ezért kell.
           #
           # A token KIZÁRÓLAG ennek a lépésnek a környezetében él (`GIT_CONFIG_*`), NEM a
           # globális `~/.gitconfig`-ban: a workflow végig `persist-credentials: false`-szal
           # dolgozik, épp azért, hogy egy PR-ből érkező npm lifecycle-script ne tudja
           # kiolvasni a tokent (security-review B2). Egy globális gitconfig ezt a rést
-          # nyitná ki újra — a step-szintű env csak a mi HÁROM csomagunk saját scriptjeinek
+          # nyitná ki újra — a step-szintű env csak a @venture/sdk saját scriptjeinek
           # látszik, a ventMail `npm ci`-jének már nem.
           export GIT_CONFIG_COUNT=2
           export GIT_CONFIG_KEY_0="url.https://x-access-token:${PACKAGES_TOKEN}@github.com/.insteadOf"
@@ -212,7 +194,7 @@ jobs:
           export GIT_CONFIG_KEY_1="url.https://x-access-token:${PACKAGES_TOKEN}@github.com/.insteadOf"
           export GIT_CONFIG_VALUE_1="git@github.com:"
 
-          for pkg in venture-design venture-ui venture-sdk; do
+          for pkg in venture-sdk; do
             dir="${GITHUB_WORKSPACE}/_packages/${pkg}"
             [ -f "${dir}/package.json" ] || continue
             npm --prefix "${dir}" ci --no-audit --no-fund
@@ -220,8 +202,24 @@ jobs:
           done
 
       # npm ci: a committolt package-lock.json kényszerül, a CI nem csúszhat el a lokálistól.
-      - name: npm ci
-        run: npm ci --no-audit --no-fund
+      #
+      # A @venture-co-group/* a GitHub Packagesből: a scope → regiszter leképezést és a
+      # `${NODE_AUTH_TOKEN}`-t olvasó `.npmrc`-t a lépés maga írja (a repóban a `.npmrc`
+      # szándékosan gitignore-olt). KÉT LÉPÉSBEN, hogy a token ne lássék a lifecycle-scripteknek
+      # (security-review B2): a letöltés `--ignore-scripts`-szel megy a job csak olvasó
+      # GITHUB_TOKEN-jével (a csomagok „Manage Actions access" beállításában a ventmail repónak
+      # Read jog kell), a scriptek (`npm rebuild`) már token nélkül futnak.
+      - name: npm ci (letöltés, scriptek nélkül)
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          printf '%s\n' '@venture-co-group:registry=https://npm.pkg.github.com' \
+            '//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}' > .npmrc
+          npm ci --no-audit --no-fund --ignore-scripts
+          rm .npmrc
+
+      - name: npm rebuild (lifecycle-scriptek, token nélkül)
+        run: npm rebuild
 
       - name: vue-tsc (típusellenőrzés)
         run: npm run typecheck
@@ -306,20 +304,6 @@ jobs:
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          repository: Venture-CO-Group/venture-design
-          path: _packages/venture-design
-          token: ${{ secrets.VENTURE_PACKAGES_TOKEN }}
-          persist-credentials: false
-
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: Venture-CO-Group/venture-ui
-          path: _packages/venture-ui
-          token: ${{ secrets.VENTURE_PACKAGES_TOKEN }}
-          persist-credentials: false
-
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
           repository: Venture-CO-Group/venture-sdk
           path: _packages/venture-sdk
           token: ${{ secrets.VENTURE_PACKAGES_TOKEN }}
@@ -327,7 +311,7 @@ jobs:
 
       - name: 'testvér-elrendezés (a file: linkek feloldása)'
         run: |
-          for pkg in venture-design venture-ui venture-sdk; do
+          for pkg in venture-sdk; do
             ln -sfn "${GITHUB_WORKSPACE}/_packages/${pkg}" "$(dirname "${GITHUB_WORKSPACE}")/${pkg}"
           done
 
@@ -344,30 +328,26 @@ jobs:
       - name: composer install
         run: composer install --no-interaction --prefer-dist --no-progress
 
-      # A @venture/* csomagok FORRÁSKÓDBAN jönnek (`file:` link a testvér-könyvtárra), nem
+      # A @venture-co-group/design és /ui (Unified UI v2, 2.x) a GitHub Packages regiszteréből
+      # jön (lásd lent, `npm ci`). Csak a @venture/sdk marad FORRÁSKÓDBAN (`file:` link a
+      # testvér-könyvtárra), nem
       # publikált tarballként — a `dist/` tehát NINCS bennük. A csomag `prepare` scriptje
       # építene, de a saját devDependencyjei (tsup, vite) csak akkor vannak meg, ha a
       # csomagban MAGÁBAN is lefutott az install. Enélkül a ventMail `npm ci`-je
       # `tsup: not found` (127) hibával áll meg — mérve, az első futáson, amikor a
       # `VENTURE_PACKAGES_TOKEN` végre megvolt.
-      - name: '@venture csomagok telepítése és építése'
+      - name: '@venture/sdk telepítése és építése'
         env:
           PACKAGES_TOKEN: ${{ secrets.VENTURE_PACKAGES_TOKEN }}
-          # A `venture-ui` a @venture-co-group/design-t a GitHub Packages npm-regiszteréből
-          # telepíti (a saját .npmrc-je `NODE_AUTH_TOKEN`-t olvas). A job SAJÁT, csak
-          # olvasó tokenje (a csomag „Manage Actions access” beállításában a ventmail
-          # repónak Read jog kell) — és csak ebben a lépésben, a ventMail `npm ci`-je nem látja.
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # A csomagok EGYMÁST `git+ssh` URL-lel hivatkozzák (a `venture-ui` a
-          # `venture-design`-t), a runneren viszont nincs SSH-kulcs: `Permission denied
-          # (publickey)`, exit 128 — mérve. A rewrite ezért kell.
+          # Egy esetleges `git+ssh` függőség miatt: a runneren nincs SSH-kulcs (`Permission
+          # denied (publickey)`, exit 128 — mérve). A rewrite ezért kell.
           #
           # A token KIZÁRÓLAG ennek a lépésnek a környezetében él (`GIT_CONFIG_*`), NEM a
           # globális `~/.gitconfig`-ban: a workflow végig `persist-credentials: false`-szal
           # dolgozik, épp azért, hogy egy PR-ből érkező npm lifecycle-script ne tudja
           # kiolvasni a tokent (security-review B2). Egy globális gitconfig ezt a rést
-          # nyitná ki újra — a step-szintű env csak a mi HÁROM csomagunk saját scriptjeinek
+          # nyitná ki újra — a step-szintű env csak a @venture/sdk saját scriptjeinek
           # látszik, a ventMail `npm ci`-jének már nem.
           export GIT_CONFIG_COUNT=2
           export GIT_CONFIG_KEY_0="url.https://x-access-token:${PACKAGES_TOKEN}@github.com/.insteadOf"
@@ -375,15 +355,24 @@ jobs:
           export GIT_CONFIG_KEY_1="url.https://x-access-token:${PACKAGES_TOKEN}@github.com/.insteadOf"
           export GIT_CONFIG_VALUE_1="git@github.com:"
 
-          for pkg in venture-design venture-ui venture-sdk; do
+          for pkg in venture-sdk; do
             dir="${GITHUB_WORKSPACE}/_packages/${pkg}"
             [ -f "${dir}/package.json" ] || continue
             npm --prefix "${dir}" ci --no-audit --no-fund
             npm --prefix "${dir}" run build --if-present
           done
 
-      - name: npm ci
-        run: npm ci --no-audit --no-fund
+      - name: npm ci (letöltés, scriptek nélkül — lásd a frontend jobot)
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          printf '%s\n' '@venture-co-group:registry=https://npm.pkg.github.com' \
+            '//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}' > .npmrc
+          npm ci --no-audit --no-fund --ignore-scripts
+          rm .npmrc
+
+      - name: npm rebuild (lifecycle-scriptek, token nélkül)
+        run: npm rebuild
 
       # A böngésző a LEFORDÍTOTT frontendet kapja: Vite-manifest nélkül minden Inertia-oldal
       # 500-at adna, és a teszt a build hiányát mérné, nem a képernyőt.

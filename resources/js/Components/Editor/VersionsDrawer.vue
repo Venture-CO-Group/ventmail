@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { VtButton, VtDrawer } from '@venture/ui';
+import { VtBanner, VtButton, VtDrawer } from '@venture-co-group/ui';
 import axios from 'axios';
 import { ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
@@ -64,7 +64,7 @@ async function restore(number: number): Promise<void> {
 <template>
     <VtDrawer :open="open" :title="t('editor.versions.title')" side="right" :close-label="t('editor.common.close')" @update:open="emit('update:open', $event)" @close="emit('update:open', false)">
         <div class="vm-stack" data-testid="versions-drawer">
-            <p v-if="error" class="vm-banner vm-banner--danger" role="status">{{ error }}</p>
+            <VtBanner v-if="error" tone="danger" role="status">{{ error }}</VtBanner>
             <ol class="vm-ed-versions">
                 <li v-for="(version, index) in versions" :key="version.number" :data-testid="`version-${version.number}`">
                     <strong>

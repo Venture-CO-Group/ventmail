@@ -105,7 +105,15 @@
             "author": "Author",
             "analyst": "Analyst"
         },
-        "editorNav": "Compact navigation"
+        "editorNav": "Compact navigation",
+        "appSubtitle": "Email platform",
+        "allApps": "All Venture apps",
+        "search": "Search or jump to…",
+        "searchEmpty": "Nothing matches.",
+        "env": {
+            "live": "Live",
+            "restricted": "Restricted mode"
+        }
     },
     "dashboard": {
         "title": "Overview",
@@ -186,7 +194,10 @@
             "subject": "Subject",
             "recipient": "Recipient",
             "status": "Status"
-        }
+        },
+        "domainsAllVerified": "all verified",
+        "domainsUnverified": "{count} not verified",
+        "suppressionsHint": "bounces & complaints"
     },
     "domains": {
         "title": "Domains",
@@ -725,7 +736,18 @@
         "preferenceVisible": "Visible in the preference center",
         "listSearch": "Search lists",
         "segmentSearch": "Search segments",
-        "noMatch": "No results for this search."
+        "noMatch": "No results for this search.",
+        "filter": {
+            "all": "All",
+            "subscribed": "Subscribed",
+            "pending": "Pending double opt-in",
+            "unsubscribed": "Unsubscribed",
+            "cleaned": "Bounced",
+            "label": "Filter contacts by status"
+        },
+        "searchPlaceholder": "Search email or name",
+        "importCsv": "Import CSV",
+        "addContact": "Add contact"
     },
     "templates": {
         "title": "Templates",
@@ -1768,7 +1790,8 @@
             "subjectHint": "Optional — the starter template suggests one.",
             "marketing": "Marketing email (requires the footer with postal address and unsubscribe)",
             "submit": "Create template"
-        }
+        },
+        "gallery": "Gallery"
     },
     "segments": {
         "title": "Segments",
@@ -2737,5 +2760,82 @@
         "clear": "Remove",
         "typeError": "This file type is not allowed ({types}).",
         "sizeError": "The file is too large (at most {mb} MB)."
+    },
+    "page": {
+        "overview": {
+            "lead": "Outbound traffic, audience and deliverability in one place."
+        },
+        "audience": {
+            "lead": "Contacts, consent status and custom fields."
+        },
+        "segments": {
+            "lead": "Dynamic audiences built from AND / OR conditions. Recomputed on every send."
+        },
+        "forms": {
+            "lead": "Signup forms and preference centres with double opt-in."
+        },
+        "templates": {
+            "lead": "Visual and code templates with locale variants. Used by campaigns and transactional sends."
+        },
+        "campaigns": {
+            "lead": "One-off sends and A/B tests. Marketing sends are blocked while restricted mode is on."
+        },
+        "journeys": {
+            "lead": "Automated flows triggered by events, dates or segment entry."
+        },
+        "analytics": {
+            "lead": "Engagement across campaigns and transactional mail."
+        },
+        "domains": {
+            "lead": "Sending domains with DNS records and authentication status."
+        },
+        "apiKeys": {
+            "lead": "Workspace-bound keys with scopes and an IP allowlist. The key value is shown only once, at creation."
+        },
+        "smtp": {
+            "lead": "Relay credentials for apps that can only speak SMTP."
+        },
+        "suppressions": {
+            "lead": "Bounces, complaints and unsubscribes. Suppressed addresses are skipped on every send."
+        },
+        "webhooks": {
+            "lead": "Signed events and delivery history."
+        },
+        "storedTemplates": {
+            "lead": "Versioned API templates referenced by key from transactional sends."
+        },
+        "ipPools": {
+            "lead": "Dedicated IPs, warm-up schedules and routing rules."
+        },
+        "deliverability": {
+            "lead": "Blocklists, reputation and inbox placement."
+        },
+        "logs": {
+            "lead": "Search and trace every message."
+        },
+        "tagStats": {
+            "lead": "Counters by message tag."
+        },
+        "sendingStats": {
+            "lead": "Sent, delivered and failed, per domain and over time."
+        },
+        "docs": {
+            "lead": "REST API reference, SDKs and examples."
+        },
+        "billing": {
+            "lead": "Usage, plan and invoices — handled by ventPay."
+        },
+        "inbound": {
+            "lead": "Route incoming mail to webhooks, forwarding addresses or ventSupport."
+        },
+        "validation": {
+            "lead": "Check addresses before they enter your audience: syntax, MX, disposable and role accounts."
+        },
+        "members": {
+            "lead": "Invitations and roles. Identity is managed in ventSSO."
+        },
+        "branding": {
+            "lead": "Report logo, colours and footer for reports and hosted pages."
+        }
     }
 }

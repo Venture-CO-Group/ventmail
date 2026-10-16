@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { router } from '@inertiajs/vue3';
-import { VtButton, VtStepper, type VtStep } from '@venture/ui';
+import { VtBanner, VtButton, VtStepper, type VtStep } from '@venture-co-group/ui';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import ImportStepColumns from '../../Components/Import/ImportStepColumns.vue';
@@ -128,8 +128,8 @@ function leave(): void {
     <AppLayout>
         <header class="vm-import-head">
             <div>
-                <p class="vt-text-mono vm-import-head__eyebrow">{{ t('audience.import.eyebrow') }}</p>
-                <h1 class="vt-text-display">{{ t('audience.import.title') }}</h1>
+                <p class="vt-mono vm-import-head__eyebrow">{{ t('audience.import.eyebrow') }}</p>
+                <h1 class="vt-num">{{ t('audience.import.title') }}</h1>
                 <p class="vm-import-head__subtitle">{{ t('audience.import.subtitle') }}</p>
             </div>
             <VtButton variant="ghost" data-testid="import-exit" @click="leave">{{ t('audience.import.exit') }}</VtButton>
@@ -148,15 +148,14 @@ function leave(): void {
                 />
             </div>
 
-            <p v-if="errors.import" class="vm-banner vm-banner--warning" role="alert" data-testid="import-error">{{ errors.import }}</p>
+            <VtBanner v-if="errors.import" tone="warning" role="alert" data-testid="import-error">{{ errors.import }}</VtBanner>
 
-            <VmCard v-if="run?.status === 'inspecting'" data-testid="import-inspecting">
-                <h2>{{ t('audience.import.inspecting.title') }}</h2>
+            <VmCard v-if="run?.status === 'inspecting'" data-testid="import-inspecting" :title="t('audience.import.inspecting.title')">
                 <p class="vm-import-counter" role="status">{{ t('audience.import.inspecting.hint') }}</p>
                 <!-- ELAKADT felmérés (5 perc után): üzenet és Mégse — a szerver is csak ekkor engedi. -->
                 <template v-if="inspectingStuck">
-                    <p class="vm-banner vm-banner--warning" role="alert" data-testid="import-inspecting-stuck">{{ t('audience.import.inspecting.stuck') }}</p>
-                    <VtButton variant="glass" data-testid="import-inspecting-cancel" @click="cancelStuck">{{ t('audience.import.inspecting.cancel') }}</VtButton>
+                    <VtBanner tone="warning" role="alert" data-testid="import-inspecting-stuck">{{ t('audience.import.inspecting.stuck') }}</VtBanner>
+                    <VtButton variant="secondary" data-testid="import-inspecting-cancel" @click="cancelStuck">{{ t('audience.import.inspecting.cancel') }}</VtButton>
                 </template>
             </VmCard>
 
@@ -219,7 +218,7 @@ function leave(): void {
 }
 
 .vm-import-steps > * {
-    min-inline-size: calc(var(--vt-space-24) * 9.5);
+    min-inline-size: calc(calc(var(--vt-space-12) * 2) * 9.5);
 }
 
 .vm-import-head {
@@ -243,13 +242,13 @@ function leave(): void {
 }
 
 .vm-import-head__eyebrow {
-    font-size: var(--vt-fs-caption);
-    color: var(--vt-text-muted);
+    font-size: var(--vt-type-caption-size);
+    color: var(--vt-text-secondary);
     text-transform: uppercase;
 }
 
 .vm-import-head__subtitle {
-    color: var(--vt-text-muted);
+    color: var(--vt-text-secondary);
 }
 
 .vm-import-wizard {
@@ -261,7 +260,7 @@ function leave(): void {
 
 .vm-import-counter {
     margin: 0;
-    color: var(--vt-text-muted);
-    font-size: var(--vt-fs-body-sm);
+    color: var(--vt-text-secondary);
+    font-size: var(--vt-type-body-m-size);
 }
 </style>

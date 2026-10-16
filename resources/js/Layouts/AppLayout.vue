@@ -1,15 +1,24 @@
 <script setup lang="ts">
 import { Link, router, usePage } from '@inertiajs/vue3';
-import { VtDropdown, VtNavItem } from '@venture/ui';
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import {
+    VtAppShell,
+    VtBadge,
+    VtBanner,
+    VtCommandPalette,
+    VtNavGroup,
+    VtNavItem,
+    VtSidebar,
+    VtTopbar,
+    type VtBadgeTone,
+    type VtCommandGroup,
+    type VtCommandItem,
+    type VtIconName,
+} from '@venture-co-group/ui';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import BrandLogo from '../Components/BrandLogo.vue';
-import VmIcon from '../Components/Shell/VmIcon.vue';
-import VmLocalePicker from '../Components/Shell/VmLocalePicker.vue';
-import VmNavPanel from '../Components/Shell/VmNavPanel.vue';
+import VmLocaleMenu from '../Components/Shell/VmLocaleMenu.vue';
 import VmUserMenu from '../Components/Shell/VmUserMenu.vue';
-import VmWorkspaceSwitcher from '../Components/Shell/VmWorkspaceSwitcher.vue';
-import { useCompactNav } from '../composables/useCompactNav';
+import VmWorkspaceMenu from '../Components/Shell/VmWorkspaceMenu.vue';
 import { useLocaleSync } from '../composables/useLocaleSync';
 import { activeMenuId, closeAllMenus, setMenuOpen } from '../composables/useMenuState';
 import { useNavigation, type NavGroupId } from '../composables/useNavigation';
@@ -17,17 +26,16 @@ import { readStoredList, writeStoredList } from '../composables/useStoredState';
 import { useFormat } from '../composables/useFormat';
 
 /**
- * AZ APP-HÉJ: FELSŐ NAVIGÁCIÓ (az oldalsáv megszűnt, hogy a szerkesztőknek legyen hely).
+ * AZ APP-HÉJ — Unified UI v2 (Figma „Venture Apps — Unified UI v2", AppShell 65:379).
  *
- * Balról jobbra: logó · workspace-váltó · Overview · Studio ▾ · Platform ▾ · Settings ▾
- * (· Console ▾ platform-adminnak) — jobbra a nyelvválasztó és az avatar-menü.
+ * Egy keret a családban (1. szabály): `VtAppShell` = 248 px `VtSidebar` (app-ikon + név,
+ * appváltó → ventHub, workspace-váltó, csoportosított `VtNavItem`-lista, felhasználó) +
+ * 60 px `VtTopbar` (breadcrumb, ⌘K, környezetjelző, nyelv, avatar) + a ventMail-színű
+ * GlowLine. Felső legördülő navigáció NINCS. 1024 px alatt a sidebar fiók (a shell adja).
  *
- * - DESKTOP: a csoport ráhúzásra vagy kattintásra nyílik, panelben az alpontok + egysoros
- *   leírás (`VmNavPanel`).
- * - TABLET ALATT: hamburger, harmonikaszerű csoportokkal; az utoljára kinyitott csoportok
- *   a `localStorage`-ban maradnak (try/catch-csel).
- * - SZERKESZTŐ MÓD (`editorMode`): kompakt, egysoros sáv, a csoportmenük ikonként — a
- *   sablonszerkesztő és a journey-vászon kér ilyet, hogy a vászon maximális helyet kapjon.
+ * SZERKESZTŐ MÓD (`editorMode`): a sablonszerkesztő és a journey-vászon a teljes szélességet
+ * kéri — a sidebar ilyenkor csak a menügombbal nyíló fiók (a shell `collapseBelow`-ja
+ * gyakorlatilag végtelen), a felső sáv marad.
  *
  * A menü a KÉPESSÉGEKET követi (lásd `useNavigation`): KÉNYELEM, nem védelem.
  */
@@ -36,229 +44,227 @@ interface SharedProps {
     editorMode?: boolean;
     impersonation: { active: boolean; workspace: string; expiresAt: string } | null;
     flash: { success: string | null; error: string | null };
+    auth: { user: { name: string; email: string } | null };
+    workspace: { uuid: string; name: string } | null;
+    workspaces: { uuid: string; name: string; roles?: string[] }[];
+    sendingMode?: { live: boolean; allowlistEnforced: boolean; marketingEnabled: boolean };
+    hubUrl?: string | null;
+    locale: string;
 }
 
 const props = withDefaults(defineProps<{ editorMode?: boolean }>(), { editorMode: false });
 
 const page = usePage<SharedProps>();
-// A kompakt sávot az oldal két módon kérheti: `<AppLayout editor-mode>` vagy az Inertia
-// `editorMode: true` prop-ja (a kontroller dönt) — a kettő vagy-kapcsolata számít.
 const isEditor = computed(() => props.editorMode || page.props.editorMode === true);
 const { t } = useI18n({ useScope: 'global' });
 const format = useFormat();
 const { groups, activeHref, isOverviewActive } = useNavigation();
-const compact = useCompactNav();
 
-// A szerver a nyelv igazsága: ha a prop eltér a kliens nyelvétől (pl. a profil mentése után), követjük.
 useLocaleSync();
 
-const STORAGE_KEY = 'vm.nav.expanded';
+/** ventMail navigációs ikonnév → Figma-ikon (02 · Components › icon/*). */
+const ICON: Record<string, VtIconName> = {
+    users: 'users', filter: 'filter', 'file-text': 'file', layout: 'layout', send: 'send', route: 'branch',
+    chart: 'chart', globe: 'globe', key: 'key', server: 'server', shield: 'shield', webhook: 'webhook',
+    'file-code': 'code', network: 'layers', activity: 'activity', list: 'list', 'credit-card': 'card',
+    inbox: 'inbox', 'check-circle': 'check', palette: 'image', user: 'user', search: 'search',
+    gauge: 'gauge', terminal: 'terminal', building: 'building', database: 'database', home: 'home',
+};
+const iconOf = (name: string): VtIconName => ICON[name] ?? 'grid';
 
-const mobileOpen = ref(false);
+// A csoportok nyitva-állapota a localStorage-ban marad (try/catch a `useStoredState`-ben);
+// az aktív pontot tartalmazó csoport mindig nyitva van.
+const STORAGE_KEY = 'vm.nav.expanded';
 const expanded = ref<string[]>([]);
 
-let stopNavigate: (() => void) | undefined;
+function groupActive(id: NavGroupId): boolean {
+    return groups.value.find((group) => group.id === id)?.items.some((item) => item.href === activeHref.value) ?? false;
+}
+function setGroupOpen(id: NavGroupId, open: boolean): void {
+    expanded.value = open ? [...new Set([...expanded.value, id])] : expanded.value.filter((item) => item !== id);
+    writeStoredList(STORAGE_KEY, expanded.value);
+}
 
+// Breadcrumb: a csoport (vagy az app) / az oldal.
+const crumbs = computed(() => {
+    if (isOverviewActive.value) return { section: 'ventMail', page: t('nav.dashboard') };
+    for (const group of groups.value) {
+        const item = group.items.find((entry) => entry.href === activeHref.value);
+        if (item) return { section: group.label, page: item.label };
+    }
+    return { section: 'ventMail', page: '' };
+});
+
+// Környezetjelző (Foundations: egy hely, egy komponens, tónus a kockázat szerint).
+const env = computed<{ label: string; tone: VtBadgeTone } | null>(() => {
+    const mode = page.props.sendingMode;
+    if (!mode) return null;
+    const restricted = !mode.live || mode.allowlistEnforced || !mode.marketingEnabled;
+
+    return restricted ? { label: t('shell.env.restricted'), tone: 'warning' } : { label: t('shell.env.live'), tone: 'success' };
+});
+
+const role = computed(() => {
+    const current = page.props.workspaces?.find((row) => row.uuid === page.props.workspace?.uuid);
+    const order = ['owner', 'admin', 'developer', 'editor', 'author', 'analyst'];
+    const primary = order.find((name) => current?.roles?.includes(name)) ?? current?.roles?.[0];
+
+    return primary && order.includes(primary) ? t(`shell.role.${primary}`) : (primary ?? '');
+});
+
+// ⌘K: ugrás bármely menüpontra (a közös `VtCommandPalette`, saját ⌘K-figyelővel).
+const paletteOpen = ref(false);
+const query = ref('');
+const paletteGroups = computed<VtCommandGroup[]>(() => {
+    const needle = query.value.trim().toLocaleLowerCase();
+    const matches = (item: VtCommandItem) =>
+        needle === '' || item.label.toLocaleLowerCase().includes(needle) || (item.description ?? '').toLocaleLowerCase().includes(needle);
+    const all: VtCommandGroup[] = [
+        { key: 'overview', label: 'ventMail', items: [{ id: '/dashboard', label: t('nav.dashboard') }] },
+        ...groups.value.map((group) => ({
+            key: group.id,
+            label: group.label,
+            items: group.items.map((item) => ({ id: item.href, label: item.label, description: item.description })),
+        })),
+    ];
+
+    return all.map((group) => ({ ...group, items: group.items.filter(matches) })).filter((group) => group.items.length > 0);
+});
+function jump(item: VtCommandItem): void {
+    paletteOpen.value = false;
+    router.visit(item.id);
+}
+
+let stopNavigate: (() => void) | undefined;
 onMounted(() => {
     expanded.value = readStoredList(STORAGE_KEY);
     // Egy navigáció után egyetlen legördülő sem maradhat nyitva.
     stopNavigate = router.on('navigate', closeAllMenus);
 });
-
 onBeforeUnmount(() => stopNavigate?.());
 
-function toggleGroup(id: NavGroupId): void {
-    expanded.value = expanded.value.includes(id) ? expanded.value.filter((item) => item !== id) : [...expanded.value, id];
-    writeStoredList(STORAGE_KEY, expanded.value);
-}
-
-// A hamburger-panel a navigáció (és a nézet-váltás) után zárul.
-watch(
-    () => page.url,
-    () => {
-        mobileOpen.value = false;
-    },
-);
-watch(compact, (value) => {
-    if (!value) mobileOpen.value = false;
-});
-
-const iconOnly = computed(() => isEditor.value && !compact.value);
-
-function groupActive(id: NavGroupId): boolean {
-    return groups.value.find((group) => group.id === id)?.items.some((item) => item.href === activeHref.value) ?? false;
-}
-
-function onMobileKeydown(event: KeyboardEvent): void {
-    if (event.key === 'Escape' && mobileOpen.value) {
-        mobileOpen.value = false;
-        document.getElementById('nav-hamburger')?.focus();
-    }
-}
+const isMenuOpen = (id: string) => activeMenuId.value === id;
 </script>
 
 <template>
-    <div
-        class="vm-shell"
-        :class="{ 'vm-shell--editor': isEditor, 'vm-shell--compact': compact }"
+    <VtAppShell
+        app="mail"
+        :main-label="crumbs.page || t('nav.main')"
+        :collapse-below="isEditor ? 100000 : 1024"
+        :skip-label="t('shell.skipToContent')"
         :data-editor-mode="isEditor ? 'true' : undefined"
     >
-        <a class="vm-visually-hidden" href="#main">{{ t('shell.skipToContent') }}</a>
-
-        <header
-            class="vm-topbar vt-glass"
-            :class="{ 'vm-topbar--compact': compact, 'vm-topbar--editor': isEditor }"
-            data-testid="app-nav"
-            @keydown="onMobileKeydown"
-        >
-            <div class="vm-topbar__row">
-                <div class="vm-topbar__brand">
-                    <BrandLogo href="/dashboard" />
-                </div>
-
-                <VmWorkspaceSwitcher :compact="isEditor" />
-
-                <nav v-if="!compact" class="vm-topbar__nav" :aria-label="t('nav.main')">
-                    <!-- D319: a felső sáv elemei @venture/ui `VtNavItem` (orientation="horizontal"): az AKTÍV
-                         elem accent szöveg + jelölő ALATTA, háttérkitöltés nélkül. -->
-                    <VtNavItem
-                        :as="Link"
-                        href="/dashboard"
-                        orientation="horizontal"
-                        class="vm-toplink"
-                        :active="isOverviewActive"
-                        data-testid="nav-overview"
-                        :aria-label="iconOnly ? t('nav.dashboard') : undefined"
-                        :title="iconOnly ? t('nav.dashboard') : undefined"
-                    >
-                        <template #icon><VmIcon name="home" /></template>
-                        <template v-if="!iconOnly">{{ t('nav.dashboard') }}</template>
-                    </VtNavItem>
-
-                    <div v-for="group in groups" :key="group.id" class="vm-topbar__group" :data-testid="`nav-${group.id}`">
-                        <!-- D315: @venture/ui `VtDropdown` (hover + kattintásra rögzít, Esc, ütközés-figyelés),
-                             VEZÉRELT módban az „egyszerre egy nyitott" koordinációhoz. D320: a sok pontos csoport
-                             (Platform) széles, KÉThasábos panel — görgetés és levágás nélkül. -->
-                        <VtDropdown
-                            hover
-                            :label="iconOnly ? group.label : undefined"
-                            :width="group.items.length > 6 ? 'wide' : 'auto'"
-                            :panel-class="`vm-navmenu vm-navmenu--${group.id}${group.items.length > 6 ? ' vm-navmenu--two' : ''}`"
-                            :panel-label="group.label"
-                            :panel-testid="`nav-panel-${group.id}`"
-                            :open="activeMenuId === `group-${group.id}`"
-                            @update:open="setMenuOpen(`group-${group.id}`, $event)"
-                        >
-                            <template #trigger="{ open, ...trigger }">
-                                <VtNavItem
-                                    orientation="horizontal"
-                                    class="vm-toplink"
-                                    v-bind="trigger"
-                                    :active="groupActive(group.id)"
-                                    :title="iconOnly ? group.label : undefined"
-                                    :data-testid="`nav-group-${group.id}`"
-                                    :data-open="open ? 'true' : undefined"
-                                >
-                                    <template #icon><VmIcon :name="group.icon" /></template>
-                                    <template v-if="!iconOnly">{{ group.label }}</template>
-                                    <template #trailing>
-                                        <VmIcon name="chevron" class="vm-toplink__chevron" :class="{ 'vm-toplink__chevron--open': open }" />
-                                    </template>
-                                </VtNavItem>
-                            </template>
-
-                            <VmNavPanel :items="group.items" :active-href="activeHref" />
-                        </VtDropdown>
-                    </div>
-                </nav>
-
-                <div class="vm-topbar__tools">
-                    <VmLocalePicker v-if="!compact" />
-                    <VmUserMenu />
-
-                    <button
-                        v-if="compact"
-                        id="nav-hamburger"
-                        type="button"
-                        class="vm-tool vm-tool--square"
-                        data-testid="nav-hamburger"
-                        :aria-label="mobileOpen ? t('nav.closeMenu') : t('nav.openMenu')"
-                        :aria-expanded="mobileOpen"
-                        aria-controls="nav-mobile"
-                        @click="mobileOpen = !mobileOpen"
-                    >
-                        <VmIcon :name="mobileOpen ? 'close' : 'menu'" />
-                    </button>
-                </div>
-            </div>
-
-            <!-- HAMBURGER-PANEL: harmonikaszerű csoportok (tablet-töréspont alatt). -->
-            <nav
-                v-if="compact && mobileOpen"
-                id="nav-mobile"
-                class="vm-mobilenav"
-                data-testid="nav-mobile"
-                :aria-label="t('nav.main')"
+        <template #sidebar>
+            <VtSidebar
+                app="mail"
+                :app-subtitle="t('shell.appSubtitle')"
+                :hub-href="page.props.hubUrl ?? undefined"
+                :hub-label="t('shell.allApps')"
+                :workspace="page.props.workspace?.name"
+                :workspace-plan="t('shell.workspace')"
+                :workspace-menu-label="t('shell.workspaceSwitcher')"
+                :workspace-menu-open="isMenuOpen('workspace')"
+                :workspace-button-attrs="{ 'data-testid': 'workspace-switch' }"
+                :user-name="page.props.auth.user?.name"
+                :user-role="role"
+                :sign-out-label="t('shell.logout')"
+                :nav-label="t('nav.main')"
+                data-testid="app-nav"
+                @update:workspace-menu-open="setMenuOpen('workspace', $event)"
+                @signout="router.post('/auth/logout')"
             >
-                <Link
-                    class="vm-mobilenav__top"
+                <template #workspace-menu="{ close }">
+                    <VmWorkspaceMenu :close="close" />
+                </template>
+
+                <VtNavItem
+                    :as="Link"
                     href="/dashboard"
+                    icon="home"
+                    :label="t('nav.dashboard')"
+                    :active="isOverviewActive"
                     data-testid="nav-overview"
-                    :aria-current="isOverviewActive ? 'page' : undefined"
+                />
+
+                <VtNavGroup
+                    v-for="group in groups"
+                    :key="group.id"
+                    :label="group.label"
+                    :open="groupActive(group.id) || expanded.includes(group.id)"
+                    :data-testid="`nav-${group.id}`"
+                    @update:open="setGroupOpen(group.id, $event)"
                 >
-                    <VmIcon name="home" />
-                    {{ t('nav.dashboard') }}
-                </Link>
-
-                <div v-for="group in groups" :key="group.id" class="vm-mobilenav__group" :data-testid="`nav-${group.id}`">
-                    <button
-                        type="button"
-                        class="vm-mobilenav__head"
-                        :data-testid="`nav-group-${group.id}`"
-                        :aria-expanded="expanded.includes(group.id)"
-                        :aria-controls="`nav-mobile-${group.id}`"
-                        @click="toggleGroup(group.id)"
+                    <VtNavItem
+                        v-for="item in group.items"
+                        :key="item.href"
+                        :as="Link"
+                        :href="item.href"
+                        :icon="iconOf(item.icon)"
+                        :label="item.label"
+                        :active="item.href === activeHref"
+                        :data-testid="item.testid"
                     >
-                        <VmIcon :name="group.icon" />
-                        <span class="vm-mobilenav__label">{{ group.label }}</span>
-                        <VmIcon name="chevron" class="vm-toplink__chevron" :class="{ 'vm-toplink__chevron--open': expanded.includes(group.id) }" />
-                    </button>
+                        <template v-if="item.soon" #trailing><VtBadge tone="accent" :dot="false">{{ t('nav.soon') }}</VtBadge></template>
+                    </VtNavItem>
+                </VtNavGroup>
+            </VtSidebar>
+        </template>
 
-                    <div v-show="expanded.includes(group.id)" :id="`nav-mobile-${group.id}`" class="vm-mobilenav__panel">
-                        <VmNavPanel :items="group.items" :active-href="activeHref" />
-                    </div>
-                </div>
-
-                <VmLocalePicker variant="inline" />
-            </nav>
-        </header>
-
-        <main id="main" class="vm-shell__main">
-            <!--
-              A TÁMOGATÓI NÉZET SÁVJA MINDIG LÁTSZIK, amíg a munkamenet nyitva van. Enélkül
-              az admin a saját fiókjának hinné a képernyőt, az írás-tiltást pedig hibának.
-            -->
-            <p
-                v-if="page.props.impersonation?.active"
-                class="vm-banner vm-banner--danger"
-                role="status"
-                data-testid="impersonation-banner"
+        <template #topbar>
+            <VtTopbar
+                :section="crumbs.section"
+                :page="crumbs.page"
+                :env="env?.label"
+                :env-tone="env?.tone"
+                :search-placeholder="t('shell.search')"
+                :shortcut="false"
+                :locale="page.props.locale?.toUpperCase()"
+                :locale-menu-label="t('shell.languageMenu')"
+                :locale-menu-open="isMenuOpen('locale')"
+                :locale-button-attrs="{ 'data-testid': 'locale-switch' }"
+                :user-name="page.props.auth.user?.name"
+                :user-menu-label="t('shell.userMenu')"
+                :user-menu-open="isMenuOpen('user')"
+                :avatar-button-attrs="{ 'data-testid': 'user-menu' }"
+                :menu-label="t('nav.openMenu')"
+                @search="paletteOpen = true"
+                @update:locale-menu-open="setMenuOpen('locale', $event)"
+                @update:user-menu-open="setMenuOpen('user', $event)"
             >
-                {{ t('shell.impersonation', {
-                    workspace: page.props.impersonation.workspace,
-                    expires: format.time(page.props.impersonation.expiresAt),
-                }) }}
-            </p>
+                <!-- A ventMailnek nincs értesítés-funkciója: a csengő nem kerül ki (HUMAN-QUEUE). -->
+                <template #actions><span hidden /></template>
+                <template #locale-menu><VmLocaleMenu /></template>
+                <template #user-menu><VmUserMenu /></template>
+            </VtTopbar>
+        </template>
 
-            <p v-if="page.props.flash.success" class="vm-banner" role="status" data-testid="flash-success">
-                {{ page.props.flash.success }}
-            </p>
+        <!--
+          A TÁMOGATÓI NÉZET SÁVJA MINDIG LÁTSZIK, amíg a munkamenet nyitva van. Enélkül
+          az admin a saját fiókjának hinné a képernyőt, az írás-tiltást pedig hibának.
+        -->
+        <VtBanner
+            v-if="page.props.impersonation?.active"
+            tone="danger"
+            :title="t('shell.impersonation', {
+                workspace: page.props.impersonation.workspace,
+                expires: format.time(page.props.impersonation.expiresAt),
+            })"
+            data-testid="impersonation-banner"
+        />
+        <VtBanner v-if="page.props.flash.success" tone="success" :title="page.props.flash.success" data-testid="flash-success" />
+        <VtBanner v-if="page.props.flash.error" tone="danger" :title="page.props.flash.error" data-testid="flash-error" />
 
-            <p v-if="page.props.flash.error" class="vm-banner vm-banner--danger" role="status" data-testid="flash-error">
-                {{ page.props.flash.error }}
-            </p>
+        <!-- Az oldal burka: `display: contents` (layout.css) — a shell gapje a gyerekekre hat. -->
+        <div class="vm-page"><slot /></div>
 
-            <slot />
-        </main>
-    </div>
+        <VtCommandPalette
+            v-model:open="paletteOpen"
+            :groups="paletteGroups"
+            :title="t('shell.search')"
+            :placeholder="t('shell.search')"
+            :empty-text="t('shell.searchEmpty')"
+            @query="query = $event"
+            @select="jump"
+        />
+    </VtAppShell>
 </template>

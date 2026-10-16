@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { VtGlowLine, type VtColumn } from '@venture/ui';
+import { VtPageHeader, type VtColumn } from '@venture-co-group/ui';
 import VmTable from '../../Components/Form/VmTable.vue';
 import VmCard from '../../Components/Form/VmCard.vue';
 import AppLayout from '../../Layouts/AppLayout.vue';
@@ -101,10 +101,9 @@ const attemptRows = (): AttemptRow[] =>
 
 <template>
     <AppLayout>
-        <VmCard>
-            <h1>{{ t('trace.title') }}</h1>
-            <VtGlowLine />
+        <VtPageHeader :overline="t('nav.platform')" :title="t('trace.title')" />
 
+        <VmCard>
             <dl class="vm-summary" data-testid="trace-summary">
                 <dt>{{ t('trace.id') }}</dt>
                 <dd>{{ props.trace.message.uuid }}</dd>
@@ -141,7 +140,7 @@ const attemptRows = (): AttemptRow[] =>
                     <span class="vm-timeline__dot" aria-hidden="true" />
                     <div class="vm-timeline__body">
                         <strong>{{ te(`plat.trace.kind.${item.kind}`) ? t(`plat.trace.kind.${item.kind}`) : code('event', item.kind) }}</strong>
-                        <span class="vm-timeline__meta vt-text-mono">
+                        <span class="vm-timeline__meta vt-mono">
                             {{ item.at ? format.dateTime(item.at) : '—' }}<template v-if="item.recipient"> · {{ item.recipient }}</template>
                         </span>
                         <code v-if="item.detail" class="vm-timeline__detail" :title="item.detail">{{ /^[A-Z_]+$/.test(item.detail) ? code('reason', item.detail) : item.detail }}</code>
@@ -180,7 +179,7 @@ const attemptRows = (): AttemptRow[] =>
 }
 
 .vm-summary dt {
-    color: var(--vt-text-muted);
+    color: var(--vt-text-secondary);
 }
 
 .vm-summary dd {
@@ -216,22 +215,22 @@ const attemptRows = (): AttemptRow[] =>
     width: var(--vt-space-2);
     height: var(--vt-space-2);
     border-radius: 50%;
-    background: var(--vt-color-accent-500);
+    background: var(--vt-accent);
 }
 
 .vm-timeline__item[data-kind='bounced'] .vm-timeline__dot,
 .vm-timeline__item[data-kind='gate_rejected'] .vm-timeline__dot,
 .vm-timeline__item[data-kind='rejected'] .vm-timeline__dot,
 .vm-timeline__item[data-kind='complained'] .vm-timeline__dot {
-    background: var(--vt-color-danger);
+    background: var(--vt-status-danger);
 }
 
 .vm-timeline__item[data-kind='deferred'] .vm-timeline__dot {
-    background: var(--vt-color-warning);
+    background: var(--vt-status-warning);
 }
 
 .vm-timeline__item[data-kind='delivered'] .vm-timeline__dot {
-    background: var(--vt-color-success);
+    background: var(--vt-status-success);
 }
 
 .vm-timeline__body {
@@ -242,18 +241,18 @@ const attemptRows = (): AttemptRow[] =>
 }
 
 .vm-timeline__meta {
-    color: var(--vt-text-muted);
-    font-size: var(--vt-fs-body-sm);
+    color: var(--vt-text-secondary);
+    font-size: var(--vt-type-body-m-size);
     overflow-wrap: anywhere;
 }
 
 .vm-timeline__detail {
     font-family: var(--vt-font-mono);
-    font-size: var(--vt-fs-body-sm);
+    font-size: var(--vt-type-body-m-size);
     padding: var(--vt-space-2) var(--vt-space-3);
     border: thin solid var(--vt-border);
     border-radius: var(--vt-radius-md);
-    background: var(--vt-bg-elevated);
+    background: var(--vt-bg-raised);
     overflow-wrap: anywhere;
 }
 </style>

@@ -19,10 +19,10 @@ test('a domain-wizard megjeleníti a hitelesítendő DNS-rekordokat', async ({ p
     await expect(page.getByTestId('domain-submit')).toBeEnabled();
 });
 
-test('a hitelesítendő rekordok táblázata a @venture/ui táblát használja', async ({ page }) => {
+test('a hitelesítendő rekordok táblázata a @venture-co-group/ui DataTable-t használja', async ({ page }) => {
     await page.goto('/domains/wizard?demo=1');
 
-    const table = page.locator('.vt-table');
+    const table = page.locator('.vt-dt');
     await expect(table).toBeVisible();
 
     /*
@@ -34,7 +34,7 @@ test('a hitelesítendő rekordok táblázata a @venture/ui táblát használja',
      * négyet várt, és mivel a CI-ban a Playwright-kapu a hiányzó privát csomagok miatt
      * SOHA nem futott le, a hiba fél éve csendben állt itt.
      */
-    await expect(page.locator('.vt-table__row')).toHaveCount(9);
+    await expect(page.locator('.vt-dt__row')).toHaveCount(9);
 
     // KÜLDÉS: a hitelesítés három rekordja + a saját domainen futó tracking.
     await expect(page.getByText('v=spf1', { exact: false })).toBeVisible();

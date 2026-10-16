@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { VtButton, VtSegmented } from '@venture/ui';
+import { VtButton, VtSegmented } from '@venture-co-group/ui';
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import SegmentRuleRow from './SegmentRuleRow.vue';
@@ -106,7 +106,7 @@ function removeAt(index: number): void {
         </template>
 
         <div class="vm-seg-group__actions">
-            <VtButton variant="subtle" size="sm" :disabled="!canAddRule" :data-testid="`segment-add-rule-${path || 'root'}`" @click="addRule">
+            <VtButton variant="ghost" size="sm" :disabled="!canAddRule" :data-testid="`segment-add-rule-${path || 'root'}`" @click="addRule">
                 {{ t('segments.addRule') }}
             </VtButton>
             <VtButton
@@ -136,7 +136,7 @@ function removeAt(index: number): void {
 }
 
 .vm-seg-group--nested {
-    background-color: var(--vt-glass-thin-fill);
+    background-color: var(--vt-surface-2);
     border-style: dashed;
 }
 
@@ -147,10 +147,10 @@ function removeAt(index: number): void {
 
 .vm-seg-group__legend {
     padding-inline: var(--vt-space-2);
-    font-size: var(--vt-fs-caption);
-    letter-spacing: var(--vt-tracking-wide);
+    font-size: var(--vt-type-caption-size);
+    letter-spacing: var(--vt-type-overline-tracking);
     text-transform: uppercase;
-    color: var(--vt-text-muted);
+    color: var(--vt-text-secondary);
 }
 
 .vm-seg-group__head,
@@ -168,14 +168,14 @@ function removeAt(index: number): void {
 
 .vm-seg-group__joiner {
     margin: 0;
-    font-size: var(--vt-fs-caption);
+    font-size: var(--vt-type-caption-size);
     font-weight: var(--vt-weight-semibold);
-    letter-spacing: var(--vt-tracking-wider);
+    letter-spacing: var(--vt-type-overline-tracking);
     color: var(--vt-accent);
 }
 
 .vm-seg-group__empty {
     margin: 0;
-    color: var(--vt-text-muted);
+    color: var(--vt-text-secondary);
 }
 </style>

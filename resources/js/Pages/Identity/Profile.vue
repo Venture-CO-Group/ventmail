@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { router, usePage } from '@inertiajs/vue3';
-import { VtBadge, VtButton, VtCheckbox, VtField, VtSelect } from '@venture/ui';
+import { VtBadge, VtBanner, VtButton, VtCheckbox, VtField, VtSelect } from '@venture-co-group/ui';
 import VmCard from '../../Components/Form/VmCard.vue';
 import VmForm from '../../Components/Form/VmForm.vue';
 import VmFormRow from '../../Components/Form/VmFormRow.vue';
@@ -123,21 +123,21 @@ function save(): void {
     <AppLayout>
         <header class="vm-pagehead">
             <div class="vm-stack">
-                <p class="vt-eyebrow">{{ t('profile.eyebrow') }}</p>
-                <h1 class="vt-text-display" data-testid="profile-title">{{ t('profile.title') }}</h1>
+                <p class="vt-overline">{{ t('profile.eyebrow') }}</p>
+                <h1 class="vt-num" data-testid="profile-title">{{ t('profile.title') }}</h1>
                 <p>{{ t('profile.lead') }}</p>
             </div>
             <VtButton :disabled="saving" data-testid="profile-save" @click="save">{{ t('profile.save') }}</VtButton>
         </header>
 
-        <p v-if="Object.keys(errors).length" class="vm-banner vm-banner--danger" role="alert" data-testid="profile-errors">
+        <VtBanner v-if="Object.keys(errors).length" tone="danger" role="alert" data-testid="profile-errors">
             {{ t('profile.saveFailed') }}
-        </p>
+        </VtBanner>
 
         <div class="vm-profile">
             <VmForm class="vm-profile__main" novalidate @submit.prevent="save">
                 <VmCard>
-                    <h2 class="vt-text-display">{{ t('profile.sectionFormats') }}</h2>
+                    <h2 class="vt-num">{{ t('profile.sectionFormats') }}</h2>
 
                     <VmFormSection>
                         <VmFormRow>
@@ -169,7 +169,7 @@ function save(): void {
                 </VmCard>
 
                 <VmCard>
-                    <h2 class="vt-text-display">{{ t('profile.sectionNotifications') }}</h2>
+                    <h2 class="vt-num">{{ t('profile.sectionNotifications') }}</h2>
 
                     <ul class="vm-profile__notifs" role="list">
                         <li v-for="key in notificationKeys" :key="key" class="vm-profile__notif">
@@ -187,7 +187,7 @@ function save(): void {
             </VmForm>
 
             <aside class="vm-stack vm-profile__side">
-                <VmCard glow data-testid="profile-sso-card">
+                <VmCard data-testid="profile-sso-card">
                     <div class="vm-profile__who">
                         <div class="vm-stack">
                             <span class="vm-profile__name">{{ page.props.auth.user?.name }}</span>
@@ -195,7 +195,7 @@ function save(): void {
                         </div>
                     </div>
 
-                    <h2 class="vt-text-display">{{ t('profile.sso.title') }}</h2>
+                    <h2 class="vt-num">{{ t('profile.sso.title') }}</h2>
                     <p>{{ t('profile.sso.text') }}</p>
 
                     <a
@@ -212,11 +212,11 @@ function save(): void {
                 </VmCard>
 
                 <VmCard>
-                    <h2 class="vt-text-display">{{ t('profile.rolesTitle') }}</h2>
+                    <h2 class="vt-num">{{ t('profile.rolesTitle') }}</h2>
                     <ul class="vm-profile__roles" role="list">
                         <li v-for="row in page.props.workspaces" :key="row.uuid" class="vm-profile__role">
                             <span class="vm-profile__role-name">{{ row.name }}</span>
-                            <VtBadge size="sm">{{ roleLabel(row) }}</VtBadge>
+                            <VtBadge>{{ roleLabel(row) }}</VtBadge>
                         </li>
                     </ul>
                 </VmCard>

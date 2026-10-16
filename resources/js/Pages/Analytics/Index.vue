@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Deferred, router } from '@inertiajs/vue3';
-import { VtButton, VtInput, VtSegmented, VtSelect } from '@venture/ui';
+import { VtBanner, VtButton, VtEmptyState, VtInput, VtKpiCard, VtPageHeader, VtSelect } from '@venture-co-group/ui';
 import { computed, reactive, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { AudienceSection, CampaignSection, JourneySection, PlatformSection } from '../../Components/Analytics/types';
@@ -12,7 +12,6 @@ import VmDonutChart from '../../Components/Charts/VmDonutChart.vue';
 import VmFunnelBar from '../../Components/Charts/VmFunnelBar.vue';
 import VmLineChart from '../../Components/Charts/VmLineChart.vue';
 import { CATEGORY_TOKENS } from '../../Components/Charts/chartTheme';
-import VmPageHeader from '../../Components/Studio/VmPageHeader.vue';
 import VmIcon from '../../Components/Shell/VmIcon.vue';
 import AppLayout from '../../Layouts/AppLayout.vue';
 import { useFormat } from '../../composables/useFormat';
@@ -48,6 +47,25 @@ const rangeOptions = computed(() => [
     { value: '90', label: t('analytics.range.d90') },
     { value: 'custom', label: t('analytics.range.custom') },
 ]);
+/** A kampány KPI-sora: darabszám + a hozzá tartozó arány (a motor `rates`-éből). */
+const campaignKpis = computed(() => {
+    const summary = props.campaignSection?.summary;
+
+    if (!summary) return [];
+
+    return (
+        [
+            ['delivered', 'delivery_rate'],
+            ['opened', 'open_rate'],
+            ['clicked', 'click_rate'],
+            ['bounced', 'bounce_rate'],
+            ['unsubscribed', 'unsubscribe_rate'],
+        ] as const
+    )
+        .filter(([key]) => key in summary)
+        .map(([key, rate]) => ({ key, value: Number(summary[key] ?? 0), rate: rate in summary ? Number(summary[rate]) : null }));
+});
+
 const campaignOptions = computed(() =>
     props.campaigns.length ? props.campaigns.map((c) => ({ value: c.uuid, label: c.name })) : [{ value: '', label: t('analytics.noCampaign') }],
 );
@@ -90,8 +108,8 @@ const pct = (value: number | undefined | null, digits = 1) => `${format.number((
 // --- Kampány: idősor -------------------------------------------------------------------
 const timeline = computed(() => props.campaignSection?.timeline ?? { bucket: 'day' as const, points: [] });
 const timelineSeries = computed(() => [
-    { name: t('analytics.series.opens'), data: timeline.value.points.map((p) => p.opens), token: '--vt-color-accent-500', area: true },
-    { name: t('analytics.series.clicks'), data: timeline.value.points.map((p) => p.clicks), token: '--vt-color-cyan-400', area: true },
+    { name: t('analytics.series.opens'), data: timeline.value.points.map((p) => p.opens), token: '--vt-accent', area: true },
+    { name: t('analytics.series.clicks'), data: timeline.value.points.map((p) => p.clicks), token: '--vt-chart-series-2', area: true },
 ]);
 // D297: a kategória a NYERS nap/óra; a tengely a profil formátumában írja ki (`format.stamp`).
 const timelineLabels = computed(() => timeline.value.points.map((p) => (timeline.value.bucket === 'hour' ? p.at.slice(0, 16) : p.at.slice(0, 10))));
@@ -121,12 +139,12 @@ const uniqueClicks = computed(() => links.value.reduce((sum, link) => sum + link
 // --- Közönség --------------------------------------------------------------------------------
 const growth = computed(() => props.audienceSection?.growth ?? []);
 const growthSeries = computed(() => [
-    { name: t('analytics.series.new'), data: growth.value.map((g) => g.new), token: '--vt-color-accent-500', stack: 'g' },
-    { name: t('analytics.series.unsubscribed'), data: growth.value.map((g) => -g.unsubscribed), token: '--vt-color-danger', stack: 'g' },
-    { name: t('analytics.series.net'), data: growth.value.map((g) => g.net), token: '--vt-color-cyan-400', line: true },
+    { name: t('analytics.series.new'), data: growth.value.map((g) => g.new), token: '--vt-accent', stack: 'g' },
+    { name: t('analytics.series.unsubscribed'), data: growth.value.map((g) => -g.unsubscribed), token: '--vt-status-danger', stack: 'g' },
+    { name: t('analytics.series.net'), data: growth.value.map((g) => g.net), token: '--vt-chart-series-2', line: true },
 ]);
 const engagementItems = computed(() =>
-    (props.audienceSection?.engagement ?? []).map((row, index) => ({ name: t(`analytics.tier.${row.key}`), value: row.count, token: ['--vt-color-success', '--vt-color-warning', '--vt-color-danger', '--vt-color-neutral-400'][index] })),
+    (props.audienceSection?.engagement ?? []).map((row, index) => ({ name: t(`analytics.tier.${row.key}`), value: row.count, token: ['--vt-status-success', '--vt-status-warning', '--vt-status-danger', '--vt-chart-neutral-1'][index] })),
 );
 
 // --- Journey ---------------------------------------------------------------------------------
@@ -141,9 +159,9 @@ const funnelRows = computed(() =>
 // --- Platform --------------------------------------------------------------------------------
 const deliverability = computed(() => props.platformSection?.series ?? []);
 const deliverabilitySeries = computed(() => [
-    { name: t('analytics.series.delivered'), data: deliverability.value.map((d) => d.deliveredRate), token: '--vt-color-success', area: true },
-    { name: t('analytics.series.bounced'), data: deliverability.value.map((d) => d.bounceRate), token: '--vt-color-warning' },
-    { name: t('analytics.series.complained'), data: deliverability.value.map((d) => d.complaintRate), token: '--vt-color-danger' },
+    { name: t('analytics.series.delivered'), data: deliverability.value.map((d) => d.deliveredRate), token: '--vt-status-success', area: true },
+    { name: t('analytics.series.bounced'), data: deliverability.value.map((d) => d.bounceRate), token: '--vt-status-warning' },
+    { name: t('analytics.series.complained'), data: deliverability.value.map((d) => d.complaintRate), token: '--vt-status-danger' },
 ]);
 const bounces = computed(() => props.platformSection?.bounces);
 const bounceItems = computed(() => {
@@ -151,7 +169,7 @@ const bounceItems = computed(() => {
 
     return [
         ...Object.entries(classes).map(([key, value], index) => ({ key, name: t(`analytics.bounce.${key}`), value, token: CATEGORY_TOKENS[(index + 5) % CATEGORY_TOKENS.length] })),
-        { key: 'unclassified', name: t('analytics.bounce.unclassified'), value: bounces.value?.unclassified ?? 0, token: '--vt-color-neutral-500' },
+        { key: 'unclassified', name: t('analytics.bounce.unclassified'), value: bounces.value?.unclassified ?? 0, token: '--vt-chart-neutral-2' },
     ];
 });
 const bounceRate = computed(() => {
@@ -176,34 +194,39 @@ function scrollToReport(): void {
 
 <template>
     <AppLayout>
-        <VmPageHeader :eyebrow="t('analytics.eyebrow')" :title="t('analytics.title')" :lead="t('analytics.lead')" testid="analytics-head">
-            <div class="vm-an-filters">
-                <div class="vm-seg-scroll">
-                    <VtSegmented
+        <VtPageHeader :overline="t('nav.studio')" :title="t('analytics.title')" :description="t('page.analytics.lead')" data-testid="analytics-head">
+            <template #actions>
+                <!-- Figma: „Export" + időszak a fejlécben; a kampány- és egyedi tartomány-szűrő alatta. -->
+                <VtButton variant="secondary" data-testid="analytics-pdf" @click="scrollToReport"><VmIcon name="download" /> {{ t('analytics.report.button') }}</VtButton>
+                <div class="vm-an-range">
+                    <VtSelect
                         :model-value="showCustom ? 'custom' : selection.range"
                         :options="rangeOptions"
-                        :label="t('analytics.range.label')"
+                        :aria-label="t('analytics.range.label')"
                         data-testid="analytics-range"
                         @update:model-value="onRange(String($event))"
                     />
                 </div>
-                <form v-if="showCustom" class="vm-an-custom" data-testid="analytics-custom" @submit.prevent="go({ range: 'custom', from: custom.from, to: custom.to })">
-                    <VtInput v-model="custom.from" type="date" :max="selection.today" :aria-label="t('analytics.range.from')" />
-                    <VtInput v-model="custom.to" type="date" :max="selection.today" :aria-label="t('analytics.range.to')" />
-                    <VtButton type="submit" variant="glass" size="sm">{{ t('analytics.range.apply') }}</VtButton>
-                </form>
-                <div class="vm-an-select">
-                    <VtSelect
-                        :model-value="selection.campaign ?? ''"
-                        :options="campaignOptions"
-                        :aria-label="t('analytics.pickCampaign')"
-                        data-testid="analytics-campaign"
-                        @update:model-value="go({ campaign: String($event) || null })"
-                    />
-                </div>
-                <VtButton data-testid="analytics-pdf" @click="scrollToReport"><VmIcon name="file" /> {{ t('analytics.report.button') }}</VtButton>
+            </template>
+        </VtPageHeader>
+
+        <!-- A szűrősor (a fejléc alatt): egyedi tartomány, kampány. -->
+        <div class="vm-an-filters">
+            <form v-if="showCustom" class="vm-an-custom" data-testid="analytics-custom" @submit.prevent="go({ range: 'custom', from: custom.from, to: custom.to })">
+                <VtInput v-model="custom.from" type="date" :max="selection.today" :aria-label="t('analytics.range.from')" />
+                <VtInput v-model="custom.to" type="date" :max="selection.today" :aria-label="t('analytics.range.to')" />
+                <VtButton type="submit" variant="secondary" size="sm">{{ t('analytics.range.apply') }}</VtButton>
+            </form>
+            <div class="vm-an-select">
+                <VtSelect
+                    :model-value="selection.campaign ?? ''"
+                    :options="campaignOptions"
+                    :aria-label="t('analytics.pickCampaign')"
+                    data-testid="analytics-campaign"
+                    @update:model-value="go({ campaign: String($event) || null })"
+                />
             </div>
-        </VmPageHeader>
+        </div>
 
         <p class="vm-an-tz" data-testid="analytics-period">{{ periodLabel }} · {{ selection.timezone }}</p>
 
@@ -212,9 +235,22 @@ function scrollToReport(): void {
         <Deferred data="campaignSection">
             <template #fallback><div class="vm-an-grid"><div class="vm-an-skeleton" /><div class="vm-an-skeleton" /></div></template>
 
-            <p v-if="campaignSection === null" class="vm-banner" data-testid="analytics-empty">{{ t('analytics.empty') }}</p>
-            <p v-else-if="campaignSection && !campaignSection.available" class="vm-banner vm-banner--warning" data-testid="campaign-unavailable">{{ t('analytics.unavailable') }}</p>
+            <VtBanner v-if="campaignSection === null" tone="info" data-testid="analytics-empty">{{ t('analytics.empty') }}</VtBanner>
+            <VtBanner v-else-if="campaignSection && !campaignSection.available" tone="warning" data-testid="campaign-unavailable">{{ t('analytics.unavailable') }}</VtBanner>
             <template v-else-if="campaignSection">
+                <!-- A KPI-SOR (Figma Analytics): a kiválasztott kampány számai, az arány a delta helyén. -->
+                <div v-if="campaignKpis.length" class="vm-an-kpis" data-testid="analytics-kpis">
+                    <VtKpiCard
+                        v-for="kpi in campaignKpis"
+                        :key="kpi.key"
+                        :label="t(`analytics.metric.${kpi.key}`)"
+                        :value="fmt(kpi.value)"
+                        :delta="kpi.rate === null ? undefined : pct(kpi.rate)"
+                        trend="flat"
+                        :data-testid="`analytics-kpi-${kpi.key}`"
+                    />
+                </div>
+
                 <div class="vm-an-grid">
                     <VmChartCard id="open-click" :title="t('analytics.chart.openClick')" :subtitle="t(`analytics.bucket.${timeline.bucket}`)" :context="campaignName" :chart="timeline.points.length ? timelineChart : null">
                         <VmLineChart v-if="timeline.points.length" ref="timelineChart" :categories="timelineLabels" :series="timelineSeries" :label="t('analytics.chart.openClick')" testid="chart-open-click" />
@@ -223,7 +259,7 @@ function scrollToReport(): void {
                     </VmChartCard>
 
                     <VmChartCard id="devices" :title="t('analytics.chart.devices')" :subtitle="t('analytics.eventsNote')" :context="campaignName" :chart="devices?.hasData ? deviceChart : null">
-                        <p v-if="!devices?.hasData" class="vm-an-muted" data-testid="devices-empty">{{ t('analytics.noDataBeforeV12') }}</p>
+                        <VtEmptyState v-if="!devices?.hasData" :title="t('analytics.noDataBeforeV12')" icon="inbox" data-testid="devices-empty" />
                         <div v-else class="vm-an-split">
                             <div class="vm-an-donut">
                                 <VmDonutChart ref="deviceChart" :items="deviceItems" :center="`${mobileShare}%`" :center-caption="t('analytics.device.mobile')" :label="t('analytics.chart.devices')" testid="chart-devices" />
@@ -251,10 +287,10 @@ function scrollToReport(): void {
                     </VmChartCard>
 
                     <VmChartCard id="top-links" :title="t('analytics.chart.topLinks')" :csv-href="campaignSection.campaign ? `/analytics/campaigns/${campaignSection.campaign.uuid}/links.csv` : undefined">
-                        <p v-if="!links.length" class="vm-an-muted" data-testid="links-empty">{{ t('analytics.noClicks') }}</p>
+                        <VtEmptyState v-if="!links.length" :title="t('analytics.noClicks')" icon="inbox" data-testid="links-empty" />
                         <ul v-else class="vm-an-bars vm-an-bars--links" data-testid="top-links">
                             <li v-for="link in links.slice(0, 10)" :key="link.key">
-                                <span class="vm-an-bars__label vm-truncate vt-text-mono" :title="link.url">{{ link.url.replace(/^https?:\/\//, '') }}</span>
+                                <span class="vm-an-bars__label vm-truncate vt-mono" :title="link.url">{{ link.url.replace(/^https?:\/\//, '') }}</span>
                                 <span class="vm-an-bars__value">{{ fmt(link.unique) }} · {{ pct(link.share) }}</span>
                                 <span class="vm-an-bars__track"><i :style="{ width: `${link.share}%` }" /></span>
                             </li>
@@ -270,7 +306,7 @@ function scrollToReport(): void {
             <Deferred data="audienceSection">
                 <template #fallback><div class="vm-an-skeleton" /></template>
                 <VmChartCard id="growth" :title="t('analytics.chart.growth')" :context="periodLabel" :chart="audienceSection?.available ? growthChart : null">
-                    <p v-if="!audienceSection?.available" class="vm-banner vm-banner--warning">{{ t('analytics.unavailable') }}</p>
+                    <VtBanner v-if="!audienceSection?.available" tone="warning">{{ t('analytics.unavailable') }}</VtBanner>
                     <template v-else>
                         <VmBarChart ref="growthChart" :categories="growth.map((g) => g.date)" :series="growthSeries" :label="t('analytics.chart.growth')" testid="chart-growth" />
                     </template>
@@ -304,7 +340,7 @@ function scrollToReport(): void {
                         </div>
                     </template>
                     <p v-if="journeySection === null" class="vm-an-muted">{{ t('analytics.noJourney') }}</p>
-                    <p v-else-if="!journeySection?.available || !journeySection?.nodesAvailable" class="vm-banner vm-banner--warning" data-testid="journey-unavailable">{{ t('analytics.unavailable') }}</p>
+                    <VtBanner v-else-if="!journeySection?.available || !journeySection?.nodesAvailable" tone="warning" data-testid="journey-unavailable">{{ t('analytics.unavailable') }}</VtBanner>
                     <VmFunnelBar v-else-if="funnelRows.length" ref="funnelChart" :rows="funnelRows" :label="t('analytics.chart.journey')" testid="chart-journey" />
                     <p v-else class="vm-an-muted">{{ t('analytics.noData') }}</p>
                     <template v-if="journeySection?.goal" #note>
@@ -316,8 +352,8 @@ function scrollToReport(): void {
             <Deferred data="platformSection">
                 <template #fallback><div class="vm-an-skeleton" /></template>
                 <VmChartCard id="bounces" :title="t('analytics.chart.bounces')" :context="periodLabel" :chart="bounces?.total ? bounceChart : null">
-                    <p v-if="!platformSection?.available" class="vm-banner vm-banner--warning">{{ t('analytics.unavailable') }}</p>
-                    <p v-else-if="!bounces?.total" class="vm-an-muted" data-testid="bounces-empty">{{ t('analytics.noData') }}</p>
+                    <VtBanner v-if="!platformSection?.available" tone="warning">{{ t('analytics.unavailable') }}</VtBanner>
+                    <VtEmptyState v-else-if="!bounces?.total" :title="t('analytics.noData')" icon="inbox" data-testid="bounces-empty" />
                     <div v-else class="vm-an-split">
                         <div class="vm-an-donut">
                             <VmDonutChart ref="bounceChart" :items="bounceItems" :center="pct(bounceRate, 2)" :center-caption="t('analytics.chart.bounces')" :label="t('analytics.chart.bounces')" testid="chart-bounces" />
@@ -335,7 +371,7 @@ function scrollToReport(): void {
         <Deferred data="platformSection">
             <template #fallback><div class="vm-an-skeleton" /></template>
             <VmChartCard id="deliverability" :title="t('analytics.chart.deliverability')" :context="periodLabel" :chart="deliverability.length ? deliverabilityChart : null">
-                <p v-if="!platformSection?.available" class="vm-banner vm-banner--warning">{{ t('analytics.unavailable') }}</p>
+                <VtBanner v-if="!platformSection?.available" tone="warning">{{ t('analytics.unavailable') }}</VtBanner>
                 <VmLineChart
                     v-else-if="deliverability.length"
                     ref="deliverabilityChart"
@@ -343,7 +379,7 @@ function scrollToReport(): void {
                     :series="deliverabilitySeries"
                     :label="t('analytics.chart.deliverability')"
                     percent
-                    :mark-line="{ value: platformSection?.complaintThreshold ?? 0.3, name: t('analytics.series.threshold'), token: '--vt-color-danger', seriesIndex: 2 }"
+                    :mark-line="{ value: platformSection?.complaintThreshold ?? 0.3, name: t('analytics.series.threshold'), token: '--vt-status-danger', seriesIndex: 2 }"
                     testid="chart-deliverability"
                 />
                 <p v-else class="vm-an-muted">{{ t('analytics.noData') }}</p>
@@ -364,6 +400,16 @@ function scrollToReport(): void {
 </template>
 
 <style scoped>
+.vm-an-kpis {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(calc(var(--vt-space-12) * 4), 1fr));
+    gap: var(--vt-space-4);
+}
+
+.vm-an-range {
+    inline-size: calc(var(--vt-space-12) * 3 + var(--vt-space-6));
+}
+
 .vm-an-filters {
     display: flex;
     flex-wrap: wrap;
@@ -381,51 +427,51 @@ function scrollToReport(): void {
 
 .vm-an-select {
     min-width: 0;
-    width: min(100%, calc(var(--vt-space-32) * 2));
+    width: min(100%, calc(calc(var(--vt-space-8) * 4) * 2));
 }
 
 .vm-an-tz {
     margin: 0;
-    color: var(--vt-text-muted);
-    font-size: var(--vt-fs-caption);
+    color: var(--vt-text-secondary);
+    font-size: var(--vt-type-caption-size);
 }
 
 .vm-an-section {
     margin: var(--vt-space-4) 0 0;
-    color: var(--vt-text-muted);
-    font-size: var(--vt-fs-body-sm);
+    color: var(--vt-text-secondary);
+    font-size: var(--vt-type-body-m-size);
     font-weight: var(--vt-weight-semibold);
-    letter-spacing: var(--vt-tracking-wide);
+    letter-spacing: var(--vt-type-overline-tracking);
     text-transform: uppercase;
     overflow-wrap: anywhere;
 }
 
 .vm-an-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(var(--vt-space-32) * 3.5)), 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(calc(var(--vt-space-8) * 4) * 3.5)), 1fr));
     gap: var(--vt-space-6);
     align-items: start;
     min-width: 0;
 }
 
 .vm-an-grid--wide {
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(var(--vt-space-32) * 3)), 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(calc(var(--vt-space-8) * 4) * 3)), 1fr));
 }
 
 .vm-an-skeleton {
-    min-height: calc(var(--vt-space-32) * 2.5);
-    border-radius: var(--vt-radius-panel);
-    background: var(--vt-glass-thin-fill);
+    min-height: calc(calc(var(--vt-space-8) * 4) * 2.5);
+    border-radius: var(--vt-radius-xl);
+    background: var(--vt-surface-2);
 }
 
 .vm-an-muted {
     margin: 0;
-    color: var(--vt-text-muted);
+    color: var(--vt-text-secondary);
 }
 
 .vm-an-split {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(var(--vt-space-32) * 1.3)), 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(calc(var(--vt-space-8) * 4) * 1.3)), 1fr));
     gap: var(--vt-space-6);
     align-items: center;
     min-width: 0;
@@ -450,20 +496,20 @@ function scrollToReport(): void {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     gap: var(--vt-space-1) var(--vt-space-3);
-    font-size: var(--vt-fs-body-sm);
+    font-size: var(--vt-type-body-m-size);
 }
 
 .vm-an-bars__value {
-    color: var(--vt-text-muted);
+    color: var(--vt-text-secondary);
     font-family: var(--vt-font-mono);
-    font-size: var(--vt-fs-caption);
+    font-size: var(--vt-type-caption-size);
 }
 
 .vm-an-bars__track {
     grid-column: 1 / -1;
     height: var(--vt-space-1);
     border-radius: var(--vt-radius-full);
-    background: var(--vt-glass-thin-fill);
+    background: var(--vt-surface-2);
     overflow: hidden;
 }
 
@@ -471,14 +517,14 @@ function scrollToReport(): void {
     display: block;
     height: 100%;
     border-radius: inherit;
-    background: var(--vt-signature-gradient);
+    background: var(--vt-accent);
 }
 
 .vm-an-legend li {
     display: flex;
     justify-content: space-between;
     gap: var(--vt-space-3);
-    font-size: var(--vt-fs-body-sm);
+    font-size: var(--vt-type-body-m-size);
     min-width: 0;
 }
 </style>

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { router } from '@inertiajs/vue3';
-import { VtButton, VtGlowLine, type VtColumn } from '@venture/ui';
+import { VtButton, VtEmptyState, VtPageHeader, type VtColumn } from '@venture-co-group/ui';
 import VmTable from '../../Components/Form/VmTable.vue';
 import VmCard from '../../Components/Form/VmCard.vue';
 import AppLayout from '../../Layouts/AppLayout.vue';
@@ -63,21 +63,20 @@ const setRange = (days: number): void => {
 
 <template>
     <AppLayout>
+        <VtPageHeader :overline="t('nav.platform')" :title="t('stats.title')" :description="t('page.tagStats.lead')">
+            <template #actions>
+                <VtButton v-for="days in [7, 30, 90]" :key="days" :variant="props.days === days ? 'primary' : 'secondary'" :data-testid="`stats-${days}`" @click="setRange(days)">
+                    {{ t('stats.days', { days }) }}
+                </VtButton>
+            </template>
+        </VtPageHeader>
+
         <VmCard>
-            <h1>{{ t('stats.title') }}</h1>
-            <VtGlowLine />
-
             <p data-testid="stats-range">{{ t('stats.range', { days: props.days }) }}</p>
-
-            <VtButton data-testid="stats-7" @click="setRange(7)">{{ t('stats.days', { days: 7 }) }}</VtButton>
-            <VtButton data-testid="stats-30" @click="setRange(30)">{{ t('stats.days', { days: 30 }) }}</VtButton>
-            <VtButton data-testid="stats-90" @click="setRange(90)">{{ t('stats.days', { days: 90 }) }}</VtButton>
 
             <VmTable :columns="columns()" :rows="rows()" data-testid="stats-table" />
 
-            <p v-if="props.rows.length === 0" data-testid="stats-empty">
-                {{ t('stats.empty') }}
-            </p>
+            <VtEmptyState v-if="props.rows.length === 0" :title="t('stats.empty')" icon="inbox" data-testid="stats-empty" />
 
             <!--
                 A nyitás felfelé torzít: az Apple Mail adatvédelmi funkciója (MPP) a címzett

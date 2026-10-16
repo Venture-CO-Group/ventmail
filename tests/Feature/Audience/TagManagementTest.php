@@ -198,6 +198,21 @@ it('TÖMEGES címkézés a keresés MINDEN találatára', function () {
     expect(tagged($tag))->toBe(['a@pelda.hu']);
 });
 
+it('TÖMEGES címkézés a szűrt lista MINDEN találatára: az állapot-szűrő is számít (Unified UI v2)', function () {
+    $tag = ContactTag::create(['name' => 'szurt']);
+
+    StudioFixtures::contact('a@pelda.hu')->update(['status' => 'subscribed']);
+    StudioFixtures::contact('b@pelda.hu')->update(['status' => 'unsubscribed']);
+
+    tagAs($this)->post('/audience/contacts/bulk-tags', [
+        'action' => 'tag',
+        'tagUuid' => (string) $tag->uuid,
+        'target' => ['type' => 'search', 'search' => 'pelda.hu', 'status' => 'subscribed'],
+    ])->assertRedirect();
+
+    expect(tagged($tag))->toBe(['a@pelda.hu']);
+});
+
 it('a tömeges művelet bemenete korlátos és engedélylistás', function (array $payload) {
     $tag = ContactTag::create(['name' => 'x']);
 
@@ -207,6 +222,7 @@ it('a tömeges művelet bemenete korlátos és engedélylistás', function (arra
     'ismeretlen cél' => [['target' => ['type' => 'all-workspaces']]],
     'túl sok uuid' => [['target' => ['type' => 'contacts', 'uuids' => array_fill(0, 1001, '00000000-0000-7000-8000-000000000000')]]],
     'ismeretlen művelet' => [['action' => 'drop', 'target' => ['type' => 'search', 'search' => 'x']]],
+    'ismeretlen állapot' => [['target' => ['type' => 'search', 'search' => 'x', 'status' => 'deleted']]],
 ]);
 
 it('IDEGEN workspace címkéje nem használható és nem módosítható', function () {

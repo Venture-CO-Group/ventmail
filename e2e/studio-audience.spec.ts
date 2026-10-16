@@ -24,19 +24,19 @@ test('a szegmensépítő ÉS/VAGY csoportokkal élő számot ad, és a mentett s
 
     // 1. feltétel: az e-mail tartalmazza a futás azonosítóját → mindhárom seedelt kontakt.
     await page.getByTestId('segment-add-rule-root').click();
-    await page.getByTestId('rule-field-0').locator('select').selectOption('email');
-    await page.getByTestId('rule-op-0').locator('select').selectOption('contains');
+    await page.getByTestId('rule-field-0').locator('xpath=descendant-or-self::select').selectOption('email');
+    await page.getByTestId('rule-op-0').locator('xpath=descendant-or-self::select').selectOption('contains');
     await page.getByTestId('rule-value-0').fill(`studio-${run}-`);
 
     await expect(page.getByTestId('segment-count')).toHaveText('3', { timeout: 10_000 });
 
     // 2. egy beágyazott VAGY-csoport: megerősített VAGY függő consent → a „nincs" kiesik.
     await page.getByTestId('segment-add-group-root').click();
-    await page.getByTestId('rule-field-1-0').locator('select').selectOption('consent');
-    await page.getByTestId('rule-value-1-0').locator('select').selectOption('confirmed');
+    await page.getByTestId('rule-field-1-0').locator('xpath=descendant-or-self::select').selectOption('consent');
+    await page.getByTestId('rule-value-1-0').locator('xpath=descendant-or-self::select').selectOption('confirmed');
     await page.getByTestId('segment-group-1').getByTestId('segment-add-rule-1').click();
-    await page.getByTestId('rule-field-1-1').locator('select').selectOption('consent');
-    await page.getByTestId('rule-value-1-1').locator('select').selectOption('pending');
+    await page.getByTestId('rule-field-1-1').locator('xpath=descendant-or-self::select').selectOption('consent');
+    await page.getByTestId('rule-value-1-1').locator('xpath=descendant-or-self::select').selectOption('pending');
 
     await expect(page.getByTestId('segment-count')).toHaveText('2', { timeout: 10_000 });
     await expect(page.getByTestId('segment-sample')).not.toContainText(`studio-${run}-nincs`);
@@ -54,7 +54,7 @@ test('a szegmensépítő ÉS/VAGY csoportokkal élő számot ad, és a mentett s
     // A SZEGMENS TALÁLATAINAK tömeges címkézése — egy új címkével, a mentett definíció szerint.
     const segmentTag = `e2e-szegmens-${run}`;
 
-    await page.getByTestId('segment-bulk-tag').locator('select').selectOption('__new__');
+    await page.getByTestId('segment-bulk-tag').locator('xpath=descendant-or-self::select').selectOption('__new__');
     await page.getByTestId('segment-bulk-new-tag').fill(segmentTag);
     // A KÉRÉS VÁLASZÁT várjuk: a mentés flash-e még látszhat, és a navigáció megszakítaná a
     // folyamatban lévő Inertia-kérést.
@@ -77,7 +77,7 @@ test('a szegmensépítő ÉS/VAGY csoportokkal élő számot ad, és a mentett s
 test('a hibás feltétel a motor üzenetét mutatja, nem csendes nullát', async ({ page }) => {
     await page.goto('/audience/segments/new');
     await page.getByTestId('segment-add-rule-root').click();
-    await page.getByTestId('rule-field-0').locator('select').selectOption('engagement');
+    await page.getByTestId('rule-field-0').locator('xpath=descendant-or-self::select').selectOption('engagement');
     await page.getByTestId('rule-value-0').fill('99999');
 
     await expect(page.getByTestId('segment-error')).toBeVisible({ timeout: 10_000 });
@@ -96,7 +96,7 @@ test('tömeges címkézés a kontaktlistából, a címke-darabszám a címkék o
 
     const tagName = `e2e-cimke-${run}`;
 
-    await page.getByTestId('bulk-tag').locator('select').selectOption('__new__');
+    await page.getByTestId('bulk-tag').locator('xpath=descendant-or-self::select').selectOption('__new__');
     await page.getByTestId('bulk-new-tag').fill(tagName);
     await Promise.all([
         page.waitForResponse((response) => response.url().includes('/audience/contacts/bulk-tags') && response.request().method() === 'POST'),
@@ -110,8 +110,8 @@ test('tömeges címkézés a kontaktlistából, a címke-darabszám a címkék o
     // „A keresés minden találatára" levétel → 0.
     await page.goto(`/audience?search=${encodeURIComponent(`studio-${run}-`)}`);
     await page.getByTestId('bulk-all').click();
-    await page.getByTestId('bulk-action').locator('select').selectOption('untag');
-    await page.getByTestId('bulk-tag').locator('select').selectOption({ label: tagName });
+    await page.getByTestId('bulk-action').locator('xpath=descendant-or-self::select').selectOption('untag');
+    await page.getByTestId('bulk-tag').locator('xpath=descendant-or-self::select').selectOption({ label: tagName });
     await Promise.all([
         page.waitForResponse((response) => response.url().includes('/audience/contacts/bulk-tags') && response.request().method() === 'POST'),
         page.getByTestId('bulk-apply').click(),

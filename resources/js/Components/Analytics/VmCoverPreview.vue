@@ -62,26 +62,26 @@ const initial = computed(() => (props.company.trim()[0] ?? 'V').toUpperCase());
 
 .vm-a4 {
     --vm-cover-bg: var(--vm-brand, var(--vt-accent));
-    --vm-cover-fg: var(--vt-on-accent);
+    --vm-cover-fg: var(--vt-text-on-accent);
     display: flex;
     flex-direction: column;
     width: 100%;
-    max-width: calc(var(--vt-space-32) * 2.4);
+    max-width: calc(calc(var(--vt-space-8) * 4) * 2.4);
     aspect-ratio: 210 / 297;
     overflow: hidden;
     border-radius: var(--vt-radius-sm);
-    background: var(--vt-color-neutral-0);
-    color: var(--vt-color-neutral-900);
-    box-shadow: var(--vt-shadow-lg);
-    font-size: var(--vt-fs-caption);
+    background: var(--vt-print-paper);
+    color: var(--vt-print-text);
+    box-shadow: var(--vt-elevation-popover);
+    font-size: var(--vt-type-caption-size);
 }
 
 .vm-a4--light {
-    --vm-cover-fg: var(--vt-color-neutral-0);
+    --vm-cover-fg: var(--vt-print-paper);
 }
 
 .vm-a4--dark {
-    --vm-cover-fg: var(--vt-color-neutral-900);
+    --vm-cover-fg: var(--vt-print-text);
 }
 
 .vm-a4__band {
@@ -106,7 +106,7 @@ const initial = computed(() => (props.company.trim()[0] ?? 'V').toUpperCase());
     height: var(--vt-space-5);
     object-fit: contain;
     border-radius: var(--vt-radius-sm);
-    background: var(--vt-color-neutral-0);
+    background: var(--vt-print-paper);
 }
 
 .vm-a4__mark {
@@ -115,7 +115,7 @@ const initial = computed(() => (props.company.trim()[0] ?? 'V').toUpperCase());
     width: var(--vt-space-5);
     height: var(--vt-space-5);
     border-radius: var(--vt-radius-sm);
-    background: var(--vt-color-neutral-0);
+    background: var(--vt-print-paper);
     color: var(--vm-cover-bg);
     font-weight: var(--vt-weight-bold);
 }
@@ -123,8 +123,8 @@ const initial = computed(() => (props.company.trim()[0] ?? 'V').toUpperCase());
 .vm-a4__title {
     margin: 0;
     font-family: var(--vt-font-display);
-    font-size: var(--vt-fs-body);
-    line-height: var(--vt-leading-tight);
+    font-size: var(--vt-type-body-m-size);
+    line-height: 1.05;
     overflow-wrap: anywhere;
 }
 
@@ -145,13 +145,13 @@ const initial = computed(() => (props.company.trim()[0] ?? 'V').toUpperCase());
     flex-direction: column;
     gap: var(--vt-space-1);
     padding: var(--vt-space-2);
-    border: thin solid var(--vt-color-neutral-200);
+    border: thin solid var(--vt-print-rule);
     border-radius: var(--vt-radius-sm);
     min-width: 0;
 }
 
 .vm-a4__kpis span {
-    color: var(--vt-color-neutral-500);
+    color: var(--vt-print-text-muted);
 }
 
 .vm-a4__lines {
@@ -165,7 +165,7 @@ const initial = computed(() => (props.company.trim()[0] ?? 'V').toUpperCase());
     display: block;
     height: var(--vt-space-1);
     border-radius: var(--vt-radius-full);
-    background: var(--vt-color-neutral-200);
+    background: var(--vt-print-rule);
 }
 
 .vm-a4__lines i:nth-child(2) {
@@ -182,8 +182,8 @@ const initial = computed(() => (props.company.trim()[0] ?? 'V').toUpperCase());
     gap: var(--vt-space-2);
     margin-top: auto;
     padding: var(--vt-space-2) var(--vt-space-3);
-    border-top: thin solid var(--vt-color-neutral-100);
-    color: var(--vt-color-neutral-500);
+    border-top: thin solid var(--vt-print-paper-subtle);
+    color: var(--vt-print-text-muted);
     min-width: 0;
 }
 </style>

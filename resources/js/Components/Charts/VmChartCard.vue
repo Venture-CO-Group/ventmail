@@ -33,66 +33,53 @@ function exportPng(background: ExportBackground): void {
 </script>
 
 <template>
-    <VmCard glass>
-        <section class="vm-chartcard" :data-testid="`card-${id}`" :aria-labelledby="`card-${id}-title`">
-            <header class="vm-chartcard__head">
-                <div class="vm-chartcard__titles">
-                    <h2 :id="`card-${id}-title`" class="vm-chartcard__title">{{ title }}</h2>
-                    <span v-if="subtitle" class="vm-chartcard__subtitle">{{ subtitle }}</span>
-                </div>
-                <div v-if="$slots.legend" class="vm-chartcard__legend"><slot name="legend" /></div>
-                <VmChartExportMenu v-if="exportable && (chart || csvHref)" :id="id" :title="title" :csv-href="csvHref" @export="exportPng" />
-            </header>
-            <slot />
-            <p v-if="$slots.note" class="vm-chartcard__note"><slot name="note" /></p>
-        </section>
+    <!-- A közös kártyafej (Figma Card): cím + alcím balra, jelmagyarázat és export a fej akcióiban. -->
+    <VmCard class="vm-chartcard" :data-testid="`card-${id}`" :aria-labelledby="`card-${id}-title`" role="region">
+        <template #header>
+            <div class="vm-chartcard__titles">
+                <h2 :id="`card-${id}-title`" class="vm-chartcard__title">{{ title }}</h2>
+                <span v-if="subtitle" class="vm-chartcard__subtitle">{{ subtitle }}</span>
+            </div>
+        </template>
+        <template v-if="$slots.legend || (exportable && (chart || csvHref))" #actions>
+            <div v-if="$slots.legend" class="vm-chartcard__legend"><slot name="legend" /></div>
+            <VmChartExportMenu v-if="exportable && (chart || csvHref)" :id="id" :title="title" :csv-href="csvHref" @export="exportPng" />
+        </template>
+        <slot />
+        <p v-if="$slots.note" class="vm-chartcard__note"><slot name="note" /></p>
     </VmCard>
 </template>
 
 <style scoped>
-.vm-chartcard {
-    display: flex;
-    flex-direction: column;
-    gap: var(--vt-space-4);
-    min-width: 0;
-}
-
-.vm-chartcard__head {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--vt-space-3);
-    min-width: 0;
-}
-
 .vm-chartcard__titles {
     display: flex;
+    flex: 1 1 auto;
     flex-wrap: wrap;
     align-items: baseline;
     gap: var(--vt-space-2);
     min-width: 0;
-    flex: 1 1 auto;
 }
 
+/* A kártyacím a Figma Card címe: Heading/H3. */
 .vm-chartcard__title {
     margin: 0;
-    font-family: var(--vt-font-display);
-    font-size: var(--vt-fs-h5);
-    overflow-wrap: anywhere;
+    color: var(--vt-text-primary);
+    font: var(--vt-type-heading-h3);
+    letter-spacing: var(--vt-type-heading-h3-tracking);
 }
 
 .vm-chartcard__subtitle,
 .vm-chartcard__note {
     margin: 0;
-    color: var(--vt-text-muted);
-    font-size: var(--vt-fs-caption);
+    color: var(--vt-text-secondary);
+    font-size: var(--vt-type-caption-size);
 }
 
 .vm-chartcard__legend {
     display: flex;
     flex-wrap: wrap;
     gap: var(--vt-space-3);
-    color: var(--vt-text-muted);
-    font-size: var(--vt-fs-caption);
+    color: var(--vt-text-secondary);
+    font-size: var(--vt-type-caption-size);
 }
 </style>

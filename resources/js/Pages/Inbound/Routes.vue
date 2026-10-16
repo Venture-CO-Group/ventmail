@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { VtGlowLine, type VtColumn } from '@venture/ui';
+import { VtEmptyState, VtPageHeader, type VtColumn } from '@venture-co-group/ui';
 import VmTable from '../../Components/Form/VmTable.vue';
 import VmCard from '../../Components/Form/VmCard.vue';
 import AppLayout from '../../Layouts/AppLayout.vue';
@@ -110,17 +110,16 @@ const messageRows = (): MessageRow[] =>
 
 <template>
     <AppLayout>
-        <VmCard>
-            <h1>{{ t('inboundRoutes.title') }}</h1>
-            <VtGlowLine />
+        <VtPageHeader :overline="t('nav.settings')" :title="t('inboundRoutes.title')" :description="t('page.inbound.lead')" />
 
+        <VmCard>
             <i18n-t keypath="inboundRoutes.order" tag="p" scope="global" data-testid="inbound-order">
                 <template #stop><code>stop()</code></template>
             </i18n-t>
 
             <VmTable :columns="routeColumns" :rows="routeRows()" data-testid="inbound-routes" />
 
-            <p v-if="props.routes.length === 0" data-testid="inbound-routes-empty">{{ t('inboundRoutes.empty') }}</p>
+            <VtEmptyState v-if="props.routes.length === 0" :title="t('inboundRoutes.empty')" icon="inbox" data-testid="inbound-routes-empty" />
 
             <h2>{{ t('inboundRoutes.recent') }}</h2>
 

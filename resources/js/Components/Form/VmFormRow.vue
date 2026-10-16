@@ -15,7 +15,7 @@
 <style scoped>
 .vm-form-row {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(var(--vt-space-24) * 2)), 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(calc(var(--vt-space-12) * 2) * 2)), 1fr));
     gap: var(--vt-space-5) var(--vt-space-6);
     align-items: start;
     min-width: 0;

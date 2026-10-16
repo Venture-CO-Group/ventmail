@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Head, router } from '@inertiajs/vue3';
-import { VtButton, VtField, VtInput, VtModal, VtSelect } from '@venture/ui';
+import { VtButton, VtEmptyState, VtField, VtInput, VtModal, VtPageHeader, VtSelect } from '@venture-co-group/ui';
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import VmCard from '../../Components/Form/VmCard.vue';
@@ -8,7 +8,6 @@ import VmForm from '../../Components/Form/VmForm.vue';
 import VmFormActions from '../../Components/Form/VmFormActions.vue';
 import VmFormSection from '../../Components/Form/VmFormSection.vue';
 import VmIcon from '../../Components/Shell/VmIcon.vue';
-import VmPageHeader from '../../Components/Studio/VmPageHeader.vue';
 import AppLayout from '../../Layouts/AppLayout.vue';
 import { useFormat } from '../../composables/useFormat';
 
@@ -87,9 +86,11 @@ function remove(): void {
     <Head :title="t('tags.title')" />
 
     <AppLayout>
-        <VmPageHeader :eyebrow="t('tags.eyebrow')" :title="t('tags.title')" :lead="t('tags.lead')">
-            <VtButton variant="ghost" @click="router.visit('/audience')">{{ t('segments.backToAudience') }}</VtButton>
-        </VmPageHeader>
+        <VtPageHeader :overline="t('nav.studio')" :title="t('tags.title')" :description="t('tags.lead')">
+            <template #actions>
+                <VtButton variant="ghost" @click="router.visit('/audience')">{{ t('segments.backToAudience') }}</VtButton>
+            </template>
+        </VtPageHeader>
 
         <VmCard>
             <VmForm @submit.prevent="create">
@@ -107,7 +108,7 @@ function remove(): void {
         </VmCard>
 
         <VmCard>
-            <p v-if="!tags.length" data-testid="tags-empty">{{ t('tags.empty') }}</p>
+            <VtEmptyState v-if="!tags.length" :title="t('tags.empty')" icon="inbox" data-testid="tags-empty" />
 
             <ul v-else class="vm-tag-list">
                 <li v-for="tag in tags" :key="tag.uuid" class="vm-tag-list__row" :data-testid="`tag-row-${tag.name}`">
@@ -178,15 +179,15 @@ function remove(): void {
 
 .vm-tag-list__name {
     display: flex;
-    flex: 1 1 calc(var(--vt-space-32) * 1.5);
+    flex: 1 1 calc(calc(var(--vt-space-8) * 4) * 1.5);
     align-items: center;
     gap: var(--vt-space-2);
     min-width: 0;
 }
 
 .vm-tag-list__count {
-    color: var(--vt-text-muted);
-    font-size: var(--vt-fs-body-sm);
+    color: var(--vt-text-secondary);
+    font-size: var(--vt-type-body-m-size);
 }
 
 .vm-tag-list__actions {

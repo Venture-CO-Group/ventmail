@@ -21,7 +21,7 @@ test('a napló szűrhető, és a szűrés a SZERVEREN történik', async ({ page
 
     await expect(page.getByRole('heading', { name: 'Napló' })).toBeVisible();
 
-    const rows = page.getByTestId('log-table').locator('tbody tr');
+    const rows = page.getByTestId('log-table').locator('tbody tr.vt-dt__row');
 
     /*
      | A SAJÁT SORÁRA SZŰR, nem az üres tenantra épít.

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Link, router } from '@inertiajs/vue3';
-import { VtButton, VtModal } from '@venture/ui';
+import { VtBanner, VtButton, VtDataTable, VtEmptyState, VtModal, VtPageHeader, type VtDataColumn } from '@venture-co-group/ui';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import VmCard from '../../Components/Form/VmCard.vue';
@@ -8,7 +8,6 @@ import VmFormActions from '../../Components/Form/VmFormActions.vue';
 import VmCopyButton from '../../Components/Platform/VmCopyButton.vue';
 import VmSplit from '../../Components/Platform/VmSplit.vue';
 import VmStateBadge from '../../Components/Platform/VmStateBadge.vue';
-import VmPageHeader from '../../Components/Studio/VmPageHeader.vue';
 import AppLayout from '../../Layouts/AppLayout.vue';
 import { useFormat } from '../../composables/useFormat';
 
@@ -36,14 +35,14 @@ interface DomainRow {
     okCount: number;
 }
 
-interface DnsRecordRow {
+type DnsRecordRow = {
     key: string;
     type: string;
     name: string;
     value: string;
     status: string;
     optional: boolean;
-}
+};
 
 interface Selected {
     uuid: string;
@@ -78,6 +77,14 @@ const pendingOptional = computed(() =>
 function when(iso: string | null): string {
     return iso ? format.dateTime(iso) : '—';
 }
+
+const dnsColumns = computed<VtDataColumn<DnsRecordRow>[]>(() => [
+    { key: 'key', label: t('plat.domains.purpose'), width: '17%' },
+    { key: 'type', label: t('wizard.type'), width: '9%', mono: true },
+    { key: 'name', label: t('wizard.name'), width: '27%' },
+    { key: 'value', label: t('wizard.value'), width: '32%' },
+    { key: 'status', label: t('wizard.rowStatus'), width: '15%' },
+]);
 
 function recordLabel(key: string): string {
     return t(`plat.domains.record.${key}`);
@@ -135,20 +142,22 @@ onBeforeUnmount(() => {
 
 <template>
     <AppLayout>
-        <VmPageHeader :eyebrow="t('plat.eyebrow.domains')" :title="t('plat.domains.title')" :lead="t('plat.domains.lead')">
-            <Link href="/domains/wizard">
-                <VtButton data-testid="domains-add">{{ t('domains.add') }}</VtButton>
-            </Link>
-        </VmPageHeader>
+        <VtPageHeader :overline="t('nav.platform')" :title="t('plat.domains.title')" :description="t('page.domains.lead')">
+            <template #actions>
+                <Link href="/domains/wizard">
+                    <VtButton data-testid="domains-add">{{ t('domains.add') }}</VtButton>
+                </Link>
+            </template>
+        </VtPageHeader>
 
         <!-- A HITELESÍTETLEN DOMAIN nem statisztika, hanem akadály: a PreSendGate 1. kapuja
              tiltja a küldést róla. Ezért figyelmeztetés, nem egy sor a többi között. -->
-        <p v-if="unverified.length" class="vm-banner vm-banner--warning" role="status" data-testid="domains-unverified">
+        <VtBanner v-if="unverified.length" tone="warning" role="status" data-testid="domains-unverified">
             {{ t('domains.unverified', { count: unverified.length }) }}
-        </p>
+        </VtBanner>
 
         <VmCard v-if="!domains.length">
-            <p data-testid="domains-empty">{{ t('domains.empty') }}</p>
+            <VtEmptyState :title="t('domains.empty')" icon="inbox" data-testid="domains-empty" />
         </VmCard>
 
         <VmSplit v-else>
@@ -182,56 +191,27 @@ onBeforeUnmount(() => {
                             {{ t('plat.domains.lastChecked', { at: when(selected.lastCheckedAt) }) }}
                         </p>
                     </div>
-                    <VtButton variant="glass" data-testid="verify-button" :disabled="checking" @click="recheck">
+                    <VtButton variant="secondary" data-testid="verify-button" :disabled="checking" @click="recheck">
                         {{ t('plat.domains.recheck') }}
                     </VtButton>
                 </div>
 
-                <p class="vm-banner vm-banner--warning" role="status" v-if="pendingOptional.length" data-testid="tracking-pending">
+                <VtBanner tone="warning" role="status" v-if="pendingOptional.length" data-testid="tracking-pending">
                     {{ t('plat.domains.trackingPending') }}
-                </p>
+                </VtBanner>
 
-                <div class="vm-scroll-x">
-                    <table class="vm-dns" data-testid="dns-records">
-                        <caption class="vm-visually-hidden">{{ t('wizard.dnsCaption') }}</caption>
-                        <!-- D284: a név és az érték kapja a szélesség nagyját — teljes szövegként, tördelve. -->
-                        <colgroup>
-                            <col class="vm-dns__col--purpose" />
-                            <col class="vm-dns__col--type" />
-                            <col class="vm-dns__col--name" />
-                            <col class="vm-dns__col--value" />
-                            <col class="vm-dns__col--state" />
-                        </colgroup>
-                        <thead>
-                            <tr>
-                                <th scope="col">{{ t('plat.domains.purpose') }}</th>
-                                <th scope="col">{{ t('wizard.type') }}</th>
-                                <th scope="col">{{ t('wizard.name') }}</th>
-                                <th scope="col">{{ t('wizard.value') }}</th>
-                                <th scope="col">{{ t('wizard.rowStatus') }}</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr v-for="record in selected.records" :key="record.key" :data-testid="`dns-row-${record.key}`">
-                                <th scope="row">{{ recordLabel(record.key) }}</th>
-                                <td class="vt-text-mono">{{ record.type }}</td>
-                                <td>
-                                    <span class="vm-dns__cell">
-                                        <code>{{ record.name }}</code>
-                                        <VmCopyButton :value="record.name" :testid="`copy-name-${record.key}`" icon-only />
-                                    </span>
-                                </td>
-                                <td>
-                                    <span class="vm-dns__cell">
-                                        <code>{{ record.value }}</code>
-                                        <VmCopyButton :value="record.value" :testid="`copy-value-${record.key}`" icon-only />
-                                    </span>
-                                </td>
-                                <td><VmStateBadge :state="recordState(record)" :testid="`dns-state-${record.key}`" /></td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
+                <!-- A DNS-rekordok a közös DataTable-ben (5. szabály); a név és az érték NEM vágható (D284). -->
+                <VtDataTable class="vm-dns" :columns="dnsColumns" :rows="selected.records" row-key="key" :caption="t('wizard.dnsCaption')" data-testid="dns-records">
+                    <template #cell="{ row, column }">
+                        <strong v-if="column.key === 'key'" :data-testid="`dns-row-${row.key}`">{{ recordLabel(row.key) }}</strong>
+                        <span v-else-if="column.key === 'name' || column.key === 'value'" class="vm-dns__cell">
+                            <code>{{ row[column.key] }}</code>
+                            <VmCopyButton :value="row[column.key]" :testid="`copy-${column.key}-${row.key}`" icon-only />
+                        </span>
+                        <VmStateBadge v-else-if="column.key === 'status'" :state="recordState(row)" :testid="`dns-state-${row.key}`" />
+                        <span v-else>{{ row[column.key] }}</span>
+                    </template>
+                </VtDataTable>
 
                 <VmFormActions>
                     <Link :href="`/domains/wizard?domain=${selected.uuid}`" class="vm-link">{{ t('plat.domains.allRecords') }}</Link>
@@ -242,17 +222,17 @@ onBeforeUnmount(() => {
                 <h2 class="vm-eyebrow">{{ t('plat.domains.dkimTitle') }}</h2>
                 <dl class="vm-kv">
                     <dt>{{ t('plat.domains.activeSelector') }}</dt>
-                    <dd class="vt-text-mono" data-testid="dkim-selector">{{ selected.dkim.signingSelector }}</dd>
+                    <dd class="vt-mono" data-testid="dkim-selector">{{ selected.dkim.signingSelector }}</dd>
                     <dt>{{ t('plat.domains.publishedSelector') }}</dt>
-                    <dd class="vt-text-mono">{{ selected.dkim.selector }}</dd>
+                    <dd class="vt-mono">{{ selected.dkim.selector }}</dd>
                     <dt>{{ t('plat.domains.rotatedAt') }}</dt>
                     <dd>{{ when(selected.dkim.rotatedAt) }}</dd>
                     <template v-if="selected.dkim.previousSelector">
                         <dt>{{ t('plat.domains.previousSelector') }}</dt>
-                        <dd class="vt-text-mono">{{ selected.dkim.previousSelector }} · {{ when(selected.dkim.previousValidUntil) }}</dd>
+                        <dd class="vt-mono">{{ selected.dkim.previousSelector }} · {{ when(selected.dkim.previousValidUntil) }}</dd>
                     </template>
                 </dl>
-                <VtButton variant="glass" data-testid="rotate-button" :disabled="rotating" @click="confirmRotate = true">
+                <VtButton variant="secondary" data-testid="rotate-button" :disabled="rotating" @click="confirmRotate = true">
                     {{ t('wizard.rotate') }}
                 </VtButton>
                 <p class="vm-muted">{{ t('plat.domains.rotateHint', { days: selected.dkim.overlapDays }) }}</p>
@@ -274,7 +254,7 @@ onBeforeUnmount(() => {
     display: flex;
     flex-direction: column;
     gap: var(--vt-space-3);
-    max-height: calc(var(--vt-space-32) * 6);
+    max-height: calc(calc(var(--vt-space-8) * 4) * 6);
     overflow-y: auto;
 }
 
@@ -286,18 +266,18 @@ onBeforeUnmount(() => {
     padding: var(--vt-space-4);
     border: thin solid var(--vt-border);
     border-radius: var(--vt-radius-lg);
-    background: var(--vt-bg-elevated);
-    color: var(--vt-text);
+    background: var(--vt-bg-raised);
+    color: var(--vt-text-primary);
     text-decoration: none;
     min-width: 0;
 }
 
 .vm-domain-item--active {
-    border-color: var(--vt-color-accent-500);
+    border-color: var(--vt-accent);
 }
 
 .vm-domain-item:focus-visible {
-    outline: thin solid var(--vt-color-accent-500);
+    outline: thin solid var(--vt-accent);
 }
 
 .vm-domain-item__text {
@@ -309,15 +289,15 @@ onBeforeUnmount(() => {
 
 .vm-domain-item__meta,
 .vm-muted {
-    color: var(--vt-text-muted);
-    font-size: var(--vt-fs-body-sm);
+    color: var(--vt-text-secondary);
+    font-size: var(--vt-type-body-m-size);
 }
 
 .vm-eyebrow {
     margin: 0;
-    color: var(--vt-text-muted);
-    font-size: var(--vt-fs-caption);
-    letter-spacing: var(--vt-tracking-wider);
+    color: var(--vt-text-secondary);
+    font-size: var(--vt-type-caption-size);
+    letter-spacing: var(--vt-type-overline-tracking);
     text-transform: uppercase;
 }
 
@@ -329,7 +309,7 @@ onBeforeUnmount(() => {
 }
 
 .vm-kv dt {
-    color: var(--vt-text-muted);
+    color: var(--vt-text-secondary);
 }
 
 .vm-kv dd {
@@ -365,47 +345,10 @@ onBeforeUnmount(() => {
     max-width: 100%;
 }
 
-.vm-dns {
-    width: 100%;
-    border-collapse: collapse;
+/* Rögzített oszlopok: a hosszú DKIM-kulcs tördel, nem tolja szét a táblát. */
+.vm-dns :deep(.vt-dt__el) {
     table-layout: fixed;
-    min-width: calc(var(--vt-space-32) * 6);
-}
-
-.vm-dns th,
-.vm-dns td {
-    padding: var(--vt-space-3);
-    border-bottom: thin solid var(--vt-border);
-    text-align: left;
-    vertical-align: middle;
-}
-
-.vm-dns thead th {
-    color: var(--vt-text-muted);
-    font-size: var(--vt-fs-caption);
-    letter-spacing: var(--vt-tracking-wider);
-    text-transform: uppercase;
-    font-weight: var(--vt-weight-semibold);
-}
-
-.vm-dns__col--purpose {
-    width: 17%;
-}
-
-.vm-dns__col--type {
-    width: 9%;
-}
-
-.vm-dns__col--name {
-    width: 27%;
-}
-
-.vm-dns__col--value {
-    width: 32%;
-}
-
-.vm-dns__col--state {
-    width: 15%;
+    min-width: calc(calc(var(--vt-space-8) * 4) * 6);
 }
 
 .vm-dns__cell {
@@ -423,7 +366,7 @@ onBeforeUnmount(() => {
     flex: 1 1 auto;
     min-width: 0;
     font-family: var(--vt-font-mono);
-    font-size: var(--vt-fs-body-sm);
+    font-size: var(--vt-type-body-m-size);
     white-space: normal;
     overflow-wrap: anywhere;
     word-break: break-all;

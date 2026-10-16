@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { VtInput } from '@venture/ui';
+import { VtInput } from '@venture-co-group/ui';
 import { ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { mergeTag } from './mergeTags';

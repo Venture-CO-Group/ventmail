@@ -27,10 +27,10 @@ it('a belépő a ventSSO-val azonos üveg-kártya + glow-keret nyelvet használj
         ->and($login)->not->toContain('<Link');
 });
 
-it('az app belépési pontja betölti a @venture/design tokeneket', function () {
+it('az app belépési pontja betölti a @venture-co-group/design tokeneket', function () {
     $source = file_get_contents(resource_path('js/app.ts'));
 
-    expect($source)->toContain('@venture/design');
+    expect($source)->toContain('@venture-co-group/design');
 });
 
 it('a frontend nem tartalmaz beégetett design tokent', function () {
@@ -64,6 +64,6 @@ it('a frontend nem tartalmaz beégetett design tokent', function () {
     }
 
     expect($offenders)->toBeEmpty(
-        'beégetett szín a frontendben (csak @venture/design token használható): '.implode(', ', $offenders)
+        'beégetett szín a frontendben (csak @venture-co-group/design token használható): '.implode(', ', $offenders)
     );
 });

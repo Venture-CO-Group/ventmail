@@ -76,6 +76,17 @@ final class HandleInertiaRequests extends Middleware
             // A ventSSO fiókoldala: a profil és az avatar-menü ide LINKEL (nincs duplikálás).
             'ssoAccountUrl' => (string) config('identity.sso_account_url'),
 
+            // Unified UI v2 · a héj appváltója (→ ventHub). Amíg a ventHub nem él, null: a gomb nem jelenik meg.
+            'hubUrl' => is_string($hub = config('identity.hub_url')) && $hub !== '' ? $hub : null,
+
+            // Unified UI v2 · a felső sáv KÖRNYEZETJELZŐJE minden képernyőn (CSAK megjelenítés; a kaput a
+            // PreSendGate és a dispatcher tartja, a módot a tulajdonos kapcsolja — RUNBOOK-mail §13).
+            'sendingMode' => [
+                'live' => (bool) config('sending.live'),
+                'allowlistEnforced' => ! (bool) config('sending.live') || (bool) config('sending.allowlist_enforced', true),
+                'marketingEnabled' => (bool) config('sending.marketing_enabled'),
+            ],
+
             'auth' => fn (): array => [
                 'user' => ($user = $request->user()) instanceof User ? [
                     'name' => $user->name,

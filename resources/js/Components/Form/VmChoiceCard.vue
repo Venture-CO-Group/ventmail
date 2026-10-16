@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { VtRadio } from '@venture/ui';
+import { VtRadio } from '@venture-co-group/ui';
 
 /**
  * VÁLASZTÓ-KÁRTYA: rádiógomb címmel és leírással, a teljes kártya kattintható.
@@ -40,7 +40,7 @@ defineEmits<{ (e: 'update:modelValue', value: string | number): void }>();
     padding: var(--vt-space-3) var(--vt-space-4);
     border: thin solid var(--vt-border);
     border-radius: var(--vt-radius-md);
-    background-color: var(--vt-glass-thin-fill);
+    background-color: var(--vt-surface-2);
     min-width: 0;
 }
 
@@ -54,8 +54,8 @@ defineEmits<{ (e: 'update:modelValue', value: string | number): void }>();
 
 .vm-choice__description {
     margin: 0;
-    font-size: var(--vt-fs-caption);
-    color: var(--vt-text-muted);
+    font-size: var(--vt-type-caption-size);
+    color: var(--vt-text-secondary);
     overflow-wrap: anywhere;
 }
 </style>

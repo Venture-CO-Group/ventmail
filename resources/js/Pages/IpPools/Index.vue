@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { type VtColumn } from '@venture/ui';
+import { VtBanner, VtEmptyState, VtPageHeader, type VtColumn } from '@venture-co-group/ui';
 import VmTable from '../../Components/Form/VmTable.vue';
 import VmCard from '../../Components/Form/VmCard.vue';
 import { computed } from 'vue';
@@ -63,19 +63,17 @@ const rows = computed<Row[]>(() =>
 
 <template>
     <AppLayout>
-        <h1 class="vt-text-display">{{ t('ipPools.title') }}</h1>
+        <VtPageHeader :overline="t('nav.platform')" :title="t('ipPools.title')" :description="t('page.ipPools.lead')" />
 
-        <p v-if="quarantined.length" class="vm-banner vm-banner--danger" role="status" data-testid="ip-quarantined">
+        <VtBanner v-if="quarantined.length" tone="danger" role="status" data-testid="ip-quarantined">
             {{ t('ipPools.quarantinedWarning', { count: quarantined.length }) }}
-        </p>
+        </VtBanner>
 
-        <p v-if="warming.length" class="vm-banner vm-banner--warning" role="status" data-testid="ip-warming">
+        <VtBanner v-if="warming.length" tone="warning" role="status" data-testid="ip-warming">
             {{ t('ipPools.warmupNote', { count: warming.length }) }}
-        </p>
+        </VtBanner>
 
-        <VmCard>
-            <h2>{{ t('ipPools.pools') }}</h2>
-
+        <VmCard :title="t('ipPools.pools')">
             <div v-for="pool in pools" :key="pool.uuid" class="vm-cluster" :data-testid="`pool-${pool.uuid}`">
                 <strong>{{ pool.name }}</strong>
                 <span>{{ code('poolType', pool.type) }}</span>
@@ -85,7 +83,7 @@ const rows = computed<Row[]>(() =>
         </VmCard>
 
         <VmCard>
-            <p v-if="!rows.length" data-testid="ips-empty">{{ t('ipPools.empty') }}</p>
+            <VtEmptyState v-if="!rows.length" :title="t('ipPools.empty')" icon="inbox" data-testid="ips-empty" />
             <VmTable v-else :columns="columns" :rows="rows" :caption="t('ipPools.title')" data-testid="ips-table" />
         </VmCard>
     </AppLayout>

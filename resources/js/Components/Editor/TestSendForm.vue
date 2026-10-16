@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { VtButton, VtCheckbox, VtField, VtInput, VtSelect } from '@venture/ui';
+import { VtBanner, VtButton, VtCheckbox, VtField, VtInput, VtSelect } from '@venture-co-group/ui';
 import axios, { AxiosError } from 'axios';
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
@@ -107,9 +107,9 @@ async function send(): Promise<void> {
             {{ t('editor.testSend.submit') }}
         </VtButton>
 
-        <p v-if="result" class="vm-banner" :class="result.ok ? '' : 'vm-banner--warning'" role="status" data-testid="test-send-result" :data-ok="result.ok ? 'true' : 'false'"
+        <VtBanner v-if="result" tone="info" :class="result.ok ? '' : 'vm-banner--warning'" role="status" data-testid="test-send-result" :data-ok="result.ok ? 'true' : 'false'"
             :data-reason="result.reason ?? ''">
             {{ result.text }}
-        </p>
+        </VtBanner>
     </div>
 </template>

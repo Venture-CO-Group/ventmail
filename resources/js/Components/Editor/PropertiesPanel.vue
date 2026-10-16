@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { VtButton, VtField, VtInput, VtSelect, VtTextarea } from '@venture/ui';
+import { VtButton, VtField, VtInput, VtSelect, VtTextarea } from '@venture-co-group/ui';
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import VmIcon from '../Shell/VmIcon.vue';
@@ -287,7 +287,7 @@ const title = computed(() => {
                     <VtInput :model-value="str('share_url')" @update:model-value="set('share_url', $event)" />
                 </VtField>
                 <div class="vm-cluster">
-                    <VtButton v-for="network in catalog.shareNetworks" :key="network" size="sm" :variant="shareNetworks.includes(network) ? 'solid' : 'ghost'" @click="toggleShare(network)">
+                    <VtButton v-for="network in catalog.shareNetworks" :key="network" size="sm" :variant="shareNetworks.includes(network) ? 'primary' : 'ghost'" @click="toggleShare(network)">
                         {{ t(`editor.networks.${network}`) }}
                     </VtButton>
                 </div>

@@ -88,8 +88,8 @@ final class ReportDocumentBuilder
                     'type' => 'line',
                     'labels' => array_column($c['timeline']['points'], 'at'),
                     'series' => [
-                        ['name' => $t->get('analytics.series.opens'), 'data' => array_column($c['timeline']['points'], 'opens'), 'token' => '--vt-color-accent-500'],
-                        ['name' => $t->get('analytics.series.clicks'), 'data' => array_column($c['timeline']['points'], 'clicks'), 'token' => '--vt-color-cyan-500'],
+                        ['name' => $t->get('analytics.series.opens'), 'data' => array_column($c['timeline']['points'], 'opens'), 'token' => '--vt-print-series-1'],
+                        ['name' => $t->get('analytics.series.clicks'), 'data' => array_column($c['timeline']['points'], 'clicks'), 'token' => '--vt-print-series-2'],
                     ],
                 ];
 
@@ -151,9 +151,9 @@ final class ReportDocumentBuilder
                     'type' => 'bar',
                     'labels' => array_column($audience['growth'], 'date'),
                     'series' => [
-                        ['name' => $t->get('analytics.series.new'), 'data' => array_column($audience['growth'], 'new'), 'token' => '--vt-color-accent-500', 'stack' => 'g'],
-                        ['name' => $t->get('analytics.series.unsubscribed'), 'data' => array_map(static fn (int $n): int => -$n, array_column($audience['growth'], 'unsubscribed')), 'token' => '--vt-color-danger', 'stack' => 'g'],
-                        ['name' => $t->get('analytics.series.net'), 'data' => array_column($audience['growth'], 'net'), 'token' => '--vt-color-neutral-700', 'line' => true],
+                        ['name' => $t->get('analytics.series.new'), 'data' => array_column($audience['growth'], 'new'), 'token' => '--vt-print-series-1', 'stack' => 'g'],
+                        ['name' => $t->get('analytics.series.unsubscribed'), 'data' => array_map(static fn (int $n): int => -$n, array_column($audience['growth'], 'unsubscribed')), 'token' => '--vt-status-danger', 'stack' => 'g'],
+                        ['name' => $t->get('analytics.series.net'), 'data' => array_column($audience['growth'], 'net'), 'token' => '--vt-print-series-6', 'line' => true],
                     ],
                 ];
                 $view['charts']['engagement'] = [
@@ -203,9 +203,9 @@ final class ReportDocumentBuilder
                     'threshold' => ['value' => $platform['complaintThreshold'], 'name' => $t->get('analytics.series.threshold')],
                     'labels' => array_column($platform['series'], 'day'),
                     'series' => [
-                        ['name' => $t->get('analytics.series.delivered'), 'data' => array_column($platform['series'], 'deliveredRate'), 'token' => '--vt-color-success'],
-                        ['name' => $t->get('analytics.series.bounced'), 'data' => array_column($platform['series'], 'bounceRate'), 'token' => '--vt-color-warning'],
-                        ['name' => $t->get('analytics.series.complained'), 'data' => array_column($platform['series'], 'complaintRate'), 'token' => '--vt-color-danger', 'threshold' => true],
+                        ['name' => $t->get('analytics.series.delivered'), 'data' => array_column($platform['series'], 'deliveredRate'), 'token' => '--vt-status-success'],
+                        ['name' => $t->get('analytics.series.bounced'), 'data' => array_column($platform['series'], 'bounceRate'), 'token' => '--vt-status-warning'],
+                        ['name' => $t->get('analytics.series.complained'), 'data' => array_column($platform['series'], 'complaintRate'), 'token' => '--vt-status-danger', 'threshold' => true],
                     ],
                 ];
 
