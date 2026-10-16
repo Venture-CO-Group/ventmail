@@ -5,6 +5,14 @@ A részletes döntési nyomvonal: `docs/plans/v1.1.md` (D1–D300).
 
 ## [Unreleased]
 
+## [1.4.1] — 2026-10-16 (Vemoa redesign e-mailek)
+
+### Changed
+- **Vemoa sablonkészlet** (`resources/mail-templates/vemoa/`): a Vemoa 2026-os design-sablonjai — új verzió a `booking-confirmation-request`, `booking_confirmation`, `reminder_24h`, `review_request`, `provider-approved`, `provider-suspended` kulcsra, új kulcs a `booking-rescheduled`, `booking-cancelled`, `provider-booking-cancelled`, `provider-new-review`; hu + en. Lapos, aláhúzásos merge-tagek (`booking_time`), szöveges logó, beégetett link nélkül. A felfüggesztési levél a kifogást a `support@vemoa.hu` címre kéri (P2B 11. cikk). `docs/integration/manifests/vemoa.json` a Vemoa szerződésének másolata.
+
+### Telepítés
+- Előbb a Vemoa ≥ v0.7.0 (mindkét változónév-készletet küldi), utána `ops ventmail:templates:import venture vemoa`; a négy új kulcsot a Vemoa `VEMOA_MAIL_REDESIGN_LIVE` kapcsolója az import után engedi.
+
 ## [1.4.0] — 2026-10-16 (családi bekötés)
 
 ### Added
