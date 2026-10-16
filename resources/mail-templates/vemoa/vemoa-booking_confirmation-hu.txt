@@ -1,15 +1,17 @@
-Foglalás visszaigazolása
+LEFOGLALVA. VÁRNAK RÁD.
 
-Kedves {{ client_name }}!
+{{ provider_the_name_cap }} vár rád: {{ booking_date_long }}, {{ booking_time }}.
 
-Foglalásodat megerősítettük. Várunk a megadott időpontban!
+Mikor: {{ booking_date_long }}, {{ booking_time }}–{{ booking_end_time }}
+Mit: {{ service_name }} · {{ staff_name }}
+Hol: {{ provider_name }}, {{ provider_address }}
+Ár: {{ booking_price }}
 
-Szolgáltató: {{ workspace_name }}
-Szolgáltatás: {{ service_name }}
-Időpont: {{ starts_at_local }}
-Ár: {{ price }}
+Foglalásaim: {{ links_my_bookings }}
 
--- 
-Ezt a levelet a Vemoa küldte a(z) {{ workspace_name }} nevében, a foglalásoddal kapcsolatban.
-Ez egy automatikus értesítés, kérjük, ne válaszolj rá.
-Venture co. group · Vemoa
+Díjmentes lemondás határideje: {{ booking_cancel_deadline }}. Utána a lemondás későinek számít, és díjjal járhat.
+
+—
+Ezt a levelet azért kaptad, mert ezzel az e-mail-címmel időpontot foglaltak a Vemoán.
+Foglalásaim: {{ links_my_bookings }}
+Vemoa — időpont, nem telefon. A Venture CO Group terméke.

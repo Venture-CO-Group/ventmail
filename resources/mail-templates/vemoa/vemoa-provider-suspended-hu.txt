@@ -1,11 +1,16 @@
-Felfüggesztettük a fiókodat
+FELFÜGGESZTETTÜK A PROFILODAT.
 
-A(z) {{ provider_name }} fiókját felfüggesztettük, ezért új foglalást nem fogad.
+Mióta: {{ suspension_effective_at }}
+Indok: {{ suspension_reason }}
+Mit jelent: {{ suspension_impact }}
 
-Szolgáltató: {{ provider_name }}
-Indoklás: {{ reason || – }}
+Ha szerinted tévedtünk, vagy már rendezted a problémát, írd meg nekünk a {{ support_email }} címre. Minden kifogást ember bírál el, és írásban válaszolunk.
 
--- 
-Szolgáltatói értesítés a Vemoa-tól, a Vemoa-fiókodhoz kapcsolódóan.
-Ez egy automatikus értesítés, kérjük, ne válaszolj rá.
-Venture co. group · Vemoa
+Kifogást nyújtok be: {{ links_appeal }}
+
+A döntés indokát és a panaszkezelés lehetőségét az (EU) 2019/1150 rendelet (P2B) szerint közöljük. Erre a levélre ne válaszolj: a kifogás a {{ support_email }} címen jut el hozzánk.
+
+—
+Ez fiókhoz kapcsolódó, kötelező értesítés, nem lehet leiratkozni róla.
+Fiókom: {{ links_account }}
+Vemoa — időpont, nem telefon. A Venture CO Group terméke.

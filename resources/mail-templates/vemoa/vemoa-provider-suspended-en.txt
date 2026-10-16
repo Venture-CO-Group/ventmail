@@ -1,11 +1,16 @@
-Your account was suspended
+WE SUSPENDED YOUR PROFILE.
 
-The account of {{ provider_name }} was suspended and takes no bookings.
+Since: {{ suspension_effective_at }}
+Reason: {{ suspension_reason }}
+What it means: {{ suspension_impact }}
 
-Provider: {{ provider_name }}
-Reason: {{ reason || – }}
+If you think we got it wrong, or you have already solved the problem, write to us at {{ support_email }}. A person reviews every objection, and we answer in writing.
 
--- 
-Provider notice from Vemoa, related to your Vemoa account.
-This is an automated message, please do not reply.
-Venture co. group · Vemoa
+File an objection: {{ links_appeal }}
+
+We give the reason for the decision and the complaint options as required by Regulation (EU) 2019/1150 (P2B). Do not reply to this e-mail: objections reach us at {{ support_email }}.
+
+—
+This is a required notice about your account; you cannot unsubscribe from it.
+My account: {{ links_account }}
+Vemoa — book a time, not a call. A Venture CO Group product.

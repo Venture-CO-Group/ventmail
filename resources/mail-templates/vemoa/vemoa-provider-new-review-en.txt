@@ -1,0 +1,13 @@
+YOU HAVE A NEW REVIEW.
+
+„{{ review_text || stars only }}”
+— {{ review_author }} · {{ review_rating }}/5 · {{ service_name }}
+
+Reply: {{ links_review_admin }}
+
+Your reply shows publicly under the review. If the review breaks the rules, report it — we moderate.
+
+—
+You received this e-mail because you manage {{ provider_the_name }} on Vemoa.
+My account: {{ links_account }}
+Vemoa — book a time, not a call. A Venture CO Group product.

@@ -1,0 +1,13 @@
+LEMONDTAD AZ IDŐPONTOT.
+
+Lemondtuk az időpontodat ({{ booking_date_long }}, {{ booking_time }}), és szóltunk a szolgáltatónak.
+
+Mi volt: {{ service_name }} · {{ provider_name }}
+Mikor: {{ booking_date_long }}, {{ booking_time }}
+
+Új időpontot keresek: {{ links_provider_page }}
+
+—
+Ezt a levelet azért kaptad, mert ezzel az e-mail-címmel időpontot foglaltak a Vemoán.
+Foglalásaim: {{ links_my_bookings }}
+Vemoa — időpont, nem telefon. A Venture CO Group terméke.

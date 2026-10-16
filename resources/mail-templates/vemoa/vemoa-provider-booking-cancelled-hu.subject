@@ -1,0 +1,1 @@
+Felszabadult: {{ booking_weekday }} {{ booking_time }} — {{ guest_name }} lemondta

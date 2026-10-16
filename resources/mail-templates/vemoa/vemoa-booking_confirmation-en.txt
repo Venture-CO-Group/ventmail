@@ -1,15 +1,17 @@
-Your booking is confirmed
+BOOKED. THEY ARE EXPECTING YOU.
 
-Hello {{ client_name }},
+{{ provider_name }} expects you on {{ booking_date_long }} at {{ booking_time }}.
 
-Your booking is confirmed. We look forward to seeing you!
+When: {{ booking_date_long }}, {{ booking_time }}–{{ booking_end_time }}
+What: {{ service_name }} · {{ staff_name }}
+Where: {{ provider_name }}, {{ provider_address }}
+Price: {{ booking_price }}
 
-Provider: {{ workspace_name }}
-Service: {{ service_name }}
-Time: {{ starts_at_local }}
-Price: {{ price }}
+My bookings: {{ links_my_bookings }}
 
--- 
-This email was sent by Vemoa on behalf of {{ workspace_name }}, regarding your booking.
-This is an automated message, please do not reply.
-Venture co. group · Vemoa
+Free cancellation deadline: {{ booking_cancel_deadline }}. After that, a cancellation counts as late and may carry a fee.
+
+—
+You received this e-mail because a booking was made with this address on Vemoa.
+My bookings: {{ links_my_bookings }}
+Vemoa — book a time, not a call. A Venture CO Group product.

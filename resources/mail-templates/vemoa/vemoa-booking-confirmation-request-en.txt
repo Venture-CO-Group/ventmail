@@ -1,20 +1,17 @@
-Confirm your booking
+ONE MORE CLICK, AND IT IS YOURS.
 
-Hello {{ guest_name }},
+Hi {{ guest_first_name }}! We are holding this time for you. Confirm it, and the confirmation is on its way.
 
-We are holding the time below for you at {{ workspace_name }}, but you need to confirm your email address to complete the booking.
+When: {{ booking_date_long }}, {{ booking_time }}–{{ booking_end_time }}
+What: {{ service_name }} · {{ staff_name }}
+Where: {{ provider_name }}, {{ provider_address }}
+Price: {{ booking_price }}
 
-Provider: {{ workspace_name }}
-Time: {{ starts_at_local }}
+Confirm the booking: {{ links_confirm }}
 
-Confirm booking:
-{{ confirm_url }}
+If you do not confirm by {{ booking_hold_expires_time }}, the time is released and someone else may book it. Not you? Then there is nothing to do; ignore this e-mail.
 
-The held spot is kept for {{ expires_in_minutes }} minutes, then released.
-
-If you did not book this, ignore this email.
-
--- 
-This email was sent by Vemoa on behalf of {{ workspace_name }}, regarding your booking.
-This is an automated message, please do not reply.
-Venture co. group · Vemoa
+—
+You received this e-mail because a booking was made with this address on Vemoa.
+My bookings: {{ links_my_bookings }}
+Vemoa — book a time, not a call. A Venture CO Group product.

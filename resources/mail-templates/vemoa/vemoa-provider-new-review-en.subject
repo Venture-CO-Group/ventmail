@@ -1,0 +1,1 @@
+New review: {{ review_rating }}/5 — {{ review_author }}
