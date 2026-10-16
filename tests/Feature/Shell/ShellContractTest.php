@@ -55,7 +55,7 @@ it('minden meglévő menüpont megmarad a testid-jával, képesség-szűréssel'
     // Figma Unified UI v2: a Beállítások csoport — számlázás, bejövő útvonalak, címellenőrzés, tagok,
     // branding — „hamarosan" jelzés nélkül (a képernyők élnek).
     expect($nav)->toMatch("/const settings = build\\(\\[.*'nav-billing'.*'nav-inbound'.*'nav-validation'.*'nav-members'.*'nav-branding'/s")
-        ->and($nav)->not->toMatch("/soon: true/");
+        ->and($nav)->not->toMatch('/soon: true/');
 });
 
 it('a héj menüi a könyvtár slotjaiban élnek (ARIA, Esc, fókusz a könyvtárban), lokális legördülő nincs', function () {
