@@ -1,0 +1,13 @@
+Your promotion was approved
+
+Your paid promotion request was approved and placed.
+
+Product: {{ product }}
+Category: {{ category }}
+Week starting: {{ week }}
+Price: {{ amount }}
+
+-- 
+Provider notice from Vemoa, related to your Vemoa account.
+This is an automated message, please do not reply.
+Venture co. group · Vemoa

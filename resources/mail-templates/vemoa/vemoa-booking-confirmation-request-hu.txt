@@ -1,0 +1,20 @@
+Erősítsd meg a foglalást
+
+Kedves {{ guest_name }}!
+
+A(z) {{ workspace_name }} szolgáltatónál lefoglaltuk neked az alábbi időpontot, de a végleges foglaláshoz meg kell erősítened az e-mail-címedet.
+
+Szolgáltató: {{ workspace_name }}
+Időpont: {{ starts_at_local }}
+
+Foglalás megerősítése:
+{{ confirm_url }}
+
+A lefoglalt hely {{ expires_in_minutes }} percig marad meg, utána felszabadul.
+
+Ha nem te foglaltál, hagyd figyelmen kívül ezt a levelet.
+
+-- 
+Ezt a levelet a Vemoa küldte a(z) {{ workspace_name }} nevében, a foglalásoddal kapcsolatban.
+Ez egy automatikus értesítés, kérjük, ne válaszolj rá.
+Venture co. group · Vemoa

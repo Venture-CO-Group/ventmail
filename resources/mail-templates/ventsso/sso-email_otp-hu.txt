@@ -1,9 +1,14 @@
 Bejelentkezési kódod
 
-A bejelentkezés befejezéséhez add meg ezt a kódot:
+Ezt a kódot add meg a(z) {{ brand_name || Venture }} bejelentkezéséhez vagy azonosításához:
 
 {{ code }}
 
-A kód rövid ideig érvényes. Ha nem te próbáltál belépni, változtasd meg a jelszavad.
+A kód rövid ideig érvényes, és csak egyszer használható. Soha ne add meg másnak – a Venture munkatársai sem kérik el.
 
-— Venture
+Ha nem te kezdeményezted, hagyd figyelmen kívül ezt a levelet, és ha gyanús, változtass jelszót.
+
+-- 
+Ezt a levelet azért kaptad, mert ehhez az e-mail-címhez tartozik fiók (vagy valaki ezt a címet adta meg) a(z) {{ brand_name || Venture }} szolgáltatásban.
+Ez egy automatikus értesítés, kérjük, ne válaszolj rá.
+Venture co. group · ventSSO

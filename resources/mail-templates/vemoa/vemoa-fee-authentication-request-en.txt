@@ -1,0 +1,18 @@
+Authentication needed for a fee
+
+Hello {{ guest_name }},
+
+{{ workspace_name }} charged a cancellation or no-show fee, and your bank asks you to authenticate the payment.
+
+Provider: {{ workspace_name }}
+Amount: {{ amount }}
+
+Authenticate with your bank:
+{{ authenticate_url }}
+
+The link is valid for {{ expires_in_days }} days.
+
+-- 
+This email was sent by Vemoa on behalf of {{ workspace_name }}, regarding your booking.
+This is an automated message, please do not reply.
+Venture co. group · Vemoa

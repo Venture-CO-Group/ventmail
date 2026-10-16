@@ -1,0 +1,15 @@
+Reminder: see you tomorrow
+
+Hello {{ client_name }},
+
+A friendly reminder that you have an appointment tomorrow.
+
+Provider: {{ workspace_name }}
+Service: {{ service_name }}
+Time: {{ starts_at_local }}
+Price: {{ price }}
+
+-- 
+This email was sent by Vemoa on behalf of {{ workspace_name }}, regarding your booking.
+This is an automated message, please do not reply.
+Venture co. group · Vemoa

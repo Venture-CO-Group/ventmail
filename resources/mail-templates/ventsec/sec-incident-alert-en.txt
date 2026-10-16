@@ -1,0 +1,18 @@
+{{ severity_label }} · #{{ number }} {{ title }}
+
+A new incident was opened in ventSec.
+
+Severity: {{ severity_label }}
+Incident: #{{ number }}
+Title: {{ title }}
+Source: {{ source }}
+Opened: {{ opened_at }}
+Acknowledge by: {{ sla_due_at || none set }}
+
+Open incident:
+{{ incident_url }}
+
+-- 
+Operator alert: you received this because you are on the ventSec alert recipient list.
+This is an automated message, please do not reply.
+Venture co. group · ventSec

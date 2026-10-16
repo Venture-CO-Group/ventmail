@@ -1,0 +1,11 @@
+Consent ingest is failing
+
+Recording of consent decisions is failing.
+
+Site: {{ site_id || unknown }}
+Reason: {{ reason }}
+
+-- 
+This notification was sent by ventCookie because it relates to your account or team.
+This is an automated message, please do not reply.
+Venture co. group · ventCookie

@@ -1,0 +1,14 @@
+Néma forrás: {{ app }} ({{ env }})
+
+Egy forrás elhallgatott, de az ellenőrzés nem nyitott incidenst.
+
+Alkalmazás: {{ app }}
+Környezet: {{ env }}
+Csend ideje (mp): {{ silent_seconds }}
+
+Ellenőrizd, hogy a forrás fut-e és eléri-e a ventSec ingestet.
+
+-- 
+Üzemeltetői riasztás: azért kaptad, mert a ventSec riasztási címzettjei között szerepelsz.
+Ez egy automatikus értesítés, kérjük, ne válaszolj rá.
+Venture co. group · ventSec

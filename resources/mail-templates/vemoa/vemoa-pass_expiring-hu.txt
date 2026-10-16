@@ -1,0 +1,14 @@
+Hamarosan lejár a bérleted
+
+Kedves {{ client_name }}!
+
+A(z) {{ workspace_name }} szolgáltatónál vásárolt bérleted hamarosan lejár. Használd fel, amíg érvényes!
+
+Bérlet: {{ pass_name }}
+Lejárat: {{ expires_on }}
+Hátralévő alkalom: {{ left }}
+
+-- 
+Ezt a levelet a Vemoa küldte a(z) {{ workspace_name }} nevében, a foglalásoddal kapcsolatban.
+Ez egy automatikus értesítés, kérjük, ne válaszolj rá.
+Venture co. group · Vemoa

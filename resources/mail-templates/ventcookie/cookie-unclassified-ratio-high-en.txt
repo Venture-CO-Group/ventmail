@@ -1,0 +1,17 @@
+Many unclassified cookies
+
+After the scan, the share of unclassified cookies is above the threshold, so the generated policy would be incomplete until they are classified.
+
+Unclassified ratio: {{ ratio_percent }}%
+Alert threshold: {{ threshold_percent }}%
+Unclassified cookies: {{ unclassified }}
+Cookies found: {{ cookies_found }}
+Site: {{ site_id }}
+Scan: {{ scan_id }}
+
+Classify the cookies in ventCookie to complete the policy.
+
+-- 
+This notification was sent by ventCookie because it relates to your account or team.
+This is an automated message, please do not reply.
+Venture co. group · ventCookie

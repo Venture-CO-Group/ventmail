@@ -1,9 +1,15 @@
 Erősítsd meg az e-mail-címed
 
-Kattints az alábbi linkre, hogy megerősítsd az e-mail-címedet a Venture-fiókodhoz:
+Köszönjük, hogy a(z) {{ brand_name || Venture }} fiókot használod. Az e-mail-címed megerősítéséhez kattints az alábbi gombra.
 
+E-mail-cím megerősítése:
 {{ url }}
 
-Ha nem te regisztráltál, hagyd figyelmen kívül ezt a levelet.
+A link korlátozott ideig érvényes (alapesetben 60 percig).
 
-— Venture
+Ha nem te kérted, nyugodtan hagyd figyelmen kívül ezt a levelet.
+
+-- 
+Ezt a levelet azért kaptad, mert ehhez az e-mail-címhez tartozik fiók (vagy valaki ezt a címet adta meg) a(z) {{ brand_name || Venture }} szolgáltatásban.
+Ez egy automatikus értesítés, kérjük, ne válaszolj rá.
+Venture co. group · ventSSO

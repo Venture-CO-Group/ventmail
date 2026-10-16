@@ -1,0 +1,12 @@
+Támogatási belépés a fiókodba
+
+Átláthatósági értesítés: a Vemoa ügyfélszolgálata időkorlátos támogatási munkamenetet nyitott a(z) {{ provider_name }} munkaterületén.
+
+Szolgáltató: {{ provider_name }}
+Ok: {{ reason }}
+Időtartam (perc): {{ minutes }}
+
+-- 
+Szolgáltatói értesítés a Vemoa-tól, a Vemoa-fiókodhoz kapcsolódóan.
+Ez egy automatikus értesítés, kérjük, ne válaszolj rá.
+Venture co. group · Vemoa

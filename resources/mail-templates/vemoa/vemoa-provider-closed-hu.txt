@@ -1,0 +1,11 @@
+Lezártuk a fiókodat
+
+A(z) {{ provider_name }} listázását lezártuk.
+
+Szolgáltató: {{ provider_name }}
+Indoklás: {{ reason || – }}
+
+-- 
+Szolgáltatói értesítés a Vemoa-tól, a Vemoa-fiókodhoz kapcsolódóan.
+Ez egy automatikus értesítés, kérjük, ne válaszolj rá.
+Venture co. group · Vemoa

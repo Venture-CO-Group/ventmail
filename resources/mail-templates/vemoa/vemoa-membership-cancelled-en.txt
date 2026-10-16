@@ -1,0 +1,15 @@
+Your membership was cancelled
+
+{{ provider }} has cancelled your membership ({{ membership }}).
+
+Membership: {{ membership }}
+Provider: {{ provider }}
+Valid until: {{ valid_until_label || ended immediately }}
+
+Open my passes:
+{{ passes_url }}
+
+-- 
+This email was sent by Vemoa on behalf of {{ provider }}, regarding your booking.
+This is an automated message, please do not reply.
+Venture co. group · Vemoa

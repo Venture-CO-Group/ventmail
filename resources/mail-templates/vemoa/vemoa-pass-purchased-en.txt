@@ -1,0 +1,16 @@
+Purchase confirmed: {{ pass_name }}
+
+Thank you, your purchase is confirmed. You can find it under “My passes”.
+
+Item: {{ pass_name }}
+Type: {{ kind_label }}
+Provider: {{ provider }}
+Expires: {{ expires_on || does not expire }}
+
+Open my passes:
+{{ passes_url }}
+
+-- 
+This email was sent by Vemoa on behalf of {{ provider }}, regarding your booking.
+This is an automated message, please do not reply.
+Venture co. group · Vemoa

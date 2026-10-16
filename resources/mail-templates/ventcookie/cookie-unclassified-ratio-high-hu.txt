@@ -1,0 +1,17 @@
+Sok a besorolatlan cookie
+
+A scan után a besorolatlan cookie-k aránya a küszöb felett van, ezért a generált policy hiányos lenne, amíg a cookie-kat nem soroljuk be.
+
+Besorolatlan arány: {{ ratio_percent }}%
+Riasztási küszöb: {{ threshold_percent }}%
+Besorolatlan cookie-k: {{ unclassified }}
+Talált cookie-k összesen: {{ cookies_found }}
+Site: {{ site_id }}
+Scan: {{ scan_id }}
+
+Sorold be a cookie-kat a ventCookie felületén, hogy a policy teljes legyen.
+
+-- 
+Ezt az értesítést a ventCookie küldte, mert a fiókodhoz vagy a csapatodhoz kapcsolódik.
+Ez egy automatikus levél, kérjük, ne válaszolj rá.
+Venture co. group · ventCookie

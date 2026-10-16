@@ -1,0 +1,12 @@
+Monthly seal anchoring failed ({{ period }})
+
+Anchoring the monthly seal externally (ventSec) failed. The seal stays valid but has no external witness.
+
+Site: {{ site_id }}
+Period: {{ period }}
+Reason: {{ reason }}
+
+-- 
+This notification was sent by ventCookie because it relates to your account or team.
+This is an automated message, please do not reply.
+Venture co. group · ventCookie

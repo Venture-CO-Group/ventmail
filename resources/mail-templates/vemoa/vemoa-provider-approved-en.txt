@@ -1,0 +1,11 @@
+Your listing was approved
+
+The listing for {{ provider_name }} was approved and is now active.
+
+Provider: {{ provider_name }}
+Reason: {{ reason || – }}
+
+-- 
+Provider notice from Vemoa, related to your Vemoa account.
+This is an automated message, please do not reply.
+Venture co. group · Vemoa

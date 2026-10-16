@@ -1,0 +1,12 @@
+A decision about your review
+
+We have a decision on your review of {{ provider_name }}, which was reported.
+
+Provider: {{ provider_name }}
+Decision: {{ decision_label }}
+Reason: {{ reason || – }}
+
+-- 
+This email was sent by Vemoa regarding your review.
+This is an automated message, please do not reply.
+Venture co. group · Vemoa

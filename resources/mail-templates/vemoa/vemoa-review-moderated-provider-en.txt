@@ -1,0 +1,12 @@
+A decision about a reported review
+
+A moderator has decided on a reported review of {{ provider_name }}.
+
+Provider: {{ provider_name }}
+Decision: {{ decision_label }}
+Reason: {{ reason || – }}
+
+-- 
+Provider notice from Vemoa, related to your Vemoa account.
+This is an automated message, please do not reply.
+Venture co. group · Vemoa

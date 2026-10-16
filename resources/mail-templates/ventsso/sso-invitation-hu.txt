@@ -1,9 +1,16 @@
 Meghívást kaptál
 
-Meghívtak a(z) {{ organization }} szervezetbe ({{ role }} szerepkörrel). A meghívót az alábbi linkkel fogadhatod el:
+Meghívtak a(z) {{ organization }} szervezetbe a(z) {{ brand_name || Venture }} szolgáltatásban. Az alábbi gombbal elfogadhatod a meghívást.
 
+Szervezet: {{ organization }}
+Szerepkör: {{ role }}
+
+Meghívás elfogadása:
 {{ url }}
 
-Ha nem számítottál a meghívóra, hagyd figyelmen kívül ezt a levelet.
+Ha nem számítottál a meghívásra, nyugodtan hagyd figyelmen kívül ezt a levelet.
 
-— Venture
+-- 
+Ezt a levelet azért kaptad, mert ehhez az e-mail-címhez tartozik fiók (vagy valaki ezt a címet adta meg) a(z) {{ brand_name || Venture }} szolgáltatásban.
+Ez egy automatikus értesítés, kérjük, ne válaszolj rá.
+Venture co. group · ventSSO

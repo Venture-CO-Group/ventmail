@@ -1,0 +1,12 @@
+Elakadt egy számla kiállítása
+
+Egy számlát nem sikerült automatikusan kiállítani, a kiállítás a te döntésedre vár.
+
+Összeg: {{ amount }}
+Fizetve: {{ paid_at_label }}
+Ok: {{ reason }}
+
+-- 
+Szolgáltatói értesítés a Vemoa-tól, a Vemoa-fiókodhoz kapcsolódóan.
+Ez egy automatikus értesítés, kérjük, ne válaszolj rá.
+Venture co. group · Vemoa

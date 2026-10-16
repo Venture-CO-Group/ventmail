@@ -1,0 +1,11 @@
+A consent-rögzítés hibázik
+
+A hozzájárulások rögzítése hibázik.
+
+Site: {{ site_id || ismeretlen }}
+Ok: {{ reason }}
+
+-- 
+Ezt az értesítést a ventCookie küldte, mert a fiókodhoz vagy a csapatodhoz kapcsolódik.
+Ez egy automatikus levél, kérjük, ne válaszolj rá.
+Venture co. group · ventCookie

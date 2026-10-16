@@ -1,0 +1,12 @@
+WORM mirroring failed ({{ period }})
+
+WORM mirroring of the monthly seal failed.
+
+Site: {{ site_id }}
+Period: {{ period }}
+Reason: {{ reason }}
+
+-- 
+This notification was sent by ventCookie because it relates to your account or team.
+This is an automated message, please do not reply.
+Venture co. group · ventCookie

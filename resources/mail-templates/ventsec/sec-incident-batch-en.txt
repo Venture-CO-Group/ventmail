@@ -1,0 +1,11 @@
+{{ count }} incidents need attention
+
+{{ count }} open {{ severity_tag }} incidents need attention. Per incident: severity, number, title, source, then its link.
+
+Incidents:
+{{ incidents_lines }}
+
+-- 
+Operator alert: you received this because you are on the ventSec alert recipient list.
+This is an automated message, please do not reply.
+Venture co. group · ventSec

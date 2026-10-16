@@ -1,0 +1,619 @@
+{
+  "prefix": "vemoa",
+  "locales": [
+    "hu",
+    "en"
+  ],
+  "locale_fallback": "hu",
+  "notes": [
+    "Vemoa is Hungarian-first: a message whose language is not given (or not hu|en) is sent as hu — a per-app fallback, unlike apps that fall back to en.",
+    "A key is the name as the code emits it (underscores or hyphens): the wire name is vemoa-<key>-<locale>.",
+    "Variables are scalars. `*_label` and `amount` are ready-made words in the message language; the raw code/amount_minor stay for conditions.",
+    "Do not use ventMail-reserved names for variables (unsubscribe_url, preferences_url, browser_url, recipient_email, current_year): ventMail overwrites them. Vemoa's own opt-out link is optout_url; ventMail's List-Unsubscribe still works and arrives as the unsubscribed webhook.",
+    "Transactional mail is sent with o:tracking=no; the unsubscribe links are /unsubscribe/... so a rewriting tracker leaves them alone.",
+    "Marketing keys (rebook_nudge, birthday_greeting, win_back, fill_offer) go on the marketing channel, closed until ventMail opens it; review_request stays transactional with an opt-out (owner/DPO question open)."
+  ],
+  "templates": [
+    {
+      "key": "booking_confirmation",
+      "audience": "guest",
+      "channel": "transactional",
+      "purpose": "Confirms a booking that was just confirmed (the automation 'appointment.booked').",
+      "variables": {
+        "client_name": "string — the guest's name (the client record's name)",
+        "workspace_name": "string — the business that sends the message (the provider's name on Vemoa)",
+        "service_name": "string — the booked service",
+        "price": "string — the price, formatted with currency (e.g. '9 900 Ft')",
+        "list_price": "string|null — the list price before a deal, formatted; null without a deal",
+        "starts_at_local": "string — start in the location's time zone, 'YYYY-MM-DD HH:MM'"
+      },
+      "required_links": [],
+      "subject": {
+        "hu": "Foglalás visszaigazolása — {{ workspace_name }}",
+        "en": "Your booking is confirmed — {{ workspace_name }}"
+      }
+    },
+    {
+      "key": "waitlist_promoted",
+      "audience": "guest",
+      "channel": "transactional",
+      "purpose": "Confirmation for a seat that came free from the waitlist (sent only while VEMOA_WAITLIST_NOTICE_LIVE is on).",
+      "variables": {
+        "client_name": "string — the guest's name (the client record's name)",
+        "workspace_name": "string — the business that sends the message (the provider's name on Vemoa)",
+        "service_name": "string — the booked service",
+        "price": "string — the price, formatted with currency (e.g. '9 900 Ft')",
+        "list_price": "string|null — the list price before a deal, formatted; null without a deal",
+        "starts_at_local": "string — start in the location's time zone, 'YYYY-MM-DD HH:MM'"
+      },
+      "required_links": [],
+      "subject": {
+        "hu": "Felszabadult egy hely — {{ workspace_name }}",
+        "en": "A spot opened up for you — {{ workspace_name }}"
+      }
+    },
+    {
+      "key": "reminder_24h",
+      "audience": "guest",
+      "channel": "transactional",
+      "purpose": "Reminder 24 hours before the appointment.",
+      "variables": {
+        "client_name": "string — the guest's name (the client record's name)",
+        "workspace_name": "string — the business that sends the message (the provider's name on Vemoa)",
+        "service_name": "string — the booked service",
+        "price": "string — the price, formatted with currency (e.g. '9 900 Ft')",
+        "list_price": "string|null — the list price before a deal, formatted; null without a deal",
+        "starts_at_local": "string — start in the location's time zone, 'YYYY-MM-DD HH:MM'"
+      },
+      "required_links": [],
+      "subject": {
+        "hu": "Emlékeztető: holnap {{ starts_at_local }} — {{ workspace_name }}",
+        "en": "Reminder: tomorrow {{ starts_at_local }} — {{ workspace_name }}"
+      }
+    },
+    {
+      "key": "reminder_2h",
+      "audience": "guest",
+      "channel": "transactional",
+      "purpose": "Reminder 2 hours before the appointment.",
+      "variables": {
+        "client_name": "string — the guest's name (the client record's name)",
+        "workspace_name": "string — the business that sends the message (the provider's name on Vemoa)",
+        "service_name": "string — the booked service",
+        "price": "string — the price, formatted with currency (e.g. '9 900 Ft')",
+        "list_price": "string|null — the list price before a deal, formatted; null without a deal",
+        "starts_at_local": "string — start in the location's time zone, 'YYYY-MM-DD HH:MM'"
+      },
+      "required_links": [],
+      "subject": {
+        "hu": "Emlékeztető: ma {{ starts_at_local }} — {{ workspace_name }}",
+        "en": "Reminder: today {{ starts_at_local }} — {{ workspace_name }}"
+      }
+    },
+    {
+      "key": "review_request",
+      "audience": "guest",
+      "channel": "transactional",
+      "purpose": "Asks for a review after a completed visit (service follow-up; always carries a one-click way out).",
+      "variables": {
+        "client_name": "string — the guest's name (the client record's name)",
+        "workspace_name": "string — the business that sends the message (the provider's name on Vemoa)",
+        "service_name": "string — the booked service",
+        "price": "string — the price, formatted with currency (e.g. '9 900 Ft')",
+        "list_price": "string|null — the list price before a deal, formatted; null without a deal",
+        "starts_at_local": "string — start in the location's time zone, 'YYYY-MM-DD HH:MM'",
+        "optout_url": "string — Vemoa's signed one-click opt-out link (marketing for this guest; /unsubscribe/…). NOT ventMail's reserved unsubscribe_url"
+      },
+      "required_links": [
+        "optout_url"
+      ],
+      "subject": {
+        "hu": "Milyen volt a látogatás? — {{ workspace_name }}",
+        "en": "How was your visit? — {{ workspace_name }}"
+      }
+    },
+    {
+      "key": "booking-confirmation-request",
+      "audience": "guest",
+      "channel": "transactional",
+      "purpose": "A guest booking from the public page must confirm the address: the link confirms the held slot.",
+      "variables": {
+        "guest_name": "string — the guest's name",
+        "workspace_name": "string — the business the guest booked at",
+        "starts_at_local": "string — start in the location's time zone, 'YYYY-MM-DD HH:MM'",
+        "confirm_url": "string — confirmation link (the token is in the URL fragment: keep click tracking OFF for it)",
+        "expires_in_minutes": "int — minutes until the held slot is released"
+      },
+      "required_links": [
+        "confirm_url"
+      ],
+      "subject": {
+        "hu": "Erősítsd meg a foglalást — {{ workspace_name }}",
+        "en": "Confirm your booking — {{ workspace_name }}"
+      }
+    },
+    {
+      "key": "waitlist_slot",
+      "audience": "guest",
+      "channel": "transactional",
+      "purpose": "A slot freed up for a guest on the waitlist: a time-limited offer to book it.",
+      "variables": {
+        "workspace_name": "string — the business",
+        "service_name": "string — the service on offer",
+        "starts_at_local": "string — start in the location's time zone, 'YYYY-MM-DD HH:MM'",
+        "booking_url": "string — link that books the offered slot",
+        "expires_in_minutes": "int — minutes the offer is held"
+      },
+      "required_links": [
+        "booking_url"
+      ],
+      "subject": {
+        "hu": "Felszabadult egy időpont — {{ workspace_name }}",
+        "en": "A time slot opened up — {{ workspace_name }}"
+      }
+    },
+    {
+      "key": "fee-authentication-request",
+      "audience": "guest",
+      "channel": "transactional",
+      "purpose": "The bank asks the guest to authenticate (3-D Secure) a cancellation / no-show fee charge.",
+      "variables": {
+        "guest_name": "string — the guest's name",
+        "workspace_name": "string — the business that charges the fee",
+        "amount": "string — the fee, formatted with currency",
+        "authenticate_url": "string — link to the guest's authentication page (token in the URL fragment: no click tracking)",
+        "expires_in_days": "int — days the link is valid"
+      },
+      "required_links": [
+        "authenticate_url"
+      ],
+      "subject": {
+        "hu": "Megerősítés szükséges a díjhoz — {{ workspace_name }}",
+        "en": "Authentication needed for a fee — {{ workspace_name }}"
+      }
+    },
+    {
+      "key": "pass-purchased",
+      "audience": "guest",
+      "channel": "transactional",
+      "purpose": "Receipt for a pass / voucher / credit / membership purchase. Never carries the code (the guest opens it in 'Bérleteim').",
+      "variables": {
+        "pass_name": "string — the pass's name",
+        "kind": "string — code: session_pack | voucher | credit | membership",
+        "kind_label": "string — the pass kind in words (e.g. 'Ajándékutalvány' / 'Gift voucher')",
+        "provider": "string — the business that sold it",
+        "expires_on": "string|null — expiry date, 'YYYY-MM-DD'; null when it does not expire",
+        "passes_url": "string — the guest's passes page"
+      },
+      "required_links": [
+        "passes_url"
+      ],
+      "subject": {
+        "hu": "Sikeres vásárlás: {{ pass_name }}",
+        "en": "Purchase confirmed: {{ pass_name }}"
+      }
+    },
+    {
+      "key": "membership-payment-failed",
+      "audience": "guest",
+      "channel": "transactional",
+      "purpose": "A membership's monthly payment did not go through.",
+      "variables": {
+        "membership": "string — the membership's name",
+        "provider": "string — the business",
+        "amount": "string — the amount due, formatted",
+        "passes_url": "string — the guest's passes page, where the payment is settled"
+      },
+      "required_links": [
+        "passes_url"
+      ],
+      "subject": {
+        "hu": "Nem sikerült a tagság havi díja — {{ membership }}",
+        "en": "Your membership payment failed — {{ membership }}"
+      }
+    },
+    {
+      "key": "membership-payment-action-required",
+      "audience": "guest",
+      "channel": "transactional",
+      "purpose": "The bank needs the guest to confirm a membership payment (3-D Secure).",
+      "variables": {
+        "membership": "string — the membership's name",
+        "provider": "string — the business",
+        "amount": "string — the amount due, formatted",
+        "passes_url": "string — the guest's passes page, where the payment is confirmed"
+      },
+      "required_links": [
+        "passes_url"
+      ],
+      "subject": {
+        "hu": "Megerősítés szükséges a tagság díjához — {{ membership }}",
+        "en": "Confirmation needed for your membership payment — {{ membership }}"
+      }
+    },
+    {
+      "key": "membership-cancelled",
+      "audience": "guest",
+      "channel": "transactional",
+      "purpose": "The provider cancelled the guest's membership on their behalf.",
+      "variables": {
+        "membership": "string — the membership's name",
+        "provider": "string — the business",
+        "valid_until": "string|null — end of the paid period, ISO 8601 UTC; null when it ends now",
+        "valid_until_label": "string|null — the same date as people read it (hu '2026. 10. 12.', en '12 Oct 2026'), Hungarian local time",
+        "passes_url": "string — the guest's passes page"
+      },
+      "required_links": [
+        "passes_url"
+      ],
+      "subject": {
+        "hu": "A tagságodat lemondták — {{ membership }}",
+        "en": "Your membership was cancelled — {{ membership }}"
+      }
+    },
+    {
+      "key": "rebook_nudge",
+      "audience": "guest",
+      "channel": "marketing",
+      "purpose": "Invites the guest to book the same service again when their rhythm is due (client.rhythm_due). Marketing: needs e-mail consent; ventMail's marketing channel is closed until opened.",
+      "variables": {
+        "client_name": "string — the guest's name (the client record's name)",
+        "workspace_name": "string — the business that sends the message (the provider's name on Vemoa)",
+        "service_name": "string — the service last booked",
+        "next_starts": "string — the next free starts, comma-separated local times, may be empty",
+        "booking_url": "string — link to the booking page for that service and person",
+        "optout_url": "string — Vemoa's signed one-click opt-out link (marketing for this guest; /unsubscribe/…). NOT ventMail's reserved unsubscribe_url"
+      },
+      "required_links": [
+        "booking_url",
+        "optout_url"
+      ],
+      "subject": {
+        "hu": "Foglalj újra — {{ workspace_name }}",
+        "en": "Book again — {{ workspace_name }}"
+      }
+    },
+    {
+      "key": "birthday_greeting",
+      "audience": "guest",
+      "channel": "marketing",
+      "purpose": "Birthday greeting from the business (client.birthday). Marketing.",
+      "variables": {
+        "client_name": "string — the guest's name (the client record's name)",
+        "workspace_name": "string — the business that sends the message (the provider's name on Vemoa)",
+        "optout_url": "string — Vemoa's signed one-click opt-out link (marketing for this guest; /unsubscribe/…). NOT ventMail's reserved unsubscribe_url"
+      },
+      "required_links": [
+        "optout_url"
+      ],
+      "subject": {
+        "hu": "Boldog születésnapot! — {{ workspace_name }}",
+        "en": "Happy birthday! — {{ workspace_name }}"
+      }
+    },
+    {
+      "key": "win_back",
+      "audience": "guest",
+      "channel": "marketing",
+      "purpose": "Invites a guest who has been away (client.inactive, 90 days) back. Marketing.",
+      "variables": {
+        "client_name": "string — the guest's name (the client record's name)",
+        "workspace_name": "string — the business that sends the message (the provider's name on Vemoa)",
+        "booking_url": "string — link to the business's booking page",
+        "optout_url": "string — Vemoa's signed one-click opt-out link (marketing for this guest; /unsubscribe/…). NOT ventMail's reserved unsubscribe_url"
+      },
+      "required_links": [
+        "booking_url",
+        "optout_url"
+      ],
+      "subject": {
+        "hu": "Hiányzol — {{ workspace_name }}",
+        "en": "We miss you — {{ workspace_name }}"
+      }
+    },
+    {
+      "key": "fill_offer",
+      "audience": "guest",
+      "channel": "marketing",
+      "purpose": "'Töltsd fel' offer: a free slot the provider approved to offer to a returning guest. Marketing.",
+      "variables": {
+        "client_name": "string — the guest's name (the client record's name)",
+        "workspace_name": "string — the business that sends the message (the provider's name on Vemoa)",
+        "service_name": "string — the service on offer",
+        "starts_at_local": "string — start in the location's time zone, 'YYYY-MM-DD HH:MM'",
+        "booking_url": "string — link that opens the booking page on that service, person and day",
+        "optout_url": "string — Vemoa's signed one-click opt-out link (marketing for this guest; /unsubscribe/…). NOT ventMail's reserved unsubscribe_url"
+      },
+      "required_links": [
+        "booking_url",
+        "optout_url"
+      ],
+      "subject": {
+        "hu": "Szabad időpont neked — {{ workspace_name }}",
+        "en": "A free slot for you — {{ workspace_name }}"
+      }
+    },
+    {
+      "key": "pass_expiring",
+      "audience": "guest",
+      "channel": "transactional",
+      "purpose": "A pass expires in 14 days (pass.expires_in).",
+      "variables": {
+        "client_name": "string — the guest's name (the client record's name)",
+        "workspace_name": "string — the business that sends the message (the provider's name on Vemoa)",
+        "pass_name": "string — the pass's name",
+        "left": "int — sessions or units left",
+        "expires_on": "string — expiry date, 'YYYY-MM-DD'"
+      },
+      "required_links": [],
+      "subject": {
+        "hu": "Hamarosan lejár a bérleted: {{ pass_name }}",
+        "en": "Your pass expires soon: {{ pass_name }}"
+      }
+    },
+    {
+      "key": "pass_low_balance",
+      "audience": "guest",
+      "channel": "transactional",
+      "purpose": "A pass is down to its last sessions (pass.low_balance).",
+      "variables": {
+        "client_name": "string — the guest's name (the client record's name)",
+        "workspace_name": "string — the business that sends the message (the provider's name on Vemoa)",
+        "pass_name": "string — the pass's name",
+        "left": "int — sessions or units left"
+      },
+      "required_links": [],
+      "subject": {
+        "hu": "Fogyóban a bérleted: {{ pass_name }}",
+        "en": "Your pass is running low: {{ pass_name }}"
+      }
+    },
+    {
+      "key": "payment_reminder",
+      "audience": "guest",
+      "channel": "transactional",
+      "purpose": "A membership's month is still unpaid 3 days after it failed (payment.failed).",
+      "variables": {
+        "client_name": "string — the guest's name (the client record's name)",
+        "workspace_name": "string — the business that sends the message (the provider's name on Vemoa)",
+        "membership": "string — the membership's name",
+        "amount": "string — the amount due, formatted",
+        "passes_url": "string — the guest's passes page, where it is settled"
+      },
+      "required_links": [
+        "passes_url"
+      ],
+      "subject": {
+        "hu": "Emlékeztető a tagság díjáról — {{ membership }}",
+        "en": "Reminder about your membership payment — {{ membership }}"
+      }
+    },
+    {
+      "key": "team-invitation",
+      "audience": "user",
+      "channel": "transactional",
+      "purpose": "Invites someone to join a workspace's team.",
+      "variables": {
+        "workspace_name": "string — the workspace they are invited to",
+        "role": "string — code: provider_staff | provider_front_desk",
+        "role_label": "string — the role in words (e.g. 'Munkatárs' / 'Team member')",
+        "invite_url": "string — acceptance link (token in the URL fragment: no click tracking)",
+        "expires_in_days": "int — days the invitation is valid"
+      },
+      "required_links": [
+        "invite_url"
+      ],
+      "subject": {
+        "hu": "Meghívás a(z) {{ workspace_name }} csapatába",
+        "en": "You are invited to join {{ workspace_name }}"
+      }
+    },
+    {
+      "key": "payment-disputed",
+      "audience": "provider",
+      "channel": "transactional",
+      "purpose": "A card payment was disputed (chargeback) — the owner must respond in Stripe.",
+      "variables": {
+        "payment_id": "string — Vemoa payment id",
+        "kind": "string — code: deposit | fee | pass | membership",
+        "kind_label": "string — what was paid for, in words (e.g. 'Bérlet' / 'Pass')",
+        "status": "string — code of the dispute's status at Stripe (needs_response | under_review | won | lost …)",
+        "status_label": "string — the status in words",
+        "amount": "string — the amount ready-made in the message language, e.g. '12 345 Ft' (hu) / '12,345 HUF' (en)",
+        "amount_minor": "int — amount in minor units (e.g. fillér)",
+        "currency": "string — ISO 4217 code"
+      },
+      "required_links": [],
+      "subject": {
+        "hu": "Vitatott fizetés — teendő van",
+        "en": "A payment was disputed — action needed"
+      }
+    },
+    {
+      "key": "invoice-blocked",
+      "audience": "provider",
+      "channel": "transactional",
+      "purpose": "An invoice could not be issued automatically and waits for the owner.",
+      "variables": {
+        "amount": "string — the amount ready-made in the message language, e.g. '12 345 Ft' (hu) / '12,345 HUF' (en)",
+        "amount_minor": "int — amount in minor units (e.g. fillér)",
+        "currency": "string — ISO 4217 code",
+        "paid_at": "string — when the payment was made, ISO 8601",
+        "paid_at_label": "string — the same moment as people read it (hu '2026. 10. 12. 14:30'), Hungarian local time",
+        "reason": "string — why the invoice is blocked"
+      },
+      "required_links": [],
+      "subject": {
+        "hu": "Elakadt egy számla kiállítása",
+        "en": "An invoice could not be issued"
+      }
+    },
+    {
+      "key": "invoice-refund-reversed",
+      "audience": "provider",
+      "channel": "transactional",
+      "purpose": "Stripe reversed a refund whose credit note was already issued: the original invoice must be reissued by hand.",
+      "variables": {
+        "amount": "string — the amount ready-made in the message language, e.g. '12 345 Ft' (hu) / '12,345 HUF' (en)",
+        "amount_minor": "int — amount in minor units (e.g. fillér)",
+        "currency": "string — ISO 4217 code",
+        "document_number": "string — the document number of the correction"
+      },
+      "required_links": [],
+      "subject": {
+        "hu": "Visszavont visszatérítés — számla teendő",
+        "en": "A refund was reversed — invoice action needed"
+      }
+    },
+    {
+      "key": "promotion-approved",
+      "audience": "provider",
+      "channel": "transactional",
+      "purpose": "The paid promotion request was approved and placed.",
+      "variables": {
+        "amount": "string — the price ready-made in the message language",
+        "product": "string — the promotion product",
+        "category": "string — the category key",
+        "week": "string — the week's start date, 'YYYY-MM-DD'",
+        "price_amount_minor": "int — the price in minor units",
+        "currency": "string — ISO 4217 code",
+        "reason": "string — the refusal reason; empty when approved"
+      },
+      "required_links": [],
+      "subject": {
+        "hu": "Jóváhagyott kiemelés",
+        "en": "Your promotion was approved"
+      }
+    },
+    {
+      "key": "promotion-rejected",
+      "audience": "provider",
+      "channel": "transactional",
+      "purpose": "The paid promotion request was refused (with the reason).",
+      "variables": {
+        "amount": "string — the price ready-made in the message language",
+        "product": "string — the promotion product",
+        "category": "string — the category key",
+        "week": "string — the week's start date, 'YYYY-MM-DD'",
+        "price_amount_minor": "int — the price in minor units",
+        "currency": "string — ISO 4217 code",
+        "reason": "string — the refusal reason; empty when approved"
+      },
+      "required_links": [],
+      "subject": {
+        "hu": "Elutasított kiemelés",
+        "en": "Your promotion was rejected"
+      }
+    },
+    {
+      "key": "review-moderated-author",
+      "audience": "guest",
+      "channel": "transactional",
+      "purpose": "Tells the review's author what the moderator decided about the reported review.",
+      "variables": {
+        "provider_name": "string — the reviewed business",
+        "decision": "string — code: keep | hide | remove",
+        "decision_label": "string — the decision in words (a sentence start, e.g. 'A véleményt elrejtettük')",
+        "reason": "string — the moderator's reason"
+      },
+      "required_links": [],
+      "subject": {
+        "hu": "Döntés a véleményedről",
+        "en": "A decision about your review"
+      }
+    },
+    {
+      "key": "review-moderated-provider",
+      "audience": "provider",
+      "channel": "transactional",
+      "purpose": "Tells the provider what the moderator decided about the reported review.",
+      "variables": {
+        "provider_name": "string — the reviewed business",
+        "decision": "string — code: keep | hide | remove",
+        "decision_label": "string — the decision in words (a sentence start, e.g. 'A véleményt elrejtettük')",
+        "reason": "string — the moderator's reason"
+      },
+      "required_links": [],
+      "subject": {
+        "hu": "Döntés egy bejelentett véleményről",
+        "en": "A decision about a reported review"
+      }
+    },
+    {
+      "key": "provider-approved",
+      "audience": "provider",
+      "channel": "transactional",
+      "purpose": "The provider's marketplace listing was approved (pending -> active).",
+      "variables": {
+        "provider_name": "string — the provider's business name",
+        "reason": "string — the admin's reason; may be empty"
+      },
+      "required_links": [],
+      "subject": {
+        "hu": "Jóváhagyták a jelentkezésedet — {{ provider_name }}",
+        "en": "Your listing was approved — {{ provider_name }}"
+      }
+    },
+    {
+      "key": "provider-reactivated",
+      "audience": "provider",
+      "channel": "transactional",
+      "purpose": "A suspended provider was reactivated (suspended -> active).",
+      "variables": {
+        "provider_name": "string — the provider's business name",
+        "reason": "string — the admin's reason; may be empty"
+      },
+      "required_links": [],
+      "subject": {
+        "hu": "Újra aktív a fiókod — {{ provider_name }}",
+        "en": "Your account is active again — {{ provider_name }}"
+      }
+    },
+    {
+      "key": "provider-suspended",
+      "audience": "provider",
+      "channel": "transactional",
+      "purpose": "The provider was suspended (active -> suspended); no bookings are taken.",
+      "variables": {
+        "provider_name": "string — the provider's business name",
+        "reason": "string — the admin's reason; may be empty"
+      },
+      "required_links": [],
+      "subject": {
+        "hu": "Felfüggesztettük a fiókodat — {{ provider_name }}",
+        "en": "Your account was suspended — {{ provider_name }}"
+      }
+    },
+    {
+      "key": "provider-closed",
+      "audience": "provider",
+      "channel": "transactional",
+      "purpose": "The provider's listing was closed.",
+      "variables": {
+        "provider_name": "string — the provider's business name",
+        "reason": "string — the admin's reason; may be empty"
+      },
+      "required_links": [],
+      "subject": {
+        "hu": "Lezártuk a fiókodat — {{ provider_name }}",
+        "en": "Your account was closed — {{ provider_name }}"
+      }
+    },
+    {
+      "key": "provider-impersonated",
+      "audience": "provider",
+      "channel": "transactional",
+      "purpose": "A platform admin opened a time-limited support session in the provider's workspace (transparency notice).",
+      "variables": {
+        "provider_name": "string — the provider's business name",
+        "reason": "string — why support looked in",
+        "minutes": "int — how long the session lasts"
+      },
+      "required_links": [],
+      "subject": {
+        "hu": "Támogatási belépés a fiókodba — {{ provider_name }}",
+        "en": "A support session was opened in your account — {{ provider_name }}"
+      }
+    }
+  ]
+}

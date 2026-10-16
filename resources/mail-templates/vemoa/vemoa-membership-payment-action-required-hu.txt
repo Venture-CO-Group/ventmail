@@ -1,0 +1,15 @@
+Megerősítés szükséges a tagság díjához
+
+A(z) {{ provider }} tagságod ({{ membership }}) havi díjához a bankod megerősítést (azonosítást) kér.
+
+Tagság: {{ membership }}
+Szolgáltató: {{ provider }}
+Esedékes összeg: {{ amount }}
+
+Fizetés megerősítése:
+{{ passes_url }}
+
+-- 
+Ezt a levelet a Vemoa küldte a(z) {{ provider }} nevében, a foglalásoddal kapcsolatban.
+Ez egy automatikus értesítés, kérjük, ne válaszolj rá.
+Venture co. group · Vemoa

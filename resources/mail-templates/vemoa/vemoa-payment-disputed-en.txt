@@ -1,0 +1,13 @@
+A payment was disputed – action needed
+
+A card payment was disputed (chargeback). You need to respond to the dispute in Stripe before the deadline.
+
+Payment id: {{ payment_id }}
+Paid for: {{ kind_label }}
+Dispute status: {{ status_label }}
+Amount: {{ amount }}
+
+-- 
+Provider notice from Vemoa, related to your Vemoa account.
+This is an automated message, please do not reply.
+Venture co. group · Vemoa

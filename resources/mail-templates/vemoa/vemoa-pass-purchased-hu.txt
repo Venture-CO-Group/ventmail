@@ -1,0 +1,16 @@
+Sikeres vásárlás: {{ pass_name }}
+
+Köszönjük, a vásárlásod sikeres. Az újonnan vásárolt terméket a „Bérleteim” oldalon éred el.
+
+Termék: {{ pass_name }}
+Típus: {{ kind_label }}
+Szolgáltató: {{ provider }}
+Lejárat: {{ expires_on || nem jár le }}
+
+Bérleteim megnyitása:
+{{ passes_url }}
+
+-- 
+Ezt a levelet a Vemoa küldte a(z) {{ provider }} nevében, a foglalásoddal kapcsolatban.
+Ez egy automatikus értesítés, kérjük, ne válaszolj rá.
+Venture co. group · Vemoa

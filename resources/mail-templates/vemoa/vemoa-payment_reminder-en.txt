@@ -1,0 +1,16 @@
+Reminder about your membership payment
+
+Hello {{ client_name }},
+
+The monthly fee for your {{ workspace_name }} membership ({{ membership }}) is still unpaid after the failed charge.
+
+Membership: {{ membership }}
+Amount due: {{ amount }}
+
+Settle payment:
+{{ passes_url }}
+
+-- 
+This email was sent by Vemoa on behalf of {{ workspace_name }}, regarding your booking.
+This is an automated message, please do not reply.
+Venture co. group · Vemoa

@@ -1,0 +1,11 @@
+Visszavont visszatérítés – számla teendő
+
+A Stripe visszavonta a visszatérítést, amelyhez már jóváíró számlát állítottunk ki. Az eredeti számlát kézzel újra ki kell állítani.
+
+Összeg: {{ amount }}
+Korrekciós bizonylat: {{ document_number }}
+
+-- 
+Szolgáltatói értesítés a Vemoa-tól, a Vemoa-fiókodhoz kapcsolódóan.
+Ez egy automatikus értesítés, kérjük, ne válaszolj rá.
+Venture co. group · Vemoa

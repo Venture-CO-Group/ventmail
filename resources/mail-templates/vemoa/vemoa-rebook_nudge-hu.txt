@@ -1,0 +1,19 @@
+Foglalj újra
+
+Kedves {{ client_name }}!
+
+A(z) {{ workspace_name }} szolgáltatónál legutóbb ezt választottad: {{ service_name }}. Úgy tűnik, ideje újra időpontot foglalni.
+
+Következő szabad időpontok: {{ next_starts || – }}
+
+Időpont foglalása:
+{{ booking_url }}
+
+Nem kérsz több ilyen levelet?
+{{ optout_url }}
+
+-- 
+Ezt a levelet a Vemoa küldte a(z) {{ workspace_name }} nevében.
+Marketing üzenet: azért kaptad, mert hozzájárultál, hogy a szolgáltató e-mailben keressen. A hozzájárulásodat bármikor visszavonhatod.
+Ez egy automatikus értesítés, kérjük, ne válaszolj rá.
+Venture co. group · Vemoa

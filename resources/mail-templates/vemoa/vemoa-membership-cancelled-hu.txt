@@ -1,0 +1,15 @@
+A tagságodat lemondták
+
+A(z) {{ provider }} lemondta a tagságodat ({{ membership }}).
+
+Tagság: {{ membership }}
+Szolgáltató: {{ provider }}
+Érvényes eddig: {{ valid_until_label || azonnali hatállyal megszűnt }}
+
+Bérleteim megnyitása:
+{{ passes_url }}
+
+-- 
+Ezt a levelet a Vemoa küldte a(z) {{ provider }} nevében, a foglalásoddal kapcsolatban.
+Ez egy automatikus értesítés, kérjük, ne válaszolj rá.
+Venture co. group · Vemoa

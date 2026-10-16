@@ -1,0 +1,14 @@
+Silent source: {{ app }} ({{ env }})
+
+A source went silent, but the check opened no incident.
+
+App: {{ app }}
+Environment: {{ env }}
+Silent for (s): {{ silent_seconds }}
+
+Check that the source is running and can reach ventSec ingest.
+
+-- 
+Operator alert: you received this because you are on the ventSec alert recipient list.
+This is an automated message, please do not reply.
+Venture co. group · ventSec

@@ -1,0 +1,11 @@
+Daily digest: {{ count }} open S3/S4 incident(s)
+
+{{ count }} open S3/S4 incident(s) have not been announced yet. Sorted by severity, then number:
+
+Incidents:
+{{ incidents_lines }}
+
+-- 
+Operator alert: you received this because you are on the ventSec alert recipient list.
+This is an automated message, please do not reply.
+Venture co. group · ventSec

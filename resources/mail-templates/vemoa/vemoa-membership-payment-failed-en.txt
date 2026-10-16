@@ -1,0 +1,17 @@
+Your membership payment failed
+
+We could not collect the monthly fee for your {{ provider }} membership ({{ membership }}).
+
+Membership: {{ membership }}
+Provider: {{ provider }}
+Amount due: {{ amount }}
+
+Settle payment:
+{{ passes_url }}
+
+You can settle it under “My passes”.
+
+-- 
+This email was sent by Vemoa on behalf of {{ provider }}, regarding your booking.
+This is an automated message, please do not reply.
+Venture co. group · Vemoa

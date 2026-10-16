@@ -1,0 +1,11 @@
+Your account was suspended
+
+The account of {{ provider_name }} was suspended and takes no bookings.
+
+Provider: {{ provider_name }}
+Reason: {{ reason || – }}
+
+-- 
+Provider notice from Vemoa, related to your Vemoa account.
+This is an automated message, please do not reply.
+Venture co. group · Vemoa

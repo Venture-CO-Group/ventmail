@@ -1,0 +1,13 @@
+Your pass is running low
+
+Hello {{ client_name }},
+
+Your pass from {{ workspace_name }} is almost used up.
+
+Pass: {{ pass_name }}
+Remaining: {{ left }}
+
+-- 
+This email was sent by Vemoa on behalf of {{ workspace_name }}, regarding your booking.
+This is an automated message, please do not reply.
+Venture co. group · Vemoa

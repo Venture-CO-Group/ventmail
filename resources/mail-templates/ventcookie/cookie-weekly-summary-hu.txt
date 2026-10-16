@@ -1,0 +1,17 @@
+Heti összefoglaló – {{ week_starting }}
+
+Ez a heti összefoglaló a(z) {{ week_starting }} napján kezdődő hétről.
+
+Hét kezdete: {{ week_starting }}
+Hozzájárulás-döntések: {{ total_consents }}
+Scanek: {{ total_scans }}
+Besorolatlan cookie-k: {{ unclassified }}
+Site-ok száma: {{ sites_count }}
+
+Site-ok:
+{{ sites_lines || – }}
+
+-- 
+Ezt az értesítést a ventCookie küldte, mert a fiókodhoz vagy a csapatodhoz kapcsolódik.
+Ez egy automatikus levél, kérjük, ne válaszolj rá.
+Venture co. group · ventCookie

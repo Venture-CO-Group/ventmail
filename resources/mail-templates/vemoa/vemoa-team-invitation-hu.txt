@@ -1,0 +1,16 @@
+Meghívás a(z) {{ workspace_name }} csapatába
+
+Meghívtak a(z) {{ workspace_name }} csapatába a Vemoa-ban.
+
+Munkaterület: {{ workspace_name }}
+Szerepkör: {{ role_label }}
+
+Meghívás elfogadása:
+{{ invite_url }}
+
+A meghívó {{ expires_in_days }} napig érvényes. Ha nem számítottál rá, hagyd figyelmen kívül.
+
+-- 
+Azért kaptad ezt a levelet, mert meghívtak egy Vemoa-csapatba.
+Ez egy automatikus értesítés, kérjük, ne válaszolj rá.
+Venture co. group · Vemoa

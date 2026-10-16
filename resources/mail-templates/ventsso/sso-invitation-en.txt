@@ -1,9 +1,16 @@
 You have been invited
 
-You have been invited to {{ organization }} (role: {{ role }}). Accept the invitation with the link below:
+You have been invited to join {{ organization }} on {{ brand_name || Venture }}. Use the button below to accept.
 
+Organization: {{ organization }}
+Role: {{ role }}
+
+Accept invitation:
 {{ url }}
 
-If you were not expecting this invitation, you can ignore this email.
+If you were not expecting this invitation, you can safely ignore this email.
 
-— Venture
+-- 
+You received this email because an account in {{ brand_name || Venture }} uses this address (or someone entered it).
+This is an automated message, please do not reply.
+Venture co. group · ventSSO

@@ -1,9 +1,17 @@
 Security alert
 
-A security event happened on your Venture account: {{ event }} ({{ provider }}).
+We detected a security event involving your Venture account or the system. Details:
 
-{{ code }}
+Event: {{ event || – }}
+Lock duration (minutes): {{ minutes || – }}
+Linked provider: {{ provider || – }}
+Events in the last minute: {{ count || – }}
 
-If this was not you, change your password right away and review your account settings.
+Depending on the event type only the relevant rows carry a value; the others show “–”.
 
-— Venture
+If this was not you (for example an account lock or a newly linked account), change your password right away and review your account settings. For operator alerts, review the sign-in log.
+
+-- 
+You received this email because an account in {{ brand_name || Venture }} uses this address (or someone entered it).
+This is an automated message, please do not reply.
+Venture co. group · ventSSO

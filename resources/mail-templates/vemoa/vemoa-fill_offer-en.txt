@@ -1,0 +1,20 @@
+A free slot for you
+
+Hello {{ client_name }},
+
+{{ workspace_name }} has a free slot to offer you:
+
+Service: {{ service_name }}
+Time: {{ starts_at_local }}
+
+Open this slot:
+{{ booking_url }}
+
+Don't want these emails anymore?
+{{ optout_url }}
+
+-- 
+This email was sent by Vemoa on behalf of {{ workspace_name }}.
+Marketing message: you received this because you agreed to be contacted by email. You can withdraw your consent at any time.
+This is an automated message, please do not reply.
+Venture co. group · Vemoa

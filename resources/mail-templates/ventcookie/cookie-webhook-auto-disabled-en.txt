@@ -1,0 +1,14 @@
+Your webhook endpoint has been disabled
+
+Your webhook endpoint was automatically disabled after {{ consecutive_failures }} consecutive failed deliveries. You will not receive events from it until you re-enable it.
+
+Tenant: {{ tenant_id }}
+Endpoint: {{ webhook_endpoint_id }}
+Consecutive failures: {{ consecutive_failures }}
+
+Fix the receiving side, then re-enable the endpoint in ventCookie.
+
+-- 
+This notification was sent by ventCookie because it relates to your account or team.
+This is an automated message, please do not reply.
+Venture co. group · ventCookie

@@ -1,0 +1,14 @@
+How was your visit?
+
+Hello {{ client_name }},
+
+Thank you for choosing {{ workspace_name }} ({{ service_name }}, {{ starts_at_local }}). It helps us and others a lot if you rate your visit in Vemoa, among your bookings.
+
+Don't want these emails anymore?
+{{ optout_url }}
+
+-- 
+This email was sent by Vemoa on behalf of {{ workspace_name }}, regarding your booking.
+This is a service follow-up; you can opt out with one click.
+This is an automated message, please do not reply.
+Venture co. group · Vemoa

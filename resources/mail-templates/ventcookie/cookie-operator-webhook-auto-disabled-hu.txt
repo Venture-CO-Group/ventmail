@@ -1,0 +1,12 @@
+Webhook végpont automatikusan letiltva
+
+Egy tenant webhook végpontja automatikusan le lett tiltva.
+
+Tenant: {{ tenant_id }}
+Végpont: {{ webhook_endpoint_id }}
+Egymás utáni hibák: {{ consecutive_failures }}
+
+-- 
+Ezt az értesítést a ventCookie küldte, mert a fiókodhoz vagy a csapatodhoz kapcsolódik.
+Ez egy automatikus levél, kérjük, ne válaszolj rá.
+Venture co. group · ventCookie
