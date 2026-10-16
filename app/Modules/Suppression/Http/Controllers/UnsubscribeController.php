@@ -14,6 +14,7 @@ use App\Modules\Tenancy\Models\Workspace;
 use App\Modules\Tenancy\Services\WorkspaceContext;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 /**
@@ -114,7 +115,7 @@ final class UnsubscribeController
      */
     private function recordEvent(array $claim): void
     {
-        $recipient = DomainNormalizer::listKey((string) $claim['recipient']);
+        $listKey = DomainNormalizer::listKey((string) $claim['recipient']);
 
         $message = Message::query()->where('uuid', $claim['messageUuid'])->first();
 
@@ -122,25 +123,43 @@ final class UnsubscribeController
             return;
         }
 
-        $already = MessageEvent::query()
-            ->where('message_uuid', $message->uuid)
-            ->where('type', 'unsubscribed')
-            ->where('recipient', $recipient)
-            ->exists();
+        // A CÍMZETT a küldés TÁROLT alakjában (mint a többi eseménynél), nem a token
+        // normalizált kulcsában — különben a `recipient` szűrő és a hívó párosítása elválna.
+        $recipient = collect((array) $message->recipients)
+            ->first(static fn ($stored) => DomainNormalizer::listKey((string) $stored) === $listKey);
 
-        if ($already) {
+        if ($recipient === null) {
             return;
         }
 
-        MessageEvent::create([
-            'message_uuid' => $message->uuid,
-            'type' => 'unsubscribed',
-            'recipient' => $recipient,
-            'channel' => $message->channel,
-            'tags' => $message->tags,
-            'variables' => $message->echoedVariables(),
-            'payload' => [],
-        ]);
+        // ATOMI „ha még nincs, írd": a hypertable-en nincs egyedi index (az `occurred_at`-nek
+        // a kulcsban kellene lennie), ezért az üzenet sorának zárja sorosítja az egyidejű
+        // POST-okat (Gmail one-click + a megerősítő oldal dupla kattintása).
+        DB::transaction(function () use ($message, $recipient, $listKey): void {
+            Message::query()->whereKey($message->getKey())->lockForUpdate()->first();
+
+            // Ugyanazzal a kulccsal hasonlítunk, mint a token (kis-/nagybetű, IDN) — SQL-ben a
+            // `lower()` a punycode/unicode domaint nem egyeztetné.
+            $already = MessageEvent::query()
+                ->where('message_uuid', $message->uuid)
+                ->where('type', 'unsubscribed')
+                ->pluck('recipient')
+                ->contains(static fn ($stored) => DomainNormalizer::listKey((string) $stored) === $listKey);
+
+            if ($already) {
+                return;
+            }
+
+            MessageEvent::create([
+                'message_uuid' => $message->uuid,
+                'type' => 'unsubscribed',
+                'recipient' => (string) $recipient,
+                'channel' => $message->channel,
+                'tags' => $message->tags,
+                'variables' => $message->echoedVariables(),
+                'payload' => [],
+            ]);
+        });
     }
 
     private function suppress(string $token, WorkspaceContext $context): bool
@@ -196,12 +215,15 @@ final class UnsubscribeController
                 detail: 'message:'.$claim['messageUuid'],
             );
 
-            $this->recordEvent($claim);
-
             // FO3: a leiratkozás a consent VISSZAVONÁSA — a ventCookie főkönyvbe is bizonyíték.
             // A helyi consent-sort nem érinti (a suppression a hivatalos tiltás), és a főkönyv
             // hibája a leiratkozást sosem blokkolja (a reporter elnyeli).
             app(ConsentLedgerReporter::class)->withdrawnByEmail((string) $claim['recipient'], 'message:'.$claim['messageUuid']);
+
+            // A webhook-értesítés UTOLJÁRA: a tiltás és a főkönyvi bizonyíték már megvan. Ha az
+            // esemény vagy a kézbesítési sor írása elbukik, a kivétel 500-at ad, a levélkliens
+            // újrapróbál, és az esemény (ami a tranzakcióval együtt visszagördült) újra íródik.
+            $this->recordEvent($claim);
 
             return true;
         } finally {
