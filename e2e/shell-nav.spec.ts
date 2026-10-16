@@ -87,12 +87,15 @@ test('a csoportok nyitnak-zárnak, az állapot megmarad, és az aktív pont csop
     await expect(page.locator('.vt-topbar [aria-current="page"]')).not.toBeEmpty();
 });
 
-test('a Platform csoportban az Inbound és a Validation „hamarosan" jelzést kap, és elérhetők maradnak', async ({ page }) => {
+test('a Beállítások csoport a Figma szerint: számlázás, bejövő útvonalak, címellenőrzés, tagok, branding', async ({ page }) => {
     await page.goto('/dashboard');
-    await openNavGroup(page, 'platform');
+    await openNavGroup(page, 'settings');
 
-    await expect(page.getByTestId('nav-inbound').locator('.vt-badge')).toBeVisible();
-    await expect(page.getByTestId('nav-validation').locator('.vt-badge')).toBeVisible();
+    const group = page.getByTestId('nav-settings');
+    const order = await group.locator('[data-testid^="nav-"]').evaluateAll((items) => items.map((item) => item.getAttribute('data-testid')));
+    expect(order.filter((id) => id !== 'nav-settings')).toEqual(['nav-billing', 'nav-inbound', 'nav-validation', 'nav-members', 'nav-branding']);
+    // Nincs „hamarosan" jelvény: a képernyők élnek.
+    await expect(group.locator('.vt-badge')).toHaveCount(0);
 
     await page.getByTestId('nav-inbound').click();
     await expect(page).toHaveURL(/\/inbound$/);

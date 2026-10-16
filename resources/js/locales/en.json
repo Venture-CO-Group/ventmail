@@ -736,7 +736,18 @@
         "preferenceVisible": "Visible in the preference center",
         "listSearch": "Search lists",
         "segmentSearch": "Search segments",
-        "noMatch": "No results for this search."
+        "noMatch": "No results for this search.",
+        "filter": {
+            "all": "All",
+            "subscribed": "Subscribed",
+            "pending": "Pending double opt-in",
+            "unsubscribed": "Unsubscribed",
+            "cleaned": "Bounced",
+            "label": "Filter contacts by status"
+        },
+        "searchPlaceholder": "Search email or name",
+        "importCsv": "Import CSV",
+        "addContact": "Add contact"
     },
     "templates": {
         "title": "Templates",
@@ -1779,7 +1790,8 @@
             "subjectHint": "Optional — the starter template suggests one.",
             "marketing": "Marketing email (requires the footer with postal address and unsubscribe)",
             "submit": "Create template"
-        }
+        },
+        "gallery": "Gallery"
     },
     "segments": {
         "title": "Segments",

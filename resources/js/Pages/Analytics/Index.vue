@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Deferred, router } from '@inertiajs/vue3';
-import { VtBanner, VtButton, VtEmptyState, VtInput, VtPageHeader, VtSegmented, VtSelect } from '@venture-co-group/ui';
+import { VtBanner, VtButton, VtEmptyState, VtInput, VtKpiCard, VtPageHeader, VtSelect } from '@venture-co-group/ui';
 import { computed, reactive, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { AudienceSection, CampaignSection, JourneySection, PlatformSection } from '../../Components/Analytics/types';
@@ -47,6 +47,25 @@ const rangeOptions = computed(() => [
     { value: '90', label: t('analytics.range.d90') },
     { value: 'custom', label: t('analytics.range.custom') },
 ]);
+/** A kampány KPI-sora: darabszám + a hozzá tartozó arány (a motor `rates`-éből). */
+const campaignKpis = computed(() => {
+    const summary = props.campaignSection?.summary;
+
+    if (!summary) return [];
+
+    return (
+        [
+            ['delivered', 'delivery_rate'],
+            ['opened', 'open_rate'],
+            ['clicked', 'click_rate'],
+            ['bounced', 'bounce_rate'],
+            ['unsubscribed', 'unsubscribe_rate'],
+        ] as const
+    )
+        .filter(([key]) => key in summary)
+        .map(([key, rate]) => ({ key, value: Number(summary[key] ?? 0), rate: rate in summary ? Number(summary[rate]) : null }));
+});
+
 const campaignOptions = computed(() =>
     props.campaigns.length ? props.campaigns.map((c) => ({ value: c.uuid, label: c.name })) : [{ value: '', label: t('analytics.noCampaign') }],
 );
@@ -177,21 +196,22 @@ function scrollToReport(): void {
     <AppLayout>
         <VtPageHeader :overline="t('nav.studio')" :title="t('analytics.title')" :description="t('page.analytics.lead')" data-testid="analytics-head">
             <template #actions>
-                <VtButton data-testid="analytics-pdf" @click="scrollToReport"><VmIcon name="file" /> {{ t('analytics.report.button') }}</VtButton>
+                <!-- Figma: „Export" + időszak a fejlécben; a kampány- és egyedi tartomány-szűrő alatta. -->
+                <VtButton variant="secondary" data-testid="analytics-pdf" @click="scrollToReport"><VmIcon name="download" /> {{ t('analytics.report.button') }}</VtButton>
+                <div class="vm-an-range">
+                    <VtSelect
+                        :model-value="showCustom ? 'custom' : selection.range"
+                        :options="rangeOptions"
+                        :aria-label="t('analytics.range.label')"
+                        data-testid="analytics-range"
+                        @update:model-value="onRange(String($event))"
+                    />
+                </div>
             </template>
         </VtPageHeader>
 
-        <!-- A szűrősor (Figma: a fejléc alatti chip- / szűrősor): időszak, egyedi tartomány, kampány. -->
+        <!-- A szűrősor (a fejléc alatt): egyedi tartomány, kampány. -->
         <div class="vm-an-filters">
-            <div class="vm-seg-scroll">
-                <VtSegmented
-                    :model-value="showCustom ? 'custom' : selection.range"
-                    :options="rangeOptions"
-                    :label="t('analytics.range.label')"
-                    data-testid="analytics-range"
-                    @update:model-value="onRange(String($event))"
-                />
-            </div>
             <form v-if="showCustom" class="vm-an-custom" data-testid="analytics-custom" @submit.prevent="go({ range: 'custom', from: custom.from, to: custom.to })">
                 <VtInput v-model="custom.from" type="date" :max="selection.today" :aria-label="t('analytics.range.from')" />
                 <VtInput v-model="custom.to" type="date" :max="selection.today" :aria-label="t('analytics.range.to')" />
@@ -218,6 +238,19 @@ function scrollToReport(): void {
             <VtBanner v-if="campaignSection === null" tone="info" data-testid="analytics-empty">{{ t('analytics.empty') }}</VtBanner>
             <VtBanner v-else-if="campaignSection && !campaignSection.available" tone="warning" data-testid="campaign-unavailable">{{ t('analytics.unavailable') }}</VtBanner>
             <template v-else-if="campaignSection">
+                <!-- A KPI-SOR (Figma Analytics): a kiválasztott kampány számai, az arány a delta helyén. -->
+                <div v-if="campaignKpis.length" class="vm-an-kpis" data-testid="analytics-kpis">
+                    <VtKpiCard
+                        v-for="kpi in campaignKpis"
+                        :key="kpi.key"
+                        :label="t(`analytics.metric.${kpi.key}`)"
+                        :value="fmt(kpi.value)"
+                        :delta="kpi.rate === null ? undefined : pct(kpi.rate)"
+                        trend="flat"
+                        :data-testid="`analytics-kpi-${kpi.key}`"
+                    />
+                </div>
+
                 <div class="vm-an-grid">
                     <VmChartCard id="open-click" :title="t('analytics.chart.openClick')" :subtitle="t(`analytics.bucket.${timeline.bucket}`)" :context="campaignName" :chart="timeline.points.length ? timelineChart : null">
                         <VmLineChart v-if="timeline.points.length" ref="timelineChart" :categories="timelineLabels" :series="timelineSeries" :label="t('analytics.chart.openClick')" testid="chart-open-click" />
@@ -367,6 +400,16 @@ function scrollToReport(): void {
 </template>
 
 <style scoped>
+.vm-an-kpis {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(calc(var(--vt-space-12) * 4), 1fr));
+    gap: var(--vt-space-4);
+}
+
+.vm-an-range {
+    inline-size: calc(var(--vt-space-12) * 3 + var(--vt-space-6));
+}
+
 .vm-an-filters {
     display: flex;
     flex-wrap: wrap;

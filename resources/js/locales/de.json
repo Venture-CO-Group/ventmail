@@ -736,7 +736,18 @@
         "preferenceVisible": "Im Preference Center sichtbar",
         "listSearch": "Listen durchsuchen",
         "segmentSearch": "Segmente durchsuchen",
-        "noMatch": "Keine Treffer für diese Suche."
+        "noMatch": "Keine Treffer für diese Suche.",
+        "filter": {
+            "all": "Alle",
+            "subscribed": "Abonniert",
+            "pending": "Double-Opt-in ausstehend",
+            "unsubscribed": "Abgemeldet",
+            "cleaned": "Unzustellbar",
+            "label": "Kontakte nach Status filtern"
+        },
+        "searchPlaceholder": "E-Mail oder Name suchen",
+        "importCsv": "CSV importieren",
+        "addContact": "Kontakt hinzufügen"
     },
     "templates": {
         "title": "Vorlagen",
@@ -1779,7 +1790,8 @@
             "subjectHint": "Optional — die Startvorlage schlägt einen vor.",
             "marketing": "Marketing-E-Mail (Fußzeile mit Postanschrift und Abmeldung erforderlich)",
             "submit": "Vorlage erstellen"
-        }
+        },
+        "gallery": "Galerie"
     },
     "segments": {
         "title": "Segmente",

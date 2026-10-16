@@ -110,7 +110,7 @@ const messageRows = (): MessageRow[] =>
 
 <template>
     <AppLayout>
-        <VtPageHeader :overline="t('nav.platform')" :title="t('inboundRoutes.title')" :description="t('page.inbound.lead')" />
+        <VtPageHeader :overline="t('nav.settings')" :title="t('inboundRoutes.title')" :description="t('page.inbound.lead')" />
 
         <VmCard>
             <i18n-t keypath="inboundRoutes.order" tag="p" scope="global" data-testid="inbound-order">

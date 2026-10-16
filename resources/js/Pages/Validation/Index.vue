@@ -82,7 +82,7 @@ function useSuggestion(suggestion: string): void {
 
 <template>
     <AppLayout>
-        <VtPageHeader :overline="t('nav.platform')" :title="t('validation.title')" :description="t('page.validation.lead')" />
+        <VtPageHeader :overline="t('nav.settings')" :title="t('validation.title')" :description="t('page.validation.lead')" />
 
         <VtBanner tone="info" role="status">{{ t('validation.probeNote') }}</VtBanner>
 

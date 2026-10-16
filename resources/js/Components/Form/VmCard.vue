@@ -28,21 +28,6 @@ withDefaults(
 </template>
 
 <style scoped>
-/*
- | ÁTMENETI (venture-ui #15, 2.1.1): a fej akciói a cím alá tördelnek, nem tolják ki a kártyát.
- | A kiadás után törlendő.
- */
-.vm-card :deep(.vt-card__header) {
-    flex-wrap: wrap;
-}
-
-.vm-card :deep(.vt-card__actions),
-.vm-card :deep(.vt-card__badge) {
-    flex: 0 1 auto;
-    flex-wrap: wrap;
-    max-width: 100%;
-}
-
 .vm-card :deep(.vt-card__body) > :where(h1, h2, h3, h4, p, ol, ul, dl) {
     margin: 0;
     overflow-wrap: anywhere;

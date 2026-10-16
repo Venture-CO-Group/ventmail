@@ -736,7 +736,18 @@
         "preferenceVisible": "Visible en el centro de preferencias",
         "listSearch": "Buscar listas",
         "segmentSearch": "Buscar segmentos",
-        "noMatch": "No hay resultados para esta búsqueda."
+        "noMatch": "No hay resultados para esta búsqueda.",
+        "filter": {
+            "all": "Todos",
+            "subscribed": "Suscritos",
+            "pending": "Doble opt-in pendiente",
+            "unsubscribed": "Dados de baja",
+            "cleaned": "Rebotados",
+            "label": "Filtrar contactos por estado"
+        },
+        "searchPlaceholder": "Buscar correo o nombre",
+        "importCsv": "Importar CSV",
+        "addContact": "Añadir contacto"
     },
     "templates": {
         "title": "Plantillas",
@@ -1779,7 +1790,8 @@
             "subjectHint": "Opcional — la plantilla inicial sugiere uno.",
             "marketing": "Correo de marketing (requiere el pie con dirección postal y baja)",
             "submit": "Crear plantilla"
-        }
+        },
+        "gallery": "Galería"
     },
     "segments": {
         "title": "Segmentos",

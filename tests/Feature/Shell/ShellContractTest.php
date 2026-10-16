@@ -52,9 +52,10 @@ it('minden meglévő menüpont megmarad a testid-jával, képesség-szűréssel'
         }
     }
 
-    // D15: „hamarosan" jelzés az Inbound-on és a Validation API-n.
-    expect($nav)->toMatch("/testid: 'nav-inbound'.*soon: true/s")
-        ->and($nav)->toMatch("/testid: 'nav-validation'.*soon: true/s");
+    // Figma Unified UI v2: a Beállítások csoport — számlázás, bejövő útvonalak, címellenőrzés, tagok,
+    // branding — „hamarosan" jelzés nélkül (a képernyők élnek).
+    expect($nav)->toMatch("/const settings = build\\(\\[.*'nav-billing'.*'nav-inbound'.*'nav-validation'.*'nav-members'.*'nav-branding'/s")
+        ->and($nav)->not->toMatch("/soon: true/");
 });
 
 it('a héj menüi a könyvtár slotjaiban élnek (ARIA, Esc, fókusz a könyvtárban), lokális legördülő nincs', function () {

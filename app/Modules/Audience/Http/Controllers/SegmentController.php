@@ -44,25 +44,15 @@ final class SegmentController
     /** Az előnézet mintája: ennyi sort mutatunk a feltételek mellett. */
     private const SAMPLE = 10;
 
-    public function index(): Response
+    /**
+     * A LISTA ÉS A SZERKESZTŐ EGY KÉPERNYŐ (Figma Unified UI v2 · Segments): balra a szegmensek,
+     * jobbra a kiválasztott (alapból az első) szerkesztője; üres listánál az új szegmensé.
+     */
+    public function index(SegmentEngine $engine): Response
     {
         Gate::authorize('audience.manage');
 
-        // A HASZNÁLAT (melyik kampány célozza) egyetlen lekérdezéssel: a szegmens törlése
-        // előtt látszania kell, hogy kampány hivatkozik rá.
-        $usage = $this->campaignUsage();
-
-        return Inertia::render('Audience/Segments', [
-            'segments' => Segment::query()->orderBy('name')->get()->map(fn (Segment $segment) => [
-                'uuid' => (string) $segment->uuid,
-                'name' => (string) $segment->name,
-                'description' => $segment->description,
-                'estimatedSize' => $segment->estimated_size === null ? null : (int) $segment->estimated_size,
-                'estimatedAt' => $segment->estimated_at?->toIso8601String(),
-                'groups' => $this->groupCount((array) $segment->definition),
-                'campaigns' => $usage[(string) $segment->uuid] ?? 0,
-            ])->values()->all(),
-        ]);
+        return $this->builder($engine, Segment::query()->orderBy('name')->first());
     }
 
     public function create(SegmentEngine $engine): Response
@@ -176,9 +166,31 @@ final class SegmentController
         return redirect()->route('audience.segments.index')->with('success', __('studio.segments.deleted'));
     }
 
+    /**
+     * A szegmenslista a képernyő bal oszlopához. A HASZNÁLAT (melyik kampány célozza) egyetlen
+     * lekérdezéssel: a szegmens törlése előtt látszania kell, hogy kampány hivatkozik rá.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function rows(): array
+    {
+        $usage = $this->campaignUsage();
+
+        return Segment::query()->orderBy('name')->get()->map(fn (Segment $segment) => [
+            'uuid' => (string) $segment->uuid,
+            'name' => (string) $segment->name,
+            'description' => $segment->description,
+            'estimatedSize' => $segment->estimated_size === null ? null : (int) $segment->estimated_size,
+            'estimatedAt' => $segment->estimated_at?->toIso8601String(),
+            'groups' => $this->groupCount((array) $segment->definition),
+            'campaigns' => $usage[(string) $segment->uuid] ?? 0,
+        ])->values()->all();
+    }
+
     private function builder(SegmentEngine $engine, ?Segment $segment): Response
     {
         return Inertia::render('Audience/SegmentBuilder', [
+            'segments' => $this->rows(),
             'segment' => $segment === null ? null : [
                 'uuid' => (string) $segment->uuid,
                 'name' => (string) $segment->name,

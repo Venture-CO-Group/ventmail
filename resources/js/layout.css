@@ -269,23 +269,3 @@ div.vt-table.vm-table {
 .vm-diff__line--removed .vm-diff__text::before {
     content: '- ';
 }
-
-/*
- | ÁTMENETI (venture-ui #15, 2.1.1): az oldalfej akciói a cím alá tördelnek, ha nem férnek mellé,
- | a cím 288 px alá nem zsugorodik. A kiadás után törlendő.
- */
-.vm-page > header.vt-pagehead {
-    flex-wrap: wrap;
-    justify-content: flex-end;
-}
-
-.vm-page > header.vt-pagehead > .vt-pagehead__titles {
-    flex: 1 1 calc(var(--vt-space-12) * 6);
-}
-
-.vm-page > header.vt-pagehead > .vt-pagehead__actions {
-    flex: 0 1 auto;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    max-width: 100%;
-}

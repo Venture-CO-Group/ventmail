@@ -736,7 +736,18 @@
         "preferenceVisible": "Visible dans le centre de préférences",
         "listSearch": "Rechercher une liste",
         "segmentSearch": "Rechercher un segment",
-        "noMatch": "Aucun résultat pour cette recherche."
+        "noMatch": "Aucun résultat pour cette recherche.",
+        "filter": {
+            "all": "Tous",
+            "subscribed": "Abonnés",
+            "pending": "Double opt-in en attente",
+            "unsubscribed": "Désabonnés",
+            "cleaned": "Rebonds",
+            "label": "Filtrer les contacts par statut"
+        },
+        "searchPlaceholder": "Rechercher un e-mail ou un nom",
+        "importCsv": "Importer un CSV",
+        "addContact": "Ajouter un contact"
     },
     "templates": {
         "title": "Modèles",
@@ -1779,7 +1790,8 @@
             "subjectHint": "Facultatif — le modèle de départ en propose un.",
             "marketing": "E-mail marketing (pied de page avec adresse postale et désabonnement requis)",
             "submit": "Créer le modèle"
-        }
+        },
+        "gallery": "Galerie"
     },
     "segments": {
         "title": "Segments",

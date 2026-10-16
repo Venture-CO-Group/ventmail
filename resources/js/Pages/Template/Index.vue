@@ -132,6 +132,7 @@ const blockIcon: Record<string, string> = {
     <AppLayout>
         <VtPageHeader :overline="t('nav.studio')" :title="t('library.title')" :description="t('page.templates.lead')" data-testid="library-header">
             <template #actions>
+                <VtButton variant="secondary" data-testid="template-gallery" @click="filter = 'starters'"><VmIcon name="layout" /> {{ t('library.gallery') }}</VtButton>
                 <VtButton data-testid="template-new" @click="openCreate()"><VmIcon name="plus" /> {{ t('library.new') }}</VtButton>
             </template>
         </VtPageHeader>

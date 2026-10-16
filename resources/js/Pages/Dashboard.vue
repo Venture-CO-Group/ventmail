@@ -7,7 +7,6 @@ import VmCard from '../Components/Form/VmCard.vue';
 import VmTable from '../Components/Form/VmTable.vue';
 import VmStateBadge from '../Components/Platform/VmStateBadge.vue';
 import VmIcon from '../Components/Shell/VmIcon.vue';
-import VmStatusBadge from '../Components/Studio/VmStatusBadge.vue';
 import { useFormat } from '../composables/useFormat';
 import AppLayout from '../Layouts/AppLayout.vue';
 
@@ -40,15 +39,6 @@ interface Kpis {
     activeContacts?: Kpi;
 }
 
-interface CampaignRow {
-    uuid: string;
-    name: string;
-    displayStatus: string;
-    recipients: number;
-    openRate: number | null;
-    clickRate: number | null;
-}
-
 interface Deliverability {
     available: boolean;
     bounceRate: number | null;
@@ -74,7 +64,6 @@ const props = defineProps<{
     recent: RecentMessage[];
     workspaceName: string;
     kpis: Kpis | null;
-    campaigns: CampaignRow[] | null;
     deliverability: Deliverability | null;
     todos: Todo[];
     sendingMode: { live: boolean; allowlistEnforced: boolean; marketingEnabled: boolean };
@@ -135,10 +124,6 @@ const kpiCards = computed(() => {
     ];
 });
 
-/* ---------- Legutóbbi kampányok ---------- */
-
-type CampaignTableRow = { name: string; status: string; recipients: string; open: string; click: string; uuid: string };
-
 /*
  | A RÁCS OSZLOPSZÁMA (UI-polírozás · 4, review): a 4 / 2 / 1 sávot a CSS dönti el (töréspont nélkül,
  | lásd a stílust); itt csak KIOLVASSUK a számított sávok számát. Ebből jön a széles kártyák
@@ -166,29 +151,6 @@ onBeforeUnmount(() => gridObserver?.disconnect());
 
 const wide = computed(() => gridColumns.value >= 4);
 const single = computed(() => gridColumns.value === 1);
-
-const campaignColumns = computed<VtColumn<CampaignTableRow>[]>(() => [
-    { key: 'name', label: t('dashboard.campaigns.name') },
-    { key: 'status', label: t('dashboard.campaigns.status') },
-    ...(single.value
-        ? []
-        : ([
-              { key: 'recipients', label: t('dashboard.campaigns.recipients'), align: 'right' },
-              { key: 'open', label: t('dashboard.campaigns.open'), align: 'right' },
-              { key: 'click', label: t('dashboard.campaigns.click'), align: 'right' },
-          ] as VtColumn<CampaignTableRow>[])),
-]);
-
-const campaignRows = computed<CampaignTableRow[]>(() =>
-    (props.campaigns ?? []).map((campaign) => ({
-        uuid: campaign.uuid,
-        name: campaign.name,
-        status: campaign.displayStatus,
-        recipients: campaign.recipients ? format.number(campaign.recipients) : '—',
-        open: format.percent(campaign.openRate),
-        click: format.percent(campaign.clickRate),
-    })),
-);
 
 /* ---------- Kézbesíthetőség ---------- */
 
@@ -311,8 +273,8 @@ const rows = computed<Row[]>(() =>
             </div>
 
             <!--
-             | A széles kártyák (Figma Overview): 4 sávnál a legutóbbi üzenetek 3 + a kézbesíthetőség 1,
-             | alattuk a kampányok teljes sorban; 2 és 1 sávnál mind teljes sor.
+             | A széles kártyák (Figma Overview): 4 sávnál a legutóbbi üzenetek 3 + a kézbesíthetőség 1;
+             | 2 és 1 sávnál mindkettő teljes sor.
              -->
             <!-- LEGUTÓBBI ÜZENETEK (napló) -->
             <VmCard
@@ -384,30 +346,6 @@ const rows = computed<Row[]>(() =>
                 </template>
             </VmCard>
 
-            <!-- LEGUTÓBBI KAMPÁNYOK — teljes sor -->
-            <VmCard
-                v-if="campaigns !== null"
-                :title="t('dashboard.campaigns.title')"
-                :flush="campaignRows.length > 0"
-                class="vm-dash-full"
-                data-testid="dashboard-campaigns"
-                data-dash-cell="campaigns"
-            >
-                <template #actions>
-                    <Link href="/campaigns" class="vm-dash-link" data-testid="dashboard-campaigns-all">
-                        <VtIcon name="arrow-up-right" :size="16" /> {{ t('dashboard.campaigns.all') }}
-                    </Link>
-                </template>
-
-                <VtEmptyState v-if="!campaignRows.length" :title="t('dashboard.campaigns.empty')" icon="inbox" data-testid="dashboard-campaigns-empty" />
-                <VmTable v-else :columns="campaignColumns" :rows="campaignRows" :caption="t('dashboard.campaigns.title')">
-                    <template #cell="{ row, column, value }">
-                        <Link v-if="column.key === 'name'" :href="`/campaigns/${row.uuid}`" class="vm-dash-campaign" :title="String(value)">{{ value }}</Link>
-                        <VmStatusBadge v-else-if="column.key === 'status'" :status="String(value)" />
-                        <span v-else class="vm-dash-num">{{ value }}</span>
-                    </template>
-                </VmTable>
-            </VmCard>
         </div>
     </AppLayout>
 </template>
@@ -465,14 +403,6 @@ const rows = computed<Row[]>(() =>
     max-inline-size: 100%;
 }
 
-.vm-dash-grid--tight .vm-dash-campaign {
-    min-inline-size: 0;
-}
-
-.vm-dash-span-3 {
-    grid-column: span 3;
-}
-
 .vm-dash-span-1 {
     grid-column: span 1;
 }
@@ -498,56 +428,10 @@ const rows = computed<Row[]>(() =>
     color: var(--vt-text-primary);
 }
 
-.vm-dash-campaign {
-    min-inline-size: 0;
-}
-
 .vm-dash-span-3 {
     grid-column: span 3;
 }
 
-.vm-dash-span-1 {
-    grid-column: span 1;
-}
-
-.vm-dash-full {
-    grid-column: 1 / -1;
-}
-
-.vm-dash-muted {
-    color: var(--vt-text-secondary);
-}
-
-.vm-dash-link {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--vt-space-1);
-    color: var(--vt-text-secondary);
-    font-size: var(--vt-type-body-s-medium-size);
-    text-decoration: none;
-}
-
-.vm-dash-link:hover {
-    color: var(--vt-text-primary);
-}
-
-.vm-dash-link__chevron {
-    transform: rotate(-90deg);
-}
-
-.vm-dash-campaign {
-    display: block;
-    min-inline-size: calc(calc(var(--vt-space-12) * 2) * 1.25);
-    color: var(--vt-text-primary);
-    overflow-wrap: break-word;
-}
-
-.vm-dash-num {
-    font-variant-numeric: tabular-nums;
-    white-space: nowrap;
-}
-
-/* A kézbesíthetőség sorai: kulcs–érték, alattuk a küszöbhöz mért sáv (Figma KeyValue + ProgressBar). */
 .vm-dash-kvs {
     display: flex;
     flex-direction: column;

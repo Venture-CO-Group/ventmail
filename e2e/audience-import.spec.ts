@@ -113,7 +113,7 @@ test('kézi egyedi felvitel: a jogalap kötelező, a subscribed csak igazolt hoz
     // A KONTAKT ADATLAPJÁN látszik az import forrása és jogalapja.
     await page.getByTestId('import-view-contacts').click();
     await page.getByTestId('contact-search').fill(email);
-    await page.getByTestId('contact-search-submit').click();
+    await page.getByTestId('contact-search').press('Enter');
     await page.getByTestId('contact-link').first().click();
 
     await expect(page.getByTestId('contact-email')).toHaveText(email);

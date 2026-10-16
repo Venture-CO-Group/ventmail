@@ -50,24 +50,27 @@ dev-felhasználó nyelvét (hu) mutatja — a szám- és szövegkülönbség ebb
 | 25 | Mail · Members | `/members` |
 | 26 | Mail · Branding | `/settings/branding` |
 
-## Tudatos eltérések (review-ra)
+## A Figmához igazítva (2026-10-16, tulajdonosi döntés)
 
-Ezek nem vizuális hibák, hanem a ventMail meglévő folyamatai vagy termékdöntései — átírásuk külön döntés:
+1. **Sidebar:** a Beállítások csoport = Számlázás, Bejövő útvonalak, Címellenőrzés (API), Tagok, Branding;
+   „hamarosan" jelvény nincs; a profil a fiókmenüben.
+2. **Segments (03):** master–detail — balra a szegmenslista, jobbra a kiválasztott (alapból az első)
+   szegmens szerkesztője (név + becsült méret + Mentés a kártyafejben, ÉS/VAGY csoportok).
+3. **Audience (02):** fejléc: Címkék · CSV importálása · Kontakt felvétele; alatta állapot-chipek
+   (Mind / Feliratkozott / Megerősítésre vár / Leiratkozott / Visszapattant, számokkal) és kereső,
+   majd a kontakt-tábla. Az áttekintés, a listák, az egyéni mezők és a szegmensek a tábla alatt.
+   Az állapot-szűrő a szerveren fut, és a „minden találat" tömeges címkézés is követi.
+4. **Overview (01):** a kampánylista kikerült (a Figmán nincs; a `/campaigns` képernyőn van).
+5. **Templates (05):** „Galéria" gomb (az indulósablonokra szűr).
+6. **Campaigns (06):** állapot-chipek és kereső a kártya fölött, a lista cím nélküli flush kártyában.
+7. **Analytics (09):** fejléc: Export (PDF-riport) + időszak-választó; alatta a kampány-szűrő és a
+   kampány KPI-sora (kézbesítve, megnyitás, kattintás, bounce, leiratkozás — arányokkal).
+8. **Domains (10):** a DNS-rekord tábla a közös `VtDataTable`.
+9. **Branding (26):** az élő előnézet a kártyafejben, Heading/H3.
 
-1. **Csoportok a sidebarban:** a Billing, az Inbound routes és a Validation API az appban a
-   **Platform** csoportban van (a Figma a Settingsbe teszi); az overline és a breadcrumb a sidebart követi.
-2. **Segments (03):** a Figma master–detail (lista + szerkesztő egy képernyőn); az appban a
-   szerkesztő külön oldal (`/audience/segments/{id}`).
-3. **Audience (02):** az app a lista fölött közönség-áttekintést mutat (KPI-k, növekedés, források,
-   engagement); a Figma csak a szűrt listát.
-4. **Overview (01):** a Figma két kártyája (legutóbbi üzenetek + kézbesíthetőség) mellett az app
-   a legutóbbi kampányokat is mutatja (teljes sor, alattuk). A kvóta-kártyán nincs „of N / mo" alcím:
-   a havi keret nem jön át a ventPay-ből.
-5. **Templates (05):** nincs „Gallery" gomb (az indulósablonok a chip-szűrő „Indulósablonok" fülén).
-6. **Campaigns (06):** a státusz-szűrő `VtSegmented` (8 állapot), nem chip-sor; a lista egy kártyában, címmel.
-7. **Analytics (09):** az időszak- és kampányszűrő az oldalfej alatti sorban (a Figma csak „Export" + időszak);
-   a PDF-riport gomb az akció. A `VtPageHeader` tördelési javítása a venture-ui #15-ben (2.1.1, kiadatlan).
-8. **Értesítés-csengő:** a Figma felső sávjában van, a ventMailnek nincs értesítés-funkciója — nem kerül ki.
-9. **Domains (10):** a DNS-rekord tábla még saját `<table>` (másolás-gombokkal) — `VtDataTable`-re
-   költöztetése a következő kör (hosszú értékek: DKIM-kulcs).
-10. **Branding (26):** az élő előnézet kártyacíme még a régi, nagy stílus.
+## Ami még eltér (döntés vagy új funkció kell)
+
+- **Értesítés-csengő:** a ventMailnek nincs értesítés-funkciója — a csengő nem kerül ki.
+- **Audience „Export":** kontakt-export (PII-CSV) nincs a ventMailben — új funkció, GDPR-döntés kell.
+- **Overview kvóta „of N / mo":** a havi keret nem jön át a ventPay-ből.
+- **Deliverability (17):** a Figma KPI-sora (reputáció, beérkezés) — a ventMail ezeket az adatokat még nem méri.

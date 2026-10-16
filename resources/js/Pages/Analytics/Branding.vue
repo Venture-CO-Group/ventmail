@@ -171,8 +171,7 @@ const maxMb = computed(() => Math.round(props.limits.maxBytes / 1024 / 1024));
                 </VmForm>
             </VmCard>
 
-            <VmCard>
-                <h2 class="vm-brand__title">{{ t('branding.preview') }}</h2>
+            <VmCard :title="t('branding.preview')">
                 <VmCoverPreview
                     :color="color"
                     :cover-text="coverText"
@@ -201,13 +200,6 @@ const maxMb = computed(() => Math.round(props.limits.maxBytes / 1024 / 1024));
     gap: var(--vt-space-6);
     align-items: start;
     min-width: 0;
-}
-
-.vm-brand__title {
-    margin: 0;
-    font-family: var(--vt-font-display);
-    font-size: var(--vt-type-heading-h1-size);
-    line-height: var(--vt-type-heading-h1-line-height);
 }
 
 .vm-brand__logo {

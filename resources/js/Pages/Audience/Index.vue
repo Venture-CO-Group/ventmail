@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Link, router, usePage } from '@inertiajs/vue3';
-import { VtBadge, VtBanner, VtButton, VtCheckbox, VtEmptyState, VtField, VtInput, VtKpiCard, VtPageHeader, VtSegmented, VtSelect, type VtColumn } from '@venture-co-group/ui';
+import { VtBadge, VtBanner, VtButton, VtCheckbox, VtChip, VtEmptyState, VtField, VtInput, VtKpiCard, VtPageHeader, VtSegmented, VtSelect, type VtColumn } from '@venture-co-group/ui';
 import axios from 'axios';
 import VmIcon from '../../Components/Shell/VmIcon.vue';
 import VmBarList from '../../Components/Studio/VmBarList.vue';
@@ -43,6 +43,8 @@ interface Paged<T> {
 
 const props = defineProps<{
     search: string;
+    /** Az állapot-chip (Figma Audience); `null` = mind. */
+    status: 'subscribed' | 'pending' | 'unsubscribed' | 'cleaned' | null;
     // v1.1 · D284: szerveroldali lapozás + keresés (`App\\Support\\Paged`).
     lists: Paged<{
         uuid: string;
@@ -194,7 +196,7 @@ function applyBulk(): void {
             action: bulkAction.value,
             tagUuid: bulkTag.value === '__new__' ? null : bulkTag.value,
             tagName: bulkTag.value === '__new__' ? bulkNewTag.value.trim() : null,
-            target: bulkAll.value ? { type: 'search', search: props.search } : { type: 'contacts', uuids: selected.value },
+            target: bulkAll.value ? { type: 'search', search: props.search, status: props.status } : { type: 'contacts', uuids: selected.value },
         },
         {
             preserveScroll: true,
@@ -232,7 +234,32 @@ function reloadBlock(prefix: 'lists' | 'segments', page: number, term: string): 
 }
 
 function applySearch(): void {
-    router.get('/audience', { search: search.value }, { preserveState: true, preserveScroll: true });
+    router.get('/audience', { search: search.value || undefined, status: props.status ?? undefined }, { preserveState: true, preserveScroll: true });
+}
+
+/* ÁLLAPOT-CHIPEK (Figma Audience): a szűrés a szerveren; a számok az áttekintésből, ha betöltött. */
+type StatusFilter = 'subscribed' | 'pending' | 'unsubscribed' | 'cleaned';
+const statusFilters: StatusFilter[] = ['subscribed', 'pending', 'unsubscribed', 'cleaned'];
+
+function setStatus(status: StatusFilter | null): void {
+    selected.value = [];
+    bulkAll.value = false;
+    router.get('/audience', { search: props.search || undefined, status: status ?? undefined }, { preserveState: true, preserveScroll: true });
+}
+
+function statusCount(status: StatusFilter | null): number | null {
+    const totals = insights.value?.totals;
+
+    if (!totals) return null;
+
+    return status === null ? totals.total : totals[status];
+}
+
+function chipLabel(status: StatusFilter | null): string {
+    const label = t(`audience.filter.${status ?? 'all'}`);
+    const count = statusCount(status);
+
+    return count === null ? label : `${label} · ${format.number(count)}`;
 }
 
 function startListEdit(list: { uuid: string; name: string; description: string | null; fromEmail: string | null; fromName: string | null }): void {
@@ -279,15 +306,99 @@ function createList(): void {
     <AppLayout>
         <VtPageHeader :overline="t('nav.studio')" :title="t('audience.title')" :description="t('page.audience.lead')">
             <template #actions>
-                <VtButton variant="secondary" data-testid="audience-segments" @click="router.visit('/audience/segments')">
-                    <VmIcon name="filter" /> {{ t('audience.segmentBuilder') }}
-                </VtButton>
                 <VtButton variant="secondary" data-testid="audience-tags" @click="router.visit('/audience/tags')">
                     <VmIcon name="tag" /> {{ t('audience.manageTags') }}
                 </VtButton>
-                <VtButton data-testid="audience-import" @click="router.visit('/audience/import')">{{ t('audience.importAction') }}</VtButton>
+                <VtButton variant="secondary" data-testid="audience-import-csv" @click="router.visit('/audience/import?source=csv')"><VmIcon name="upload" /> {{ t('audience.importCsv') }}</VtButton>
+                <VtButton data-testid="audience-import" @click="router.visit('/audience/import')"><VmIcon name="plus" /> {{ t('audience.addContact') }}</VtButton>
             </template>
         </VtPageHeader>
+
+        <!-- A SZŰRŐSOR (Figma Audience): állapot-chipek · köz · kereső. -->
+        <div class="vm-aud-filters" role="group" :aria-label="t('audience.filter.label')">
+            <VtChip :selected="status === null" data-testid="contact-filter-all" @update:selected="() => setStatus(null)">{{ chipLabel(null) }}</VtChip>
+            <VtChip
+                v-for="filter in statusFilters"
+                :key="filter"
+                :selected="status === filter"
+                :data-testid="`contact-filter-${filter}`"
+                @update:selected="() => setStatus(filter)"
+            >
+                {{ chipLabel(filter) }}
+            </VtChip>
+            <form class="vm-aud-search" role="search" @submit.prevent="applySearch">
+                <VtInput
+                    v-model="search"
+                    type="search"
+                    icon="search"
+                    :placeholder="t('audience.searchPlaceholder')"
+                    :aria-label="t('audience.search')"
+                    data-testid="contact-search"
+                />
+                <button type="submit" class="vm-visually-hidden" data-testid="contact-search-submit">{{ t('audience.searchAction') }}</button>
+            </form>
+        </div>
+
+        <VmCard :title="t('audience.contacts')" data-testid="contacts-card">
+            <template #actions>
+                <VtButton variant="ghost" size="sm" :disabled="!contacts.items.length" data-testid="contact-select-page" @click="togglePage">
+                    {{ allOnPage ? t('audience.unselectPage') : t('audience.selectPage') }}
+                </VtButton>
+            </template>
+
+
+            <div class="vm-bulk" data-testid="bulk-bar" role="group" :aria-label="t('audience.bulkTitle')">
+                <span class="vm-bulk__count" data-testid="bulk-selected">
+                    {{ bulkAll ? t('audience.bulkAllMatching') : t('audience.bulkSelected', { count: selected.length }) }}
+                </span>
+                <VtCheckbox v-model="bulkAll" data-testid="bulk-all">{{ t('audience.bulkAll') }}</VtCheckbox>
+                <label class="vm-visually-hidden" for="bulk-action-el">{{ t('audience.bulkActionLabel') }}</label>
+                <VtSelect
+                    id="bulk-action-el"
+                    v-model="bulkAction"
+                    :options="[
+                        { value: 'tag', label: t('audience.bulkTag') },
+                        { value: 'untag', label: t('audience.bulkUntag') },
+                    ]"
+                    data-testid="bulk-action"
+                />
+                <label class="vm-visually-hidden" for="bulk-tag-el">{{ t('audience.bulkTagLabel') }}</label>
+                <VtSelect id="bulk-tag-el" v-model="bulkTag" :options="tagOptions" data-testid="bulk-tag" />
+                <VtInput
+                    v-if="bulkTag === '__new__'"
+                    v-model="bulkNewTag"
+                    :placeholder="t('audience.bulkNewTagPlaceholder')"
+                    :aria-label="t('audience.bulkNewTag')"
+                    data-testid="bulk-new-tag"
+                />
+                <VtButton :disabled="!canBulk" data-testid="bulk-apply" @click="applyBulk">{{ t('audience.bulkApply') }}</VtButton>
+            </div>
+
+            <VtEmptyState v-if="!rows.length" :title="t('audience.noContacts')" icon="inbox" data-testid="contacts-empty" />
+            <VmTable v-else :columns="columns" :rows="rows" :caption="t('audience.contacts')" data-testid="contacts-table">
+                <!-- Az e-mail az ADATLAPRA linkel: mezők, listák, hozzájárulás-történet (import-forrással). -->
+                <template #cell="{ column, row, value }">
+                    <VtCheckbox
+                        v-if="column.key === 'select'"
+                        :model-value="selected.includes(String(row.uuid))"
+                        :aria-label="t('audience.selectContact', { email: row.email })"
+                        :data-testid="`contact-select-${row.email}`"
+                        @update:model-value="toggleRow(String(row.uuid))"
+                    />
+                    <Link
+                        v-else-if="column.key === 'email'"
+                        :href="`/audience/contacts/${row.uuid}`"
+                        class="vm-truncate"
+                        :title="String(value)"
+                        data-testid="contact-link"
+                    >{{ value }}</Link>
+                    <!-- A `data-status` / `data-consent` a GÉPI kód (nyelvfüggetlen tesztekhez), a felirat a fordítás. -->
+                    <span v-else-if="column.key === 'status'" class="vm-truncate" :data-status="row.statusCode">{{ value }}</span>
+                    <span v-else-if="column.key === 'consent'" class="vm-truncate" :data-consent="row.consentCode">{{ value }}</span>
+                    <span v-else class="vm-truncate" :title="String(value ?? '')">{{ value }}</span>
+                </template>
+            </VmTable>
+        </VmCard>
 
         <VtBanner v-if="insightsError" tone="warning" role="status" data-testid="insights-error">{{ t('insights.failed') }}</VtBanner>
 
@@ -443,81 +554,27 @@ function createList(): void {
             <VmPager :page="segments.page" :last="segments.last" :total="segments.total" testid="segments-pager" @change="reloadBlock('segments', $event, segments.search)" />
         </VmCard>
 
-        <VmCard :title="t('audience.contacts')">
-            <template #actions>
-                <VtButton variant="ghost" size="sm" :disabled="!contacts.items.length" data-testid="contact-select-page" @click="togglePage">
-                    {{ allOnPage ? t('audience.unselectPage') : t('audience.selectPage') }}
-                </VtButton>
-            </template>
-
-            <VmForm @submit.prevent="applySearch">
-                <VmFormSection>
-                    <VtField :label="t('audience.search')">
-                        <VtInput v-model="search" data-testid="contact-search" placeholder="pelda.hu" />
-                    </VtField>
-                </VmFormSection>
-
-                <VmFormActions>
-                    <VtButton type="submit" data-testid="contact-search-submit">{{ t('audience.searchAction') }}</VtButton>
-                </VmFormActions>
-            </VmForm>
-
-            <div class="vm-bulk" data-testid="bulk-bar" role="group" :aria-label="t('audience.bulkTitle')">
-                <span class="vm-bulk__count" data-testid="bulk-selected">
-                    {{ bulkAll ? t('audience.bulkAllMatching') : t('audience.bulkSelected', { count: selected.length }) }}
-                </span>
-                <VtCheckbox v-model="bulkAll" data-testid="bulk-all">{{ t('audience.bulkAll') }}</VtCheckbox>
-                <label class="vm-visually-hidden" for="bulk-action-el">{{ t('audience.bulkActionLabel') }}</label>
-                <VtSelect
-                    id="bulk-action-el"
-                    v-model="bulkAction"
-                    :options="[
-                        { value: 'tag', label: t('audience.bulkTag') },
-                        { value: 'untag', label: t('audience.bulkUntag') },
-                    ]"
-                    data-testid="bulk-action"
-                />
-                <label class="vm-visually-hidden" for="bulk-tag-el">{{ t('audience.bulkTagLabel') }}</label>
-                <VtSelect id="bulk-tag-el" v-model="bulkTag" :options="tagOptions" data-testid="bulk-tag" />
-                <VtInput
-                    v-if="bulkTag === '__new__'"
-                    v-model="bulkNewTag"
-                    :placeholder="t('audience.bulkNewTagPlaceholder')"
-                    :aria-label="t('audience.bulkNewTag')"
-                    data-testid="bulk-new-tag"
-                />
-                <VtButton :disabled="!canBulk" data-testid="bulk-apply" @click="applyBulk">{{ t('audience.bulkApply') }}</VtButton>
-            </div>
-
-            <VtEmptyState v-if="!rows.length" :title="t('audience.noContacts')" icon="inbox" data-testid="contacts-empty" />
-            <VmTable v-else :columns="columns" :rows="rows" :caption="t('audience.contacts')" data-testid="contacts-table">
-                <!-- Az e-mail az ADATLAPRA linkel: mezők, listák, hozzájárulás-történet (import-forrással). -->
-                <template #cell="{ column, row, value }">
-                    <VtCheckbox
-                        v-if="column.key === 'select'"
-                        :model-value="selected.includes(String(row.uuid))"
-                        :aria-label="t('audience.selectContact', { email: row.email })"
-                        :data-testid="`contact-select-${row.email}`"
-                        @update:model-value="toggleRow(String(row.uuid))"
-                    />
-                    <Link
-                        v-else-if="column.key === 'email'"
-                        :href="`/audience/contacts/${row.uuid}`"
-                        class="vm-truncate"
-                        :title="String(value)"
-                        data-testid="contact-link"
-                    >{{ value }}</Link>
-                    <!-- A `data-status` / `data-consent` a GÉPI kód (nyelvfüggetlen tesztekhez), a felirat a fordítás. -->
-                    <span v-else-if="column.key === 'status'" class="vm-truncate" :data-status="row.statusCode">{{ value }}</span>
-                    <span v-else-if="column.key === 'consent'" class="vm-truncate" :data-consent="row.consentCode">{{ value }}</span>
-                    <span v-else class="vm-truncate" :title="String(value ?? '')">{{ value }}</span>
-                </template>
-            </VmTable>
-        </VmCard>
     </AppLayout>
 </template>
 
 <style scoped>
+.vm-aud-filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--vt-space-2);
+}
+
+.vm-aud-search {
+    margin-inline-start: auto;
+    inline-size: calc(var(--vt-space-12) * 6 - var(--vt-space-6));
+    max-inline-size: 100%;
+}
+
+.vm-aud-search > .vt-input {
+    inline-size: 100%;
+}
+
 .vm-audience-card-head,
 .vm-insights__head,
 .vm-insights__legend,

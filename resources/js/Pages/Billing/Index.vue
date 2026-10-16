@@ -55,7 +55,7 @@ const enabledFeatures = computed(() => props.features.filter((feature) => featur
 
 <template>
     <AppLayout>
-        <VtPageHeader :overline="t('nav.platform')" :title="t('billing.title')" :description="t('page.billing.lead')" />
+        <VtPageHeader :overline="t('nav.settings')" :title="t('billing.title')" :description="t('page.billing.lead')" />
 
         <!-- A FELFÜGGESZTÉS nem lehet meglepetés: a PreSendGate 4. kapuja
              `QUOTA_EXCEEDED`-et ad, és ha ezt csak a hibaüzenetből tudná meg az ügyfél, a

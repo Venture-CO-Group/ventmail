@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Link, router } from '@inertiajs/vue3';
-import { VtBanner, VtButton, VtEmptyState, VtModal, VtPageHeader } from '@venture-co-group/ui';
+import { VtBanner, VtButton, VtDataTable, VtEmptyState, VtModal, VtPageHeader, type VtDataColumn } from '@venture-co-group/ui';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import VmCard from '../../Components/Form/VmCard.vue';
@@ -35,14 +35,14 @@ interface DomainRow {
     okCount: number;
 }
 
-interface DnsRecordRow {
+type DnsRecordRow = {
     key: string;
     type: string;
     name: string;
     value: string;
     status: string;
     optional: boolean;
-}
+};
 
 interface Selected {
     uuid: string;
@@ -77,6 +77,14 @@ const pendingOptional = computed(() =>
 function when(iso: string | null): string {
     return iso ? format.dateTime(iso) : '—';
 }
+
+const dnsColumns = computed<VtDataColumn<DnsRecordRow>[]>(() => [
+    { key: 'key', label: t('plat.domains.purpose'), width: '17%' },
+    { key: 'type', label: t('wizard.type'), width: '9%', mono: true },
+    { key: 'name', label: t('wizard.name'), width: '27%' },
+    { key: 'value', label: t('wizard.value'), width: '32%' },
+    { key: 'status', label: t('wizard.rowStatus'), width: '15%' },
+]);
 
 function recordLabel(key: string): string {
     return t(`plat.domains.record.${key}`);
@@ -192,47 +200,18 @@ onBeforeUnmount(() => {
                     {{ t('plat.domains.trackingPending') }}
                 </VtBanner>
 
-                <div class="vm-scroll-x">
-                    <table class="vm-dns" data-testid="dns-records">
-                        <caption class="vm-visually-hidden">{{ t('wizard.dnsCaption') }}</caption>
-                        <!-- D284: a név és az érték kapja a szélesség nagyját — teljes szövegként, tördelve. -->
-                        <colgroup>
-                            <col class="vm-dns__col--purpose" />
-                            <col class="vm-dns__col--type" />
-                            <col class="vm-dns__col--name" />
-                            <col class="vm-dns__col--value" />
-                            <col class="vm-dns__col--state" />
-                        </colgroup>
-                        <thead>
-                            <tr>
-                                <th scope="col">{{ t('plat.domains.purpose') }}</th>
-                                <th scope="col">{{ t('wizard.type') }}</th>
-                                <th scope="col">{{ t('wizard.name') }}</th>
-                                <th scope="col">{{ t('wizard.value') }}</th>
-                                <th scope="col">{{ t('wizard.rowStatus') }}</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr v-for="record in selected.records" :key="record.key" :data-testid="`dns-row-${record.key}`">
-                                <th scope="row">{{ recordLabel(record.key) }}</th>
-                                <td class="vt-mono">{{ record.type }}</td>
-                                <td>
-                                    <span class="vm-dns__cell">
-                                        <code>{{ record.name }}</code>
-                                        <VmCopyButton :value="record.name" :testid="`copy-name-${record.key}`" icon-only />
-                                    </span>
-                                </td>
-                                <td>
-                                    <span class="vm-dns__cell">
-                                        <code>{{ record.value }}</code>
-                                        <VmCopyButton :value="record.value" :testid="`copy-value-${record.key}`" icon-only />
-                                    </span>
-                                </td>
-                                <td><VmStateBadge :state="recordState(record)" :testid="`dns-state-${record.key}`" /></td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
+                <!-- A DNS-rekordok a közös DataTable-ben (5. szabály); a név és az érték NEM vágható (D284). -->
+                <VtDataTable class="vm-dns" :columns="dnsColumns" :rows="selected.records" row-key="key" :caption="t('wizard.dnsCaption')" data-testid="dns-records">
+                    <template #cell="{ row, column }">
+                        <strong v-if="column.key === 'key'" :data-testid="`dns-row-${row.key}`">{{ recordLabel(row.key) }}</strong>
+                        <span v-else-if="column.key === 'name' || column.key === 'value'" class="vm-dns__cell">
+                            <code>{{ row[column.key] }}</code>
+                            <VmCopyButton :value="row[column.key]" :testid="`copy-${column.key}-${row.key}`" icon-only />
+                        </span>
+                        <VmStateBadge v-else-if="column.key === 'status'" :state="recordState(row)" :testid="`dns-state-${row.key}`" />
+                        <span v-else>{{ row[column.key] }}</span>
+                    </template>
+                </VtDataTable>
 
                 <VmFormActions>
                     <Link :href="`/domains/wizard?domain=${selected.uuid}`" class="vm-link">{{ t('plat.domains.allRecords') }}</Link>
@@ -366,47 +345,10 @@ onBeforeUnmount(() => {
     max-width: 100%;
 }
 
-.vm-dns {
-    width: 100%;
-    border-collapse: collapse;
+/* Rögzített oszlopok: a hosszú DKIM-kulcs tördel, nem tolja szét a táblát. */
+.vm-dns :deep(.vt-dt__el) {
     table-layout: fixed;
     min-width: calc(calc(var(--vt-space-8) * 4) * 6);
-}
-
-.vm-dns th,
-.vm-dns td {
-    padding: var(--vt-space-3);
-    border-bottom: thin solid var(--vt-border);
-    text-align: left;
-    vertical-align: middle;
-}
-
-.vm-dns thead th {
-    color: var(--vt-text-secondary);
-    font-size: var(--vt-type-caption-size);
-    letter-spacing: var(--vt-type-overline-tracking);
-    text-transform: uppercase;
-    font-weight: var(--vt-weight-semibold);
-}
-
-.vm-dns__col--purpose {
-    width: 17%;
-}
-
-.vm-dns__col--type {
-    width: 9%;
-}
-
-.vm-dns__col--name {
-    width: 27%;
-}
-
-.vm-dns__col--value {
-    width: 32%;
-}
-
-.vm-dns__col--state {
-    width: 15%;
 }
 
 .vm-dns__cell {

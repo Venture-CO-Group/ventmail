@@ -138,6 +138,8 @@ final class TagController
             'target.uuids' => ['required_if:target.type,contacts', 'array', 'max:'.self::MAX_SELECTION],
             'target.uuids.*' => ['string', 'uuid'],
             'target.search' => ['nullable', 'string', 'max:200'],
+            // Unified UI v2: a kontaktlista állapot-szűrője (ugyanaz az engedélylista, mint a listán).
+            'target.status' => ['nullable', Rule::in(['subscribed', 'pending', 'unsubscribed', 'cleaned'])],
             'target.uuid' => ['required_if:target.type,segment', 'nullable', 'string', 'uuid'],
         ]);
 
@@ -166,11 +168,13 @@ final class TagController
     {
         return match ($target['type']) {
             'contacts' => Contact::query()->whereIn('uuid', array_values((array) $target['uuids'])),
-            // UGYANAZ a keresés, mint a kontaktlistán (`AudienceController::index`).
-            'search' => Contact::query()->when(
-                trim((string) ($target['search'] ?? '')) !== '',
-                fn (Builder $query) => $query->where('email', 'like', '%'.addcslashes(mb_strtolower(trim((string) $target['search'])), '%_\\').'%'),
-            ),
+            // UGYANAZ a keresés és állapot-szűrő, mint a kontaktlistán (`AudienceController::index`).
+            'search' => Contact::query()
+                ->when(($target['status'] ?? null) !== null, fn (Builder $query) => $query->where('status', (string) $target['status']))
+                ->when(
+                    trim((string) ($target['search'] ?? '')) !== '',
+                    fn (Builder $query) => $query->where('email', 'like', '%'.addcslashes(mb_strtolower(trim((string) $target['search'])), '%_\\').'%'),
+                ),
             'segment' => $this->segmentQuery((string) $target['uuid'], $segments),
         };
     }

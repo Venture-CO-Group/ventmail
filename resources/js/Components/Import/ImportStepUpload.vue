@@ -31,7 +31,18 @@ const format = useFormat();
 // A számok a PROFIL számformátuma szerint (D11), nem a vue-i18n locale-ja szerint.
 const n = (value: number): string => format.number(value);
 
-const tab = ref<string>(props.state?.sourceType === 'xlsx' ? 'xlsx' : props.state?.sourceType === 'csv' ? 'csv' : 'manual');
+// Új import: a hívó gomb választhat fület (`?source=csv` — „CSV importálása" az Audience fejlécén);
+// folyamatban lévő importnál a forrása dönt.
+const requested = typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('source');
+const tab = ref<string>(
+    props.state?.sourceType === 'xlsx'
+        ? 'xlsx'
+        : props.state?.sourceType === 'csv'
+          ? 'csv'
+          : !props.state && requested !== null && ['manual', 'paste', 'csv', 'xlsx'].includes(requested)
+            ? requested
+            : 'manual',
+);
 const busy = ref(false);
 
 const manual = ref({ email: '', first_name: '', last_name: '' });

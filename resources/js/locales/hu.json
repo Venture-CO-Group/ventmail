@@ -736,7 +736,18 @@
         "preferenceVisible": "Látható a preference centerben",
         "listSearch": "Lista keresése",
         "segmentSearch": "Szegmens keresése",
-        "noMatch": "Nincs találat erre a keresésre."
+        "noMatch": "Nincs találat erre a keresésre.",
+        "filter": {
+            "all": "Mind",
+            "subscribed": "Feliratkozott",
+            "pending": "Megerősítésre vár",
+            "unsubscribed": "Leiratkozott",
+            "cleaned": "Visszapattant",
+            "label": "Kontaktok szűrése állapot szerint"
+        },
+        "searchPlaceholder": "Keresés e-mail vagy név szerint",
+        "importCsv": "CSV importálása",
+        "addContact": "Kontakt felvétele"
     },
     "templates": {
         "title": "Sablonok",
@@ -1779,7 +1790,8 @@
             "subjectHint": "Nem kötelező — az indulósablon javasol egyet.",
             "marketing": "Marketing levél (kötelező a lábléc postai címmel és leiratkozással)",
             "submit": "Sablon létrehozása"
-        }
+        },
+        "gallery": "Galéria"
     },
     "segments": {
         "title": "Szegmensek",
