@@ -59,11 +59,9 @@
       (`--vt-color-accent-300…600`, `cyan-*`, `violet-*`, `neutral-0…900`, `--vt-signature-gradient`) nem
       szállítja. Érintett: `chartTheme.ts`, `report/*`, `Analytics/Branding.vue` + `brandContrast.ts`
       (a kontraszt-jelzés üres — `e2e/branding.spec.ts` bukik), `BrandColor` (`BrandColorTest` bukik),
-      `editor.css`, `VmCoverPreview`, `VmHeatmap`, `VmBarList`, `DomainStats`, `glow.css`. Javaslat:
+      `editor.css`, `VmCoverPreview`, `VmHeatmap`, `VmBarList`, `DomainStats`, `glow.css`. Döntés (2026-10-16):
       Figma `chart/*` + `print/*` változók a 0.x értékekkel → design 2.1.0.
-- [ ] **venture-ui 2.1.0 kiadása (PR #14)** — a héj slotjai (workspace / locale / user menü), drawer,
-      skip link. Utána a `package.json` `^2.1.0`, a lockfile a regiszterből (a `../venture-design` /
-      `../venture-ui` maradvány-bejegyzések is kiesnek). Addig a ventMail CI nem zöld.
+- [x] **venture-ui 2.1.0 kiadva** (PR #14, `v2.1.0`, tulajdonosi engedéllyel, 2026-10-16); a ventMail `^2.1.0`, a lockfile a regiszterből.
 - [ ] **GitHub Packages „Manage Actions access":** a `@venture-co-group/design` és `/ui` csomagnál a
       `ventmail` repónak Read jog (a CI `GITHUB_TOKEN`-nel tölt).
 - [ ] **Értesítés-funkció (csengő):** a Figma felső sávjában van, a ventMailnek nincs ilyen funkciója —
