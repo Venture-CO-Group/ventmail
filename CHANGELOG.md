@@ -5,7 +5,10 @@ A részletes döntési nyomvonal: `docs/plans/v1.1.md` (D1–D300).
 
 ## [Unreleased]
 
+## [1.4.0] — 2026-10-16 (családi bekötés)
+
 ### Added
+- **Családi sablonkészletek** (`resources/mail-templates/{ventsso,ventsec,ventcookie,vemoa}`, hu + en, `.html`/`.txt`/`.subject`), manifesztek `docs/integration/manifests/`, `FamilyTemplateSetsTest` (foglalt változónév-tilalommal).
 - **`unsubscribed` esemény + v: változók az eseményekben (FO18).** Az egykattintásos leiratkozás `unsubscribed` eseményt ír (üzenet + címzett párosonként egyszer, webhookra megy); a Postal `delivered`/`deferred` és a `bounced` esemény a hívó `v:` változóit is viszi (Mailgun-paritás, a kliens ebből korrelál).
 - **Family onboarding (FO1–FO13, `docs/plans/family-onboarding.md`).**
   - Tárolt sablonverzió **tárgya** (nullable `subject`): `ventmail:templates:import` olvassa a `<név>.subject` fájlt; ha a küldési kérés nem ad tárgyat, a sablon tárgya megy, `{{ var }}` helyőrzőkkel (sima szöveg, CR/LF nélkül, a törzsével azonos változó-szemantika); a kérés tárgya mindig nyer. A felületen a verziók tárgya látszik, és új verzió hozható létre tárggyal (7 nyelv). `/v1` változatlan.
