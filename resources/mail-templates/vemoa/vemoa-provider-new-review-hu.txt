@@ -1,0 +1,13 @@
+ÚJ ÉRTÉKELÉST KAPTÁL.
+
+„{{ review_text || csak csillagot adott }}”
+— {{ review_author }} · {{ review_rating }}/5 · {{ service_name }}
+
+Válaszolok: {{ links_review_admin }}
+
+A válaszod nyilvánosan megjelenik az értékelés alatt. Ha a vélemény sérti a szabályokat, jelentheted — moderáljuk.
+
+—
+Ezt a levelet azért kapod, mert te kezeled {{ provider_the_name }} Vemoa-fiókját.
+Fiókom: {{ links_account }}
+Vemoa — időpont, nem telefon. A Venture CO Group terméke.

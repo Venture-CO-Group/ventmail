@@ -1,0 +1,13 @@
+YOUR BOOKING IS CANCELLED.
+
+We cancelled your booking ({{ booking_date_long }}, {{ booking_time }}) and told the provider.
+
+What it was: {{ service_name }} · {{ provider_name }}
+When: {{ booking_date_long }}, {{ booking_time }}
+
+Find a new time: {{ links_provider_page }}
+
+—
+You received this e-mail because a booking was made with this address on Vemoa.
+My bookings: {{ links_my_bookings }}
+Vemoa — book a time, not a call. A Venture CO Group product.

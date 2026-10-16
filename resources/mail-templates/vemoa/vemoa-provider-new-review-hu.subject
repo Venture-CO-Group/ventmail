@@ -1,0 +1,1 @@
+Új értékelés: {{ review_rating }}/5 — {{ review_author }}

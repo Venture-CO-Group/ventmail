@@ -11,7 +11,8 @@
     "Variables are scalars. `*_label` and `amount` are ready-made words in the message language; the raw code/amount_minor stay for conditions.",
     "Do not use ventMail-reserved names for variables (unsubscribe_url, preferences_url, browser_url, recipient_email, current_year): ventMail overwrites them. Vemoa's own opt-out link is optout_url; ventMail's List-Unsubscribe still works and arrives as the unsubscribed webhook.",
     "Transactional mail is sent with o:tracking=no; the unsubscribe links are /unsubscribe/... so a rewriting tracker leaves them alone.",
-    "Marketing keys (rebook_nudge, birthday_greeting, win_back, fill_offer) go on the marketing channel, closed until ventMail opens it; review_request stays transactional with an opt-out (owner/DPO question open)."
+    "Marketing keys (rebook_nudge, birthday_greeting, win_back, fill_offer) go on the marketing channel, closed until ventMail opens it; review_request stays transactional with an opt-out (owner/DPO question open).",
+    "Redesign 2026 (docs/design/email-templates): a designed template's dotted name (booking.time) is sent with underscores (booking_time) — ventMail reads a dot as nesting, and t:variables are flat scalars. `design` names the designed template a key stands for; `design_pending` the variables that wait for a backlog item."
   ],
   "templates": [
     {
@@ -25,12 +26,37 @@
         "service_name": "string — the booked service",
         "price": "string — the price, formatted with currency (e.g. '9 900 Ft')",
         "list_price": "string|null — the list price before a deal, formatted; null without a deal",
-        "starts_at_local": "string — start in the location's time zone, 'YYYY-MM-DD HH:MM'"
+        "starts_at_local": "string — start in the location's time zone, 'YYYY-MM-DD HH:MM'",
+        "booking_weekday": "string — the weekday of the start, on the location's clock ('szombat')",
+        "booking_date_long": "string — the day in words ('október 18., szombat')",
+        "booking_time": "string — the start time ('14:00', '9:05')",
+        "booking_end_time": "string — the end time",
+        "booking_price": "string — the price the guest pays, formatted ('9 900 Ft')",
+        "booking_cancel_deadline": "string — until when it is free to cancel, from the window kept on the booking ('október 17., péntek 14:00'; 'bármikor' once the provider moved it)",
+        "staff_name": "string — who does it",
+        "provider_name": "string — the provider's name",
+        "provider_the_name": "string — the name with its article ('a Rózsa Stúdió', 'az Ilona Stúdió')",
+        "provider_the_name_cap": "string — the same at a sentence's start ('A …', 'Az …')",
+        "provider_address": "string — the address of the place ('' when the profile has none)",
+        "provider_public_url": "string — the provider's page on vemoa.app ('' without a public page)",
+        "guest_name": "string — the guest's name",
+        "guest_first_name": "string — the guest's given name (Hungarian order: the last word, never an initial)",
+        "links_my_bookings": "string — https://vemoa.app/app/aktivitas",
+        "links_provider_page": "string — the provider's page on vemoa.app ('' without one)",
+        "links_explore": "string — https://vemoa.app/kereses"
       },
-      "required_links": [],
+      "required_links": [
+        "links_my_bookings"
+      ],
       "subject": {
-        "hu": "Foglalás visszaigazolása — {{ workspace_name }}",
+        "hu": "Lefoglalva: {{ booking_weekday }} {{ booking_time }}, {{ provider_name }}",
         "en": "Your booking is confirmed — {{ workspace_name }}"
+      },
+      "design": "G2-foglalas-visszaigazolva",
+      "design_pending": {
+        "links_calendar_ics": "BL-09",
+        "links_directions": "BL-09",
+        "links_manage": "BL-12"
       }
     },
     {
@@ -63,12 +89,37 @@
         "service_name": "string — the booked service",
         "price": "string — the price, formatted with currency (e.g. '9 900 Ft')",
         "list_price": "string|null — the list price before a deal, formatted; null without a deal",
-        "starts_at_local": "string — start in the location's time zone, 'YYYY-MM-DD HH:MM'"
+        "starts_at_local": "string — start in the location's time zone, 'YYYY-MM-DD HH:MM'",
+        "booking_weekday": "string — the weekday of the start, on the location's clock ('szombat')",
+        "booking_date_long": "string — the day in words ('október 18., szombat')",
+        "booking_time": "string — the start time ('14:00', '9:05')",
+        "booking_end_time": "string — the end time",
+        "booking_price": "string — the price the guest pays, formatted ('9 900 Ft')",
+        "booking_cancel_deadline": "string — until when it is free to cancel, from the window kept on the booking ('október 17., péntek 14:00'; 'bármikor' once the provider moved it)",
+        "staff_name": "string — who does it",
+        "provider_name": "string — the provider's name",
+        "provider_the_name": "string — the name with its article ('a Rózsa Stúdió', 'az Ilona Stúdió')",
+        "provider_the_name_cap": "string — the same at a sentence's start ('A …', 'Az …')",
+        "provider_address": "string — the address of the place ('' when the profile has none)",
+        "provider_public_url": "string — the provider's page on vemoa.app ('' without a public page)",
+        "guest_name": "string — the guest's name",
+        "guest_first_name": "string — the guest's given name (Hungarian order: the last word, never an initial)",
+        "links_my_bookings": "string — https://vemoa.app/app/aktivitas",
+        "links_provider_page": "string — the provider's page on vemoa.app ('' without one)",
+        "links_explore": "string — https://vemoa.app/kereses"
       },
-      "required_links": [],
+      "required_links": [
+        "links_my_bookings"
+      ],
       "subject": {
-        "hu": "Emlékeztető: holnap {{ starts_at_local }} — {{ workspace_name }}",
+        "hu": "Emlékeztető: {{ booking_weekday }} {{ booking_time }}, {{ provider_name }}",
         "en": "Reminder: tomorrow {{ starts_at_local }} — {{ workspace_name }}"
+      },
+      "design": "G3-emlekezteto",
+      "design_pending": {
+        "links_cancel": "BL-12",
+        "links_reschedule": "BL-10",
+        "links_directions": "BL-09"
       }
     },
     {
@@ -102,15 +153,38 @@
         "price": "string — the price, formatted with currency (e.g. '9 900 Ft')",
         "list_price": "string|null — the list price before a deal, formatted; null without a deal",
         "starts_at_local": "string — start in the location's time zone, 'YYYY-MM-DD HH:MM'",
-        "optout_url": "string — Vemoa's signed one-click opt-out link (marketing for this guest; /unsubscribe/…). NOT ventMail's reserved unsubscribe_url"
+        "optout_url": "string — Vemoa's signed one-click opt-out link (marketing for this guest; /unsubscribe/…). NOT ventMail's reserved unsubscribe_url",
+        "booking_weekday": "string — the weekday of the start, on the location's clock ('szombat')",
+        "booking_date_long": "string — the day in words ('október 18., szombat')",
+        "booking_time": "string — the start time ('14:00', '9:05')",
+        "booking_end_time": "string — the end time",
+        "booking_price": "string — the price the guest pays, formatted ('9 900 Ft')",
+        "booking_cancel_deadline": "string — until when it is free to cancel, from the window kept on the booking ('október 17., péntek 14:00'; 'bármikor' once the provider moved it)",
+        "staff_name": "string — who does it",
+        "provider_name": "string — the provider's name",
+        "provider_the_name": "string — the name with its article ('a Rózsa Stúdió', 'az Ilona Stúdió')",
+        "provider_the_name_cap": "string — the same at a sentence's start ('A …', 'Az …')",
+        "provider_address": "string — the address of the place ('' when the profile has none)",
+        "provider_public_url": "string — the provider's page on vemoa.app ('' without a public page)",
+        "guest_name": "string — the guest's name",
+        "guest_first_name": "string — the guest's given name (Hungarian order: the last word, never an initial)",
+        "links_my_bookings": "string — https://vemoa.app/app/aktivitas",
+        "links_provider_page": "string — the provider's page on vemoa.app ('' without one)",
+        "links_explore": "string — https://vemoa.app/kereses",
+        "links_review": "string — where the review is written (Foglalásaim; one-click ?rating= waits for BL-12)",
+        "links_unsubscribe": "string — the same as optout_url: no more review requests from this provider"
       },
       "required_links": [
-        "optout_url"
+        "links_my_bookings",
+        "links_review",
+        "links_unsubscribe"
       ],
       "subject": {
-        "hu": "Milyen volt a látogatás? — {{ workspace_name }}",
+        "hu": "Milyen volt? Két perc az egész",
         "en": "How was your visit? — {{ workspace_name }}"
-      }
+      },
+      "design": "G7-ertekeles-keres",
+      "design_pending": {}
     },
     {
       "key": "booking-confirmation-request",
@@ -122,15 +196,37 @@
         "workspace_name": "string — the business the guest booked at",
         "starts_at_local": "string — start in the location's time zone, 'YYYY-MM-DD HH:MM'",
         "confirm_url": "string — confirmation link (the token is in the URL fragment: keep click tracking OFF for it)",
-        "expires_in_minutes": "int — minutes until the held slot is released"
+        "expires_in_minutes": "int — minutes until the held slot is released",
+        "booking_weekday": "string — the weekday of the start, on the location's clock ('szombat')",
+        "booking_date_long": "string — the day in words ('október 18., szombat')",
+        "booking_time": "string — the start time ('14:00', '9:05')",
+        "booking_end_time": "string — the end time",
+        "booking_price": "string — the price the guest pays, formatted ('9 900 Ft')",
+        "booking_cancel_deadline": "string — until when it is free to cancel, from the window kept on the booking ('október 17., péntek 14:00'; 'bármikor' once the provider moved it)",
+        "service_name": "string — the booked service",
+        "staff_name": "string — who does it",
+        "provider_name": "string — the provider's name",
+        "provider_the_name": "string — the name with its article ('a Rózsa Stúdió', 'az Ilona Stúdió')",
+        "provider_the_name_cap": "string — the same at a sentence's start ('A …', 'Az …')",
+        "provider_address": "string — the address of the place ('' when the profile has none)",
+        "provider_public_url": "string — the provider's page on vemoa.app ('' without a public page)",
+        "guest_first_name": "string — the guest's given name (Hungarian order: the last word, never an initial)",
+        "links_my_bookings": "string — https://vemoa.app/app/aktivitas",
+        "links_provider_page": "string — the provider's page on vemoa.app ('' without one)",
+        "links_explore": "string — https://vemoa.app/kereses",
+        "links_confirm": "string — the confirmation link (the token in the fragment)",
+        "booking_hold_expires_time": "string — until when the time is held ('14:30')"
       },
       "required_links": [
-        "confirm_url"
+        "links_confirm",
+        "links_my_bookings"
       ],
       "subject": {
-        "hu": "Erősítsd meg a foglalást — {{ workspace_name }}",
+        "hu": "Erősítsd meg: {{ booking_weekday }} {{ booking_time }}, {{ provider_name }}",
         "en": "Confirm your booking — {{ workspace_name }}"
-      }
+      },
+      "design": "G1-foglalas-megerositese",
+      "design_pending": {}
     },
     {
       "key": "waitlist_slot",
@@ -546,12 +642,24 @@
       "purpose": "The provider's marketplace listing was approved (pending -> active).",
       "variables": {
         "provider_name": "string — the provider's business name",
-        "reason": "string — the admin's reason; may be empty"
+        "reason": "string — the admin's reason; may be empty",
+        "provider_the_name": "string — the name with its article ('a Rózsa Stúdió', 'az Ilona Stúdió')",
+        "links_public_preview": "string — the provider's page on vemoa.app",
+        "links_account": "string — https://biz.vemoa.app/profile",
+        "profile_completeness": "string — the setup checklist, 'done/total' ('' before the wizard is finished)",
+        "profile_missing": "string — the open setup steps in words, comma-separated"
       },
-      "required_links": [],
+      "required_links": [
+        "links_account",
+        "links_public_preview"
+      ],
       "subject": {
-        "hu": "Jóváhagyták a jelentkezésedet — {{ provider_name }}",
+        "hu": "Megjelentél a Vemoa piacterén",
         "en": "Your listing was approved — {{ provider_name }}"
+      },
+      "design": "P5-piacter-jovahagyva",
+      "design_pending": {
+        "links_notification_settings": "BL-23"
       }
     },
     {
@@ -573,15 +681,24 @@
       "key": "provider-suspended",
       "audience": "provider",
       "channel": "transactional",
-      "purpose": "The provider was suspended (active -> suspended); no bookings are taken.",
+      "purpose": "The provider was suspended (active -> suspended); no bookings are taken. The stored template stays the pre-redesign one until a real complaint channel exists (BL-19): the design asks for a reply, the sender takes none.",
       "variables": {
         "provider_name": "string — the provider's business name",
-        "reason": "string — the admin's reason; may be empty"
+        "reason": "string — the admin's reason; may be empty",
+        "provider_the_name": "string — the name with its article ('a Rózsa Stúdió', 'az Ilona Stúdió')",
+        "links_account": "string — https://biz.vemoa.app/profile",
+        "suspension_reason": "string — the reason the operator gave (also in reason)",
+        "suspension_effective_at": "string — since when, in words ('október 16., péntek 10:30')",
+        "suspension_impact": "string — what it means, in words"
       },
       "required_links": [],
       "subject": {
         "hu": "Felfüggesztettük a fiókodat — {{ provider_name }}",
         "en": "Your account was suspended — {{ provider_name }}"
+      },
+      "design": "S1-felfuggesztes",
+      "design_pending": {
+        "links_appeal": "BL-19"
       }
     },
     {
@@ -613,6 +730,151 @@
       "subject": {
         "hu": "Támogatási belépés a fiókodba — {{ provider_name }}",
         "en": "A support session was opened in your account — {{ provider_name }}"
+      }
+    },
+    {
+      "key": "booking-rescheduled",
+      "audience": "guest",
+      "channel": "transactional",
+      "purpose": "The provider moved the booking to another time (booking.appointment_rescheduled); the old time is said too.",
+      "variables": {
+        "booking_weekday": "string — the weekday of the start, on the location's clock ('szombat')",
+        "booking_date_long": "string — the day in words ('október 18., szombat')",
+        "booking_time": "string — the start time ('14:00', '9:05')",
+        "booking_end_time": "string — the end time",
+        "booking_price": "string — the price the guest pays, formatted ('9 900 Ft')",
+        "booking_cancel_deadline": "string — until when it is free to cancel, from the window kept on the booking ('október 17., péntek 14:00'; 'bármikor' once the provider moved it)",
+        "service_name": "string — the booked service",
+        "staff_name": "string — who does it",
+        "provider_name": "string — the provider's name",
+        "provider_the_name": "string — the name with its article ('a Rózsa Stúdió', 'az Ilona Stúdió')",
+        "provider_the_name_cap": "string — the same at a sentence's start ('A …', 'Az …')",
+        "provider_address": "string — the address of the place ('' when the profile has none)",
+        "provider_public_url": "string — the provider's page on vemoa.app ('' without a public page)",
+        "guest_name": "string — the guest's name",
+        "guest_first_name": "string — the guest's given name (Hungarian order: the last word, never an initial)",
+        "links_my_bookings": "string — https://vemoa.app/app/aktivitas",
+        "links_provider_page": "string — the provider's page on vemoa.app ('' without one)",
+        "links_explore": "string — https://vemoa.app/kereses",
+        "booking_previous_datetime": "string — the old time in words ('október 16., péntek 10:00')"
+      },
+      "required_links": [
+        "links_my_bookings"
+      ],
+      "subject": {
+        "hu": "Áthelyezve: {{ booking_weekday }} {{ booking_time }}, {{ provider_name }}",
+        "en": "Moved: {{ booking_weekday }} {{ booking_time }}, {{ provider_name }}"
+      },
+      "design": "G4-athelyezve",
+      "design_pending": {
+        "links_calendar_ics": "BL-09",
+        "links_manage": "BL-12"
+      }
+    },
+    {
+      "key": "booking-cancelled",
+      "audience": "guest",
+      "channel": "transactional",
+      "purpose": "The guest's own cancellation went through (booking.appointment_cancelled / _late).",
+      "variables": {
+        "booking_weekday": "string — the weekday of the start, on the location's clock ('szombat')",
+        "booking_date_long": "string — the day in words ('október 18., szombat')",
+        "booking_time": "string — the start time ('14:00', '9:05')",
+        "booking_end_time": "string — the end time",
+        "booking_price": "string — the price the guest pays, formatted ('9 900 Ft')",
+        "booking_cancel_deadline": "string — until when it is free to cancel, from the window kept on the booking ('október 17., péntek 14:00'; 'bármikor' once the provider moved it)",
+        "service_name": "string — the booked service",
+        "staff_name": "string — who does it",
+        "provider_name": "string — the provider's name",
+        "provider_the_name": "string — the name with its article ('a Rózsa Stúdió', 'az Ilona Stúdió')",
+        "provider_the_name_cap": "string — the same at a sentence's start ('A …', 'Az …')",
+        "provider_address": "string — the address of the place ('' when the profile has none)",
+        "provider_public_url": "string — the provider's page on vemoa.app ('' without a public page)",
+        "guest_name": "string — the guest's name",
+        "guest_first_name": "string — the guest's given name (Hungarian order: the last word, never an initial)",
+        "links_my_bookings": "string — https://vemoa.app/app/aktivitas",
+        "links_provider_page": "string — the provider's page on vemoa.app ('' without one)",
+        "links_explore": "string — https://vemoa.app/kereses"
+      },
+      "required_links": [
+        "links_my_bookings",
+        "links_provider_page"
+      ],
+      "subject": {
+        "hu": "Lemondva: {{ booking_weekday }} {{ booking_time }}, {{ provider_name }}",
+        "en": "Cancelled: {{ booking_weekday }} {{ booking_time }}, {{ provider_name }}"
+      },
+      "design": "G5-lemondva-vendeg",
+      "design_pending": {}
+    },
+    {
+      "key": "provider-booking-cancelled",
+      "audience": "provider",
+      "channel": "transactional",
+      "purpose": "A guest cancelled: the time is free again (to the provider's contact address).",
+      "variables": {
+        "booking_weekday": "string — the weekday of the start, on the location's clock ('szombat')",
+        "booking_date_long": "string — the day in words ('október 18., szombat')",
+        "booking_time": "string — the start time ('14:00', '9:05')",
+        "booking_end_time": "string — the end time",
+        "booking_price": "string — the price the guest pays, formatted ('9 900 Ft')",
+        "booking_cancel_deadline": "string — until when it is free to cancel, from the window kept on the booking ('október 17., péntek 14:00'; 'bármikor' once the provider moved it)",
+        "service_name": "string — the booked service",
+        "staff_name": "string — who does it",
+        "provider_name": "string — the provider's name",
+        "provider_the_name": "string — the name with its article ('a Rózsa Stúdió', 'az Ilona Stúdió')",
+        "provider_the_name_cap": "string — the same at a sentence's start ('A …', 'Az …')",
+        "provider_address": "string — the address of the place ('' when the profile has none)",
+        "provider_public_url": "string — the provider's page on vemoa.app ('' without a public page)",
+        "guest_name": "string — the guest's name",
+        "guest_first_name": "string — the guest's given name (Hungarian order: the last word, never an initial)",
+        "links_my_bookings": "string — https://vemoa.app/app/aktivitas",
+        "links_provider_page": "string — the provider's page on vemoa.app ('' without one)",
+        "links_explore": "string — https://vemoa.app/kereses",
+        "links_calendar_admin": "string — the day in the biz calendar",
+        "links_create_deal": "string — the deals page (a deal on the very slot waits for BL-15)",
+        "links_account": "string — https://biz.vemoa.app/profile (the footer's „Fiókom”)"
+      },
+      "required_links": [
+        "links_account",
+        "links_calendar_admin",
+        "links_create_deal"
+      ],
+      "subject": {
+        "hu": "Felszabadult: {{ booking_weekday }} {{ booking_time }} — {{ guest_name }} lemondta",
+        "en": "Freed: {{ booking_weekday }} {{ booking_time }} — {{ guest_name }} cancelled"
+      },
+      "design": "P3-lemondas-felszabadult",
+      "design_pending": {
+        "links_notification_settings": "BL-23"
+      }
+    },
+    {
+      "key": "provider-new-review",
+      "audience": "provider",
+      "channel": "transactional",
+      "purpose": "A guest wrote a review (reviews.written), to the provider's contact address.",
+      "variables": {
+        "review_rating": "int — the stars, 1–5",
+        "review_author": "string — the name as it shows publicly",
+        "review_text": "string — the review text",
+        "review_excerpt": "string — the text cut to 140 characters",
+        "service_name": "string — the booked service",
+        "provider_the_name": "string — the name with its article ('a Rózsa Stúdió', 'az Ilona Stúdió')",
+        "links_review_admin": "string — https://biz.vemoa.app/visibility, where it is answered",
+        "links_account": "string — https://biz.vemoa.app/profile (the footer's „Fiókom”)"
+      },
+      "required_links": [
+        "links_account",
+        "links_review_admin"
+      ],
+      "subject": {
+        "hu": "Új értékelés: {{ review_rating }}/5 — {{ review_author }}",
+        "en": "New review: {{ review_rating }}/5 — {{ review_author }}"
+      },
+      "design": "P6-uj-ertekeles",
+      "design_pending": {
+        "links_notification_settings": "BL-23"
       }
     }
   ]

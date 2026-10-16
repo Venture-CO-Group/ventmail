@@ -1,11 +1,13 @@
-Jóváhagyták a jelentkezésedet
+MOSTANTÓL A KÖRNYÉK IS LÁT.
 
-A(z) {{ provider_name }} jelentkezését jóváhagytuk, a listázásod aktív.
+Jóváhagytuk a kereskedői adataidat: {{ provider_the_name }} megjelenik a Felfedezésben. A rangsor szabad időponton, távolságon és ellenőrzött értékeléseken múlik.
 
-Szolgáltató: {{ provider_name }}
-Indoklás: {{ reason || – }}
+Profil teljessége: {{ profile_completeness || — }}
+Hiányzik még: {{ profile_missing || semmi, minden kész }}
 
--- 
-Szolgáltatói értesítés a Vemoa-tól, a Vemoa-fiókodhoz kapcsolódóan.
-Ez egy automatikus értesítés, kérjük, ne válaszolj rá.
-Venture co. group · Vemoa
+Megnézem, hogyan látnak: {{ links_public_preview }}
+
+—
+Ezt a levelet azért kapod, mert te kezeled {{ provider_the_name }} Vemoa-fiókját.
+Fiókom: {{ links_account }}
+Vemoa — időpont, nem telefon. A Venture CO Group terméke.

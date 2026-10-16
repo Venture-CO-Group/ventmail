@@ -1,0 +1,12 @@
+A TIME IS FREE AGAIN.
+
+{{ guest_name }} cancelled: {{ booking_date_long }}, {{ booking_time }} · {{ service_name }}, {{ staff_name }}. It can be booked again.
+
+Put a deal on it: {{ links_create_deal }}
+
+See it in the calendar: {{ links_calendar_admin }}
+
+—
+You received this e-mail because you manage {{ provider_name }} on Vemoa.
+My account: {{ links_account }}
+Vemoa — book a time, not a call. A Venture CO Group product.

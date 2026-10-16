@@ -1,11 +1,13 @@
-Your listing was approved
+NOW THE NEIGHBOURHOOD SEES YOU TOO.
 
-The listing for {{ provider_name }} was approved and is now active.
+We approved your business details: {{ provider_the_name }} shows in Discover. The ranking rests on free times, distance and verified reviews.
 
-Provider: {{ provider_name }}
-Reason: {{ reason || – }}
+Profile: {{ profile_completeness || — }}
+Still missing: {{ profile_missing || nothing, all set }}
 
--- 
-Provider notice from Vemoa, related to your Vemoa account.
-This is an automated message, please do not reply.
-Venture co. group · Vemoa
+See how they see you: {{ links_public_preview }}
+
+—
+You received this e-mail because you manage {{ provider_the_name }} on Vemoa.
+My account: {{ links_account }}
+Vemoa — book a time, not a call. A Venture CO Group product.

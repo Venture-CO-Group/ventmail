@@ -1,20 +1,17 @@
-Erősítsd meg a foglalást
+MÉG EGY KATTINTÁS, ÉS A TIÉD.
 
-Kedves {{ guest_name }}!
+Szia {{ guest_first_name }}! Fenntartjuk neked ezt az időpontot. Erősítsd meg, és már küldjük is a visszaigazolást.
 
-A(z) {{ workspace_name }} szolgáltatónál lefoglaltuk neked az alábbi időpontot, de a végleges foglaláshoz meg kell erősítened az e-mail-címedet.
+Mikor: {{ booking_date_long }}, {{ booking_time }}–{{ booking_end_time }}
+Mit: {{ service_name }} · {{ staff_name }}
+Hol: {{ provider_name }}, {{ provider_address }}
+Ár: {{ booking_price }}
 
-Szolgáltató: {{ workspace_name }}
-Időpont: {{ starts_at_local }}
+Megerősítem az időpontot: {{ links_confirm }}
 
-Foglalás megerősítése:
-{{ confirm_url }}
+Ha {{ booking_hold_expires_time }}-ig nem erősíted meg, az időpont felszabadul, és más foglalhatja le. Nem te foglaltál? Akkor nincs teendőd, hagyd figyelmen kívül ezt a levelet.
 
-A lefoglalt hely {{ expires_in_minutes }} percig marad meg, utána felszabadul.
-
-Ha nem te foglaltál, hagyd figyelmen kívül ezt a levelet.
-
--- 
-Ezt a levelet a Vemoa küldte a(z) {{ workspace_name }} nevében, a foglalásoddal kapcsolatban.
-Ez egy automatikus értesítés, kérjük, ne válaszolj rá.
-Venture co. group · Vemoa
+—
+Ezt a levelet azért kaptad, mert ezzel az e-mail-címmel időpontot foglaltak a Vemoán.
+Foglalásaim: {{ links_my_bookings }}
+Vemoa — időpont, nem telefon. A Venture CO Group terméke.

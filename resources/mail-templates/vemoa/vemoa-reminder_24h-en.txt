@@ -1,15 +1,17 @@
-Reminder: see you tomorrow
+SEE YOU SOON.
 
-Hello {{ client_name }},
+Hi {{ guest_first_name }}! {{ provider_name }} expects you on {{ booking_date_long }} at {{ booking_time }}.
 
-A friendly reminder that you have an appointment tomorrow.
+When: {{ booking_date_long }}, {{ booking_time }}–{{ booking_end_time }}
+What: {{ service_name }} · {{ staff_name }}
+Where: {{ provider_name }}, {{ provider_address }}
+Price: {{ booking_price }}
 
-Provider: {{ workspace_name }}
-Service: {{ service_name }}
-Time: {{ starts_at_local }}
-Price: {{ price }}
+My bookings — cancel: {{ links_my_bookings }}
 
--- 
-This email was sent by Vemoa on behalf of {{ workspace_name }}, regarding your booking.
-This is an automated message, please do not reply.
-Venture co. group · Vemoa
+If you cannot make it, cancel now: someone else can book the time, and the provider isn't left waiting.
+
+—
+You received this e-mail because a booking was made with this address on Vemoa.
+My bookings: {{ links_my_bookings }}
+Vemoa — book a time, not a call. A Venture CO Group product.

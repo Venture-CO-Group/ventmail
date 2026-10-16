@@ -1,0 +1,15 @@
+ÁTHELYEZTÜK AZ IDŐPONTODAT.
+
+Az időpontod átkerült. Az előző ({{ booking_previous_datetime }}) felszabadult.
+
+Mikor: {{ booking_date_long }}, {{ booking_time }}–{{ booking_end_time }}
+Mit: {{ service_name }} · {{ staff_name }}
+Hol: {{ provider_name }}, {{ provider_address }}
+Ár: {{ booking_price }}
+
+Foglalásaim: {{ links_my_bookings }}
+
+—
+Ezt a levelet azért kaptad, mert ezzel az e-mail-címmel időpontot foglaltak a Vemoán.
+Foglalásaim: {{ links_my_bookings }}
+Vemoa — időpont, nem telefon. A Venture CO Group terméke.

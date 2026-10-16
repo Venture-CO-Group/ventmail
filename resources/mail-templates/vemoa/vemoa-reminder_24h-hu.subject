@@ -1,1 +1,1 @@
-Emlékeztető: holnap {{ starts_at_local }} — {{ workspace_name }}
+Emlékeztető: {{ booking_weekday }} {{ booking_time }}, {{ provider_name }}
