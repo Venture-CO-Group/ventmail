@@ -681,7 +681,7 @@
       "key": "provider-suspended",
       "audience": "provider",
       "channel": "transactional",
-      "purpose": "The provider was suspended (active -> suspended); no bookings are taken. The stored template stays the pre-redesign one until a real complaint channel exists (BL-19): the design asks for a reply, the sender takes none.",
+      "purpose": "The provider was suspended (active -> suspended); no bookings are taken. The objection goes to a watched address (support_email, P2B art. 11); the sender is no-reply.",
       "variables": {
         "provider_name": "string — the provider's business name",
         "reason": "string — the admin's reason; may be empty",
@@ -689,17 +689,20 @@
         "links_account": "string — https://biz.vemoa.app/profile",
         "suspension_reason": "string — the reason the operator gave (also in reason)",
         "suspension_effective_at": "string — since when, in words ('október 16., péntek 10:30')",
-        "suspension_impact": "string — what it means, in words"
+        "suspension_impact": "string — what it means, in words",
+        "support_email": "string — where the provider objects (VEMOA_SUPPORT_EMAIL, support@vemoa.hu)",
+        "links_appeal": "string — mailto: the support address with the subject naming the provider"
       },
-      "required_links": [],
+      "required_links": [
+        "links_account",
+        "links_appeal"
+      ],
       "subject": {
-        "hu": "Felfüggesztettük a fiókodat — {{ provider_name }}",
-        "en": "Your account was suspended — {{ provider_name }}"
+        "hu": "Fontos: felfüggesztettük {{ provider_the_name }} Vemoa-profilját",
+        "en": "Important: we suspended the Vemoa profile of {{ provider_name }}"
       },
       "design": "S1-felfuggesztes",
-      "design_pending": {
-        "links_appeal": "BL-19"
-      }
+      "design_pending": {}
     },
     {
       "key": "provider-closed",
