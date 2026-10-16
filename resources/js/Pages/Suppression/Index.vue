@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { router } from '@inertiajs/vue3';
-import { VtBanner, VtButton, VtField, VtInput, VtModal, VtSelect, VtTabs, VtTextarea, type VtColumn } from '@venture-co-group/ui';
+import { VtBanner, VtButton, VtEmptyState, VtField, VtInput, VtModal, VtPageHeader, VtSelect, VtTabs, VtTextarea, type VtColumn } from '@venture-co-group/ui';
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import VmCard from '../../Components/Form/VmCard.vue';
@@ -9,7 +9,6 @@ import VmFormActions from '../../Components/Form/VmFormActions.vue';
 import VmFormRow from '../../Components/Form/VmFormRow.vue';
 import VmFormSection from '../../Components/Form/VmFormSection.vue';
 import VmTable from '../../Components/Form/VmTable.vue';
-import VmPageHeader from '../../Components/Studio/VmPageHeader.vue';
 import AppLayout from '../../Layouts/AppLayout.vue';
 import { useFormat } from '../../composables/useFormat';
 import { useCodes } from '../../composables/useCodes';
@@ -133,9 +132,11 @@ function confirmRemove(): void {
 
 <template>
     <AppLayout>
-        <VmPageHeader :eyebrow="t('plat.eyebrow.suppressions')" :title="t('plat.suppressions.title')" :lead="t('plat.suppressions.lead')">
-            <VtButton data-testid="suppression-new" @click="adding = true">{{ t('suppressions.add') }}</VtButton>
-        </VmPageHeader>
+        <VtPageHeader :overline="t('nav.platform')" :title="t('plat.suppressions.title')" :description="t('page.suppressions.lead')">
+            <template #actions>
+                <VtButton data-testid="suppression-new" @click="adding = true">{{ t('suppressions.add') }}</VtButton>
+            </template>
+        </VtPageHeader>
 
         <VmCard>
             <VtTabs :tabs="tabs" :model-value="list" :label="t('plat.suppressions.title')" data-testid="suppression-tabs" @update:model-value="visit($event)">
@@ -150,7 +151,7 @@ function confirmRemove(): void {
 
                         <VtBanner tone="info" role="note" :data-testid="`list-note-${id}`">{{ t(`plat.suppressions.note.${id}`) }}</VtBanner>
 
-                        <p v-if="!rows.length" data-testid="suppressions-empty">{{ t('suppressions.empty') }}</p>
+                        <VtEmptyState v-if="!rows.length" :title="t('suppressions.empty')" icon="inbox" data-testid="suppressions-empty" />
                         <VmTable v-else :columns="columns" :rows="rows" :caption="t(`plat.suppressions.list.${id}`)" data-testid="suppressions-table">
                             <template #cell="{ row, column, value }">
                                 <template v-if="column.key === 'uuid'">

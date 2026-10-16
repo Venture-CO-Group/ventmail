@@ -2,52 +2,48 @@
 import { VtCard } from '@venture-co-group/ui';
 
 /**
- * KÁRTYA — a `VtCard` burkolója, ami a BELSŐ RITMUST is adja.
- *
- * A `VtCard` a belső margót (`--vt-space-6`) adja, de a tartalom elemei között nincs
- * távolság: a fejléc, a bekezdés, a tábla és az űrlap egymásra ragadt. A ritmust ITT
- * oldjuk meg (egy flex-oszlop, `--vt-space-4` köz), nem oldalanként — így minden kártya
- * ugyanúgy lélegzik, és egy oldalnak nincs mit kézzel igazítania.
- *
- * JELENTÉS a @venture/ui felé: a `VtCard` törzse kapjon `gap`-et (vagy stack-primitívet);
- * ha megkapja, ez a burkoló kidobható.
+ * KÁRTYA — a közös `VtCard` (Figma Card, Unified UI v2) adaptere: a fejléc (`title`, `#actions`,
+ * `#badge`) és a törzs ritmusa a könyvtáré; itt csak a törzs elemeinek böngésző-margója nullázódik
+ * (a cím, a bekezdés és a lista ne hozzon saját külső margót — a ritmust a törzs `gap`-je adja).
  */
 withDefaults(
     defineProps<{
-        glass?: boolean;
-        glow?: boolean;
+        title?: string;
+        headingLevel?: 2 | 3 | 4 | 5 | 6;
+        /** A törzs margó nélkül — tábla vagy lista a kártya széléig. */
+        flush?: boolean;
     }>(),
-    { glass: false, glow: false },
+    { title: undefined, headingLevel: 2, flush: false },
 );
 </script>
 
 <template>
-    <VtCard class="vm-card" :glass="glass" :glow="glow">
+    <VtCard class="vm-card" :title="title" :heading-level="headingLevel" :flush="flush">
         <template v-if="$slots.header" #header><slot name="header" /></template>
-        <div class="vm-card__content"><slot /></div>
+        <template v-if="$slots.badge" #badge><slot name="badge" /></template>
+        <template v-if="$slots.actions" #actions><slot name="actions" /></template>
+        <slot />
         <template v-if="$slots.footer" #footer><slot name="footer" /></template>
     </VtCard>
 </template>
 
 <style scoped>
-.vm-card {
-    min-width: 0;
+/*
+ | ÁTMENETI (venture-ui #15, 2.1.1): a fej akciói a cím alá tördelnek, nem tolják ki a kártyát.
+ | A kiadás után törlendő.
+ */
+.vm-card :deep(.vt-card__header) {
+    flex-wrap: wrap;
 }
 
-.vm-card__content {
-    display: flex;
-    flex-direction: column;
-    gap: var(--vt-space-4);
-    min-width: 0;
+.vm-card :deep(.vt-card__actions),
+.vm-card :deep(.vt-card__badge) {
+    flex: 0 1 auto;
+    flex-wrap: wrap;
+    max-width: 100%;
 }
 
-/* A kártya címei és bekezdései nem hordoznak saját külső margót — a ritmust a `gap` adja. */
-.vm-card__content > :deep(h1),
-.vm-card__content > :deep(h2),
-.vm-card__content > :deep(h3),
-.vm-card__content > :deep(p),
-.vm-card__content > :deep(ol),
-.vm-card__content > :deep(ul) {
+.vm-card :deep(.vt-card__body) > :where(h1, h2, h3, h4, p, ol, ul, dl) {
     margin: 0;
     overflow-wrap: anywhere;
 }

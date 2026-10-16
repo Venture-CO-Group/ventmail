@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { router, usePage } from '@inertiajs/vue3';
-import { VtBanner, VtButton, VtField, VtInput, VtModal, VtSelect, type VtColumn } from '@venture-co-group/ui';
+import { VtBanner, VtButton, VtEmptyState, VtField, VtInput, VtModal, VtPageHeader, VtSelect, type VtColumn } from '@venture-co-group/ui';
 import VmTable from '../../Components/Form/VmTable.vue';
 import VmCard from '../../Components/Form/VmCard.vue';
 import VmForm from '../../Components/Form/VmForm.vue';
@@ -9,7 +9,6 @@ import VmFormRow from '../../Components/Form/VmFormRow.vue';
 import VmFormSection from '../../Components/Form/VmFormSection.vue';
 import VmCopyButton from '../../Components/Platform/VmCopyButton.vue';
 import VmStateBadge from '../../Components/Platform/VmStateBadge.vue';
-import VmPageHeader from '../../Components/Studio/VmPageHeader.vue';
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import AppLayout from '../../Layouts/AppLayout.vue';
@@ -122,7 +121,7 @@ function confirmAction(): void {
 
 <template>
     <AppLayout>
-        <VmPageHeader :eyebrow="t('plat.eyebrow.smtp')" :title="t('smtp.title')" :lead="t('plat.smtp.lead')" />
+        <VtPageHeader :overline="t('nav.platform')" :title="t('smtp.title')" :description="t('page.smtp.lead')" />
 
         <VtBanner tone="info" role="status">{{ t('smtp.relayNote') }}</VtBanner>
 
@@ -139,8 +138,7 @@ function confirmAction(): void {
             </div>
         </VmCard>
 
-        <VmCard data-testid="smtp-submission">
-            <h2>{{ t('plat.smtp.connection') }}</h2>
+        <VmCard data-testid="smtp-submission" :title="t('plat.smtp.connection')">
             <dl class="vm-kv">
                 <dt>{{ t('plat.smtp.host') }}</dt>
                 <dd class="vt-mono">{{ submission.host }}</dd>
@@ -152,9 +150,7 @@ function confirmAction(): void {
             <p>{{ t('plat.smtp.perDomain') }}</p>
         </VmCard>
 
-        <VmCard>
-            <h2>{{ t('smtp.new') }}</h2>
-
+        <VmCard :title="t('smtp.new')">
             <VmForm @submit.prevent="issue">
                 <VmFormSection>
                     <VtField :label="t('smtp.name')">
@@ -182,10 +178,8 @@ function confirmAction(): void {
             </VmForm>
         </VmCard>
 
-        <VmCard>
-            <h2>{{ t('smtp.existing') }}</h2>
-
-            <p v-if="!rows.length" data-testid="credentials-empty">{{ t('smtp.empty') }}</p>
+        <VmCard :title="t('smtp.existing')">
+            <VtEmptyState v-if="!rows.length" :title="t('smtp.empty')" icon="inbox" data-testid="credentials-empty" />
             <VmTable v-else :columns="columns" :rows="rows" :caption="t('smtp.existing')" data-testid="credentials-table">
                 <template #cell="{ row, column, value }">
                     <VmStateBadge v-if="column.key === 'state'" :state="String(value)" />

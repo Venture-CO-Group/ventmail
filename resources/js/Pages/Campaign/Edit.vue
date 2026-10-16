@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Head, Link, router } from '@inertiajs/vue3';
-import { VtBanner, VtButton, VtField, VtInput, VtRadio, VtSelect } from '@venture-co-group/ui';
+import { VtBanner, VtButton, VtEmptyState, VtField, VtInput, VtRadio, VtSelect } from '@venture-co-group/ui';
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import MergeTagPicker from '../../Components/Editor/MergeTagPicker.vue';
@@ -590,7 +590,7 @@ const sectionTitle = (key: string): string => t(`checklist.section.${key}`);
                             </template>
 
                             <template v-else>
-                                <p v-if="!templates.length" class="vm-cl-hint" data-testid="content-library-empty">{{ t('checklist.contentMode.libraryEmpty') }}</p>
+                                <VtEmptyState v-if="!templates.length" :title="t('checklist.contentMode.libraryEmpty')" icon="inbox" data-testid="content-library-empty" />
                                 <VmFormSection v-else>
                                     <VtField :label="t('campaigns.template')" :hint="t('checklist.templateHint')">
                                         <VtSelect
@@ -741,8 +741,7 @@ const sectionTitle = (key: string): string => t(`checklist.section.${key}`);
             </VmCard>
 
             <aside class="vm-cl-side">
-                <VmCard glass glow>
-                    <h2>{{ t('checklist.preflight') }}</h2>
+                <VmCard :title="t('checklist.preflight')">
                     <ul class="vm-cl-checks" data-testid="preflight">
                         <li v-for="item in checklist.checks" :key="item.key" :data-testid="`check-${item.key}`" :data-ok="item.ok ? 'true' : 'false'">
                             <span class="vm-cl-mark vm-cl-mark--sm" :class="item.ok ? 'is-done' : 'is-fail'" aria-hidden="true">
@@ -781,8 +780,7 @@ const sectionTitle = (key: string): string => t(`checklist.section.${key}`);
                     </p>
                 </VmCard>
 
-                <VmCard v-if="outcomes.length" data-testid="campaign-outcomes">
-                    <h2>{{ t('checklist.outcomes') }}</h2>
+                <VmCard v-if="outcomes.length" data-testid="campaign-outcomes" :title="t('checklist.outcomes')">
                     <p>{{ t('checklist.outcomeCounts', { sent: campaign.sentCount, failed: campaign.failedCount, total: campaign.recipientCount }) }}</p>
                     <ul class="vm-cl-outcomes">
                         <li v-for="row in outcomes" :key="`${row.status}-${row.reason}`" :data-testid="`outcome-${row.status}`" :data-reason="row.reason">

@@ -194,7 +194,10 @@
             "subject": "Tárgy",
             "recipient": "Címzett",
             "status": "Állapot"
-        }
+        },
+        "domainsAllVerified": "mind hitelesítve",
+        "domainsUnverified": "{count} nincs hitelesítve",
+        "suppressionsHint": "visszapattanások és panaszok"
     },
     "domains": {
         "title": "Domainek",
@@ -2745,5 +2748,82 @@
         "clear": "Eltávolítás",
         "typeError": "Ez a fájltípus nem engedélyezett ({types}).",
         "sizeError": "A fájl túl nagy (legfeljebb {mb} MB)."
+    },
+    "page": {
+        "overview": {
+            "lead": "Kimenő forgalom, közönség és kézbesíthetőség egy helyen."
+        },
+        "audience": {
+            "lead": "Kontaktok, hozzájárulási állapot és egyedi mezők."
+        },
+        "segments": {
+            "lead": "ÉS / VAGY feltételekből épülő dinamikus közönségek. Minden küldéskor újraszámolódnak."
+        },
+        "forms": {
+            "lead": "Feliratkozó űrlapok és beállítási központok dupla megerősítéssel."
+        },
+        "templates": {
+            "lead": "Vizuális és kódsablonok nyelvi változatokkal. A kampányok és a tranzakciós küldések használják."
+        },
+        "campaigns": {
+            "lead": "Egyszeri küldések és A/B tesztek. Korlátozott módban a marketingküldés le van tiltva."
+        },
+        "journeys": {
+            "lead": "Eseményekre, dátumokra vagy szegmensbe lépésre induló automatikus folyamatok."
+        },
+        "analytics": {
+            "lead": "Elköteleződés a kampányokban és a tranzakciós levelekben."
+        },
+        "domains": {
+            "lead": "Küldő domainek DNS-rekordokkal és hitelesítési állapottal."
+        },
+        "apiKeys": {
+            "lead": "Workspace-hez kötött kulcsok jogosultsági körökkel és IP-engedélylistával. A kulcs értéke csak egyszer, létrehozáskor látszik."
+        },
+        "smtp": {
+            "lead": "Relay-hozzáférések olyan alkalmazásoknak, amelyek csak SMTP-t beszélnek."
+        },
+        "suppressions": {
+            "lead": "Visszapattanások, panaszok és leiratkozások. A tiltólistás címeket minden küldés kihagyja."
+        },
+        "webhooks": {
+            "lead": "Aláírt események és kézbesítési előzmények."
+        },
+        "storedTemplates": {
+            "lead": "Verziózott API-sablonok, amelyekre a tranzakciós küldések kulccsal hivatkoznak."
+        },
+        "ipPools": {
+            "lead": "Dedikált IP-k, bemelegítési ütemtervek és útválasztási szabályok."
+        },
+        "deliverability": {
+            "lead": "Tiltólisták, hírnév és beérkezési arány."
+        },
+        "logs": {
+            "lead": "Minden üzenet kereshető és nyomon követhető."
+        },
+        "tagStats": {
+            "lead": "Számlálók üzenet-címkénként."
+        },
+        "sendingStats": {
+            "lead": "Elküldött, kézbesített és sikertelen, domainenként és időben."
+        },
+        "docs": {
+            "lead": "REST API-referencia, SDK-k és példák."
+        },
+        "billing": {
+            "lead": "Felhasználás, csomag és számlák — a ventPay kezeli."
+        },
+        "inbound": {
+            "lead": "A bejövő levelek irányítása webhookokra, továbbítási címekre vagy a ventSupportba."
+        },
+        "validation": {
+            "lead": "Ellenőrizd a címeket, mielőtt a közönségbe kerülnek: szintaxis, MX, eldobható és szerepkör-fiókok."
+        },
+        "members": {
+            "lead": "Meghívók és szerepkörök. Az identitást a ventSSO kezeli."
+        },
+        "branding": {
+            "lead": "Logó, színek és lábléc a riportokhoz és a hosztolt oldalakhoz."
+        }
     }
 }

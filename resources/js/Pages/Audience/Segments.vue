@@ -1,11 +1,10 @@
 <script setup lang="ts">
 import { Head, Link, router } from '@inertiajs/vue3';
-import { VtButton, VtModal } from '@venture-co-group/ui';
+import { VtButton, VtEmptyState, VtModal, VtPageHeader } from '@venture-co-group/ui';
 import { ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import VmCard from '../../Components/Form/VmCard.vue';
 import VmIcon from '../../Components/Shell/VmIcon.vue';
-import VmPageHeader from '../../Components/Studio/VmPageHeader.vue';
 import AppLayout from '../../Layouts/AppLayout.vue';
 import { useFormat } from '../../composables/useFormat';
 
@@ -44,15 +43,17 @@ function remove(): void {
     <Head :title="t('segments.title')" />
 
     <AppLayout>
-        <VmPageHeader :eyebrow="t('segments.eyebrow')" :title="t('segments.title')" :lead="t('segments.lead')" testid="segments-header">
-            <VtButton variant="ghost" @click="router.visit('/audience')">{{ t('segments.backToAudience') }}</VtButton>
-            <VtButton data-testid="segment-new" @click="router.visit('/audience/segments/new')">
-                <VmIcon name="plus" /> {{ t('segments.new') }}
-            </VtButton>
-        </VmPageHeader>
+        <VtPageHeader :overline="t('nav.studio')" :title="t('segments.title')" :description="t('page.segments.lead')" data-testid="segments-header">
+            <template #actions>
+                <VtButton variant="ghost" @click="router.visit('/audience')">{{ t('segments.backToAudience') }}</VtButton>
+                <VtButton data-testid="segment-new" @click="router.visit('/audience/segments/new')">
+                    <VmIcon name="plus" /> {{ t('segments.new') }}
+                </VtButton>
+            </template>
+        </VtPageHeader>
 
         <VmCard>
-            <p v-if="!segments.length" data-testid="segments-empty">{{ t('segments.empty') }}</p>
+            <VtEmptyState v-if="!segments.length" :title="t('segments.empty')" icon="inbox" data-testid="segments-empty" />
 
             <ul v-else class="vm-seg-list">
                 <li v-for="segment in segments" :key="segment.uuid" class="vm-seg-list__row" :data-testid="`segment-row-${segment.uuid}`">

@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import { Link, router, usePage } from '@inertiajs/vue3';
-import { VtBadge, VtBanner, VtButton, VtCheckbox, VtField, VtInput, VtSegmented, VtSelect, type VtColumn } from '@venture-co-group/ui';
+import { VtBadge, VtBanner, VtButton, VtCheckbox, VtEmptyState, VtField, VtInput, VtKpiCard, VtPageHeader, VtSegmented, VtSelect, type VtColumn } from '@venture-co-group/ui';
 import axios from 'axios';
-import VmStat from '../../Components/Form/VmStat.vue';
 import VmIcon from '../../Components/Shell/VmIcon.vue';
 import VmBarList from '../../Components/Studio/VmBarList.vue';
 import VmGrowthBars, { type GrowthRow } from '../../Components/Studio/VmGrowthBars.vue';
@@ -278,34 +277,26 @@ function createList(): void {
 
 <template>
     <AppLayout>
-        <header class="vm-audience-head">
-            <div class="vm-audience-head__text">
-                <p class="vm-audience-head__eyebrow">{{ t('insights.eyebrow') }}</p>
-                <h1 class="vt-num">{{ t('audience.title') }}</h1>
-            </div>
-            <div class="vm-audience-head__actions">
-                <VtButton variant="ghost" data-testid="audience-segments" @click="router.visit('/audience/segments')">
+        <VtPageHeader :overline="t('nav.studio')" :title="t('audience.title')" :description="t('page.audience.lead')">
+            <template #actions>
+                <VtButton variant="secondary" data-testid="audience-segments" @click="router.visit('/audience/segments')">
                     <VmIcon name="filter" /> {{ t('audience.segmentBuilder') }}
                 </VtButton>
-                <VtButton variant="ghost" data-testid="audience-tags" @click="router.visit('/audience/tags')">
+                <VtButton variant="secondary" data-testid="audience-tags" @click="router.visit('/audience/tags')">
                     <VmIcon name="tag" /> {{ t('audience.manageTags') }}
                 </VtButton>
                 <VtButton data-testid="audience-import" @click="router.visit('/audience/import')">{{ t('audience.importAction') }}</VtButton>
-            </div>
-        </header>
+            </template>
+        </VtPageHeader>
 
         <VtBanner v-if="insightsError" tone="warning" role="status" data-testid="insights-error">{{ t('insights.failed') }}</VtBanner>
 
         <section v-if="insights" class="vm-insights" data-testid="audience-insights" :aria-label="t('insights.title')">
             <div class="vm-insights__stats">
-                <VmStat :label="t('insights.total')" :value="format.number(insights.totals.total)" :hint="t('insights.addedInWindow', { count: growthTotals.added, days: insights.days })" />
-                <VmStat :label="t('insights.subscribed')" :value="format.number(insights.totals.subscribed)" tone="success" />
-                <VmStat :label="t('insights.pending')" :value="format.number(insights.totals.pending)" :hint="t('insights.pendingHint')" :tone="insights.totals.pending ? 'warning' : 'neutral'" />
-                <VmStat
-                    :label="t('insights.unsubscribed')"
-                    :value="format.number((insights.totals.unsubscribed + insights.totals.cleaned))"
-                    :hint="t('insights.lostInWindow', { count: growthTotals.lost, days: insights.days })"
-                />
+                <VtKpiCard :label="t('insights.total')" :value="format.number(insights.totals.total)" :delta="t('insights.addedInWindow', { count: growthTotals.added, days: insights.days })" />
+                <VtKpiCard :label="t('insights.subscribed')" :value="format.number(insights.totals.subscribed)" />
+                <VtKpiCard :label="t('insights.pending')" :value="format.number(insights.totals.pending)" :delta="t('insights.pendingHint')" />
+                <VtKpiCard :label="t('insights.unsubscribed')" :value="format.number((insights.totals.unsubscribed + insights.totals.cleaned))" :delta="t('insights.lostInWindow', { count: growthTotals.lost, days: insights.days })" />
             </div>
 
             <div class="vm-insights__grid">
@@ -325,12 +316,10 @@ function createList(): void {
                 </VmCard>
 
                 <div class="vm-insights__side">
-                    <VmCard>
-                        <h2>{{ t('insights.sources') }}</h2>
+                    <VmCard :title="t('insights.sources')">
                         <VmBarList :items="sourceItems" testid="insights-sources" />
                     </VmCard>
-                    <VmCard>
-                        <h2>{{ t('insights.engagement') }}</h2>
+                    <VmCard :title="t('insights.engagement')">
                         <VmBarList :items="engagementItems" testid="insights-engagement" />
                     </VmCard>
                 </div>
@@ -341,14 +330,13 @@ function createList(): void {
             {{ t('audience.unconfirmedWarning', { count: unconfirmed }) }}
         </VtBanner>
 
-        <VmCard>
-            <div class="vm-audience-card-head">
-                <h2>{{ t('audience.lists') }}</h2>
+        <VmCard :title="t('audience.lists')">
+            <template #actions>
                 <form class="vm-audience-block-search" role="search" @submit.prevent="reloadBlock('lists', 1, listSearch)">
                     <VtInput v-model="listSearch" :aria-label="t('audience.listSearch')" :placeholder="t('audience.listSearch')" data-testid="lists-search" />
                     <VtButton type="submit" variant="ghost" size="sm" data-testid="lists-search-submit"><VmIcon name="search" /> {{ t('audience.searchAction') }}</VtButton>
                 </form>
-            </div>
+            </template>
 
             <div v-for="list in lists.items" :key="list.uuid" class="vm-stack" :data-testid="`list-${list.uuid}`">
                 <div class="vm-cluster">
@@ -411,8 +399,7 @@ function createList(): void {
             </VmForm>
         </VmCard>
 
-        <VmCard data-testid="custom-fields">
-            <h2>{{ t('audience.customFields') }}</h2>
+        <VmCard data-testid="custom-fields" :title="t('audience.customFields')">
             <p class="vm-audience-hint">{{ t('audience.customFieldsHint') }}</p>
             <p v-if="!fields.length">{{ t('audience.noCustomFields') }}</p>
             <ul v-else class="vm-audience-fields">
@@ -429,11 +416,10 @@ function createList(): void {
             </ul>
         </VmCard>
 
-        <VmCard>
-            <div class="vm-audience-card-head">
-                <h2>{{ t('audience.segments') }}</h2>
+        <VmCard :title="t('audience.segments')">
+            <template #actions>
                 <Link href="/audience/segments/new" data-testid="segment-build-link">{{ t('audience.newSegment') }}</Link>
-            </div>
+            </template>
 
             <form class="vm-audience-block-search" role="search" @submit.prevent="reloadBlock('segments', 1, segmentSearch)">
                 <VtInput v-model="segmentSearch" :aria-label="t('audience.segmentSearch')" :placeholder="t('audience.segmentSearch')" data-testid="segments-search" />
@@ -457,13 +443,12 @@ function createList(): void {
             <VmPager :page="segments.page" :last="segments.last" :total="segments.total" testid="segments-pager" @change="reloadBlock('segments', $event, segments.search)" />
         </VmCard>
 
-        <VmCard>
-            <div class="vm-audience-card-head">
-                <h2>{{ t('audience.contacts') }}</h2>
+        <VmCard :title="t('audience.contacts')">
+            <template #actions>
                 <VtButton variant="ghost" size="sm" :disabled="!contacts.items.length" data-testid="contact-select-page" @click="togglePage">
                     {{ allOnPage ? t('audience.unselectPage') : t('audience.selectPage') }}
                 </VtButton>
-            </div>
+            </template>
 
             <VmForm @submit.prevent="applySearch">
                 <VmFormSection>
@@ -504,7 +489,7 @@ function createList(): void {
                 <VtButton :disabled="!canBulk" data-testid="bulk-apply" @click="applyBulk">{{ t('audience.bulkApply') }}</VtButton>
             </div>
 
-            <p v-if="!rows.length" data-testid="contacts-empty">{{ t('audience.noContacts') }}</p>
+            <VtEmptyState v-if="!rows.length" :title="t('audience.noContacts')" icon="inbox" data-testid="contacts-empty" />
             <VmTable v-else :columns="columns" :rows="rows" :caption="t('audience.contacts')" data-testid="contacts-table">
                 <!-- Az e-mail az ADATLAPRA linkel: mezők, listák, hozzájárulás-történet (import-forrással). -->
                 <template #cell="{ column, row, value }">
@@ -533,35 +518,6 @@ function createList(): void {
 </template>
 
 <style scoped>
-.vm-audience-head {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--vt-space-4);
-}
-
-.vm-audience-head h1 {
-    margin: 0;
-}
-
-.vm-audience-head__text {
-    display: flex;
-    flex-direction: column;
-    gap: var(--vt-space-2);
-    min-width: 0;
-}
-
-.vm-audience-head__eyebrow {
-    margin: 0;
-    color: var(--vt-text-secondary);
-    font-size: var(--vt-type-caption-size);
-    font-weight: var(--vt-weight-semibold);
-    letter-spacing: var(--vt-type-overline-tracking);
-    text-transform: uppercase;
-}
-
-.vm-audience-head__actions,
 .vm-audience-card-head,
 .vm-insights__head,
 .vm-insights__legend,

@@ -150,8 +150,7 @@ function leave(): void {
 
             <VtBanner v-if="errors.import" tone="warning" role="alert" data-testid="import-error">{{ errors.import }}</VtBanner>
 
-            <VmCard v-if="run?.status === 'inspecting'" data-testid="import-inspecting">
-                <h2>{{ t('audience.import.inspecting.title') }}</h2>
+            <VmCard v-if="run?.status === 'inspecting'" data-testid="import-inspecting" :title="t('audience.import.inspecting.title')">
                 <p class="vm-import-counter" role="status">{{ t('audience.import.inspecting.hint') }}</p>
                 <!-- ELAKADT felmérés (5 perc után): üzenet és Mégse — a szerver is csak ekkor engedi. -->
                 <template v-if="inspectingStuck">

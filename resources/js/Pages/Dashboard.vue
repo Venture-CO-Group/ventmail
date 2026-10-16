@@ -1,14 +1,12 @@
 <script setup lang="ts">
 import { Link, router, usePage } from '@inertiajs/vue3';
-import { VtBadge, VtBanner, VtButton, type VtColumn } from '@venture-co-group/ui';
+import { VtBadge, VtBanner, VtButton, VtCard, VtEmptyState, VtIcon, VtKeyValue, VtKpiCard, VtPageHeader, VtProgressBar, type VtColumn } from '@venture-co-group/ui';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import VmSparkline from '../Components/Charts/VmSparkline.vue';
 import VmCard from '../Components/Form/VmCard.vue';
 import VmTable from '../Components/Form/VmTable.vue';
 import VmStateBadge from '../Components/Platform/VmStateBadge.vue';
 import VmIcon from '../Components/Shell/VmIcon.vue';
-import VmPageHeader from '../Components/Studio/VmPageHeader.vue';
 import VmStatusBadge from '../Components/Studio/VmStatusBadge.vue';
 import { useFormat } from '../composables/useFormat';
 import AppLayout from '../Layouts/AppLayout.vue';
@@ -194,8 +192,6 @@ const campaignRows = computed<CampaignTableRow[]>(() =>
 
 /* ---------- Kézbesíthetőség ---------- */
 
-// A sáv kitöltése a küszöbhöz mérten (a küszöb = teli sáv): a 0,48%-os bounce így látható.
-const fill = (value: number | null, threshold: number): string => `${Math.min(100, Math.max(0, ((value ?? 0) / threshold) * 100))}%`;
 
 const recordRows = computed(() =>
     props.deliverability ? (['spf', 'dkim', 'dmarc', 'tracking'] as const).map((key) => ({ key, state: props.deliverability!.records[key] })) : [],
@@ -224,27 +220,30 @@ const rows = computed<Row[]>(() =>
 
 <template>
     <AppLayout>
-        <VmPageHeader
-            :eyebrow="t('dashboard.eyebrow', { workspace: workspaceName, days: kpis?.days ?? 30 })"
+        <VtPageHeader
+            :overline="t('dashboard.eyebrow', { workspace: workspaceName, days: kpis?.days ?? 30 })"
             :title="t('dashboard.title')"
-            :lead="t('dashboard.lead')"
-            testid="dashboard-header"
+            :description="t('page.overview.lead')"
+            data-testid="dashboard-header"
         >
-            <VtButton v-if="can('audience.manage')" variant="secondary" data-testid="dashboard-import" @click="router.visit('/audience/import')">
-                <VmIcon name="upload" /> {{ t('dashboard.import') }}
-            </VtButton>
-            <VtButton v-if="can('campaign.create')" data-testid="dashboard-new-campaign" @click="router.visit('/campaigns?new=1')">
-                <VmIcon name="plus" /> {{ t('dashboard.newCampaign') }}
-            </VtButton>
-        </VmPageHeader>
+            <template #actions>
+                <VtButton v-if="can('audience.manage')" variant="secondary" data-testid="dashboard-import" @click="router.visit('/audience/import')">
+                    <VmIcon name="upload" /> {{ t('dashboard.import') }}
+                </VtButton>
+                <VtButton v-if="can('campaign.create')" data-testid="dashboard-new-campaign" @click="router.visit('/campaigns?new=1')">
+                    <VmIcon name="plus" /> {{ t('dashboard.newCampaign') }}
+                </VtButton>
+            </template>
+        </VtPageHeader>
 
-        <VtBanner v-if="restrictedMode" tone="info" class="vm-dash-mode" role="status" data-testid="sending-mode">
-            <VmIcon name="info" />
-            <span>
-                <strong>{{ t(sendingMode.allowlistEnforced ? 'dashboard.mode.allowlist' : 'dashboard.mode.marketingOff') }}</strong>
-                {{ t('dashboard.mode.hint') }}
-            </span>
-        </VtBanner>
+        <VtBanner
+            v-if="restrictedMode"
+            tone="info"
+            role="status"
+            :title="t(sendingMode.allowlistEnforced ? 'dashboard.mode.allowlist' : 'dashboard.mode.marketingOff')"
+            :description="t('dashboard.mode.hint')"
+            data-testid="sending-mode"
+        />
 
         <VtBanner v-if="hasUnverified" tone="warning" role="status" data-testid="unverified-warning">
             {{ t('dashboard.unverifiedWarning') }}
@@ -256,147 +255,156 @@ const rows = computed<Row[]>(() =>
          | tetővel és aljjal állnak (a grid nyújtja őket). A széles kártyák 4 sávnál 3 + 1 sávot
          | kapnak (kampányok + kézbesíthetőség), 2 és 1 sávnál teljes sort — a sávszámot a CSS dönti
          | el, a komponens csak kiolvassa (`readColumns`), így implicit oszlop sosem keletkezik (D311).
+         | A számok a közös `VtKpiCard`-ok (Figma KpiCard), a teendők egy `VtCard`.
          -->
         <div ref="gridRef" class="vm-dash-grid" :class="{ 'vm-dash-grid--tight': gridColumns > 0 && !wide }" data-testid="dashboard-grid" :data-columns="gridColumns">
             <div class="vm-dash-metrics" data-testid="dashboard-metrics">
-                <VmCard v-for="card in kpiCards" :key="card.key" glass :data-testid="`kpi-${card.key}`" :data-dash-cell="`kpi-${card.key}`">
-                    <div class="vm-dash-kpi">
-                        <span class="vm-dash-kpi__label">{{ card.label }}</span>
-                        <strong class="vm-dash-kpi__value" :data-testid="`kpi-${card.key}-value`">{{ card.value }}</strong>
-                        <span v-if="card.trend" class="vm-dash-kpi__trend" :class="`vm-dash-kpi__trend--${card.trend.direction}`">
-                            <span aria-hidden="true">{{ card.trend.direction === 'up' ? '▲' : card.trend.direction === 'down' ? '▼' : '•' }}</span>
-                            {{ card.trend.text }}
-                        </span>
-                        <span v-else class="vm-dash-kpi__trend">{{ t('dashboard.kpi.noPrevious') }}</span>
-                        <VmSparkline :values="card.series" :testid="`kpi-${card.key}-spark`" />
-                    </div>
-                </VmCard>
+                <VtKpiCard
+                    v-for="card in kpiCards"
+                    :key="card.key"
+                    :label="card.label"
+                    :value="card.value"
+                    :delta="card.trend ? `${card.trend.direction === 'up' ? '▲' : card.trend.direction === 'down' ? '▼' : '•'} ${card.trend.text}` : t('dashboard.kpi.noPrevious')"
+                    :trend="card.trend?.direction ?? 'flat'"
+                    :spark="card.series.filter((value): value is number => value !== null)"
+                    :data-testid="`kpi-${card.key}`"
+                    :data-dash-cell="`kpi-${card.key}`"
+                />
 
                 <!-- A KPI-blokk nélkül (szerep / keret-túllépés) a küldést megállító számok maradnak. -->
-                <VmCard v-if="kpis && !kpis.available" glass class="vm-dash-full" data-testid="kpis-unavailable" data-dash-cell="kpis-unavailable">
+                <VtCard v-if="kpis && !kpis.available" class="vm-dash-full" data-testid="kpis-unavailable" data-dash-cell="kpis-unavailable">
                     <p class="vm-dash-muted">{{ t('dashboard.kpi.unavailable') }}</p>
-                </VmCard>
+                </VtCard>
 
-                <VmCard glass data-dash-cell="quota">
-                    <div class="vm-dash-kpi">
-                        <span class="vm-dash-kpi__label">{{ t('dashboard.quota') }}</span>
-                        <strong class="vm-dash-kpi__value" data-testid="metric-quota">{{ format.number(quota.remaining) }}</strong>
-                    </div>
-                </VmCard>
+                <VtKpiCard :label="t('dashboard.quota')" :value="format.number(quota.remaining)" data-testid="metric-quota" data-dash-cell="quota" />
 
-                <VmCard glass data-dash-cell="domains">
-                    <div class="vm-dash-kpi">
-                        <span class="vm-dash-kpi__label">{{ t('dashboard.domains') }}</span>
-                        <strong class="vm-dash-kpi__value" data-testid="metric-domains">{{ format.number(domains.verified) }} / {{ format.number(domains.total) }}</strong>
-                    </div>
-                </VmCard>
+                <VtKpiCard
+                    :label="t('dashboard.domains')"
+                    :value="`${format.number(domains.verified)} / ${format.number(domains.total)}`"
+                    :delta="domains.total > 0 ? (hasUnverified ? t('dashboard.domainsUnverified', { count: format.number(domains.total - domains.verified) }) : t('dashboard.domainsAllVerified')) : undefined"
+                    :trend="hasUnverified ? 'down' : 'up'"
+                    data-testid="metric-domains"
+                    data-dash-cell="domains"
+                />
 
-                <VmCard glass data-dash-cell="suppressions">
-                    <div class="vm-dash-kpi">
-                        <span class="vm-dash-kpi__label">{{ t('dashboard.suppressions') }}</span>
-                        <strong class="vm-dash-kpi__value" data-testid="metric-suppressions">{{ format.number(suppressions) }}</strong>
-                    </div>
-                </VmCard>
+                <VtKpiCard
+                    :label="t('dashboard.suppressions')"
+                    :value="format.number(suppressions)"
+                    :delta="t('dashboard.suppressionsHint')"
+                    trend="flat"
+                    data-testid="metric-suppressions"
+                    data-dash-cell="suppressions"
+                />
 
                 <!-- TEENDŐK — a metrika-sor negyedik cellája (a sor így tele van). -->
-                <VmCard glass data-testid="dashboard-todos" data-dash-cell="todos">
-                    <h3>{{ t('dashboard.todos.title') }}</h3>
+                <VtCard :title="t('dashboard.todos.title')" data-testid="dashboard-todos" data-dash-cell="todos">
                     <ul class="vm-dash-todos">
                         <li v-for="todo in todos" :key="todo.key" :data-testid="`todo-${todo.key}`" :data-count="todo.count">
-                            <VmIcon :name="todo.tone === 'warning' ? 'warning' : 'check'" class="vm-dash-todo__icon" :class="`vm-dash-todo__icon--${todo.tone}`" />
-                            <span class="vm-dash-todo__text">
-                                {{ todo.count > 0 ? t(`dashboard.todos.${todo.key}`, { count: format.number(todo.count) }) : t(`dashboard.todos.${todo.key}None`) }}
-                            </span>
-                            <VtButton v-if="todo.count > 0" variant="ghost" size="sm" :data-testid="`todo-${todo.key}-action`" @click="router.visit(todo.href)">
-                                {{ t(`dashboard.todos.action.${todo.key}`) }}
-                            </VtButton>
+                            <VtIcon :name="todo.tone === 'warning' ? 'alert' : 'check'" :size="16" class="vm-dash-todo__icon" :class="`vm-dash-todo__icon--${todo.tone}`" />
+                            <Link v-if="todo.count > 0" :href="todo.href" class="vm-dash-todo__text" :data-testid="`todo-${todo.key}-action`">
+                                {{ t(`dashboard.todos.${todo.key}`, { count: format.number(todo.count) }) }}
+                            </Link>
+                            <span v-else class="vm-dash-todo__text">{{ t(`dashboard.todos.${todo.key}None`) }}</span>
                         </li>
                     </ul>
-                </VmCard>
+                </VtCard>
             </div>
 
-            <!-- A széles kártyák: 4 sávnál kampányok 3 + kézbesíthetőség 1, különben mindkettő teljes sor. -->
-                <!-- LEGUTÓBBI KAMPÁNYOK -->
-                <VmCard
-                    v-if="campaigns !== null"
-                    glass
-                    :class="wide && deliverability ? 'vm-dash-span-3' : 'vm-dash-full'"
-                    data-testid="dashboard-campaigns"
-                    data-dash-cell="campaigns"
-                >
-                    <div class="vm-dash-head">
-                        <h2>{{ t('dashboard.campaigns.title') }}</h2>
-                        <Link href="/campaigns" class="vm-dash-link" data-testid="dashboard-campaigns-all">
-                            {{ t('dashboard.campaigns.all') }} <VmIcon name="chevron" class="vm-dash-link__chevron" />
-                        </Link>
-                    </div>
-
-                    <p v-if="!campaignRows.length" class="vm-dash-muted" data-testid="dashboard-campaigns-empty">{{ t('dashboard.campaigns.empty') }}</p>
-                    <VmTable v-else :columns="campaignColumns" :rows="campaignRows" :caption="t('dashboard.campaigns.title')">
-                        <template #cell="{ row, column, value }">
-                            <Link v-if="column.key === 'name'" :href="`/campaigns/${row.uuid}`" class="vm-dash-campaign" :title="String(value)">{{ value }}</Link>
-                            <VmStatusBadge v-else-if="column.key === 'status'" :status="String(value)" />
-                            <span v-else class="vm-dash-num">{{ value }}</span>
-                        </template>
-                    </VmTable>
-                </VmCard>
-
-                <!-- KÉZBESÍTHETŐSÉG -->
-                <VmCard
-                    v-if="deliverability"
-                    glass
-                    glow
-                    :class="wide && campaigns !== null ? 'vm-dash-span-1' : 'vm-dash-full'"
-                    data-testid="dashboard-deliverability"
-                    data-dash-cell="deliverability"
-                >
-                    <div class="vm-dash-head">
-                        <h2>{{ t('dashboard.deliverability.title') }}</h2>
-                        <VtBadge :tone="deliverability.healthy ? 'success' : 'warning'" data-testid="deliverability-health">
-                            {{ t(deliverability.healthy ? 'dashboard.deliverability.healthy' : 'dashboard.deliverability.attention') }}
-                        </VtBadge>
-                    </div>
-
-                    <div class="vm-dash-rate">
-                        <div class="vm-dash-rate__row">
-                            <span class="vm-dash-muted">{{ t('dashboard.deliverability.bounce') }}</span>
-                            <strong class="vm-dash-num" data-testid="deliverability-bounce">{{ format.percent(deliverability.bounceRate, 2) }}</strong>
-                        </div>
-                        <div class="vm-dash-bar"><i :style="{ inlineSize: fill(deliverability.bounceRate, deliverability.bounceThreshold) }" /></div>
-                    </div>
-
-                    <div class="vm-dash-rate">
-                        <div class="vm-dash-rate__row">
-                            <span class="vm-dash-muted">{{ t('dashboard.deliverability.complaint') }}</span>
-                            <strong class="vm-dash-num" data-testid="deliverability-complaint">{{ format.percent(deliverability.complaintRate, 3) }}</strong>
-                        </div>
-                        <div class="vm-dash-bar"><i :style="{ inlineSize: fill(deliverability.complaintRate, deliverability.complaintThreshold) }" /></div>
-                    </div>
-
-                    <dl class="vm-dash-kv">
-                        <template v-for="record in recordRows" :key="record.key">
-                            <dt>{{ t(`dashboard.deliverability.${record.key}`) }}</dt>
-                            <dd><VmStateBadge :state="record.state" :testid="`deliverability-${record.key}`" /></dd>
-                        </template>
-                    </dl>
-
-                    <VtButton variant="secondary" size="sm" data-testid="dashboard-domains" @click="router.visit('/domains')">
-                        {{ t('dashboard.deliverability.openDomains') }}
-                    </VtButton>
-                </VmCard>
-
-            <!-- LEGUTÓBBI ÜZENETEK (napló) — teljes sor -->
-            <VmCard class="vm-dash-full" data-dash-cell="recent">
-                <h2>{{ t('dashboard.recent') }}</h2>
+            <!--
+             | A széles kártyák (Figma Overview): 4 sávnál a legutóbbi üzenetek 3 + a kézbesíthetőség 1,
+             | alattuk a kampányok teljes sorban; 2 és 1 sávnál mind teljes sor.
+             -->
+            <!-- LEGUTÓBBI ÜZENETEK (napló) -->
+            <VmCard
+                :title="t('dashboard.recent')"
+                :flush="delivery !== null && rows.length > 0"
+                :class="wide && deliverability ? 'vm-dash-span-3' : 'vm-dash-full'"
+                data-dash-cell="recent"
+            >
+                <template v-if="delivery !== null" #actions>
+                    <Link href="/logs" class="vm-dash-link" data-testid="dashboard-logs-all">
+                        <VtIcon name="arrow-up-right" :size="16" /> {{ t('nav.logs') }}
+                    </Link>
+                </template>
 
                 <!-- A JOGOSULTSÁG HIÁNYA SZÖVEG, nem üres doboz: az `author` szerep szándékosan
                      nem kap `logs.view`-t, és ezt meg kell mondani, nem elhallgatni. -->
                 <p v-if="delivery === null" data-testid="logs-forbidden">{{ t('dashboard.noAccess') }}</p>
-                <p v-else-if="!rows.length" data-testid="recent-empty">{{ t('dashboard.empty') }}</p>
+                <VtEmptyState v-else-if="!rows.length" :title="t('dashboard.empty')" icon="inbox" data-testid="recent-empty" />
                 <VmTable v-else :columns="columns" :rows="rows" :caption="t('dashboard.recent')" data-testid="recent-table">
                     <template #cell="{ column, value }">
                         <VmStateBadge v-if="column.key === 'status'" :state="String(value)" />
                         <span v-else class="vm-truncate" :title="String(value ?? '')">{{ value }}</span>
+                    </template>
+                </VmTable>
+            </VmCard>
+
+            <!-- KÉZBESÍTHETŐSÉG -->
+            <VmCard
+                v-if="deliverability"
+                :title="t('dashboard.deliverability.title')"
+                :class="wide ? 'vm-dash-span-1' : 'vm-dash-full'"
+                data-testid="dashboard-deliverability"
+                data-dash-cell="deliverability"
+            >
+                <template #badge>
+                    <VtBadge :tone="deliverability.healthy ? 'success' : 'warning'" data-testid="deliverability-health">
+                        {{ t(deliverability.healthy ? 'dashboard.deliverability.healthy' : 'dashboard.deliverability.attention') }}
+                    </VtBadge>
+                </template>
+
+                <div class="vm-dash-kvs">
+                    <VtKeyValue :label="t('dashboard.deliverability.bounce')">
+                        <span data-testid="deliverability-bounce">{{ format.percent(deliverability.bounceRate, 2) }}</span>
+                    </VtKeyValue>
+                    <VtProgressBar
+                        :value="Math.min(deliverability.bounceRate ?? 0, deliverability.bounceThreshold)"
+                        :max="deliverability.bounceThreshold"
+                        :tone="(deliverability.bounceRate ?? 0) >= deliverability.bounceThreshold ? 'danger' : 'accent'"
+                        :label="t('dashboard.deliverability.bounce')"
+                    />
+                    <VtKeyValue :label="t('dashboard.deliverability.complaint')">
+                        <span data-testid="deliverability-complaint">{{ format.percent(deliverability.complaintRate, 3) }}</span>
+                    </VtKeyValue>
+                    <VtProgressBar
+                        :value="Math.min(deliverability.complaintRate ?? 0, deliverability.complaintThreshold)"
+                        :max="deliverability.complaintThreshold"
+                        :tone="(deliverability.complaintRate ?? 0) >= deliverability.complaintThreshold ? 'danger' : 'accent'"
+                        :label="t('dashboard.deliverability.complaint')"
+                    />
+                    <VtKeyValue v-for="record in recordRows" :key="record.key" :label="t(`dashboard.deliverability.${record.key}`)">
+                        <VmStateBadge :state="record.state" :testid="`deliverability-${record.key}`" />
+                    </VtKeyValue>
+                </div>
+
+                <template #footer>
+                    <VtButton variant="secondary" size="sm" data-testid="dashboard-domains" @click="router.visit('/domains')">
+                        {{ t('dashboard.deliverability.openDomains') }}
+                    </VtButton>
+                </template>
+            </VmCard>
+
+            <!-- LEGUTÓBBI KAMPÁNYOK — teljes sor -->
+            <VmCard
+                v-if="campaigns !== null"
+                :title="t('dashboard.campaigns.title')"
+                :flush="campaignRows.length > 0"
+                class="vm-dash-full"
+                data-testid="dashboard-campaigns"
+                data-dash-cell="campaigns"
+            >
+                <template #actions>
+                    <Link href="/campaigns" class="vm-dash-link" data-testid="dashboard-campaigns-all">
+                        <VtIcon name="arrow-up-right" :size="16" /> {{ t('dashboard.campaigns.all') }}
+                    </Link>
+                </template>
+
+                <VtEmptyState v-if="!campaignRows.length" :title="t('dashboard.campaigns.empty')" icon="inbox" data-testid="dashboard-campaigns-empty" />
+                <VmTable v-else :columns="campaignColumns" :rows="campaignRows" :caption="t('dashboard.campaigns.title')">
+                    <template #cell="{ row, column, value }">
+                        <Link v-if="column.key === 'name'" :href="`/campaigns/${row.uuid}`" class="vm-dash-campaign" :title="String(value)">{{ value }}</Link>
+                        <VmStatusBadge v-else-if="column.key === 'status'" :status="String(value)" />
+                        <span v-else class="vm-dash-num">{{ value }}</span>
                     </template>
                 </VmTable>
             </VmCard>
@@ -405,13 +413,6 @@ const rows = computed<Row[]>(() =>
 </template>
 
 <style scoped>
-.vm-dash-mode {
-    display: flex;
-    gap: var(--vt-space-3);
-    align-items: flex-start;
-    border-color: var(--vt-accent);
-}
-
 /*
  | A KÁRTYARÁCS — 4 / 2 / 1 oszlop, töréspont-literál és media query NÉLKÜL (lásd D18: a media
  | query nem olvas `var()`-t, breakpoint-token nincs). A sáv minimális szélessége a TARTÓ
@@ -452,14 +453,15 @@ const rows = computed<Row[]>(() =>
 }
 
 /*
- | Keskeny rácsnál (2 / 1 sáv) a táblák RÖGZÍTETT elrendezésűek: az oszlopok a kártya szélességén
- | osztoznak, a hosszú érték levágva (`vm-truncate`) vagy tördelve — vízszintes túlcsordulás nincs.
+ | A rács táblái RÖGZÍTETT elrendezésűek (a 3 sávos kártyában és keskeny rácsnál is): az oszlopok a
+ | kártya szélességén osztoznak, a hosszú érték levágva (`vm-truncate`) vagy tördelve — vízszintes
+ | túlcsordulás nincs.
  */
-.vm-dash-grid--tight :deep(.vt-table__el) {
+.vm-dash-grid :deep(.vt-dt__el) {
     table-layout: fixed;
 }
 
-.vm-dash-grid--tight :deep(.vm-truncate) {
+.vm-dash-grid :deep(.vm-truncate) {
     max-inline-size: 100%;
 }
 
@@ -479,45 +481,8 @@ const rows = computed<Row[]>(() =>
     grid-column: 1 / -1;
 }
 
-.vm-dash-kpi {
-    display: flex;
-    flex-direction: column;
-    gap: var(--vt-space-2);
-    min-width: 0;
-}
-
-.vm-dash-kpi__label,
 .vm-dash-muted {
     color: var(--vt-text-secondary);
-}
-
-.vm-dash-kpi__value {
-    font-family: var(--vt-font-display);
-    font-size: var(--vt-type-display-m-size);
-    color: var(--vt-text-primary);
-    font-variant-numeric: tabular-nums;
-    overflow-wrap: anywhere;
-}
-
-.vm-dash-kpi__trend {
-    font-size: var(--vt-type-body-m-size);
-    color: var(--vt-text-secondary);
-}
-
-.vm-dash-kpi__trend--up {
-    color: var(--vt-status-success);
-}
-
-.vm-dash-kpi__trend--down {
-    color: var(--vt-status-danger);
-}
-
-.vm-dash-head {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--vt-space-3);
 }
 
 .vm-dash-link {
@@ -525,6 +490,45 @@ const rows = computed<Row[]>(() =>
     align-items: center;
     gap: var(--vt-space-1);
     color: var(--vt-text-secondary);
+    font-size: var(--vt-type-body-s-medium-size);
+    text-decoration: none;
+}
+
+.vm-dash-link:hover {
+    color: var(--vt-text-primary);
+}
+
+.vm-dash-campaign {
+    min-inline-size: 0;
+}
+
+.vm-dash-span-3 {
+    grid-column: span 3;
+}
+
+.vm-dash-span-1 {
+    grid-column: span 1;
+}
+
+.vm-dash-full {
+    grid-column: 1 / -1;
+}
+
+.vm-dash-muted {
+    color: var(--vt-text-secondary);
+}
+
+.vm-dash-link {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--vt-space-1);
+    color: var(--vt-text-secondary);
+    font-size: var(--vt-type-body-s-medium-size);
+    text-decoration: none;
+}
+
+.vm-dash-link:hover {
+    color: var(--vt-text-primary);
 }
 
 .vm-dash-link__chevron {
@@ -543,49 +547,17 @@ const rows = computed<Row[]>(() =>
     white-space: nowrap;
 }
 
-.vm-dash-rate {
+/* A kézbesíthetőség sorai: kulcs–érték, alattuk a küszöbhöz mért sáv (Figma KeyValue + ProgressBar). */
+.vm-dash-kvs {
     display: flex;
     flex-direction: column;
     gap: var(--vt-space-2);
 }
 
-.vm-dash-rate__row {
-    display: flex;
-    justify-content: space-between;
-    gap: var(--vt-space-3);
-}
-
-.vm-dash-bar {
-    block-size: var(--vt-space-1);
-    border-radius: var(--vt-radius-full);
-    background-color: var(--vt-surface-2);
-    overflow: hidden;
-}
-
-.vm-dash-bar > i {
-    display: block;
-    block-size: 100%;
-    background-color: var(--vt-accent);
-}
-
-.vm-dash-kv {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: var(--vt-space-3) var(--vt-space-4);
-    align-items: center;
-    margin: 0;
-    padding-block-start: var(--vt-space-4);
-    border-block-start: thin solid var(--vt-border);
-}
-
-.vm-dash-kv dd {
-    margin: 0;
-}
-
 .vm-dash-todos {
     display: flex;
     flex-direction: column;
-    gap: var(--vt-space-3);
+    gap: var(--vt-space-2);
     margin: 0;
     padding: 0;
     list-style: none;
@@ -593,15 +565,30 @@ const rows = computed<Row[]>(() =>
 
 .vm-dash-todos li {
     display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--vt-space-2) var(--vt-space-3);
+    align-items: flex-start;
+    gap: var(--vt-space-2);
+    font-size: var(--vt-type-body-s-size);
+    line-height: var(--vt-type-body-s-line-height);
+}
+
+.vm-dash-todo__icon {
+    margin-block-start: calc(var(--vt-space-1) / 4);
 }
 
 .vm-dash-todo__text {
-    flex: 1 1 calc(calc(var(--vt-space-12) * 2) * 1.5);
+    flex: 1 1 auto;
     min-width: 0;
+    color: var(--vt-text-secondary);
     overflow-wrap: anywhere;
+}
+
+a.vm-dash-todo__text {
+    color: var(--vt-text-primary);
+    text-decoration: none;
+}
+
+a.vm-dash-todo__text:hover {
+    color: var(--vt-accent-hover);
 }
 
 .vm-dash-todo__icon--warning {

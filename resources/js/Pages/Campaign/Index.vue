@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Head, Link, router } from '@inertiajs/vue3';
-import { VtButton, VtField, VtInput, type VtColumn } from '@venture-co-group/ui';
+import { VtButton, VtField, VtInput, VtPageHeader, type VtColumn } from '@venture-co-group/ui';
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import VmCard from '../../Components/Form/VmCard.vue';
@@ -10,7 +10,6 @@ import VmFormRow from '../../Components/Form/VmFormRow.vue';
 import VmFormSection from '../../Components/Form/VmFormSection.vue';
 import VmTable from '../../Components/Form/VmTable.vue';
 import VmIcon from '../../Components/Shell/VmIcon.vue';
-import VmPageHeader from '../../Components/Studio/VmPageHeader.vue';
 import VmStatusBadge from '../../Components/Studio/VmStatusBadge.vue';
 import AppLayout from '../../Layouts/AppLayout.vue';
 import { useFormat } from '../../composables/useFormat';
@@ -112,13 +111,13 @@ function create(): void {
     <Head :title="t('campaigns.title')" />
 
     <AppLayout>
-        <VmPageHeader :eyebrow="t('campaigns.eyebrow')" :title="t('campaigns.title')" :lead="t('campaigns.lead')">
-            <VtButton data-testid="campaign-new" @click="creating = !creating"><VmIcon name="plus" /> {{ t('campaigns.new') }}</VtButton>
-        </VmPageHeader>
+        <VtPageHeader :overline="t('nav.studio')" :title="t('campaigns.title')" :description="t('page.campaigns.lead')">
+            <template #actions>
+                <VtButton data-testid="campaign-new" @click="creating = !creating"><VmIcon name="plus" /> {{ t('campaigns.new') }}</VtButton>
+            </template>
+        </VtPageHeader>
 
-        <VmCard v-if="creating || !campaigns.length">
-            <h2>{{ t('campaigns.new') }}</h2>
-
+        <VmCard v-if="creating || !campaigns.length" :title="t('campaigns.new')">
             <VmForm @submit.prevent="create">
                 <VmFormSection>
                     <VmFormRow>

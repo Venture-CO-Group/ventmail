@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { router } from '@inertiajs/vue3';
-import { VtButton, VtField, VtInput, type VtColumn } from '@venture-co-group/ui';
+import { VtButton, VtEmptyState, VtField, VtInput, type VtColumn } from '@venture-co-group/ui';
 import VmTable from '../../Components/Form/VmTable.vue';
 import VmCard from '../../Components/Form/VmCard.vue';
 import VmForm from '../../Components/Form/VmForm.vue';
@@ -97,7 +97,7 @@ function more(): void {
         </VmCard>
 
         <VmCard>
-            <p v-if="!rows.length" data-testid="audit-empty">{{ t('platform.noAuditRows') }}</p>
+            <VtEmptyState v-if="!rows.length" :title="t('platform.noAuditRows')" icon="inbox" data-testid="audit-empty" />
             <VmTable v-else :columns="columns" :rows="rows" :caption="t('platform.auditSearch')" data-testid="audit-table" />
 
             <VtButton v-if="nextCursor" data-testid="audit-more" @click="more">{{ t('platform.more') }}</VtButton>

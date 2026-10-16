@@ -187,7 +187,7 @@ function save(): void {
             </VmForm>
 
             <aside class="vm-stack vm-profile__side">
-                <VmCard glow data-testid="profile-sso-card">
+                <VmCard data-testid="profile-sso-card">
                     <div class="vm-profile__who">
                         <div class="vm-stack">
                             <span class="vm-profile__name">{{ page.props.auth.user?.name }}</span>

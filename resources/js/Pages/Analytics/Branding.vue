@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { router, usePage } from '@inertiajs/vue3';
-import { VtBanner, VtButton, VtField, VtFileUpload, VtInput, VtTextarea } from '@venture-co-group/ui';
+import { VtBanner, VtButton, VtField, VtFileUpload, VtInput, VtPageHeader, VtTextarea } from '@venture-co-group/ui';
 import { computed, onMounted, reactive, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { isHexColor, verdict, type ContrastVerdict } from '../../Components/Analytics/brandContrast';
@@ -10,7 +10,6 @@ import VmCard from '../../Components/Form/VmCard.vue';
 import VmForm from '../../Components/Form/VmForm.vue';
 import VmFormSection from '../../Components/Form/VmFormSection.vue';
 import VmIcon from '../../Components/Shell/VmIcon.vue';
-import VmPageHeader from '../../Components/Studio/VmPageHeader.vue';
 import AppLayout from '../../Layouts/AppLayout.vue';
 import { useFormat } from '../../composables/useFormat';
 import { uploadLabels } from '../../composables/uploadLabels';
@@ -94,14 +93,16 @@ const maxMb = computed(() => Math.round(props.limits.maxBytes / 1024 / 1024));
 
 <template>
     <AppLayout>
-        <VmPageHeader :eyebrow="t('branding.eyebrow')" :title="t('branding.title')" :lead="t('branding.lead')" testid="branding-head">
-            <VtButton :loading="saving" :disabled="saving" data-testid="branding-save" @click="save"><VmIcon name="save" /> {{ t('branding.save') }}</VtButton>
-        </VmPageHeader>
+        <VtPageHeader :overline="t('nav.settings')" :title="t('branding.title')" :description="t('page.branding.lead')" data-testid="branding-head">
+            <template #actions>
+                <VtButton :loading="saving" :disabled="saving" data-testid="branding-save" @click="save"><VmIcon name="save" /> {{ t('branding.save') }}</VtButton>
+            </template>
+        </VtPageHeader>
 
         <VtBanner v-if="Object.keys(errors).length" tone="danger" role="alert" data-testid="branding-errors">{{ t('branding.saveFailed') }}</VtBanner>
 
         <div class="vm-brand">
-            <VmCard glass>
+            <VmCard>
                 <VmForm novalidate @submit.prevent="save">
                     <VmFormSection>
                         <VtField :label="t('branding.logo')" :hint="t('branding.logoHint', { max: maxMb, min: limits.minPx, maxPx: limits.maxPx })" :error="errors.logo">
@@ -170,7 +171,7 @@ const maxMb = computed(() => Math.round(props.limits.maxBytes / 1024 / 1024));
                 </VmForm>
             </VmCard>
 
-            <VmCard glass>
+            <VmCard>
                 <h2 class="vm-brand__title">{{ t('branding.preview') }}</h2>
                 <VmCoverPreview
                     :color="color"
@@ -206,6 +207,7 @@ const maxMb = computed(() => Math.round(props.limits.maxBytes / 1024 / 1024));
     margin: 0;
     font-family: var(--vt-font-display);
     font-size: var(--vt-type-heading-h1-size);
+    line-height: var(--vt-type-heading-h1-line-height);
 }
 
 .vm-brand__logo {
@@ -225,6 +227,7 @@ const maxMb = computed(() => Math.round(props.limits.maxBytes / 1024 / 1024));
     background: var(--vt-surface-2);
     font-family: var(--vt-font-display);
     font-size: var(--vt-type-display-m-size);
+    line-height: var(--vt-type-display-m-line-height);
     overflow: hidden;
 }
 

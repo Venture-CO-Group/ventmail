@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Link, router } from '@inertiajs/vue3';
-import { VtBanner, VtButton, VtModal } from '@venture-co-group/ui';
+import { VtBanner, VtButton, VtEmptyState, VtModal, VtPageHeader } from '@venture-co-group/ui';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import VmCard from '../../Components/Form/VmCard.vue';
@@ -8,7 +8,6 @@ import VmFormActions from '../../Components/Form/VmFormActions.vue';
 import VmCopyButton from '../../Components/Platform/VmCopyButton.vue';
 import VmSplit from '../../Components/Platform/VmSplit.vue';
 import VmStateBadge from '../../Components/Platform/VmStateBadge.vue';
-import VmPageHeader from '../../Components/Studio/VmPageHeader.vue';
 import AppLayout from '../../Layouts/AppLayout.vue';
 import { useFormat } from '../../composables/useFormat';
 
@@ -135,11 +134,13 @@ onBeforeUnmount(() => {
 
 <template>
     <AppLayout>
-        <VmPageHeader :eyebrow="t('plat.eyebrow.domains')" :title="t('plat.domains.title')" :lead="t('plat.domains.lead')">
-            <Link href="/domains/wizard">
-                <VtButton data-testid="domains-add">{{ t('domains.add') }}</VtButton>
-            </Link>
-        </VmPageHeader>
+        <VtPageHeader :overline="t('nav.platform')" :title="t('plat.domains.title')" :description="t('page.domains.lead')">
+            <template #actions>
+                <Link href="/domains/wizard">
+                    <VtButton data-testid="domains-add">{{ t('domains.add') }}</VtButton>
+                </Link>
+            </template>
+        </VtPageHeader>
 
         <!-- A HITELESÍTETLEN DOMAIN nem statisztika, hanem akadály: a PreSendGate 1. kapuja
              tiltja a küldést róla. Ezért figyelmeztetés, nem egy sor a többi között. -->
@@ -148,7 +149,7 @@ onBeforeUnmount(() => {
         </VtBanner>
 
         <VmCard v-if="!domains.length">
-            <p data-testid="domains-empty">{{ t('domains.empty') }}</p>
+            <VtEmptyState :title="t('domains.empty')" icon="inbox" data-testid="domains-empty" />
         </VmCard>
 
         <VmSplit v-else>

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Deferred, Link } from '@inertiajs/vue3';
-import { VtBadge, type VtColumn } from '@venture-co-group/ui';
+import { VtBadge, VtEmptyState, VtKpiCard, VtPageHeader, type VtColumn } from '@venture-co-group/ui';
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { CampaignSection } from '../../Components/Analytics/types';
@@ -9,7 +9,6 @@ import VmChartCard from '../../Components/Charts/VmChartCard.vue';
 import VmLineChart from '../../Components/Charts/VmLineChart.vue';
 import VmCard from '../../Components/Form/VmCard.vue';
 import VmTable from '../../Components/Form/VmTable.vue';
-import VmPageHeader from '../../Components/Studio/VmPageHeader.vue';
 import AppLayout from '../../Layouts/AppLayout.vue';
 import { useFormat } from '../../composables/useFormat';
 
@@ -79,24 +78,21 @@ const timelineChart = ref<InstanceType<typeof VmLineChart> | null>(null);
 
 <template>
     <AppLayout>
-        <VmPageHeader :eyebrow="t('analytics.eyebrow')" :title="campaign.name">
-            <Link :href="`/analytics?campaign=${campaign.uuid}`" class="vm-linkbutton">{{ t('analytics.title') }}</Link>
-        </VmPageHeader>
+        <VtPageHeader :overline="t('nav.studio')" :title="campaign.name">
+            <template #actions>
+                <Link :href="`/analytics?campaign=${campaign.uuid}`" class="vm-linkbutton">{{ t('analytics.title') }}</Link>
+            </template>
+        </VtPageHeader>
 
         <div class="vm-metrics" data-testid="report-metrics">
-            <VmCard v-for="key in metrics" :key="key">
-                <p class="vm-metric__label">{{ t(`analytics.metric.${key}`) }}</p>
-                <p class="vm-metric__value" :data-testid="`metric-${key}`">{{ summary[key] }}</p>
-            </VmCard>
+            <VtKpiCard v-for="key in metrics" :key="key" :label="t(`analytics.metric.${key}`)" :value="summary[key]" :data-testid="`metric-${key}`" />
         </div>
 
         <VmCard>
             <p data-testid="analytics-mpp">{{ t('analytics.mppNote') }}</p>
         </VmCard>
 
-        <VmCard v-if="variants.length" data-testid="report-variants">
-            <h2>{{ t('analytics.variants') }}</h2>
-
+        <VmCard v-if="variants.length" data-testid="report-variants" :title="t('analytics.variants')">
             <div v-for="variant in variants" :key="String(variant.label)" class="vm-cluster" :data-testid="`variant-${variant.label}`">
                 <strong>{{ variant.label }}</strong>
                 <span v-if="variant.subject" class="vm-truncate">{{ variant.subject }}</span>
@@ -126,11 +122,10 @@ const timelineChart = ref<InstanceType<typeof VmLineChart> | null>(null);
             </VmChartCard>
         </Deferred>
 
-        <VmCard>
-            <h2>{{ t('analytics.clickMap') }}</h2>
+        <VmCard :title="t('analytics.clickMap')">
             <!-- A KLIKK-TÉRKÉP a retenció után is megmarad AGGREGÁLVA: a címzett-dimenzió
                  tűnik el belőle, a link-szintű szám nem. -->
-            <p v-if="!linkRows.length" data-testid="links-empty">{{ t('analytics.noClicks') }}</p>
+            <VtEmptyState v-if="!linkRows.length" :title="t('analytics.noClicks')" icon="inbox" data-testid="links-empty" />
             <VmTable v-else :columns="linkColumns" :rows="linkRows" :caption="t('analytics.clickMap')" data-testid="links-table" />
         </VmCard>
     </AppLayout>

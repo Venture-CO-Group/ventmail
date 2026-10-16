@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { router, usePage } from '@inertiajs/vue3';
-import { VtBanner, VtButton, VtCheckbox, VtField, VtInput, VtModal, VtSegmented, VtSelect, type VtColumn } from '@venture-co-group/ui';
+import { VtBanner, VtButton, VtCheckbox, VtEmptyState, VtField, VtInput, VtModal, VtPageHeader, VtSegmented, VtSelect, type VtColumn } from '@venture-co-group/ui';
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import VmCard from '../../Components/Form/VmCard.vue';
@@ -13,7 +13,6 @@ import VmTable from '../../Components/Form/VmTable.vue';
 import VmSecretReveal from '../../Components/Platform/VmSecretReveal.vue';
 import VmSplit from '../../Components/Platform/VmSplit.vue';
 import VmStateBadge from '../../Components/Platform/VmStateBadge.vue';
-import VmPageHeader from '../../Components/Studio/VmPageHeader.vue';
 import AppLayout from '../../Layouts/AppLayout.vue';
 import { useFormat } from '../../composables/useFormat';
 
@@ -219,9 +218,11 @@ function successRate(endpoint: Endpoint): string {
 
 <template>
     <AppLayout>
-        <VmPageHeader :eyebrow="t('plat.eyebrow.webhooks')" :title="t('webhooks.title')" :lead="t('plat.webhooks.lead')">
-            <VtButton data-testid="endpoint-new" @click="creating = true">{{ t('plat.webhooks.add') }}</VtButton>
-        </VmPageHeader>
+        <VtPageHeader :overline="t('nav.platform')" :title="t('webhooks.title')" :description="t('page.webhooks.lead')">
+            <template #actions>
+                <VtButton data-testid="endpoint-new" @click="creating = true">{{ t('plat.webhooks.add') }}</VtButton>
+            </template>
+        </VtPageHeader>
 
         <!-- A DEAD-LETTER az, amiért ez a képernyő létezik: enélkül a kiesett esemény
              csendben elveszne. -->
@@ -238,13 +239,12 @@ function successRate(endpoint: Endpoint): string {
         />
 
         <VmCard v-if="!endpoints.length">
-            <p data-testid="endpoints-empty">{{ t('webhooks.noEndpoints') }}</p>
+            <VtEmptyState :title="t('webhooks.noEndpoints')" icon="inbox" data-testid="endpoints-empty" />
         </VmCard>
 
         <VmSplit v-else reverse wide>
             <template #side>
-                <VmCard>
-                    <h2>{{ t('webhooks.endpoints') }}</h2>
+                <VmCard :title="t('webhooks.endpoints')">
                     <ul class="vm-endpoints" data-testid="endpoint-list">
                         <li v-for="endpoint in endpoints" :key="endpoint.uuid">
                             <button
@@ -346,7 +346,7 @@ function successRate(endpoint: Endpoint): string {
                 </div>
             </div>
 
-            <p v-if="!deliveryRows.length" data-testid="deliveries-empty">{{ t('webhooks.noDeliveries') }}</p>
+            <VtEmptyState v-if="!deliveryRows.length" :title="t('webhooks.noDeliveries')" icon="inbox" data-testid="deliveries-empty" />
             <VmTable v-else :columns="deliveryColumns" :rows="deliveryRows" :caption="t('webhooks.deliveries')" data-testid="deliveries-table">
                 <template #cell="{ row, column, value }">
                     <span v-if="column.key === 'event'" class="vm-cluster vm-nowrap">

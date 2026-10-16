@@ -114,7 +114,7 @@ onBeforeUnmount(() => window.clearTimeout(timer));
 </script>
 
 <template>
-    <VmCard glass>
+    <VmCard>
         <section id="report" class="vm-report" data-testid="report-panel" aria-labelledby="report-title">
             <header class="vm-report__head">
                 <h2 id="report-title" class="vm-report__title">{{ t('analytics.report.title') }}</h2>
@@ -221,6 +221,7 @@ onBeforeUnmount(() => window.clearTimeout(timer));
     margin: 0;
     font-family: var(--vt-font-display);
     font-size: var(--vt-type-heading-h1-size);
+    line-height: var(--vt-type-heading-h1-line-height);
 }
 
 .vm-report__grid {

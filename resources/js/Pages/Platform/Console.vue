@@ -119,14 +119,11 @@ function removeSuppression(uuid: string): void {
             {{ t('platform.unhealthyWarning', { count: unhealthy.length, status: health.status }) }}
         </VtBanner>
 
-        <VmCard>
-            <h2>{{ t('platform.health') }}</h2>
+        <VmCard :title="t('platform.health')">
             <VmTable :columns="healthColumns" :rows="healthRows" :caption="t('platform.health')" data-testid="health-table" />
         </VmCard>
 
-        <VmCard>
-            <h2>{{ t('platform.impersonation') }}</h2>
-
+        <VmCard :title="t('platform.impersonation')">
             <template v-if="impersonation">
                 <p data-testid="impersonation-active">
                     {{ t('platform.impersonationActive', { workspace: impersonation.workspace, reason: impersonation.reason }) }}
@@ -163,9 +160,7 @@ function removeSuppression(uuid: string): void {
             </VmForm>
         </VmCard>
 
-        <VmCard>
-            <h2>{{ t('platform.overrides') }}</h2>
-
+        <VmCard :title="t('platform.overrides')">
             <VmForm @submit.prevent="grantOverride">
                 <VmFormSection>
                     <VtField :label="t('platform.workspace')">
@@ -215,8 +210,7 @@ function removeSuppression(uuid: string): void {
             </div>
         </VmCard>
 
-        <VmCard>
-            <h2>{{ t('platform.globalSuppressions') }}</h2>
+        <VmCard :title="t('platform.globalSuppressions')">
             <p>{{ t('platform.globalSuppressionNote') }}</p>
 
             <VmForm @submit.prevent="addSuppression">
@@ -263,9 +257,7 @@ function removeSuppression(uuid: string): void {
             </div>
         </VmCard>
 
-        <VmCard>
-            <h2>{{ t('platform.warmup') }}</h2>
-
+        <VmCard :title="t('platform.warmup')">
             <div v-for="ip in warmup" :key="ip.address" class="vm-cluster">
                 <span class="vt-mono">{{ ip.address }}</span>
                 <span>{{ ip.pool }}</span>

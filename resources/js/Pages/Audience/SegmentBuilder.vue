@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Head, router } from '@inertiajs/vue3';
-import { VtBanner, VtButton, VtField, VtInput, VtSelect, VtTextarea } from '@venture-co-group/ui';
+import { VtBanner, VtButton, VtField, VtInput, VtPageHeader, VtSelect, VtTextarea } from '@venture-co-group/ui';
 import axios, { AxiosError } from 'axios';
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
@@ -9,7 +9,6 @@ import VmFormActions from '../../Components/Form/VmFormActions.vue';
 import VmFormSection from '../../Components/Form/VmFormSection.vue';
 import SegmentGroupEditor from '../../Components/Segment/SegmentGroupEditor.vue';
 import { countRules, normalise, type NamedRef, type SegmentCatalog, type SegmentGroup } from '../../Components/Segment/types';
-import VmPageHeader from '../../Components/Studio/VmPageHeader.vue';
 import AppLayout from '../../Layouts/AppLayout.vue';
 import { useFormat } from '../../composables/useFormat';
 
@@ -127,9 +126,11 @@ function save(): void {
     <Head :title="segment ? segment.name : t('segments.new')" />
 
     <AppLayout>
-        <VmPageHeader :eyebrow="t('segments.eyebrow')" :title="segment ? segment.name : t('segments.new')" :lead="t('segments.builderLead')">
-            <VtButton variant="ghost" @click="router.visit('/audience/segments')">{{ t('segments.backToList') }}</VtButton>
-        </VmPageHeader>
+        <VtPageHeader :overline="t('nav.studio')" :title="segment ? segment.name : t('segments.new')" :description="t('segments.builderLead')">
+            <template #actions>
+                <VtButton variant="ghost" @click="router.visit('/audience/segments')">{{ t('segments.backToList') }}</VtButton>
+            </template>
+        </VtPageHeader>
 
         <div class="vm-seg-layout">
             <div class="vm-seg-layout__main">
@@ -160,7 +161,7 @@ function save(): void {
             </div>
 
             <aside class="vm-seg-layout__side">
-                <VmCard glass glow>
+                <VmCard>
                     <p class="vm-seg-count__label">{{ t('segments.matching') }}</p>
                     <p class="vm-seg-count" data-testid="segment-count" :data-loading="loading ? 'true' : 'false'" aria-live="polite">
                         {{ count === null ? '—' : format.number(count) }}
@@ -181,8 +182,7 @@ function save(): void {
                     </VmFormActions>
                 </VmCard>
 
-                <VmCard v-if="segment" data-testid="segment-bulk">
-                    <h2>{{ t('segments.bulkTitle') }}</h2>
+                <VmCard v-if="segment" data-testid="segment-bulk" :title="t('segments.bulkTitle')">
                     <p class="vm-seg-count__hint">{{ t('segments.bulkHint') }}</p>
                     <label class="vm-visually-hidden" for="segment-bulk-action">{{ t('audience.bulkActionLabel') }}</label>
                     <VtSelect
@@ -250,6 +250,7 @@ function save(): void {
     font-family: var(--vt-font-display);
     font-size: var(--vt-type-display-l-size);
     font-weight: var(--vt-weight-semibold);
+    line-height: var(--vt-type-display-l-line-height);
     transition: opacity var(--vt-duration-fast) var(--vt-ease-standard);
 }
 

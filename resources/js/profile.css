@@ -46,6 +46,7 @@
 
 .vm-profile h2 {
     font-size: var(--vt-type-display-m-size);
+    line-height: var(--vt-type-display-m-line-height);
 }
 
 .vm-profile__notifs {

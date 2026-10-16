@@ -113,6 +113,7 @@ p {
 .vm-import-counter__value {
     font-family: var(--vt-font-display);
     font-size: var(--vt-type-display-m-size);
+    line-height: var(--vt-type-display-m-line-height);
 }
 
 .vm-import-facts {

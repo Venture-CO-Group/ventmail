@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { VtBanner, type VtColumn } from '@venture-co-group/ui';
+import { VtBanner, VtEmptyState, VtPageHeader, type VtColumn } from '@venture-co-group/ui';
 import VmTable from '../../Components/Form/VmTable.vue';
 import VmCard from '../../Components/Form/VmCard.vue';
 import { computed } from 'vue';
@@ -68,7 +68,7 @@ const dmarcRows = computed<DmarcRow[]>(() =>
 
 <template>
     <AppLayout>
-        <h1 class="vt-num">{{ t('deliverability.title') }}</h1>
+        <VtPageHeader :overline="t('nav.platform')" :title="t('deliverability.title')" :description="t('page.deliverability.lead')" />
 
         <!-- A BLOCKLISTA az a hiba, amit MI veszünk észre utoljára: az ügyfélnél hirtelen
              senki nem kapja meg a levelet. -->
@@ -80,9 +80,8 @@ const dmarcRows = computed<DmarcRow[]>(() =>
             {{ t('deliverability.unverified', { count: unverified.length }) }}
         </VtBanner>
 
-        <VmCard>
-            <h2>{{ t('deliverability.blocklist') }}</h2>
-            <p v-if="!blocklistRows.length" data-testid="blocklist-empty">{{ t('deliverability.noChecks') }}</p>
+        <VmCard :title="t('deliverability.blocklist')">
+            <VtEmptyState v-if="!blocklistRows.length" :title="t('deliverability.noChecks')" icon="inbox" data-testid="blocklist-empty" />
             <VmTable
                 v-else
                 :columns="blocklistColumns"
@@ -92,10 +91,9 @@ const dmarcRows = computed<DmarcRow[]>(() =>
             />
         </VmCard>
 
-        <VmCard>
-            <h2>{{ t('deliverability.dmarc') }}</h2>
+        <VmCard :title="t('deliverability.dmarc')">
             <p>{{ t('deliverability.dmarcHint') }}</p>
-            <p v-if="!dmarcRows.length" data-testid="dmarc-empty">{{ t('deliverability.noDmarc') }}</p>
+            <VtEmptyState v-if="!dmarcRows.length" :title="t('deliverability.noDmarc')" icon="inbox" data-testid="dmarc-empty" />
             <VmTable
                 v-else
                 :columns="dmarcColumns"
@@ -105,9 +103,8 @@ const dmarcRows = computed<DmarcRow[]>(() =>
             />
         </VmCard>
 
-        <VmCard>
-            <h2>{{ t('deliverability.seed') }}</h2>
-            <p v-if="!seedTests.length" data-testid="seed-empty">{{ t('deliverability.noSeed') }}</p>
+        <VmCard :title="t('deliverability.seed')">
+            <VtEmptyState v-if="!seedTests.length" :title="t('deliverability.noSeed')" icon="inbox" data-testid="seed-empty" />
 
             <div v-for="test in seedTests" :key="test.name" class="vm-cluster" :data-testid="`seed-${test.name}`">
                 <strong>{{ test.name }}</strong>

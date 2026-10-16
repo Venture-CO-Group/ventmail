@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { router } from '@inertiajs/vue3';
-import { VtBanner, VtButton, VtCheckbox, VtField, VtInput, type VtColumn } from '@venture-co-group/ui';
+import { VtBanner, VtButton, VtCheckbox, VtEmptyState, VtField, VtInput, VtPageHeader, type VtColumn } from '@venture-co-group/ui';
 import VmTable from '../../Components/Form/VmTable.vue';
 import VmCard from '../../Components/Form/VmCard.vue';
 import VmFieldGroup from '../../Components/Form/VmFieldGroup.vue';
@@ -148,13 +148,11 @@ function createSubAccount(): void {
 
 <template>
     <AppLayout>
-        <h1 class="vt-num">{{ t('members.title') }}</h1>
+        <VtPageHeader :overline="t('nav.settings')" :title="t('members.title')" :description="t('page.members.lead')" />
 
         <VtBanner tone="info" role="status">{{ t('members.note') }}</VtBanner>
 
-        <VmCard data-testid="members-card">
-            <h2>{{ t('members.heading') }}</h2>
-
+        <VmCard data-testid="members-card" :title="t('members.heading')">
             <VmTable :columns="columns" :rows="rows" :caption="t('members.heading')" data-testid="members-table" />
 
             <div v-for="member in members" :key="member.id" class="vm-stack">
@@ -218,9 +216,7 @@ function createSubAccount(): void {
             </div>
         </VmCard>
 
-        <VmCard data-testid="invite-card">
-            <h2>{{ t('members.invite') }}</h2>
-
+        <VmCard data-testid="invite-card" :title="t('members.invite')">
             <p>{{ t('members.inviteHint') }}</p>
 
             <!-- A CÍM a workspace levélnaplójába kerül (a levél a tenant SAJÁT kimenő
@@ -258,7 +254,7 @@ function createSubAccount(): void {
                 </VmFormActions>
             </VmForm>
 
-            <p v-if="!invitations.length" data-testid="invitations-empty">{{ t('members.noInvitations') }}</p>
+            <VtEmptyState v-if="!invitations.length" :title="t('members.noInvitations')" icon="inbox" data-testid="invitations-empty" />
 
             <div v-for="invitation in invitations" :key="invitation.uuid" class="vm-cluster">
                 <span class="vt-mono vm-truncate vm-truncate--fill" :title="invitation.email">{{ invitation.email }}</span>
@@ -274,18 +270,14 @@ function createSubAccount(): void {
             </div>
         </VmCard>
 
-        <VmCard data-testid="sub-accounts-card">
-            <h2>{{ t('members.subAccounts') }}</h2>
-
+        <VmCard data-testid="sub-accounts-card" :title="t('members.subAccounts')">
             <p>{{ t('members.subAccountsHint') }}</p>
 
             <VtBanner v-if="subAccounts.parent" tone="info" data-testid="sub-account-parent">
                 {{ t('members.parentIs', { name: subAccounts.parent.name }) }}
             </VtBanner>
 
-            <p v-if="!subAccounts.children.length" data-testid="sub-accounts-empty">
-                {{ t('members.noSubAccounts') }}
-            </p>
+            <VtEmptyState v-if="!subAccounts.children.length" :title="t('members.noSubAccounts')" icon="inbox" data-testid="sub-accounts-empty" />
 
             <div v-for="child in subAccounts.children" :key="child.uuid" class="vm-cluster">
                 <span class="vm-truncate vm-truncate--fill" :title="child.name">{{ child.name }}</span>

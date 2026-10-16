@@ -61,6 +61,7 @@
     font-weight: var(--vt-weight-semibold);
     letter-spacing: var(--vt-type-heading-h1-tracking);
     font-size: var(--vt-type-display-m-size);
+    line-height: var(--vt-type-display-m-line-height);
     margin: var(--vt-space-2) 0;
 }
 

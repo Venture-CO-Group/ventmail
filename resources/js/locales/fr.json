@@ -194,7 +194,10 @@
             "subject": "Objet",
             "recipient": "Destinataire",
             "status": "Statut"
-        }
+        },
+        "domainsAllVerified": "tous vérifiés",
+        "domainsUnverified": "{count} non vérifié(s)",
+        "suppressionsHint": "rebonds et plaintes"
     },
     "domains": {
         "title": "Domaines",
@@ -2745,5 +2748,82 @@
         "clear": "Retirer",
         "typeError": "Ce type de fichier n’est pas autorisé ({types}).",
         "sizeError": "Le fichier est trop volumineux ({mb} Mo au plus)."
+    },
+    "page": {
+        "overview": {
+            "lead": "Trafic sortant, audience et délivrabilité au même endroit."
+        },
+        "audience": {
+            "lead": "Contacts, statut de consentement et champs personnalisés."
+        },
+        "segments": {
+            "lead": "Audiences dynamiques construites à partir de conditions ET / OU. Recalculées à chaque envoi."
+        },
+        "forms": {
+            "lead": "Formulaires d’inscription et centres de préférences avec double opt-in."
+        },
+        "templates": {
+            "lead": "Modèles visuels et code avec variantes de langue. Utilisés par les campagnes et les envois transactionnels."
+        },
+        "campaigns": {
+            "lead": "Envois ponctuels et tests A/B. Les envois marketing sont bloqués tant que le mode restreint est actif."
+        },
+        "journeys": {
+            "lead": "Parcours automatisés déclenchés par des événements, des dates ou l’entrée dans un segment."
+        },
+        "analytics": {
+            "lead": "Engagement sur les campagnes et les e-mails transactionnels."
+        },
+        "domains": {
+            "lead": "Domaines d’envoi avec enregistrements DNS et statut d’authentification."
+        },
+        "apiKeys": {
+            "lead": "Clés liées à l’espace de travail, avec portées et liste d’IP autorisées. La valeur n’est affichée qu’une fois, à la création."
+        },
+        "smtp": {
+            "lead": "Identifiants de relais pour les applications qui ne parlent que SMTP."
+        },
+        "suppressions": {
+            "lead": "Rebonds, plaintes et désabonnements. Les adresses supprimées sont ignorées à chaque envoi."
+        },
+        "webhooks": {
+            "lead": "Événements signés et historique de livraison."
+        },
+        "storedTemplates": {
+            "lead": "Modèles d’API versionnés, référencés par clé depuis les envois transactionnels."
+        },
+        "ipPools": {
+            "lead": "IP dédiées, calendriers de chauffe et règles de routage."
+        },
+        "deliverability": {
+            "lead": "Listes de blocage, réputation et placement en boîte de réception."
+        },
+        "logs": {
+            "lead": "Recherchez et tracez chaque message."
+        },
+        "tagStats": {
+            "lead": "Compteurs par tag de message."
+        },
+        "sendingStats": {
+            "lead": "Envoyés, délivrés et échoués, par domaine et dans le temps."
+        },
+        "docs": {
+            "lead": "Référence de l’API REST, SDK et exemples."
+        },
+        "billing": {
+            "lead": "Consommation, offre et factures — gérées par ventPay."
+        },
+        "inbound": {
+            "lead": "Acheminez le courrier entrant vers des webhooks, des adresses de transfert ou ventSupport."
+        },
+        "validation": {
+            "lead": "Vérifiez les adresses avant qu’elles n’entrent dans votre audience : syntaxe, MX, comptes jetables et génériques."
+        },
+        "members": {
+            "lead": "Invitations et rôles. L’identité est gérée dans ventSSO."
+        },
+        "branding": {
+            "lead": "Logo, couleurs et pied de page pour les rapports et les pages hébergées."
+        }
     }
 }

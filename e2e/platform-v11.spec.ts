@@ -157,7 +157,7 @@ test('napló: Message-ID szűrő, idővonal, CSV-export (maszkolt címzettel)', 
     await page.goto('/logs');
     await page.getByTestId('filter-message-id').fill(`<${firstId}@mail.example.test>`);
     await page.getByTestId('log-search').click();
-    await expect(page.getByTestId('log-table').locator('tbody tr')).toHaveCount(1);
+    await expect(page.getByTestId('log-table').locator('tbody tr.vt-dt__row')).toHaveCount(1);
 
     await page.getByTestId('log-trace').click();
     await expect(page.getByTestId('trace-timeline')).toBeVisible();

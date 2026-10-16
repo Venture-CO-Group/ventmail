@@ -1,12 +1,11 @@
 <script setup lang="ts">
-import { VtBanner, type VtColumn } from '@venture-co-group/ui';
+import { VtBanner, VtPageHeader, type VtColumn } from '@venture-co-group/ui';
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import VmCard from '../../Components/Form/VmCard.vue';
 import VmStat from '../../Components/Form/VmStat.vue';
 import VmTable from '../../Components/Form/VmTable.vue';
 import VmStateBadge from '../../Components/Platform/VmStateBadge.vue';
-import VmPageHeader from '../../Components/Studio/VmPageHeader.vue';
 import AppLayout from '../../Layouts/AppLayout.vue';
 import { useFormat } from '../../composables/useFormat';
 
@@ -94,7 +93,7 @@ const listed = computed(() => props.addresses.filter((ip) => ip.blocklist.some((
 
 <template>
     <AppLayout>
-        <VmPageHeader :eyebrow="t('plat.eyebrow.infra')" :title="t('plat.infra.title')" :lead="t('plat.infra.lead')" />
+        <VtPageHeader :overline="t('plat.eyebrow.infra')" :title="t('plat.infra.title')" :description="t('plat.infra.lead')" />
 
         <VtBanner v-if="listed.length" tone="danger" role="status" data-testid="infra-listed">
             {{ t('plat.infra.listedWarning', { count: listed.length }) }}
@@ -108,13 +107,11 @@ const listed = computed(() => props.addresses.filter((ip) => ip.blocklist.some((
             <VmStat :label="t('plat.infra.rate.smtp')" :value="rateLimits.smtpCredentialPerMinute" :hint="t('plat.infra.perMinute')" />
         </div>
 
-        <VmCard>
-            <h2>{{ t('ipPools.pools') }}</h2>
+        <VmCard :title="t('ipPools.pools')">
             <VmTable :columns="poolColumns" :rows="poolRows" :caption="t('ipPools.pools')" data-testid="infra-pools" />
         </VmCard>
 
-        <VmCard>
-            <h2>{{ t('plat.infra.ips') }}</h2>
+        <VmCard :title="t('plat.infra.ips')">
             <p v-if="!ipRows.length">{{ t('plat.infra.noIps') }}</p>
             <VmTable v-else :columns="ipColumns" :rows="ipRows" :caption="t('plat.infra.ips')" data-testid="infra-ips">
                 <template #cell="{ row, column, value }">
@@ -130,8 +127,7 @@ const listed = computed(() => props.addresses.filter((ip) => ip.blocklist.some((
             </VmTable>
         </VmCard>
 
-        <VmCard>
-            <h2>{{ t('plat.infra.receivers') }}</h2>
+        <VmCard :title="t('plat.infra.receivers')">
             <dl class="vm-kv" data-testid="infra-receivers">
                 <template v-for="receiver in rateLimits.receivers" :key="receiver.domain">
                     <dt class="vt-mono">{{ receiver.domain }}</dt>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { VtBanner } from '@venture-co-group/ui';
+import { VtBanner, VtEmptyState } from '@venture-co-group/ui';
 import axios from 'axios';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
@@ -110,7 +110,7 @@ const percent = (value: number) => `${format.number(value, { maximumFractionDigi
     <div class="vm-heat" data-testid="heatmap">
         <VtBanner v-if="changed" tone="warning" role="status" data-testid="heatmap-changed">{{ t('analytics.templateChanged') }}</VtBanner>
         <p v-if="state === 'loading'" class="vm-heat__state">…</p>
-        <p v-else-if="state === 'empty' || state === 'error'" class="vm-heat__state" data-testid="heatmap-empty">{{ t('analytics.heatmapEmpty') }}</p>
+        <VtEmptyState v-else-if="state === 'empty' || state === 'error'" :title="t('analytics.heatmapEmpty')" icon="inbox" data-testid="heatmap-empty" />
         <p v-else-if="!totalUnique" class="vm-heat__state" data-testid="heatmap-noclicks">{{ t('analytics.noClicks') }}</p>
 
         <div v-if="state === 'ready' && html" class="vm-heat__stage">

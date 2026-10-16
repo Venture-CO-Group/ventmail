@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { router } from '@inertiajs/vue3';
-import { VtButton, VtField, VtGlowLine, VtInput, type VtColumn } from '@venture-co-group/ui';
+import { VtButton, VtField, VtInput, VtPageHeader, type VtColumn } from '@venture-co-group/ui';
 import VmTable from '../../Components/Form/VmTable.vue';
 import VmCard from '../../Components/Form/VmCard.vue';
 import VmForm from '../../Components/Form/VmForm.vue';
@@ -88,10 +88,9 @@ function rotateDkim(): void {
 
 <template>
     <AppLayout>
-            <VtGlowLine />
+            <VtPageHeader :overline="t('nav.platform')" :title="t('wizard.title')" />
 
             <VmCard>
-                <h1>{{ t('wizard.title') }}</h1>
                 <p>
                     {{ t('wizard.rule') }}
                 </p>

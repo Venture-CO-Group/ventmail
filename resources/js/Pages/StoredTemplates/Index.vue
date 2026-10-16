@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { router, useForm } from '@inertiajs/vue3';
-import { VtBanner, VtButton, VtCheckbox, VtField, VtInput, VtSelect, VtTextarea } from '@venture-co-group/ui';
+import { VtBanner, VtButton, VtCheckbox, VtEmptyState, VtField, VtInput, VtPageHeader, VtSelect, VtTextarea } from '@venture-co-group/ui';
 import VmCard from '../../Components/Form/VmCard.vue';
 import VmForm from '../../Components/Form/VmForm.vue';
 import VmFormRow from '../../Components/Form/VmFormRow.vue';
@@ -119,12 +119,12 @@ function activate(version: number): void {
 
 <template>
     <AppLayout>
-        <h1 class="vt-num">{{ t('storedTemplates.title') }}</h1>
+        <VtPageHeader :overline="t('nav.platform')" :title="t('storedTemplates.title')" :description="t('page.storedTemplates.lead')" />
 
         <VtBanner tone="info" role="status">{{ t('storedTemplates.note') }}</VtBanner>
 
         <VmCard>
-            <p v-if="!templates.length" data-testid="stored-templates-empty">{{ t('storedTemplates.empty') }}</p>
+            <VtEmptyState v-if="!templates.length" :title="t('storedTemplates.empty')" icon="inbox" data-testid="stored-templates-empty" />
 
             <VmFormSection v-else>
                 <VtField :label="t('storedTemplates.template')">
@@ -160,8 +160,7 @@ function activate(version: number): void {
             </div>
         </VmCard>
 
-        <VmCard v-if="selected" data-testid="stored-template-new-version">
-            <h2>{{ t('storedTemplates.newVersion') }}</h2>
+        <VmCard v-if="selected" data-testid="stored-template-new-version" :title="t('storedTemplates.newVersion')">
             <p>{{ t('storedTemplates.newVersionNote') }}</p>
 
             <VmForm @submit.prevent="saveVersion">
@@ -193,8 +192,7 @@ function activate(version: number): void {
             </VmForm>
         </VmCard>
 
-        <VmCard v-if="selected && selected.versions.length > 1" data-testid="stored-template-diff">
-            <h2>{{ t('storedTemplates.compare') }}</h2>
+        <VmCard v-if="selected && selected.versions.length > 1" data-testid="stored-template-diff" :title="t('storedTemplates.compare')">
 
             <VmFormRow>
                 <VtField :label="t('storedTemplates.left')">

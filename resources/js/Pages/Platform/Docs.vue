@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { VtBadge, VtBanner, VtInput, VtNavItem, VtSegmented, type VtColumn } from '@venture-co-group/ui';
+import { VtBadge, VtBanner, VtInput, VtNavItem, VtPageHeader, VtSegmented, type VtColumn } from '@venture-co-group/ui';
 import { computed, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import VmCard from '../../Components/Form/VmCard.vue';
@@ -7,7 +7,6 @@ import VmTable from '../../Components/Form/VmTable.vue';
 import { sample, verifySample, type SampleLanguage } from '../../Components/Platform/codeSamples';
 import VmCopyButton from '../../Components/Platform/VmCopyButton.vue';
 import VmSplit from '../../Components/Platform/VmSplit.vue';
-import VmPageHeader from '../../Components/Studio/VmPageHeader.vue';
 import AppLayout from '../../Layouts/AppLayout.vue';
 
 /**
@@ -225,9 +224,11 @@ const methodTone = (method: string): 'success' | 'accent' | 'warning' | 'danger'
 
 <template>
     <AppLayout>
-        <VmPageHeader :eyebrow="t('plat.eyebrow.docs')" :title="t('plat.docs.title')" :lead="t('plat.docs.lead')">
-            <VtBadge tone="accent">v{{ reference.version }}</VtBadge>
-        </VmPageHeader>
+        <VtPageHeader :overline="t('nav.platform')" :title="t('plat.docs.title')" :description="t('page.docs.lead')">
+            <template #actions>
+                <VtBadge tone="accent">v{{ reference.version }}</VtBadge>
+            </template>
+        </VtPageHeader>
 
         <VmSplit>
             <template #side>

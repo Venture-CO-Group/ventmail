@@ -29,8 +29,30 @@
     min-width: 0;
 }
 
-.vm-page :where(h1, h2, h3, h4, p, li, dd, dt, label, legend, caption) {
+/* A hosszú szó (URL, cím) tördelhető — a címek csak szóhatáron, hogy a fejléc ne törjön szótag közben. */
+.vm-page :where(p, li, dd, dt, label, legend, caption) {
     overflow-wrap: anywhere;
+}
+
+.vm-page :where(h1, h2, h3, h4) {
+    overflow-wrap: break-word;
+}
+
+/*
+ | A tartalmi címsorok a Figma tipográfiáját kapják (a design a címsorokat nem stílusozza, a
+ | böngésző alapmérete Display-közeli volna): h2 = Heading/H2, h3 = Heading/H3. Nulla specificitás —
+ | a komponensek (kártyafej, oldalfej) saját stílusa felülírja.
+ */
+:where(.vm-page) :where(h2) {
+    margin: 0;
+    font: var(--vt-type-heading-h2);
+    letter-spacing: var(--vt-type-heading-h2-tracking);
+}
+
+:where(.vm-page) :where(h3) {
+    margin: 0;
+    font: var(--vt-type-heading-h3);
+    letter-spacing: var(--vt-type-heading-h3-tracking);
 }
 
 /* D292 · KÖZÖS LINK */
@@ -165,15 +187,6 @@ div.vt-table.vm-table {
     gap: var(--vt-space-4);
 }
 
-.vm-metric__value {
-    font-family: var(--vt-font-display);
-    color: var(--vt-text-primary);
-}
-
-.vm-metric__label {
-    color: var(--vt-text-secondary);
-}
-
 /*
  | KÉPERNYŐOLVASÓNAK LÁTHATÓ, SZEMNEK NEM — fókuszra viszont előjön (ugrás a tartalomra).
  | A doboz a legkisebb token-méret, és `inset(50%)` vágja — nyers hossz nem szerepel benne,
@@ -255,4 +268,24 @@ div.vt-table.vm-table {
 
 .vm-diff__line--removed .vm-diff__text::before {
     content: '- ';
+}
+
+/*
+ | ÁTMENETI (venture-ui #15, 2.1.1): az oldalfej akciói a cím alá tördelnek, ha nem férnek mellé,
+ | a cím 288 px alá nem zsugorodik. A kiadás után törlendő.
+ */
+.vm-page > header.vt-pagehead {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.vm-page > header.vt-pagehead > .vt-pagehead__titles {
+    flex: 1 1 calc(var(--vt-space-12) * 6);
+}
+
+.vm-page > header.vt-pagehead > .vt-pagehead__actions {
+    flex: 0 1 auto;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    max-width: 100%;
 }

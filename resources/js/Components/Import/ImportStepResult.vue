@@ -82,8 +82,7 @@ function download(): void {
             </VtButton>
         </VmFormActions>
 
-        <VmCard data-testid="import-audit">
-            <h3>{{ t('audience.import.audit.title') }}</h3>
+        <VmCard data-testid="import-audit" :title="t('audience.import.audit.title')" :heading-level="3">
             <dl class="vm-import-audit">
                 <dt>{{ t('audience.import.audit.who') }}</dt>
                 <dd>{{ state.startedBy ?? '—' }}</dd>

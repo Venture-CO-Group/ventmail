@@ -55,6 +55,7 @@
     color: var(--vt-text-primary);
     font-family: var(--vt-font-display);
     font-size: var(--vt-type-heading-h1-size);
+    line-height: var(--vt-type-heading-h1-line-height);
     font-weight: var(--vt-weight-semibold);
 }
 
@@ -586,6 +587,7 @@
 .vm-jcfg__name {
     font-family: var(--vt-font-display);
     font-size: var(--vt-type-heading-h1-size);
+    line-height: var(--vt-type-heading-h1-line-height);
     overflow-wrap: anywhere;
 }
 
@@ -613,6 +615,7 @@
     margin: 0;
     font-family: var(--vt-font-display);
     font-size: var(--vt-type-display-m-size);
+    line-height: var(--vt-type-display-m-line-height);
 }
 
 .vm-jcfg__stat--waiting dd {

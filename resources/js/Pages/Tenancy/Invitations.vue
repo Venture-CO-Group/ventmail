@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { router } from '@inertiajs/vue3';
-import { VtBanner, VtButton } from '@venture-co-group/ui';
+import { VtBanner, VtButton, VtEmptyState } from '@venture-co-group/ui';
 import VmCard from '../../Components/Form/VmCard.vue';
 import { useI18n } from 'vue-i18n';
 import { useFormat } from '../../composables/useFormat';
@@ -44,9 +44,7 @@ function decline(uuid: string): void {
             {{ t('invitations.unverified') }}
         </VtBanner>
 
-        <VmCard v-for="invitation in invitations" :key="invitation.uuid" :data-testid="`invitation-${invitation.uuid}`">
-            <h2>{{ invitation.workspace }}</h2>
-
+        <VmCard v-for="invitation in invitations" :key="invitation.uuid" :data-testid="`invitation-${invitation.uuid}`" :title="invitation.workspace">
             <p>{{ t('invitations.roles', { roles: invitation.roles.join(', ') }) }}</p>
 
             <p v-if="invitation.expiresAt">
@@ -64,6 +62,6 @@ function decline(uuid: string): void {
             </div>
         </VmCard>
 
-        <p v-if="!invitations.length && !unverified" data-testid="invitations-empty">{{ t('invitations.empty') }}</p>
+        <VtEmptyState v-if="!invitations.length && !unverified" :title="t('invitations.empty')" icon="inbox" data-testid="invitations-empty" />
     </main>
 </template>

@@ -79,8 +79,7 @@ const rows = computed<Row[]>(() =>
             <VtButton variant="ghost" @click="router.visit('/audience')">{{ t('audience.contact.back') }}</VtButton>
         </header>
 
-        <VmCard>
-            <h2>{{ t('audience.contact.fields') }}</h2>
+        <VmCard :title="t('audience.contact.fields')">
             <dl class="vm-contact-facts" data-testid="contact-fields">
                 <dt>{{ t('audience.status') }}</dt>
                 <dd><VtBadge :tone="contact.status === 'subscribed' ? 'success' : 'warning'" data-testid="contact-status" :data-status="contact.status">{{ code('contactStatus', contact.status) }}</VtBadge></dd>
@@ -97,8 +96,7 @@ const rows = computed<Row[]>(() =>
             </dl>
         </VmCard>
 
-        <VmCard>
-            <h2>{{ t('audience.contact.listsAndTags') }}</h2>
+        <VmCard :title="t('audience.contact.listsAndTags')">
             <p v-if="!lists.length && !tags.length" class="vm-contact-muted">{{ t('audience.contact.none') }}</p>
             <div class="vm-contact-chips" data-testid="contact-lists">
                 <VtBadge v-for="list in lists" :key="list.uuid" tone="accent">{{ list.name }} · {{ code('contactStatus', list.status) }}</VtBadge>
@@ -106,8 +104,7 @@ const rows = computed<Row[]>(() =>
             </div>
         </VmCard>
 
-        <VmCard>
-            <h2>{{ t('audience.contact.consent') }}</h2>
+        <VmCard :title="t('audience.contact.consent')">
             <p v-if="!consent" class="vm-contact-muted">{{ t('audience.contact.noConsent') }}</p>
             <dl v-else class="vm-contact-facts" data-testid="contact-consent">
                 <dt>{{ t('audience.status') }}</dt>

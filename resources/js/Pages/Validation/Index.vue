@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { router } from '@inertiajs/vue3';
-import { VtBanner, VtButton, VtField, VtInput, type VtColumn } from '@venture-co-group/ui';
+import { VtBanner, VtButton, VtEmptyState, VtField, VtInput, VtPageHeader, type VtColumn } from '@venture-co-group/ui';
 import VmTable from '../../Components/Form/VmTable.vue';
 import VmCard from '../../Components/Form/VmCard.vue';
 import VmForm from '../../Components/Form/VmForm.vue';
@@ -82,13 +82,11 @@ function useSuggestion(suggestion: string): void {
 
 <template>
     <AppLayout>
-        <h1 class="vt-num">{{ t('validation.title') }}</h1>
+        <VtPageHeader :overline="t('nav.platform')" :title="t('validation.title')" :description="t('page.validation.lead')" />
 
         <VtBanner tone="info" role="status">{{ t('validation.probeNote') }}</VtBanner>
 
-        <VmCard>
-            <h2>{{ t('validation.single') }}</h2>
-
+        <VmCard :title="t('validation.single')">
             <VmForm @submit.prevent="check">
                 <VmFormSection>
                     <VtField :label="t('validation.address')">
@@ -125,11 +123,10 @@ function useSuggestion(suggestion: string): void {
             </div>
         </VmCard>
 
-        <VmCard>
-            <h2>{{ t('validation.bulk') }}</h2>
+        <VmCard :title="t('validation.bulk')">
             <p>{{ t('validation.usage', { count: usage }) }}</p>
 
-            <p v-if="!rows.length" data-testid="jobs-empty">{{ t('validation.noJobs') }}</p>
+            <VtEmptyState v-if="!rows.length" :title="t('validation.noJobs')" icon="inbox" data-testid="jobs-empty" />
             <VmTable v-else :columns="columns" :rows="rows" :caption="t('validation.bulk')" data-testid="jobs-table" />
         </VmCard>
     </AppLayout>

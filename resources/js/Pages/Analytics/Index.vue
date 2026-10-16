@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Deferred, router } from '@inertiajs/vue3';
-import { VtBanner, VtButton, VtInput, VtSegmented, VtSelect } from '@venture-co-group/ui';
+import { VtBanner, VtButton, VtEmptyState, VtInput, VtPageHeader, VtSegmented, VtSelect } from '@venture-co-group/ui';
 import { computed, reactive, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { AudienceSection, CampaignSection, JourneySection, PlatformSection } from '../../Components/Analytics/types';
@@ -12,7 +12,6 @@ import VmDonutChart from '../../Components/Charts/VmDonutChart.vue';
 import VmFunnelBar from '../../Components/Charts/VmFunnelBar.vue';
 import VmLineChart from '../../Components/Charts/VmLineChart.vue';
 import { CATEGORY_TOKENS } from '../../Components/Charts/chartTheme';
-import VmPageHeader from '../../Components/Studio/VmPageHeader.vue';
 import VmIcon from '../../Components/Shell/VmIcon.vue';
 import AppLayout from '../../Layouts/AppLayout.vue';
 import { useFormat } from '../../composables/useFormat';
@@ -176,34 +175,38 @@ function scrollToReport(): void {
 
 <template>
     <AppLayout>
-        <VmPageHeader :eyebrow="t('analytics.eyebrow')" :title="t('analytics.title')" :lead="t('analytics.lead')" testid="analytics-head">
-            <div class="vm-an-filters">
-                <div class="vm-seg-scroll">
-                    <VtSegmented
-                        :model-value="showCustom ? 'custom' : selection.range"
-                        :options="rangeOptions"
-                        :label="t('analytics.range.label')"
-                        data-testid="analytics-range"
-                        @update:model-value="onRange(String($event))"
-                    />
-                </div>
-                <form v-if="showCustom" class="vm-an-custom" data-testid="analytics-custom" @submit.prevent="go({ range: 'custom', from: custom.from, to: custom.to })">
-                    <VtInput v-model="custom.from" type="date" :max="selection.today" :aria-label="t('analytics.range.from')" />
-                    <VtInput v-model="custom.to" type="date" :max="selection.today" :aria-label="t('analytics.range.to')" />
-                    <VtButton type="submit" variant="secondary" size="sm">{{ t('analytics.range.apply') }}</VtButton>
-                </form>
-                <div class="vm-an-select">
-                    <VtSelect
-                        :model-value="selection.campaign ?? ''"
-                        :options="campaignOptions"
-                        :aria-label="t('analytics.pickCampaign')"
-                        data-testid="analytics-campaign"
-                        @update:model-value="go({ campaign: String($event) || null })"
-                    />
-                </div>
+        <VtPageHeader :overline="t('nav.studio')" :title="t('analytics.title')" :description="t('page.analytics.lead')" data-testid="analytics-head">
+            <template #actions>
                 <VtButton data-testid="analytics-pdf" @click="scrollToReport"><VmIcon name="file" /> {{ t('analytics.report.button') }}</VtButton>
+            </template>
+        </VtPageHeader>
+
+        <!-- A szűrősor (Figma: a fejléc alatti chip- / szűrősor): időszak, egyedi tartomány, kampány. -->
+        <div class="vm-an-filters">
+            <div class="vm-seg-scroll">
+                <VtSegmented
+                    :model-value="showCustom ? 'custom' : selection.range"
+                    :options="rangeOptions"
+                    :label="t('analytics.range.label')"
+                    data-testid="analytics-range"
+                    @update:model-value="onRange(String($event))"
+                />
             </div>
-        </VmPageHeader>
+            <form v-if="showCustom" class="vm-an-custom" data-testid="analytics-custom" @submit.prevent="go({ range: 'custom', from: custom.from, to: custom.to })">
+                <VtInput v-model="custom.from" type="date" :max="selection.today" :aria-label="t('analytics.range.from')" />
+                <VtInput v-model="custom.to" type="date" :max="selection.today" :aria-label="t('analytics.range.to')" />
+                <VtButton type="submit" variant="secondary" size="sm">{{ t('analytics.range.apply') }}</VtButton>
+            </form>
+            <div class="vm-an-select">
+                <VtSelect
+                    :model-value="selection.campaign ?? ''"
+                    :options="campaignOptions"
+                    :aria-label="t('analytics.pickCampaign')"
+                    data-testid="analytics-campaign"
+                    @update:model-value="go({ campaign: String($event) || null })"
+                />
+            </div>
+        </div>
 
         <p class="vm-an-tz" data-testid="analytics-period">{{ periodLabel }} · {{ selection.timezone }}</p>
 
@@ -223,7 +226,7 @@ function scrollToReport(): void {
                     </VmChartCard>
 
                     <VmChartCard id="devices" :title="t('analytics.chart.devices')" :subtitle="t('analytics.eventsNote')" :context="campaignName" :chart="devices?.hasData ? deviceChart : null">
-                        <p v-if="!devices?.hasData" class="vm-an-muted" data-testid="devices-empty">{{ t('analytics.noDataBeforeV12') }}</p>
+                        <VtEmptyState v-if="!devices?.hasData" :title="t('analytics.noDataBeforeV12')" icon="inbox" data-testid="devices-empty" />
                         <div v-else class="vm-an-split">
                             <div class="vm-an-donut">
                                 <VmDonutChart ref="deviceChart" :items="deviceItems" :center="`${mobileShare}%`" :center-caption="t('analytics.device.mobile')" :label="t('analytics.chart.devices')" testid="chart-devices" />
@@ -251,7 +254,7 @@ function scrollToReport(): void {
                     </VmChartCard>
 
                     <VmChartCard id="top-links" :title="t('analytics.chart.topLinks')" :csv-href="campaignSection.campaign ? `/analytics/campaigns/${campaignSection.campaign.uuid}/links.csv` : undefined">
-                        <p v-if="!links.length" class="vm-an-muted" data-testid="links-empty">{{ t('analytics.noClicks') }}</p>
+                        <VtEmptyState v-if="!links.length" :title="t('analytics.noClicks')" icon="inbox" data-testid="links-empty" />
                         <ul v-else class="vm-an-bars vm-an-bars--links" data-testid="top-links">
                             <li v-for="link in links.slice(0, 10)" :key="link.key">
                                 <span class="vm-an-bars__label vm-truncate vt-mono" :title="link.url">{{ link.url.replace(/^https?:\/\//, '') }}</span>
@@ -317,7 +320,7 @@ function scrollToReport(): void {
                 <template #fallback><div class="vm-an-skeleton" /></template>
                 <VmChartCard id="bounces" :title="t('analytics.chart.bounces')" :context="periodLabel" :chart="bounces?.total ? bounceChart : null">
                     <VtBanner v-if="!platformSection?.available" tone="warning">{{ t('analytics.unavailable') }}</VtBanner>
-                    <p v-else-if="!bounces?.total" class="vm-an-muted" data-testid="bounces-empty">{{ t('analytics.noData') }}</p>
+                    <VtEmptyState v-else-if="!bounces?.total" :title="t('analytics.noData')" icon="inbox" data-testid="bounces-empty" />
                     <div v-else class="vm-an-split">
                         <div class="vm-an-donut">
                             <VmDonutChart ref="bounceChart" :items="bounceItems" :center="pct(bounceRate, 2)" :center-caption="t('analytics.chart.bounces')" :label="t('analytics.chart.bounces')" testid="chart-bounces" />

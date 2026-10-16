@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { router, usePage } from '@inertiajs/vue3';
-import { VtBanner, VtButton, VtCheckbox, VtField, VtInput, VtSelect, type VtColumn } from '@venture-co-group/ui';
+import { VtBanner, VtButton, VtCheckbox, VtField, VtInput, VtPageHeader, VtSelect, type VtColumn } from '@venture-co-group/ui';
 import { computed, reactive, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import VmCard from '../../Components/Form/VmCard.vue';
@@ -10,7 +10,6 @@ import VmFormRow from '../../Components/Form/VmFormRow.vue';
 import VmFormSection from '../../Components/Form/VmFormSection.vue';
 import VmTable from '../../Components/Form/VmTable.vue';
 import VmStateBadge from '../../Components/Platform/VmStateBadge.vue';
-import VmPageHeader from '../../Components/Studio/VmPageHeader.vue';
 import AppLayout from '../../Layouts/AppLayout.vue';
 import { useFormat } from '../../composables/useFormat';
 import { useCodes } from '../../composables/useCodes';
@@ -189,12 +188,14 @@ function openTrace(row: Row): void {
 
 <template>
     <AppLayout>
-        <VmPageHeader :eyebrow="t('plat.eyebrow.logs')" :title="t('logs.title')" :lead="t('plat.logs.lead')">
-            <div class="vm-export">
-                <VtCheckbox v-if="canExportPii" v-model="pii" data-testid="export-pii">{{ t('plat.logs.includePii') }}</VtCheckbox>
-                <VtButton variant="secondary" data-testid="log-export" :disabled="exporting" @click="downloadExport">{{ t('plat.logs.export') }}</VtButton>
-            </div>
-        </VmPageHeader>
+        <VtPageHeader :overline="t('nav.platform')" :title="t('logs.title')" :description="t('page.logs.lead')">
+            <template #actions>
+                <div class="vm-export">
+                    <VtCheckbox v-if="canExportPii" v-model="pii" data-testid="export-pii">{{ t('plat.logs.includePii') }}</VtCheckbox>
+                    <VtButton variant="secondary" data-testid="log-export" :disabled="exporting" @click="downloadExport">{{ t('plat.logs.export') }}</VtButton>
+                </div>
+            </template>
+        </VtPageHeader>
 
         <VtBanner v-if="exportError" tone="danger" role="alert" data-testid="export-error">{{ exportError }}</VtBanner>
 

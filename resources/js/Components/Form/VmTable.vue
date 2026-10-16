@@ -1,29 +1,37 @@
 <script setup lang="ts" generic="Row extends Record<string, unknown>">
-import { VtTable, type VtColumn } from '@venture-co-group/ui';
+import { VtDataTable, type VtColumn } from '@venture-co-group/ui';
+import { computed } from 'vue';
 
 /**
- * TÁBLA hosszú értékekhez: a cella tartalma egy sorba vágódik (`…`), a teljes érték a
- * `title`-ben (egérre és képernyőolvasónak) marad; ami még így sem fér, azt a tábla
- * MAGA görgeti vízszintesen — nem csúszik ki a kártyából, és nem vágódik le némán.
+ * TÁBLA — a közös `VtDataTable` (Figma DataTable, Unified UI v2 · 5. szabály) adaptere a
+ * ventMail soraihoz: a sorok nem hordoznak saját azonosítót, ezért a kulcs a sorszám.
  *
- * Az egyedi cella (`#cell`) továbbra is használható: akkor a hívó felel a vágásért
- * (`vm-truncate` osztály).
+ * A cella tartalma egy sorba vágódik (`…`), a teljes érték a `title`-ben marad; ami így sem
+ * fér, azt a tábla maga görgeti vízszintesen. Az egyedi cella (`#cell`) továbbra is
+ * használható — akkor a hívó felel a vágásért (`vm-truncate`).
  *
- * JELENTÉS a @venture/ui felé: a `VtTable` cellái ellipszis-vágást és `title`-t, a
- * gyökere pedig vízszintes görgetést kapjanak alapból.
+ * A tábla a kártyájában áll, amelynek címe megnevezi: a `caption` ezért nem látható felirat,
+ * hanem a régió akadálymentes neve (`aria-label`).
  */
-defineProps<{
+const props = defineProps<{
     columns: VtColumn<Row>[];
     rows: Row[];
-    glass?: boolean;
     caption?: string;
 }>();
+
+type Keyed = Row & { __vmKey: string };
+
+const keyed = computed(() => props.rows.map((row, index) => ({ ...row, __vmKey: String(index) }) as Keyed));
+const cols = computed(() => props.columns as unknown as VtColumn<Keyed>[]);
+
+/** A hívó a saját sortípusát látja a `#cell` slotban (a kulcs-mező nélkül). */
+const forward = (slot: unknown) => slot as { row: Row; column: VtColumn<Row>; value: unknown };
 </script>
 
 <template>
-    <VtTable class="vm-table" :columns="columns" :rows="rows" :glass="glass" :caption="caption">
+    <VtDataTable class="vm-table" :columns="cols" :rows="keyed" row-key="__vmKey" role="region" :aria-label="caption">
         <template #cell="slotProps">
-            <slot name="cell" v-bind="slotProps">
+            <slot name="cell" v-bind="forward(slotProps)">
                 <span
                     class="vm-truncate"
                     :class="{ 'vm-truncate--end': slotProps.column.align === 'right',
@@ -33,5 +41,5 @@ defineProps<{
                 >{{ slotProps.value }}</span>
             </slot>
         </template>
-    </VtTable>
+    </VtDataTable>
 </template>

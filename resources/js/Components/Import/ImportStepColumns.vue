@@ -190,8 +190,7 @@ function save(): void {
             </div>
         </div>
 
-        <VmCard v-if="draft.column >= 0" data-testid="new-field-form">
-            <h3>{{ t('audience.import.newField.title', { name: draft.label }) }}</h3>
+        <VmCard v-if="draft.column >= 0" data-testid="new-field-form" :title="t('audience.import.newField.title', { name: draft.label })" :heading-level="3">
             <VmFormRow>
                 <VtField :label="t('audience.import.newField.name')">
                     <VtInput v-model="draft.label" data-testid="new-field-label" />

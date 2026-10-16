@@ -40,6 +40,7 @@ defineProps<{
     margin: 0;
     font-family: var(--vt-font-display);
     font-size: var(--vt-type-heading-h2-size);
+    line-height: var(--vt-type-heading-h2-line-height);
     font-weight: var(--vt-weight-semibold);
     overflow-wrap: anywhere;
 }

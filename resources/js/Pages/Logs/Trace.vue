@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { VtGlowLine, type VtColumn } from '@venture-co-group/ui';
+import { VtPageHeader, type VtColumn } from '@venture-co-group/ui';
 import VmTable from '../../Components/Form/VmTable.vue';
 import VmCard from '../../Components/Form/VmCard.vue';
 import AppLayout from '../../Layouts/AppLayout.vue';
@@ -101,10 +101,9 @@ const attemptRows = (): AttemptRow[] =>
 
 <template>
     <AppLayout>
-        <VmCard>
-            <h1>{{ t('trace.title') }}</h1>
-            <VtGlowLine />
+        <VtPageHeader :overline="t('nav.platform')" :title="t('trace.title')" />
 
+        <VmCard>
             <dl class="vm-summary" data-testid="trace-summary">
                 <dt>{{ t('trace.id') }}</dt>
                 <dd>{{ props.trace.message.uuid }}</dd>

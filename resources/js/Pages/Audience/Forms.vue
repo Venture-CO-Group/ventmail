@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { router } from '@inertiajs/vue3';
-import { VtBanner, VtButton, VtCheckbox, VtField, VtInput, VtSelect, VtTextarea } from '@venture-co-group/ui';
+import { VtBanner, VtButton, VtCheckbox, VtEmptyState, VtField, VtInput, VtPageHeader, VtSelect, VtTextarea } from '@venture-co-group/ui';
 import VmCard from '../../Components/Form/VmCard.vue';
 import VmForm from '../../Components/Form/VmForm.vue';
 import VmFormActions from '../../Components/Form/VmFormActions.vue';
@@ -170,13 +170,11 @@ function toggle(row: FormRow): void {
 
 <template>
     <AppLayout>
-        <h1 class="vt-num">{{ t('forms.title') }}</h1>
+        <VtPageHeader :overline="t('nav.studio')" :title="t('forms.title')" :description="t('page.forms.lead')" />
 
         <VtBanner tone="info" role="status">{{ t('forms.note') }}</VtBanner>
 
-        <VmCard data-testid="form-editor">
-            <h2>{{ editing ? t('forms.edit') : t('forms.create') }}</h2>
-
+        <VmCard data-testid="form-editor" :title="editing ? t('forms.edit') : t('forms.create')">
             <VmForm @submit.prevent="submit">
                 <VmFormSection>
                     <VtField :label="t('forms.name')">
@@ -302,7 +300,7 @@ function toggle(row: FormRow): void {
         </VmCard>
 
         <VmCard>
-            <p v-if="!forms.length" data-testid="forms-empty">{{ t('forms.empty') }}</p>
+            <VtEmptyState v-if="!forms.length" :title="t('forms.empty')" icon="inbox" data-testid="forms-empty" />
 
             <div v-for="row in forms" :key="row.uuid" class="vm-stack" :data-testid="`form-${row.slug}`">
                 <div class="vm-cluster">
