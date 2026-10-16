@@ -64,11 +64,13 @@ Vemoa v0.6.5 (feladó `notify.ventureco.app`, webhook-végpont él); füstteszt 
        saját `vemoa` workspace, kulcs + webhook átköltöztetése, `VENTMAIL_FROM_DOMAIN=mail.vemoa.app` (FD17)
 4. [ ] **ventSec template-mód** kiadása: a ventSec repóban merge-ölve (#48), de a fő ág más, kiadatlan munkát is tartalmaz
        (M2.1) — a ventSec saját kiadásával megy élesbe; addig a riasztás sima szövegként megy a ventMailen át
-5. [ ] **Consent-főkönyv bekapcsolása** (`CONSENT_LEDGER_DRIVER=ventcookie`): ventCookie belső tenant + ventMail site +
-       `ventcookie:service-token:issue --ability=email-consent:write` → `CONSENT_LEDGER_TOKEN/SITE_ID/URL`, 32 bájtos
-       `CONSENT_LEDGER_SUBJECT_KEY`; a ventCookie `ve` láncára a havi pecsét még nincs kiterjesztve (ventCookie HUMAN-QUEUE #27)
-6. [ ] **ventSec szkenner / VSES** bekapcsolása (`INBOUND_SCANNER=ventsec`, `VENTSEC_EVENTS_ENABLED`): ventSSO m2m kliens
-       (`ventsec.scan ventsec.ingest`), ventSec source + `VENTSEC_SCAN_CLIENTS`; az inbound amúgy is ki van kapcsolva
+5. [x] **Consent-főkönyv bekapcsolva (2026-10-16):** ventCookie `venture-co` belső tenant, a meglévő ventMail site
+       (`01a13f5e-e30a-73ef-bea4-863e681b23de`), service token `--ability=email-consent:write`, `CONSENT_LEDGER_DRIVER=ventcookie`;
+       hitelesítés ellenőrizve (érvényes token 422 üres törzsre, hamis 401). A `ve` láncra a havi pecsét még nincs kiterjesztve
+       (ventCookie HUMAN-QUEUE #27).
+6. [x] **ventSec szkenner + VSES bekapcsolva (2026-10-16):** ventSSO `ventmail-prod` m2m kliens (`01a14271-…`), ventSec forrás
+       `01m5174e1ggfpvk8cfgeymz0hc` (live, szívverés a láncon), `INBOUND_SCANNER=ventsec`, `VENTSEC_EVENTS_ENABLED=true`, kulcs-pin
+       `1c8ad99ed23186b5`; próba: tiszta fájl `clean`, EICAR `infected`. A `clamav` konténer kivezetése: 1 hét zöld után (#8).
 7. [ ] Vemoa: `wipe_notification_variables` egyszeri futtatása (régi sorok tokenes linkjei) — tulajdonosi jóváhagyással
 8. [ ] DPO-kérdés: Vemoa `review_request` tranzakciós vagy marketing (most tranzakciós + opt-out)
 9. [ ] meghívó-visszaélés elleni korlát az appokban (szervezetnév hossz/URL-tiltás, rate-limit) — sablon-review javaslat
