@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { router, usePage } from '@inertiajs/vue3';
-import { VtButton, VtCheckbox, VtField, VtInput, VtModal, VtSegmented, VtSelect, type VtColumn } from '@venture/ui';
+import { VtBanner, VtButton, VtCheckbox, VtField, VtInput, VtModal, VtSegmented, VtSelect, type VtColumn } from '@venture-co-group/ui';
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import VmCard from '../../Components/Form/VmCard.vue';
@@ -225,9 +225,9 @@ function successRate(endpoint: Endpoint): string {
 
         <!-- A DEAD-LETTER az, amiért ez a képernyő létezik: enélkül a kiesett esemény
              csendben elveszne. -->
-        <p v-if="deadLettered.length" class="vm-banner vm-banner--danger" role="status" data-testid="dead-letter-warning">
+        <VtBanner v-if="deadLettered.length" tone="danger" role="status" data-testid="dead-letter-warning">
             {{ t('webhooks.deadLetterWarning', { count: deadLettered.length }) }}
-        </p>
+        </VtBanner>
 
         <VmSecretReveal
             v-if="issuedSecret"
@@ -273,7 +273,7 @@ function successRate(endpoint: Endpoint): string {
                     <dl class="vm-kv" data-testid="retry-schedule">
                         <template v-for="step in schedule" :key="step.label">
                             <dt>{{ step.label }}</dt>
-                            <dd class="vt-text-mono">{{ step.at }}</dd>
+                            <dd class="vt-mono">{{ step.at }}</dd>
                         </template>
                     </dl>
                 </VmCard>
@@ -298,7 +298,7 @@ function successRate(endpoint: Endpoint): string {
                 </VmFieldGroup>
 
                 <div class="vm-cluster">
-                    <VtButton variant="glass" size="sm" data-testid="events-save" @click="saveEvents">{{ t('plat.save') }}</VtButton>
+                    <VtButton variant="secondary" size="sm" data-testid="events-save" @click="saveEvents">{{ t('plat.save') }}</VtButton>
                     <VtButton variant="ghost" size="sm" data-testid="endpoint-toggle" @click="setActive(!selected.active)">
                         {{ selected.active ? t('plat.webhooks.disable') : t('plat.webhooks.enable') }}
                     </VtButton>
@@ -311,7 +311,7 @@ function successRate(endpoint: Endpoint): string {
                     <h3>{{ t('plat.webhooks.secret') }}</h3>
                     <div class="vm-cluster">
                         <code class="vm-secret-mask" data-testid="secret-hint">whsec_••••••••••••{{ selected.secretHint }}</code>
-                        <VtButton variant="glass" size="sm" data-testid="secret-rotate" @click="rotating = true">{{ t('plat.rotate') }}</VtButton>
+                        <VtButton variant="secondary" size="sm" data-testid="secret-rotate" @click="rotating = true">{{ t('plat.rotate') }}</VtButton>
                     </div>
                     <p class="vm-muted">
                         {{ t('plat.webhooks.signatureHint') }}
@@ -355,7 +355,7 @@ function successRate(endpoint: Endpoint): string {
                     </span>
                     <span v-else-if="column.key === 'response'" class="vm-cluster vm-nowrap" :title="byUuid.get(row.uuid)?.responseExcerpt ?? ''">
                         <VmStateBadge :state="byUuid.get(row.uuid)?.status ?? 'pending'" :testid="`delivery-state-${row.uuid}`" />
-                        <span class="vt-text-mono vm-truncate vm-excerpt">{{ value }}</span>
+                        <span class="vt-mono vm-truncate vm-excerpt">{{ value }}</span>
                     </span>
                     <VtButton
                         v-else-if="column.key === 'uuid'"
@@ -434,7 +434,7 @@ function successRate(endpoint: Endpoint): string {
     display: flex;
     flex-direction: column;
     gap: var(--vt-space-2);
-    max-height: calc(var(--vt-space-32) * 4);
+    max-height: calc(calc(var(--vt-space-8) * 4) * 4);
     overflow-y: auto;
 }
 
@@ -448,7 +448,7 @@ function successRate(endpoint: Endpoint): string {
     border: thin solid var(--vt-border);
     border-radius: var(--vt-radius-md);
     background: transparent;
-    color: var(--vt-text);
+    color: var(--vt-text-primary);
     font: inherit;
     text-align: left;
     cursor: pointer;
@@ -456,7 +456,7 @@ function successRate(endpoint: Endpoint): string {
 }
 
 .vm-endpoint--active {
-    border-color: var(--vt-color-accent-500);
+    border-color: var(--vt-accent);
 }
 
 .vm-endpoint__text {
@@ -467,15 +467,15 @@ function successRate(endpoint: Endpoint): string {
 }
 
 .vm-muted {
-    color: var(--vt-text-muted);
-    font-size: var(--vt-fs-body-sm);
+    color: var(--vt-text-secondary);
+    font-size: var(--vt-type-body-m-size);
 }
 
 .vm-eyebrow {
     margin: 0;
-    color: var(--vt-text-muted);
-    font-size: var(--vt-fs-caption);
-    letter-spacing: var(--vt-tracking-wider);
+    color: var(--vt-text-secondary);
+    font-size: var(--vt-type-caption-size);
+    letter-spacing: var(--vt-type-overline-tracking);
     text-transform: uppercase;
 }
 
@@ -518,11 +518,11 @@ function successRate(endpoint: Endpoint): string {
 
 .vm-secret-mask {
     font-family: var(--vt-font-mono);
-    font-size: var(--vt-fs-body-sm);
+    font-size: var(--vt-type-body-m-size);
     padding: var(--vt-space-2) var(--vt-space-3);
     border: thin solid var(--vt-border);
     border-radius: var(--vt-radius-md);
-    background: var(--vt-bg-elevated);
+    background: var(--vt-bg-raised);
     overflow-wrap: anywhere;
 }
 
@@ -541,6 +541,6 @@ function successRate(endpoint: Endpoint): string {
 }
 
 .vm-excerpt {
-    max-width: calc(var(--vt-space-32) * 2);
+    max-width: calc(calc(var(--vt-space-8) * 4) * 2);
 }
 </style>

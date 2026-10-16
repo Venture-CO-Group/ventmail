@@ -3,7 +3,7 @@
     display: inline-flex;
     align-items: center;
     gap: var(--vt-space-3);
-    color: var(--vt-text);
+    color: var(--vt-text-primary);
     text-decoration: none;
 }
 
@@ -14,9 +14,9 @@
 }
 
 .brand-logo__word {
-    font-size: var(--vt-fs-h6);
+    font-size: var(--vt-type-heading-h2-size);
     font-weight: var(--vt-weight-regular);
-    letter-spacing: var(--vt-tracking-tight);
+    letter-spacing: var(--vt-type-heading-h1-tracking);
     line-height: 1;
 }
 
@@ -26,6 +26,6 @@
 
 .brand-logo:focus-visible {
     outline: thin solid transparent; /* kényszerített színeknél (High Contrast) a fókusz így is látszik */
-    box-shadow: 0 0 0 var(--vt-space-1) var(--vt-ring);
+    box-shadow: 0 0 0 var(--vt-space-1) var(--vt-accent-line);
     border-radius: var(--vt-radius-sm);
 }

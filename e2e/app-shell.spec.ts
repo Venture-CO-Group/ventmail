@@ -75,7 +75,7 @@ test('a workspace-váltó CSAK a saját tagságokat kínálja', async ({ page })
     await page.goto('/dashboard');
 
     // A váltó gombja a JELENLEGI workspace-t mutatja; a lista a saját tagságokból áll.
-    await expect(page.getByTestId('workspace-current')).toHaveText('Dev workspace');
+    await expect(page.getByTestId('workspace-switch')).toContainText('Dev workspace');
 
     await page.getByTestId('workspace-switch').click();
 

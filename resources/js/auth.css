@@ -12,13 +12,13 @@
     padding: var(--vt-space-6);
     background:
         radial-gradient(55% 55% at 50% 0%, color-mix(in srgb, var(--vt-accent) 18%, transparent), transparent 70%),
-        var(--vt-bg);
-    color: var(--vt-text);
+        var(--vt-bg-base);
+    color: var(--vt-text-primary);
     font-family: var(--vt-font-body);
 }
 
 .auth__rim {
-    width: min(calc(var(--vt-space-32) * 3.25), 100%);
+    width: min(calc(calc(var(--vt-space-8) * 4) * 3.25), 100%);
 }
 
 .auth__rim > .auth__card {
@@ -53,21 +53,21 @@
 }
 
 .auth__product {
-    font-size: var(--vt-fs-body-sm);
+    font-size: var(--vt-type-body-m-size);
 }
 
 .auth__title {
     font-family: var(--vt-font-display);
     font-weight: var(--vt-weight-semibold);
-    letter-spacing: var(--vt-tracking-tight);
-    font-size: var(--vt-fs-h3);
+    letter-spacing: var(--vt-type-heading-h1-tracking);
+    font-size: var(--vt-type-display-m-size);
     margin: var(--vt-space-2) 0;
 }
 
 .auth__lede {
-    color: var(--vt-text-muted);
+    color: var(--vt-text-secondary);
     margin: 0 0 var(--vt-space-6);
-    line-height: var(--vt-leading-relaxed);
+    line-height: 1.7;
 }
 
 .auth__btn {
@@ -81,13 +81,13 @@
     border: 0;
     border-radius: var(--vt-radius-md);
     background-color: var(--vt-accent);
-    color: var(--vt-on-accent);
+    color: var(--vt-text-on-accent);
     font-family: var(--vt-font-body);
     font-weight: var(--vt-weight-semibold);
-    font-size: var(--vt-fs-body);
+    font-size: var(--vt-type-body-m-size);
     text-decoration: none;
     cursor: pointer;
-    box-shadow: var(--vt-glow-line-bloom);
+    box-shadow: var(--vt-glow-accent);
 }
 
 .auth__btn:hover {
@@ -96,31 +96,31 @@
 
 .auth__btn--ghost {
     background: transparent;
-    color: var(--vt-text);
+    color: var(--vt-text-primary);
     border: thin solid var(--vt-border-strong);
     box-shadow: none;
 }
 
 .auth__btn--ghost:hover {
-    background: var(--vt-glass-thin-fill);
+    background: var(--vt-surface-2);
 }
 
 .auth__btn:focus-visible {
     outline: thin solid transparent; /* kényszerített színeknél (High Contrast) a fókusz így is látszik */
-    box-shadow: 0 0 0 var(--vt-space-1) var(--vt-ring);
+    box-shadow: 0 0 0 var(--vt-space-1) var(--vt-accent-line);
 }
 
 .auth__error {
     margin: 0 0 var(--vt-space-4);
-    font-size: var(--vt-fs-body-sm);
-    color: var(--vt-color-danger);
+    font-size: var(--vt-type-body-m-size);
+    color: var(--vt-status-danger);
 }
 
 .auth__note {
     margin: var(--vt-space-5) 0 0;
     font-family: var(--vt-font-mono);
-    font-size: var(--vt-fs-caption);
-    color: var(--vt-text-muted);
+    font-size: var(--vt-type-caption-size);
+    color: var(--vt-text-secondary);
 }
 
 .auth__foot {
@@ -129,8 +129,8 @@
     gap: var(--vt-space-3);
     margin-top: var(--vt-space-6);
     font-family: var(--vt-font-mono);
-    font-size: var(--vt-fs-caption);
-    color: var(--vt-text-subtle);
+    font-size: var(--vt-type-caption-size);
+    color: var(--vt-text-tertiary);
 }
 
 .auth__legal {
@@ -139,20 +139,20 @@
     justify-content: center;
     gap: var(--vt-space-5);
     margin-top: var(--vt-space-5);
-    font-size: var(--vt-fs-body-sm);
+    font-size: var(--vt-type-body-m-size);
 }
 
 .auth__legal a {
-    color: var(--vt-text-muted);
+    color: var(--vt-text-secondary);
 }
 
 .auth__legal a:hover {
-    color: var(--vt-text);
+    color: var(--vt-text-primary);
 }
 
 .auth__legal a:focus-visible {
     outline: thin solid transparent; /* kényszerített színeknél (High Contrast) a fókusz így is látszik */
-    box-shadow: 0 0 0 var(--vt-space-1) var(--vt-ring);
+    box-shadow: 0 0 0 var(--vt-space-1) var(--vt-accent-line);
     border-radius: var(--vt-radius-sm);
 }
 
@@ -163,6 +163,6 @@
 
 .auth__venture:focus-visible {
     outline: thin solid transparent;
-    box-shadow: 0 0 0 var(--vt-space-1) var(--vt-ring);
+    box-shadow: 0 0 0 var(--vt-space-1) var(--vt-accent-line);
     border-radius: var(--vt-radius-sm);
 }

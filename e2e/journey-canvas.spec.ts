@@ -47,7 +47,7 @@ test('journey-vászon: vázlat összerakása, validálás, mentés és teszt-fut
     // 1. ÚJ VÁZLAT — a választott triggerrel indul.
     await page.goto('/journeys');
     await page.getByTestId('journey-name').fill(`E2E vászon ${run}`);
-    await page.getByTestId('journey-trigger').locator('select').selectOption('api_event');
+    await page.getByTestId('journey-trigger').locator('xpath=descendant-or-self::select').selectOption('api_event');
     await page.getByTestId('journey-submit').click();
     await expect(page).toHaveURL(/\/journeys\/[0-9a-f-]{36}$/);
 
@@ -100,7 +100,7 @@ test('journey-vászon: vázlat összerakása, validálás, mentés és teszt-fut
 
     // Az új csomópont kijelölve nyílik: a panel már az övé.
     await expect(page.getByTestId('cfg-template')).toBeVisible();
-    await page.getByTestId('cfg-template').locator('select').selectOption(seed.templates.compliant.uuid);
+    await page.getByTestId('cfg-template').locator('xpath=descendant-or-self::select').selectOption(seed.templates.compliant.uuid);
     await page.getByTestId('cfg-from').fill('hirlevel@pelda.hu');
 
     // 4. VÁRAKOZÁS és KILÉPÉS — kattintással (billentyűzettel is elérhető út).
@@ -109,7 +109,7 @@ test('journey-vászon: vázlat összerakása, validálás, mentés és teszt-fut
     const wait = await kindId(page, 'wait');
 
     await page.getByTestId('cfg-wait-amount').fill('2');
-    await page.getByTestId('cfg-wait-unit').locator('select').selectOption('days');
+    await page.getByTestId('cfg-wait-unit').locator('xpath=descendant-or-self::select').selectOption('days');
 
     await page.getByTestId('palette-exit').click();
     await expect(page.locator('[data-kind="exit"]')).toHaveCount(1);
@@ -129,9 +129,9 @@ test('journey-vászon: vázlat összerakása, validálás, mentés és teszt-fut
 
     // …a többit a panel „Kimenetek" választójával.
     await page.getByTestId(`jnode-${send}`).click();
-    await page.getByTestId('cfg-connect-out').locator('select').selectOption(wait);
+    await page.getByTestId('cfg-connect-out').locator('xpath=descendant-or-self::select').selectOption(wait);
     await page.getByTestId(`jnode-${wait}`).click();
-    await page.getByTestId('cfg-connect-out').locator('select').selectOption(exit);
+    await page.getByTestId('cfg-connect-out').locator('xpath=descendant-or-self::select').selectOption(exit);
     await expect(page.locator('.vue-flow__edge')).toHaveCount(3);
 
     // 7. VALIDÁLÁS: tiszta.

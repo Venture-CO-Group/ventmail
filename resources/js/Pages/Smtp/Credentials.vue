@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { router, usePage } from '@inertiajs/vue3';
-import { VtButton, VtField, VtInput, VtModal, VtSelect, type VtColumn } from '@venture/ui';
+import { VtBanner, VtButton, VtField, VtInput, VtModal, VtSelect, type VtColumn } from '@venture-co-group/ui';
 import VmTable from '../../Components/Form/VmTable.vue';
 import VmCard from '../../Components/Form/VmCard.vue';
 import VmForm from '../../Components/Form/VmForm.vue';
@@ -124,17 +124,17 @@ function confirmAction(): void {
     <AppLayout>
         <VmPageHeader :eyebrow="t('plat.eyebrow.smtp')" :title="t('smtp.title')" :lead="t('plat.smtp.lead')" />
 
-        <p class="vm-banner" role="status">{{ t('smtp.relayNote') }}</p>
+        <VtBanner tone="info" role="status">{{ t('smtp.relayNote') }}</VtBanner>
 
         <VmCard v-if="issued" data-testid="issued-credential">
             <strong>{{ t('plat.smtp.issuedTitle') }}</strong>
             <p>{{ t('smtp.issuedOnce') }}</p>
             <div class="vm-cluster">
-                <code class="vt-text-mono vm-wrap" data-testid="issued-username">{{ issued.username }}</code>
+                <code class="vt-mono vm-wrap" data-testid="issued-username">{{ issued.username }}</code>
                 <VmCopyButton :value="issued.username ?? ''" testid="copy-username" />
             </div>
             <div class="vm-cluster">
-                <code class="vt-text-mono vm-wrap" data-testid="issued-password">{{ issued.password }}</code>
+                <code class="vt-mono vm-wrap" data-testid="issued-password">{{ issued.password }}</code>
                 <VmCopyButton :value="issued.password ?? ''" testid="copy-password" />
             </div>
         </VmCard>
@@ -143,10 +143,10 @@ function confirmAction(): void {
             <h2>{{ t('plat.smtp.connection') }}</h2>
             <dl class="vm-kv">
                 <dt>{{ t('plat.smtp.host') }}</dt>
-                <dd class="vt-text-mono">{{ submission.host }}</dd>
+                <dd class="vt-mono">{{ submission.host }}</dd>
                 <template v-for="port in submission.ports" :key="port.port">
                     <dt>{{ t('plat.smtp.port') }}</dt>
-                    <dd class="vt-text-mono">{{ port.port }} · {{ port.tls }}</dd>
+                    <dd class="vt-mono">{{ port.port }} · {{ port.tls }}</dd>
                 </template>
             </dl>
             <p>{{ t('plat.smtp.perDomain') }}</p>
@@ -235,7 +235,7 @@ function confirmAction(): void {
 }
 
 .vm-kv dt {
-    color: var(--vt-text-muted);
+    color: var(--vt-text-secondary);
 }
 
 .vm-kv dd {

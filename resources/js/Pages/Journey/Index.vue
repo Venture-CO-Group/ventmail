@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Link, router } from '@inertiajs/vue3';
-import { VtButton, VtField, VtInput, VtSelect, type VtColumn } from '@venture/ui';
+import { VtBanner, VtButton, VtField, VtInput, VtSelect, type VtColumn } from '@venture-co-group/ui';
 import VmTable from '../../Components/Form/VmTable.vue';
 import VmCard from '../../Components/Form/VmCard.vue';
 import VmForm from '../../Components/Form/VmForm.vue';
@@ -57,11 +57,11 @@ function create(): void {
 
 <template>
     <AppLayout>
-        <h1 class="vt-text-display">{{ t('journeys.title') }}</h1>
+        <h1 class="vt-num">{{ t('journeys.title') }}</h1>
 
-        <p v-if="idleActive" class="vm-banner vm-banner--warning" role="status" data-testid="journeys-idle">
+        <VtBanner v-if="idleActive" tone="warning" role="status" data-testid="journeys-idle">
             {{ t('journeys.idleWarning', { count: idleActive }) }}
-        </p>
+        </VtBanner>
 
         <VmCard>
             <h2>{{ t('journeys.new') }}</h2>

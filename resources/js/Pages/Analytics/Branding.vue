@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { router, usePage } from '@inertiajs/vue3';
-import { VtButton, VtField, VtFileUpload, VtInput, VtTextarea } from '@venture/ui';
+import { VtBanner, VtButton, VtField, VtFileUpload, VtInput, VtTextarea } from '@venture-co-group/ui';
 import { computed, onMounted, reactive, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { isHexColor, verdict, type ContrastVerdict } from '../../Components/Analytics/brandContrast';
@@ -98,7 +98,7 @@ const maxMb = computed(() => Math.round(props.limits.maxBytes / 1024 / 1024));
             <VtButton :loading="saving" :disabled="saving" data-testid="branding-save" @click="save"><VmIcon name="save" /> {{ t('branding.save') }}</VtButton>
         </VmPageHeader>
 
-        <p v-if="Object.keys(errors).length" class="vm-banner vm-banner--danger" role="alert" data-testid="branding-errors">{{ t('branding.saveFailed') }}</p>
+        <VtBanner v-if="Object.keys(errors).length" tone="danger" role="alert" data-testid="branding-errors">{{ t('branding.saveFailed') }}</VtBanner>
 
         <div class="vm-brand">
             <VmCard glass>
@@ -196,7 +196,7 @@ const maxMb = computed(() => Math.round(props.limits.maxBytes / 1024 / 1024));
 <style scoped>
 .vm-brand {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(var(--vt-space-32) * 3)), 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(calc(var(--vt-space-8) * 4) * 3)), 1fr));
     gap: var(--vt-space-6);
     align-items: start;
     min-width: 0;
@@ -205,7 +205,7 @@ const maxMb = computed(() => Math.round(props.limits.maxBytes / 1024 / 1024));
 .vm-brand__title {
     margin: 0;
     font-family: var(--vt-font-display);
-    font-size: var(--vt-fs-h5);
+    font-size: var(--vt-type-heading-h1-size);
 }
 
 .vm-brand__logo {
@@ -218,13 +218,13 @@ const maxMb = computed(() => Math.round(props.limits.maxBytes / 1024 / 1024));
 .vm-brand__logobox {
     display: grid;
     place-items: center;
-    width: var(--vt-space-24);
-    height: var(--vt-space-24);
+    width: calc(var(--vt-space-12) * 2);
+    height: calc(var(--vt-space-12) * 2);
     border: thin dashed var(--vt-border-strong);
     border-radius: var(--vt-radius-lg);
-    background: var(--vt-glass-thin-fill);
+    background: var(--vt-surface-2);
     font-family: var(--vt-font-display);
-    font-size: var(--vt-fs-h3);
+    font-size: var(--vt-type-display-m-size);
     overflow: hidden;
 }
 
@@ -248,15 +248,15 @@ const maxMb = computed(() => Math.round(props.limits.maxBytes / 1024 / 1024));
 }
 
 .vm-brand__colorbox {
-    width: var(--vt-control-height);
-    height: var(--vt-control-height);
+    width: var(--vt-space-10);
+    height: var(--vt-space-10);
     border-radius: var(--vt-radius-md);
     background: var(--vt-accent);
     border: thin solid var(--vt-border);
 }
 
 .vm-brand__hex {
-    width: calc(var(--vt-space-32) + var(--vt-space-4));
+    width: calc(calc(var(--vt-space-8) * 4) + var(--vt-space-4));
 }
 
 .vm-brand__swatches {
@@ -277,21 +277,21 @@ const maxMb = computed(() => Math.round(props.limits.maxBytes / 1024 / 1024));
 .vm-brand__swatch.is-on,
 .vm-brand__swatch:focus-visible {
     outline: none;
-    box-shadow: var(--vt-ring);
+    box-shadow: var(--vt-accent-line);
 }
 
 .vm-brand__hint {
     margin: var(--vt-space-2) 0 0;
-    color: var(--vt-text-muted);
-    font-size: var(--vt-fs-caption);
+    color: var(--vt-text-secondary);
+    font-size: var(--vt-type-caption-size);
 }
 .vm-brand__uploading {
     display: inline-flex;
     align-items: center;
     gap: var(--vt-space-2);
     margin: 0;
-    color: var(--vt-text-muted);
-    font-size: var(--vt-fs-body-sm);
+    color: var(--vt-text-secondary);
+    font-size: var(--vt-type-body-m-size);
 }
 
 /* Feltöltés közben forgó jelző (D318) — tokenekből; csökkentett mozgásnál áll. */

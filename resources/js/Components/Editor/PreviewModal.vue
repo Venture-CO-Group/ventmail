@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { VtModal } from '@venture/ui';
+import { VtBanner, VtModal } from '@venture-co-group/ui';
 import axios from 'axios';
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
@@ -54,7 +54,7 @@ const options = computed(() => [
     <VtModal :open="open" :title="t('editor.preview.title')" @update:open="emit('update:open', $event)" @close="emit('update:open', false)">
         <div class="vm-ed-preview" :class="{ 'vm-ed-preview--mobile': mode === 'mobile', 'vm-ed-preview--dark': mode === 'dark' }" data-testid="preview-modal">
             <EdSegment v-model="mode" :options="options" :label="t('editor.preview.title')" testid="preview-mode" />
-            <p v-if="error" class="vm-banner vm-banner--danger" role="status" data-testid="preview-error">{{ error }}</p>
+            <VtBanner v-if="error" tone="danger" role="status" data-testid="preview-error">{{ error }}</VtBanner>
             <template v-else>
                 <pre v-if="mode === 'text'" class="vm-ed-plain" data-testid="preview-text">{{ text }}</pre>
                 <iframe v-else :title="t('editor.preview.title')" sandbox="" :srcdoc="html" data-testid="preview-frame" />

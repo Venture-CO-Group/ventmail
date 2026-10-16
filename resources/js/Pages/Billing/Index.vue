@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { type VtColumn } from '@venture/ui';
+import { VtBanner, type VtColumn } from '@venture-co-group/ui';
 import VmTable from '../../Components/Form/VmTable.vue';
 import VmCard from '../../Components/Form/VmCard.vue';
 import { computed } from 'vue';
@@ -55,14 +55,14 @@ const enabledFeatures = computed(() => props.features.filter((feature) => featur
 
 <template>
     <AppLayout>
-        <h1 class="vt-text-display">{{ t('billing.title') }}</h1>
+        <h1 class="vt-num">{{ t('billing.title') }}</h1>
 
         <!-- A FELFÜGGESZTÉS nem lehet meglepetés: a PreSendGate 4. kapuja
              `QUOTA_EXCEEDED`-et ad, és ha ezt csak a hibaüzenetből tudná meg az ügyfél, a
              támogatás értesülne róla először. -->
-        <p v-if="suspended" class="vm-banner vm-banner--danger" role="status" data-testid="billing-suspended">
+        <VtBanner v-if="suspended" tone="danger" role="status" data-testid="billing-suspended">
             {{ t('billing.suspendedWarning') }}
-        </p>
+        </VtBanner>
 
         <div class="vm-metrics">
             <VmCard>

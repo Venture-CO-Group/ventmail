@@ -120,8 +120,11 @@ test('az előnézet magassága nincs korlátozva, nincs belső görgetés: a hos
         const stage = document.querySelector<HTMLElement>('[data-testid="editor-stage"]')!;
         const scrollers: string[] = [];
 
-        // A vászontól a dokumentumig egyetlen ős sem görgethető és nincs fix magassága.
-        for (let node: HTMLElement | null = canvas; node && node !== document.body; node = node.parentElement) {
+        // A vászontól a héj görgetett tartalom-oszlopáig (a „lap", Unified UI v2) egyetlen ős sem
+        // görgethető és nincs fix magassága.
+        const page = document.querySelector<HTMLElement>('.vt-shell__content')!;
+
+        for (let node: HTMLElement | null = canvas; node && node !== page; node = node.parentElement) {
             const style = getComputedStyle(node);
 
             if (['auto', 'scroll'].includes(style.overflowY) || ['auto', 'scroll'].includes(style.overflow)) scrollers.push(node.className);
@@ -141,8 +144,8 @@ test('az előnézet magassága nincs korlátozva, nincs belső görgetés: a hos
             canvasClipped: last.getBoundingClientRect().bottom - canvas.getBoundingClientRect().bottom,
             stageClipped: stage.scrollHeight - stage.clientHeight,
             canvasHeight: canvas.getBoundingClientRect().height,
-            lastBottom: last.getBoundingClientRect().bottom + window.scrollY,
-            documentHeight: document.documentElement.scrollHeight,
+            lastBottom: last.getBoundingClientRect().bottom - page.getBoundingClientRect().top + page.scrollTop,
+            documentHeight: page.scrollHeight,
             viewport: window.innerHeight,
         };
     });

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { type VtColumn } from '@venture/ui';
+import { VtBanner, type VtColumn } from '@venture-co-group/ui';
 import VmTable from '../../Components/Form/VmTable.vue';
 import VmCard from '../../Components/Form/VmCard.vue';
 import { computed } from 'vue';
@@ -68,17 +68,17 @@ const dmarcRows = computed<DmarcRow[]>(() =>
 
 <template>
     <AppLayout>
-        <h1 class="vt-text-display">{{ t('deliverability.title') }}</h1>
+        <h1 class="vt-num">{{ t('deliverability.title') }}</h1>
 
         <!-- A BLOCKLISTA az a hiba, amit MI veszünk észre utoljára: az ügyfélnél hirtelen
              senki nem kapja meg a levelet. -->
-        <p v-if="blocklist.listedCount" class="vm-banner vm-banner--danger" role="status" data-testid="blocklist-warning">
+        <VtBanner v-if="blocklist.listedCount" tone="danger" role="status" data-testid="blocklist-warning">
             {{ t('deliverability.listedWarning', { count: blocklist.listedCount }) }}
-        </p>
+        </VtBanner>
 
-        <p v-if="unverified.length" class="vm-banner vm-banner--warning" role="status" data-testid="deliverability-unverified">
+        <VtBanner v-if="unverified.length" tone="warning" role="status" data-testid="deliverability-unverified">
             {{ t('deliverability.unverified', { count: unverified.length }) }}
-        </p>
+        </VtBanner>
 
         <VmCard>
             <h2>{{ t('deliverability.blocklist') }}</h2>

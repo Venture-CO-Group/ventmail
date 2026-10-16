@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { router, usePage } from '@inertiajs/vue3';
-import { VtButton, VtCheckbox, VtField, VtInput, VtModal, VtTextarea, type VtColumn } from '@venture/ui';
+import { VtButton, VtCheckbox, VtField, VtInput, VtModal, VtTextarea, type VtColumn } from '@venture-co-group/ui';
 import { computed, ref, type Ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import VmCard from '../../Components/Form/VmCard.vue';
@@ -247,7 +247,7 @@ function revoke(): void {
 <style scoped>
 .vm-scope-cards {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(var(--vt-space-32) * 2)), 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(calc(var(--vt-space-8) * 4) * 2)), 1fr));
     gap: var(--vt-space-4);
 }
 
@@ -257,9 +257,9 @@ function revoke(): void {
 
 .vm-eyebrow {
     margin: 0;
-    color: var(--vt-text-muted);
-    font-size: var(--vt-fs-caption);
-    letter-spacing: var(--vt-tracking-wider);
+    color: var(--vt-text-secondary);
+    font-size: var(--vt-type-caption-size);
+    letter-spacing: var(--vt-type-overline-tracking);
     text-transform: uppercase;
 }
 </style>

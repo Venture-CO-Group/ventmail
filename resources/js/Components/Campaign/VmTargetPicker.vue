@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { VtButton, VtCheckbox, VtInput } from '@venture/ui';
+import { VtButton, VtCheckbox, VtInput } from '@venture-co-group/ui';
 import axios from 'axios';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
@@ -161,7 +161,7 @@ const label = (option: TargetOption): string =>
     padding-inline-start: var(--vt-space-3);
     border: thin solid var(--vt-accent);
     border-radius: var(--vt-radius-full);
-    background-color: var(--vt-glass-thin-fill);
+    background-color: var(--vt-surface-2);
 }
 
 .vm-picker__chip-text,
@@ -177,6 +177,6 @@ const label = (option: TargetOption): string =>
 }
 
 .vm-picker__muted {
-    color: var(--vt-text-muted);
+    color: var(--vt-text-secondary);
 }
 </style>

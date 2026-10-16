@@ -105,7 +105,15 @@
             "author": "Szerző",
             "analyst": "Elemző"
         },
-        "editorNav": "Kompakt navigáció"
+        "editorNav": "Kompakt navigáció",
+        "appSubtitle": "E-mail platform",
+        "allApps": "Minden Venture app",
+        "search": "Keresés vagy ugrás…",
+        "searchEmpty": "Nincs találat.",
+        "env": {
+            "live": "Éles",
+            "restricted": "Korlátozott mód"
+        }
     },
     "dashboard": {
         "title": "Áttekintés",

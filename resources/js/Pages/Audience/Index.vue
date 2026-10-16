@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Link, router, usePage } from '@inertiajs/vue3';
-import { VtBadge, VtButton, VtCheckbox, VtField, VtInput, VtSegmented, VtSelect, type VtColumn } from '@venture/ui';
+import { VtBadge, VtBanner, VtButton, VtCheckbox, VtField, VtInput, VtSegmented, VtSelect, type VtColumn } from '@venture-co-group/ui';
 import axios from 'axios';
 import VmStat from '../../Components/Form/VmStat.vue';
 import VmIcon from '../../Components/Shell/VmIcon.vue';
@@ -281,7 +281,7 @@ function createList(): void {
         <header class="vm-audience-head">
             <div class="vm-audience-head__text">
                 <p class="vm-audience-head__eyebrow">{{ t('insights.eyebrow') }}</p>
-                <h1 class="vt-text-display">{{ t('audience.title') }}</h1>
+                <h1 class="vt-num">{{ t('audience.title') }}</h1>
             </div>
             <div class="vm-audience-head__actions">
                 <VtButton variant="ghost" data-testid="audience-segments" @click="router.visit('/audience/segments')">
@@ -290,11 +290,11 @@ function createList(): void {
                 <VtButton variant="ghost" data-testid="audience-tags" @click="router.visit('/audience/tags')">
                     <VmIcon name="tag" /> {{ t('audience.manageTags') }}
                 </VtButton>
-                <VtButton glow data-testid="audience-import" @click="router.visit('/audience/import')">{{ t('audience.importAction') }}</VtButton>
+                <VtButton data-testid="audience-import" @click="router.visit('/audience/import')">{{ t('audience.importAction') }}</VtButton>
             </div>
         </header>
 
-        <p v-if="insightsError" class="vm-banner vm-banner--warning" role="status" data-testid="insights-error">{{ t('insights.failed') }}</p>
+        <VtBanner v-if="insightsError" tone="warning" role="status" data-testid="insights-error">{{ t('insights.failed') }}</VtBanner>
 
         <section v-if="insights" class="vm-insights" data-testid="audience-insights" :aria-label="t('insights.title')">
             <div class="vm-insights__stats">
@@ -317,9 +317,9 @@ function createList(): void {
                         </div>
                     </div>
                     <div class="vm-insights__legend">
-                        <VtBadge tone="accent" size="sm">{{ t('insights.new') }}: {{ growthTotals.added }}</VtBadge>
-                        <VtBadge tone="danger" size="sm">{{ t('insights.unsubscribed') }}: {{ growthTotals.lost }}</VtBadge>
-                        <VtBadge size="sm">{{ t('insights.net') }}: {{ growthTotals.added - growthTotals.lost }}</VtBadge>
+                        <VtBadge tone="accent">{{ t('insights.new') }}: {{ growthTotals.added }}</VtBadge>
+                        <VtBadge tone="danger">{{ t('insights.unsubscribed') }}: {{ growthTotals.lost }}</VtBadge>
+                        <VtBadge>{{ t('insights.net') }}: {{ growthTotals.added - growthTotals.lost }}</VtBadge>
                     </div>
                     <VmGrowthBars :rows="insights.growth" />
                 </VmCard>
@@ -337,9 +337,9 @@ function createList(): void {
             </div>
         </section>
 
-        <p v-if="unconfirmed" class="vm-banner vm-banner--warning" role="status" data-testid="audience-unconfirmed">
+        <VtBanner v-if="unconfirmed" tone="warning" role="status" data-testid="audience-unconfirmed">
             {{ t('audience.unconfirmedWarning', { count: unconfirmed }) }}
-        </p>
+        </VtBanner>
 
         <VmCard>
             <div class="vm-audience-card-head">
@@ -354,7 +354,7 @@ function createList(): void {
                 <div class="vm-cluster">
                     <strong>{{ list.name }}</strong>
                     <span>{{ t('audience.contactCount', { count: format.number(list.contacts) }) }}</span>
-                    <span v-if="list.fromEmail" class="vt-text-mono">{{ list.fromEmail }}</span>
+                    <span v-if="list.fromEmail" class="vt-mono">{{ list.fromEmail }}</span>
 
                     <VtButton variant="ghost" :data-testid="`list-edit-${list.uuid}`" @click="startListEdit(list)">
                         {{ t('audience.editList') }}
@@ -554,10 +554,10 @@ function createList(): void {
 
 .vm-audience-head__eyebrow {
     margin: 0;
-    color: var(--vt-text-muted);
-    font-size: var(--vt-fs-caption);
+    color: var(--vt-text-secondary);
+    font-size: var(--vt-type-caption-size);
     font-weight: var(--vt-weight-semibold);
-    letter-spacing: var(--vt-tracking-wider);
+    letter-spacing: var(--vt-type-overline-tracking);
     text-transform: uppercase;
 }
 
@@ -592,7 +592,7 @@ function createList(): void {
 }
 
 .vm-audience-block-search > :first-child {
-    flex: 1 1 calc(var(--vt-space-24) * 2);
+    flex: 1 1 calc(calc(var(--vt-space-12) * 2) * 2);
     min-width: 0;
 }
 
@@ -609,7 +609,7 @@ function createList(): void {
 
 .vm-insights__stats {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(calc(var(--vt-space-32) * 1.5), 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(calc(calc(var(--vt-space-8) * 4) * 1.5), 1fr));
     gap: var(--vt-space-4);
 }
 
@@ -620,12 +620,12 @@ function createList(): void {
 }
 
 .vm-insights__growth {
-    flex: 2 1 calc(var(--vt-space-32) * 3);
+    flex: 2 1 calc(calc(var(--vt-space-8) * 4) * 3);
 }
 
 .vm-insights__side {
     display: flex;
-    flex: 1 1 calc(var(--vt-space-32) * 2);
+    flex: 1 1 calc(calc(var(--vt-space-8) * 4) * 2);
     flex-direction: column;
     gap: var(--vt-space-6);
     min-width: 0;
@@ -633,8 +633,8 @@ function createList(): void {
 
 .vm-audience-hint {
     margin: 0;
-    color: var(--vt-text-muted);
-    font-size: var(--vt-fs-body-sm);
+    color: var(--vt-text-secondary);
+    font-size: var(--vt-type-body-m-size);
 }
 
 .vm-audience-fields {
@@ -659,7 +659,7 @@ function createList(): void {
     padding: var(--vt-space-3);
     border: thin solid var(--vt-border);
     border-radius: var(--vt-radius-md);
-    background-color: var(--vt-glass-thin-fill);
+    background-color: var(--vt-surface-2);
 }
 
 .vm-bulk__count {
@@ -667,7 +667,7 @@ function createList(): void {
 }
 
 .vm-bulk > :deep(*) {
-    flex: 0 1 calc(var(--vt-space-32) * 1.5);
+    flex: 0 1 calc(calc(var(--vt-space-8) * 4) * 1.5);
     min-width: 0;
 }
 

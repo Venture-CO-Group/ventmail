@@ -30,7 +30,7 @@ withDefaults(defineProps<{ reverse?: boolean; wide?: boolean }>(), { reverse: fa
 }
 
 .vm-split__side {
-    flex: 1 1 calc(var(--vt-space-32) * 2.5);
+    flex: 1 1 calc(calc(var(--vt-space-8) * 4) * 2.5);
     display: flex;
     flex-direction: column;
     gap: var(--vt-space-4);
@@ -38,11 +38,11 @@ withDefaults(defineProps<{ reverse?: boolean; wide?: boolean }>(), { reverse: fa
 }
 
 .vm-split--wide .vm-split__side {
-    flex-basis: calc(var(--vt-space-32) * 3);
+    flex-basis: calc(calc(var(--vt-space-8) * 4) * 3);
 }
 
 .vm-split__main {
-    flex: 999 1 calc(var(--vt-space-32) * 4);
+    flex: 999 1 calc(calc(var(--vt-space-8) * 4) * 4);
     display: flex;
     flex-direction: column;
     gap: var(--vt-space-6);

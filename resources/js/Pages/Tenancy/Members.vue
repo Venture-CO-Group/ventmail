@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { router } from '@inertiajs/vue3';
-import { VtButton, VtCheckbox, VtField, VtInput, type VtColumn } from '@venture/ui';
+import { VtBanner, VtButton, VtCheckbox, VtField, VtInput, type VtColumn } from '@venture-co-group/ui';
 import VmTable from '../../Components/Form/VmTable.vue';
 import VmCard from '../../Components/Form/VmCard.vue';
 import VmFieldGroup from '../../Components/Form/VmFieldGroup.vue';
@@ -148,9 +148,9 @@ function createSubAccount(): void {
 
 <template>
     <AppLayout>
-        <h1 class="vt-text-display">{{ t('members.title') }}</h1>
+        <h1 class="vt-num">{{ t('members.title') }}</h1>
 
-        <p class="vm-banner" role="status">{{ t('members.note') }}</p>
+        <VtBanner tone="info" role="status">{{ t('members.note') }}</VtBanner>
 
         <VmCard data-testid="members-card">
             <h2>{{ t('members.heading') }}</h2>
@@ -159,7 +159,7 @@ function createSubAccount(): void {
 
             <div v-for="member in members" :key="member.id" class="vm-stack">
                 <div class="vm-cluster">
-                    <span class="vt-text-mono vm-truncate vm-truncate--fill" :title="member.email">{{ member.email }}</span>
+                    <span class="vt-mono vm-truncate vm-truncate--fill" :title="member.email">{{ member.email }}</span>
 
                     <VtButton variant="ghost" :data-testid="`edit-${member.id}`" @click="startEdit(member)">
                         {{ t('members.editRoles') }}
@@ -261,7 +261,7 @@ function createSubAccount(): void {
             <p v-if="!invitations.length" data-testid="invitations-empty">{{ t('members.noInvitations') }}</p>
 
             <div v-for="invitation in invitations" :key="invitation.uuid" class="vm-cluster">
-                <span class="vt-text-mono vm-truncate vm-truncate--fill" :title="invitation.email">{{ invitation.email }}</span>
+                <span class="vt-mono vm-truncate vm-truncate--fill" :title="invitation.email">{{ invitation.email }}</span>
                 <span class="vm-wrap">{{ invitation.roles.join(', ') }}</span>
                 <span v-if="invitation.expired" :data-testid="`expired-${invitation.uuid}`">
                     {{ t('members.expired') }}
@@ -279,9 +279,9 @@ function createSubAccount(): void {
 
             <p>{{ t('members.subAccountsHint') }}</p>
 
-            <p v-if="subAccounts.parent" class="vm-banner" data-testid="sub-account-parent">
+            <VtBanner v-if="subAccounts.parent" tone="info" data-testid="sub-account-parent">
                 {{ t('members.parentIs', { name: subAccounts.parent.name }) }}
-            </p>
+            </VtBanner>
 
             <p v-if="!subAccounts.children.length" data-testid="sub-accounts-empty">
                 {{ t('members.noSubAccounts') }}
@@ -289,7 +289,7 @@ function createSubAccount(): void {
 
             <div v-for="child in subAccounts.children" :key="child.uuid" class="vm-cluster">
                 <span class="vm-truncate vm-truncate--fill" :title="child.name">{{ child.name }}</span>
-                <span class="vt-text-mono">{{ child.plan }}</span>
+                <span class="vt-mono">{{ child.plan }}</span>
                 <span>{{ t('members.memberCount', { count: child.members }) }}</span>
             </div>
 

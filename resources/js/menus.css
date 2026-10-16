@@ -1,0 +1,214 @@
+/*
+ | A HÉJ MENÜINEK TARTALMA — workspace-váltó, fiókmenü, nyelvsor. A menük KERETE (gomb,
+ | legördülő) a @venture-co-group/ui-é (VtSidebar `workspace-menu`, VtTopbar `user-menu` /
+ | `locale-menu`); itt csak a belső elrendezés, kizárólag tokenekből.
+ */
+/*
+ | A FELSŐ NAVIGÁCIÓ (v1.1 · Shell) — kizárólag @venture/design tokenekből.
+ |
+ | Töréspont-szabály: nincs media query (nem olvas `var()`-t); a hamburger-nézetet a
+ | `useCompactNav` kapcsolja, a küszöb a spacing-tokenből számolt érték. Itt ezért csak
+ | az `.vm-topbar--compact` / `.vm-shell--compact` osztályok stílusa áll.
+ |
+ | JELENTÉS a @venture/ui felé: nav-sáv, legördülő/menü, szerep-jelölő, ikon-készlet
+ | (lásd shell.css felsorolását) — itt lokális `Vm*` komponensként élnek.
+ */
+
+.vm-icon {
+    inline-size: var(--vt-space-5);
+    block-size: var(--vt-space-5);
+    flex: none;
+}
+
+.vm-menuitem__code {
+    inline-size: var(--vt-space-8);
+    color: var(--vt-text-secondary);
+    font-size: var(--vt-type-caption-size);
+}
+
+.vm-usermenu {
+    inline-size: calc(calc(var(--vt-space-8) * 4) * 2.5);
+}
+
+.vm-usermenu__head {
+    display: flex;
+    align-items: center;
+    gap: var(--vt-space-3);
+    padding: var(--vt-space-2) var(--vt-space-3) var(--vt-space-3);
+    margin-block-end: var(--vt-space-2);
+    border-block-end: thin solid var(--vt-border);
+}
+
+.vm-usermenu__who {
+    display: flex;
+    flex-direction: column;
+    min-inline-size: 0;
+}
+
+.vm-usermenu__name {
+    font-weight: var(--vt-weight-semibold);
+    overflow-wrap: anywhere;
+}
+
+.vm-usermenu__email {
+    color: var(--vt-text-secondary);
+    font-size: var(--vt-type-body-m-size);
+    overflow-wrap: anywhere;
+}
+
+.vm-usermenu__version {
+    margin: var(--vt-space-2) 0 0;
+    padding: var(--vt-space-2) var(--vt-space-3) 0;
+    border-block-start: thin solid var(--vt-border);
+    color: var(--vt-text-tertiary);
+    font-size: var(--vt-type-caption-size);
+}
+
+/* -------------------------------------------------- workspace-váltó */
+
+.vm-switcher {
+    inline-size: calc(calc(var(--vt-space-8) * 4) * 3);
+}
+
+.vm-switcher__search {
+    display: flex;
+    align-items: center;
+    gap: var(--vt-space-2);
+    color: var(--vt-text-secondary);
+}
+
+.vm-switcher__search > :last-child {
+    flex: 1 1 auto;
+    min-inline-size: 0;
+}
+
+.vm-switcher__heading {
+    margin: var(--vt-space-3) var(--vt-space-2) var(--vt-space-1);
+}
+
+.vm-switcher__list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--vt-space-1);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.vm-switcher__row {
+    display: flex;
+    align-items: center;
+    gap: var(--vt-space-3);
+    inline-size: 100%;
+    box-sizing: border-box;
+    padding: var(--vt-space-2);
+    border: 0;
+    border-radius: var(--vt-radius-md);
+    background: none;
+    color: var(--vt-text-primary);
+    font-family: var(--vt-font-body);
+    font-size: var(--vt-type-body-m-size);
+    text-align: start;
+    cursor: pointer;
+}
+
+.vm-switcher__row:hover {
+    background: var(--vt-surface-2);
+}
+
+/* A JELENLEGI workspace (D318): háttérkitöltés nincs — accent szöveg + pipa-ikon. */
+.vm-switcher__row[aria-current='true'] {
+    color: var(--vt-accent-hover);
+    font-weight: var(--vt-weight-medium);
+}
+
+.vm-switcher__check {
+    flex: none;
+    color: var(--vt-accent-hover);
+}
+
+.vm-switcher__name {
+    flex: 1 1 auto;
+    min-inline-size: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.vm-switcher__empty {
+    padding: var(--vt-space-3);
+    color: var(--vt-text-secondary);
+}
+
+.vm-switcher__footer {
+    margin-block-start: var(--vt-space-2);
+    padding-block-start: var(--vt-space-2);
+    border-block-start: thin solid var(--vt-border);
+}
+
+.vm-switcher__new {
+    display: flex;
+    align-items: center;
+    gap: var(--vt-space-3);
+    inline-size: 100%;
+    padding: var(--vt-space-2);
+    border: 0;
+    border-radius: var(--vt-radius-md);
+    background: none;
+    color: var(--vt-text-primary);
+    font-family: var(--vt-font-body);
+    font-size: var(--vt-type-body-m-size);
+    cursor: pointer;
+}
+
+.vm-switcher__new:hover {
+    background: var(--vt-surface-2);
+}
+
+.vm-switcher__create {
+    display: flex;
+    flex-direction: column;
+    gap: var(--vt-space-2);
+    padding: var(--vt-space-2);
+}
+
+.vm-switcher__create-label {
+    color: var(--vt-text-secondary);
+    font-size: var(--vt-type-body-m-size);
+}
+
+.vm-switcher__error {
+    margin: 0;
+    color: var(--vt-status-danger);
+    font-size: var(--vt-type-body-m-size);
+}
+
+.vm-langrow {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--vt-space-2);
+    padding-block-start: var(--vt-space-4);
+}
+
+.vm-langrow__btn {
+    min-block-size: var(--vt-space-10);
+    min-inline-size: var(--vt-space-12);
+    padding-inline: var(--vt-space-3);
+    border: thin solid var(--vt-border);
+    border-radius: var(--vt-radius-md);
+    background: none;
+    color: var(--vt-text-secondary);
+    font-size: var(--vt-type-caption-size);
+    cursor: pointer;
+}
+
+.vm-langrow__btn[aria-pressed='true'] {
+    border-color: var(--vt-accent);
+    background: color-mix(in srgb, var(--vt-accent) 18%, transparent);
+    color: var(--vt-text-primary);
+}
+
+.vm-switcher__row:focus-visible {
+    outline: thin solid transparent; /* kényszerített színeknél (High Contrast) a fókusz így is látszik */
+    box-shadow: inset 0 0 0 calc(var(--vt-space-1) / 2) var(--vt-accent);
+}

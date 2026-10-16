@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { router } from '@inertiajs/vue3';
-import { VtBadge, VtButton, VtCheckbox, VtField, VtInput, VtSelect, type VtSelectOption } from '@venture/ui';
+import { VtBadge, VtBanner, VtButton, VtCheckbox, VtField, VtInput, VtSelect, type VtSelectOption } from '@venture-co-group/ui';
 import { computed, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import VmCard from '../Form/VmCard.vue';
@@ -175,7 +175,7 @@ function save(): void {
 
             <div v-for="column in columns" :key="column.index" class="vm-import-mapping__row" role="row">
                 <strong class="vm-wrap" role="cell">{{ column.header }}</strong>
-                <span class="vt-text-mono vm-truncate vm-truncate--fill" role="cell" :title="column.sample">{{ column.sample }}</span>
+                <span class="vt-mono vm-truncate vm-truncate--fill" role="cell" :title="column.sample">{{ column.sample }}</span>
                 <div role="cell">
                     <VtSelect
                         :model-value="mapping[column.index] ?? 'skip'"
@@ -185,7 +185,7 @@ function save(): void {
                     />
                 </div>
                 <div role="cell">
-                    <VtBadge :tone="badge(column.index).tone" size="sm">{{ badge(column.index).text }}</VtBadge>
+                    <VtBadge :tone="badge(column.index).tone">{{ badge(column.index).text }}</VtBadge>
                 </div>
             </div>
         </div>
@@ -203,7 +203,7 @@ function save(): void {
                     <VtSelect v-model="draft.type" :options="typeOptions" data-testid="new-field-type" />
                 </VtField>
             </VmFormRow>
-            <p v-if="draftError" class="vm-banner vm-banner--danger" role="alert" data-testid="new-field-error">{{ draftError }}</p>
+            <VtBanner v-if="draftError" tone="danger" role="alert" data-testid="new-field-error">{{ draftError }}</VtBanner>
             <VmFormActions>
                 <VtButton :disabled="!draft.key || !draft.label.trim()" data-testid="new-field-create" @click="createField">
                     {{ t('audience.import.newField.create') }}
@@ -212,13 +212,13 @@ function save(): void {
             </VmFormActions>
         </VmCard>
 
-        <p v-if="emailCount !== 1" class="vm-banner vm-banner--warning" role="status" data-testid="import-need-email">
+        <VtBanner v-if="emailCount !== 1" tone="warning" role="status" data-testid="import-need-email">
             {{ t('audience.import.needEmail') }}
-        </p>
-        <p v-if="errors.mapping" class="vm-banner vm-banner--danger" role="alert">{{ errors.mapping }}</p>
+        </VtBanner>
+        <VtBanner v-if="errors.mapping" tone="danger" role="alert">{{ errors.mapping }}</VtBanner>
 
         <VmFormActions>
-            <VtButton variant="glass" data-testid="import-back" @click="emit('back')">{{ t('audience.import.back') }}</VtButton>
+            <VtButton variant="secondary" data-testid="import-back" @click="emit('back')">{{ t('audience.import.back') }}</VtButton>
             <VtButton :disabled="busy || emailCount !== 1" data-testid="import-next" @click="save">{{ t('audience.import.next') }}</VtButton>
         </VmFormActions>
     </section>
@@ -239,7 +239,7 @@ p {
 }
 
 .vt-text-muted {
-    color: var(--vt-text-muted);
+    color: var(--vt-text-secondary);
 }
 
 .vm-import-mapping {
@@ -250,7 +250,7 @@ p {
 
 .vm-import-mapping__row {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(var(--vt-space-24) * 1.5)), 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(calc(var(--vt-space-12) * 2) * 1.5)), 1fr));
     align-items: center;
     gap: var(--vt-space-3);
     padding: var(--vt-space-3) 0;
@@ -259,8 +259,8 @@ p {
 }
 
 .vm-import-mapping__row--head {
-    font-size: var(--vt-fs-caption);
-    color: var(--vt-text-muted);
+    font-size: var(--vt-type-caption-size);
+    color: var(--vt-text-secondary);
     text-transform: uppercase;
 }
 </style>

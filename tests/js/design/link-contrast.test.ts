@@ -5,9 +5,10 @@ import { describe, expect, it } from 'vitest';
 /*
  | D292 — a KÖZÖS LINK-STÍLUS: a felület linkjei tokenes színt kapnak (nem a böngésző natív kékjét),
  | és ez a szín a sötét téma MINDEN felületén (háttér, emelt háttér, kártya, kártya-2) eléri a WCAG AA
- | 4,5 : 1 kontrasztot. A token értékét a @venture/design kiadott `tokens.css`-éből olvassuk.
+ | 4,5 : 1 kontrasztot. A token értékét a @venture-co-group/design kiadott `tokens.css`-éből olvassuk
+ | (2.x: dark only, a változók a `:root`-on, Figma-nevekkel).
  */
-const tokens = readFileSync(resolve('node_modules/@venture/design/dist/tokens.css'), 'utf8');
+const tokens = readFileSync(resolve('node_modules/@venture-co-group/design/dist/tokens.css'), 'utf8');
 const layout = readFileSync(resolve('resources/js/layout.css'), 'utf8');
 
 function block(selector: string): string {
@@ -46,9 +47,9 @@ describe('közös link-stílus', () => {
     it('a link-szín a sötét téma minden felületén ≥ 4,5 : 1', () => {
         const name = rule![1];
         const color = token(tokens, name);
-        const dark = block('[data-theme="dark"]');
+        const dark = block(':root');
 
-        for (const surface of ['--vt-bg', '--vt-bg-elevated', '--vt-surface', '--vt-surface-2']) {
+        for (const surface of ['--vt-bg-base', '--vt-bg-raised', '--vt-surface-1', '--vt-surface-2']) {
             expect(contrast(color, token(dark, surface)), `${name} vs ${surface}`).toBeGreaterThanOrEqual(4.5);
         }
     });

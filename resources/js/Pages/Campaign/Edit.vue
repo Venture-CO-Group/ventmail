@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Head, Link, router } from '@inertiajs/vue3';
-import { VtButton, VtField, VtInput, VtRadio, VtSelect } from '@venture/ui';
+import { VtBanner, VtButton, VtField, VtInput, VtRadio, VtSelect } from '@venture-co-group/ui';
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import MergeTagPicker from '../../Components/Editor/MergeTagPicker.vue';
@@ -377,7 +377,7 @@ const sectionTitle = (key: string): string => t(`checklist.section.${key}`);
         <header class="vm-cl-head">
             <div class="vm-cl-head__text">
                 <p class="vm-cl-eyebrow">{{ t('campaigns.eyebrow') }}</p>
-                <h1 class="vt-text-display vm-wrap">{{ campaign.name }}</h1>
+                <h1 class="vt-num vm-wrap">{{ campaign.name }}</h1>
                 <!-- A GÉPI állapot a `data-status`-ban (nyelvfüggetlen teszt-illesztés). -->
                 <p class="vm-cl-status" data-testid="campaign-status" :data-status="campaign.status" :data-dirty="dirty ? 1 : 0" :data-saving="saving ? 1 : 0">
                     <VmStatusBadge :status="campaign.displayStatus" />
@@ -387,7 +387,7 @@ const sectionTitle = (key: string): string => t(`checklist.section.${key}`);
             <VtButton variant="ghost" @click="router.visit('/campaigns')">{{ t('checklist.backToList') }}</VtButton>
         </header>
 
-        <p v-if="readonly" class="vm-banner vm-banner--warning" role="status" data-testid="campaign-locked">{{ t('campaigns.lockedReason') }}</p>
+        <VtBanner v-if="readonly" tone="warning" role="status" data-testid="campaign-locked">{{ t('campaigns.lockedReason') }}</VtBanner>
 
         <div class="vm-cl-layout">
             <VmCard class="vm-cl-main">
@@ -495,9 +495,9 @@ const sectionTitle = (key: string): string => t(`checklist.section.${key}`);
 
                         <!-- 2. FELADÓ — csak hitelesített domain -->
                         <template v-else-if="item.key === 'sender'">
-                            <p v-if="!domains.length" class="vm-banner vm-banner--warning" role="status">
+                            <VtBanner v-if="!domains.length" tone="warning" role="status">
                                 {{ t('checklist.noVerifiedDomain') }} <Link href="/domains">{{ t('checklist.toDomains') }}</Link>
-                            </p>
+                            </VtBanner>
                             <VmFormSection>
                                 <VmFormRow>
                                     <VtField :label="t('checklist.fromName')">
@@ -642,15 +642,14 @@ const sectionTitle = (key: string): string => t(`checklist.section.${key}`);
                         <!-- 6. A/B TESZT (opcionális) -->
                         <template v-else-if="item.key === 'ab'">
                             <p>{{ t('checklist.abHint') }}</p>
-                            <p
-                                v-if="campaign.variants.length"
-                                class="vm-banner"
+                            <VtBanner
+                                v-if="campaign.variants.length" tone="info"
                                 :class="{ 'vm-banner--warning': campaign.variantWeightTotal !== 100 || campaign.variants.length < 2 }"
                                 data-testid="variant-total"
                             >
                                 {{ t('campaigns.weightTotal', { total: campaign.variantWeightTotal }) }}
                                 <template v-if="campaign.variants.length === 1">{{ t('campaigns.variantSingle') }}</template>
-                            </p>
+                            </VtBanner>
 
                             <ul v-if="campaign.variants.length" class="vm-cl-variants">
                                 <li v-for="variant in campaign.variants" :key="variant.uuid" :data-testid="`variant-${variant.label}`">
@@ -702,7 +701,7 @@ const sectionTitle = (key: string): string => t(`checklist.section.${key}`);
                                 </VmFormRow>
                                 <VmFormActions>
                                     <VtButton
-                                        variant="subtle"
+                                        variant="ghost"
                                         :disabled="!variantForm.label.trim() || (variantForm.kind === 'subject' && !variantForm.subject.trim()) || (variantForm.kind === 'content' && !variantForm.templateUuid) || (variantForm.kind === 'sender' && !variantForm.fromLocal.trim())"
                                         data-testid="variant-submit"
                                         @click="addVariant"
@@ -768,7 +767,7 @@ const sectionTitle = (key: string): string => t(`checklist.section.${key}`);
 
                     <div class="vm-cl-actions">
                         <template v-if="campaign.editable">
-                            <VtButton glow :disabled="!canSend" data-testid="campaign-send" @click="transition('send')">
+                            <VtButton :disabled="!canSend" data-testid="campaign-send" @click="transition('send')">
                                 <VmIcon name="send" /> {{ sendLabel }}
                             </VtButton>
                             <VtButton v-if="campaign.status === 'scheduled'" variant="ghost" data-testid="action-unschedule" @click="transition('unschedule')">{{ t('campaigns.unschedule') }}</VtButton>
@@ -822,10 +821,10 @@ const sectionTitle = (key: string): string => t(`checklist.section.${key}`);
 
 .vm-cl-eyebrow {
     margin: 0;
-    color: var(--vt-text-muted);
-    font-size: var(--vt-fs-caption);
+    color: var(--vt-text-secondary);
+    font-size: var(--vt-type-caption-size);
     font-weight: var(--vt-weight-semibold);
-    letter-spacing: var(--vt-tracking-wider);
+    letter-spacing: var(--vt-type-overline-tracking);
     text-transform: uppercase;
 }
 
@@ -837,8 +836,8 @@ const sectionTitle = (key: string): string => t(`checklist.section.${key}`);
 }
 
 .vm-cl-dirty {
-    color: var(--vt-color-warning);
-    font-size: var(--vt-fs-body-sm);
+    color: var(--vt-status-warning);
+    font-size: var(--vt-type-body-m-size);
 }
 
 .vm-cl-layout {
@@ -849,12 +848,12 @@ const sectionTitle = (key: string): string => t(`checklist.section.${key}`);
 }
 
 .vm-cl-main {
-    flex: 3 1 calc(var(--vt-space-32) * 4);
+    flex: 3 1 calc(calc(var(--vt-space-8) * 4) * 4);
 }
 
 .vm-cl-side {
     display: flex;
-    flex: 1 1 calc(var(--vt-space-32) * 2);
+    flex: 1 1 calc(calc(var(--vt-space-8) * 4) * 2);
     flex-direction: column;
     gap: var(--vt-space-6);
     min-width: 0;
@@ -869,19 +868,19 @@ const sectionTitle = (key: string): string => t(`checklist.section.${key}`);
 }
 
 .vm-cl-name {
-    flex: 1 1 calc(var(--vt-space-32) * 2);
+    flex: 1 1 calc(calc(var(--vt-space-8) * 4) * 2);
 }
 
 .vm-cl-count {
-    color: var(--vt-color-warning);
-    font-size: var(--vt-fs-body-sm);
+    color: var(--vt-status-warning);
+    font-size: var(--vt-type-body-m-size);
     font-weight: var(--vt-weight-semibold);
 }
 
 .vm-cl-bar {
     block-size: var(--vt-space-1);
     border-radius: var(--vt-radius-full);
-    background-color: var(--vt-glass-thin-fill);
+    background-color: var(--vt-surface-2);
     overflow: hidden;
 }
 
@@ -895,7 +894,7 @@ const sectionTitle = (key: string): string => t(`checklist.section.${key}`);
 .vm-cl-section {
     border: thin solid var(--vt-border);
     border-radius: var(--vt-radius-lg);
-    background-color: var(--vt-glass-thin-fill);
+    background-color: var(--vt-surface-2);
     min-width: 0;
 }
 
@@ -919,7 +918,7 @@ const sectionTitle = (key: string): string => t(`checklist.section.${key}`);
 
 .vm-cl-section__head:focus-visible {
     outline: none;
-    box-shadow: var(--vt-ring);
+    box-shadow: var(--vt-accent-line);
     border-radius: var(--vt-radius-lg);
 }
 
@@ -932,12 +931,12 @@ const sectionTitle = (key: string): string => t(`checklist.section.${key}`);
 }
 
 .vm-cl-section__text > span {
-    color: var(--vt-text-muted);
-    font-size: var(--vt-fs-body-sm);
+    color: var(--vt-text-secondary);
+    font-size: var(--vt-type-body-m-size);
 }
 
 .vm-cl-section__text > span.vm-cl-todo {
-    color: var(--vt-color-warning);
+    color: var(--vt-status-warning);
 }
 
 .vm-cl-optional {
@@ -945,8 +944,8 @@ const sectionTitle = (key: string): string => t(`checklist.section.${key}`);
     padding: 0 var(--vt-space-2);
     border: thin solid var(--vt-border);
     border-radius: var(--vt-radius-full);
-    color: var(--vt-text-muted);
-    font-size: var(--vt-fs-caption);
+    color: var(--vt-text-secondary);
+    font-size: var(--vt-type-caption-size);
     font-weight: var(--vt-weight-regular);
 }
 
@@ -983,18 +982,18 @@ const sectionTitle = (key: string): string => t(`checklist.section.${key}`);
 }
 
 .vm-cl-mark.is-done {
-    background-color: var(--vt-color-success);
-    color: var(--vt-on-accent);
+    background-color: var(--vt-status-success);
+    color: var(--vt-text-on-accent);
 }
 
 .vm-cl-mark.is-todo {
-    border: thin solid var(--vt-color-warning);
-    color: var(--vt-color-warning);
+    border: thin solid var(--vt-status-warning);
+    color: var(--vt-status-warning);
 }
 
 .vm-cl-mark.is-fail {
-    border: thin solid var(--vt-color-danger);
-    color: var(--vt-color-danger);
+    border: thin solid var(--vt-status-danger);
+    color: var(--vt-status-danger);
 }
 
 .vm-cl-tagged {
@@ -1011,8 +1010,8 @@ const sectionTitle = (key: string): string => t(`checklist.section.${key}`);
 .vm-cl-counter {
     margin: calc(var(--vt-space-3) * -1) 0 0;
     font-family: var(--vt-font-mono);
-    font-size: var(--vt-fs-caption);
-    color: var(--vt-text-subtle);
+    font-size: var(--vt-type-caption-size);
+    color: var(--vt-text-tertiary);
     text-align: end;
 }
 
@@ -1022,7 +1021,7 @@ const sectionTitle = (key: string): string => t(`checklist.section.${key}`);
     padding: var(--vt-space-4);
     border: thin solid var(--vt-border);
     border-radius: var(--vt-radius-md);
-    background-color: var(--vt-bg);
+    background-color: var(--vt-bg-base);
     min-width: 0;
 }
 
@@ -1034,7 +1033,7 @@ const sectionTitle = (key: string): string => t(`checklist.section.${key}`);
     block-size: var(--vt-space-8);
     border-radius: var(--vt-radius-md);
     background-color: var(--vt-surface-2);
-    font-size: var(--vt-fs-caption);
+    font-size: var(--vt-type-caption-size);
     font-weight: var(--vt-weight-semibold);
 }
 
@@ -1046,13 +1045,13 @@ const sectionTitle = (key: string): string => t(`checklist.section.${key}`);
 }
 
 .vm-cl-inbox__text small {
-    color: var(--vt-text-muted);
+    color: var(--vt-text-secondary);
 }
 
 .vm-cl-hint {
     margin: 0;
-    color: var(--vt-text-muted);
-    font-size: var(--vt-fs-body-sm);
+    color: var(--vt-text-secondary);
+    font-size: var(--vt-type-body-m-size);
 }
 
 .vm-cl-exclude {
@@ -1074,7 +1073,7 @@ const sectionTitle = (key: string): string => t(`checklist.section.${key}`);
 }
 
 .vm-cl-missing li {
-    color: var(--vt-color-warning);
+    color: var(--vt-status-warning);
 }
 
 .vm-cl-checks li {
@@ -1094,8 +1093,8 @@ const sectionTitle = (key: string): string => t(`checklist.section.${key}`);
 .vm-cl-mode,
 .vm-cl-why {
     margin: 0;
-    color: var(--vt-text-muted);
-    font-size: var(--vt-fs-body-sm);
+    color: var(--vt-text-secondary);
+    font-size: var(--vt-type-body-m-size);
     overflow-wrap: anywhere;
 }
 
@@ -1115,7 +1114,7 @@ const sectionTitle = (key: string): string => t(`checklist.section.${key}`);
 }
 
 .vm-cl-variants li > .vm-truncate {
-    flex: 1 1 calc(var(--vt-space-32) * 1.5);
+    flex: 1 1 calc(calc(var(--vt-space-8) * 4) * 1.5);
 }
 
 .vm-cl-outcomes li > span {

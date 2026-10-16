@@ -62,18 +62,18 @@ const initial = computed(() => (props.company.trim()[0] ?? 'V').toUpperCase());
 
 .vm-a4 {
     --vm-cover-bg: var(--vm-brand, var(--vt-accent));
-    --vm-cover-fg: var(--vt-on-accent);
+    --vm-cover-fg: var(--vt-text-on-accent);
     display: flex;
     flex-direction: column;
     width: 100%;
-    max-width: calc(var(--vt-space-32) * 2.4);
+    max-width: calc(calc(var(--vt-space-8) * 4) * 2.4);
     aspect-ratio: 210 / 297;
     overflow: hidden;
     border-radius: var(--vt-radius-sm);
     background: var(--vt-color-neutral-0);
     color: var(--vt-color-neutral-900);
-    box-shadow: var(--vt-shadow-lg);
-    font-size: var(--vt-fs-caption);
+    box-shadow: var(--vt-elevation-popover);
+    font-size: var(--vt-type-caption-size);
 }
 
 .vm-a4--light {
@@ -123,8 +123,8 @@ const initial = computed(() => (props.company.trim()[0] ?? 'V').toUpperCase());
 .vm-a4__title {
     margin: 0;
     font-family: var(--vt-font-display);
-    font-size: var(--vt-fs-body);
-    line-height: var(--vt-leading-tight);
+    font-size: var(--vt-type-body-m-size);
+    line-height: 1.05;
     overflow-wrap: anywhere;
 }
 

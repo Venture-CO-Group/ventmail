@@ -26,10 +26,10 @@ async function save(page: Page, section: string): Promise<void> {
 async function backToDevWorkspace(page: Page): Promise<void> {
     await page.goto('/dashboard');
 
-    if ((await page.getByTestId('workspace-current').textContent())?.trim() !== 'Dev workspace') {
+    if ((await page.getByTestId('workspace-switch').textContent())?.trim() !== 'Dev workspace') {
         await page.getByTestId('workspace-switch').click();
         await page.getByTestId('workspace-list').locator('button', { hasText: 'Dev workspace' }).click();
-        await expect(page.getByTestId('workspace-current')).toHaveText('Dev workspace');
+        await expect(page.getByTestId('workspace-switch')).toContainText('Dev workspace');
     }
 }
 
@@ -43,7 +43,7 @@ test('üres sablonkönyvtárral a kampány végigvihető: új tartalom helyben, 
     await page.getByTestId('workspace-new-submit').click();
 
     try {
-        await expect(page.getByTestId('workspace-current')).toHaveText(workspace);
+        await expect(page.getByTestId('workspace-switch')).toContainText(workspace);
 
         const seed = await seedStudio(page, run, { templates: false });
 
@@ -67,7 +67,7 @@ test('üres sablonkönyvtárral a kampány végigvihető: új tartalom helyben, 
         await page.getByTestId('section-toggle-sender').click();
         await page.getByTestId('edit-from-name').fill('E2E Helyben');
         await page.getByTestId('edit-from').fill('hirlevel');
-        await page.getByTestId('edit-from-domain').locator('select').selectOption('pelda.hu');
+        await page.getByTestId('edit-from-domain').locator('xpath=descendant-or-self::select').selectOption('pelda.hu');
         await save(page, 'sender');
 
         await page.getByTestId('section-toggle-subject').click();

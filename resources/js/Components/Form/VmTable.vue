@@ -1,5 +1,5 @@
 <script setup lang="ts" generic="Row extends Record<string, unknown>">
-import { VtTable, type VtColumn } from '@venture/ui';
+import { VtTable, type VtColumn } from '@venture-co-group/ui';
 
 /**
  * TÁBLA hosszú értékekhez: a cella tartalma egy sorba vágódik (`…`), a teljes érték a
@@ -26,8 +26,7 @@ defineProps<{
             <slot name="cell" v-bind="slotProps">
                 <span
                     class="vm-truncate"
-                    :class="{
-                        'vm-truncate--end': slotProps.column.align === 'right',
+                    :class="{ 'vm-truncate--end': slotProps.column.align === 'right',
                         'vm-truncate--center': slotProps.column.align === 'center',
                     }"
                     :title="String(slotProps.value ?? '')"

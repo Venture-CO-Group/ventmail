@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { router } from '@inertiajs/vue3';
-import { VtBadge, VtButton, type VtColumn } from '@venture/ui';
+import { VtBadge, VtButton, type VtColumn } from '@venture-co-group/ui';
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import VmCard from '../../Components/Form/VmCard.vue';
@@ -73,7 +73,7 @@ const rows = computed<Row[]>(() =>
     <AppLayout>
         <header class="vm-contact-head">
             <div>
-                <h1 class="vt-text-display vm-wrap" data-testid="contact-email">{{ contact.email }}</h1>
+                <h1 class="vt-num vm-wrap" data-testid="contact-email">{{ contact.email }}</h1>
                 <p class="vm-contact-name">{{ fullName }}</p>
             </div>
             <VtButton variant="ghost" @click="router.visit('/audience')">{{ t('audience.contact.back') }}</VtButton>
@@ -87,9 +87,9 @@ const rows = computed<Row[]>(() =>
                 <dt>{{ t('audience.validation') }}</dt>
                 <dd>{{ contact.validation ?? '—' }}</dd>
                 <dt>{{ t('audience.contact.subscribedAt') }}</dt>
-                <dd class="vt-text-mono">{{ fmt(contact.subscribedAt) }}</dd>
+                <dd class="vt-mono">{{ fmt(contact.subscribedAt) }}</dd>
                 <dt>{{ t('audience.contact.createdAt') }}</dt>
-                <dd class="vt-text-mono">{{ fmt(contact.createdAt) }}</dd>
+                <dd class="vt-mono">{{ fmt(contact.createdAt) }}</dd>
                 <template v-for="attribute in contact.attributes" :key="attribute.key">
                     <dt>{{ attribute.label }}</dt>
                     <dd class="vm-wrap">{{ attribute.value }}</dd>
@@ -143,7 +143,7 @@ h3 {
 
 .vm-contact-name,
 .vm-contact-muted {
-    color: var(--vt-text-muted);
+    color: var(--vt-text-secondary);
 }
 
 .vm-contact-facts {
@@ -154,7 +154,7 @@ h3 {
 }
 
 .vm-contact-facts dt {
-    color: var(--vt-text-muted);
+    color: var(--vt-text-secondary);
 }
 
 .vm-contact-facts dd {

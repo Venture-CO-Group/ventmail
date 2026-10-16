@@ -26,4 +26,7 @@ return [
         ?: (env('OIDC_PROVIDER_URL')
             ? rtrim((string) env('OIDC_PROVIDER_URL'), '/').'/account'
             : 'https://sso.ventureco.app/account')),
+
+    // Unified UI v2: a ventHub launchpad (a sidebar appváltója). Üresen az appváltó nem jelenik meg.
+    'hub_url' => env('VENTHUB_URL'),
 ];

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { type VtColumn } from '@venture/ui';
+import { VtBanner, type VtColumn } from '@venture-co-group/ui';
 import VmTable from '../../Components/Form/VmTable.vue';
 import VmCard from '../../Components/Form/VmCard.vue';
 import { computed } from 'vue';
@@ -63,15 +63,15 @@ const rows = computed<Row[]>(() =>
 
 <template>
     <AppLayout>
-        <h1 class="vt-text-display">{{ t('ipPools.title') }}</h1>
+        <h1 class="vt-num">{{ t('ipPools.title') }}</h1>
 
-        <p v-if="quarantined.length" class="vm-banner vm-banner--danger" role="status" data-testid="ip-quarantined">
+        <VtBanner v-if="quarantined.length" tone="danger" role="status" data-testid="ip-quarantined">
             {{ t('ipPools.quarantinedWarning', { count: quarantined.length }) }}
-        </p>
+        </VtBanner>
 
-        <p v-if="warming.length" class="vm-banner vm-banner--warning" role="status" data-testid="ip-warming">
+        <VtBanner v-if="warming.length" tone="warning" role="status" data-testid="ip-warming">
             {{ t('ipPools.warmupNote', { count: warming.length }) }}
-        </p>
+        </VtBanner>
 
         <VmCard>
             <h2>{{ t('ipPools.pools') }}</h2>

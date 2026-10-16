@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { router } from '@inertiajs/vue3';
-import { VtButton, VtGlowLine, type VtColumn } from '@venture/ui';
+import { VtButton, VtGlowLine, type VtColumn } from '@venture-co-group/ui';
 import VmTable from '../../Components/Form/VmTable.vue';
 import VmCard from '../../Components/Form/VmCard.vue';
 import AppLayout from '../../Layouts/AppLayout.vue';

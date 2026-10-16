@@ -38,14 +38,14 @@
     <header class="landing__header">
         <a class="brand-logo" href="/" aria-label="ventMail">
             <img class="brand-logo__mark" src="/brand/logomark.svg" alt="">
-            <span class="brand-logo__word vt-text-display">vent<strong>Mail</strong></span>
+            <span class="brand-logo__word vt-num">vent<strong>Mail</strong></span>
         </a>
         <a class="landing__btn landing__btn--ghost" href="{{ $appUrl }}">{{ __('landing.nav.login') }}</a>
     </header>
 
     <main id="main">
         <section class="landing__hero">
-            <p class="vt-eyebrow">{{ __('landing.hero.eyebrow') }}</p>
+            <p class="vt-overline">{{ __('landing.hero.eyebrow') }}</p>
             <h1 class="landing__title">{{ __('landing.hero.title') }}</h1>
             <p class="landing__lede">{{ __('landing.hero.lede') }}</p>
             <div class="landing__cta">
@@ -55,7 +55,7 @@
 
         <section class="landing__pillars" id="features">
             @foreach (['platform', 'studio'] as $pillar)
-                <article class="vt-glass vt-glass--thick landing__card">
+                <article class="vt-glass landing__card">
                     <h2 class="landing__h2">{{ __("landing.$pillar.title") }}</h2>
                     <p class="landing__muted">{{ __("landing.$pillar.lede") }}</p>
                     <ul class="landing__list">

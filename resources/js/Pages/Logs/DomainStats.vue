@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { router } from '@inertiajs/vue3';
-import { VtSegmented, VtSelect, type VtColumn } from '@venture/ui';
+import { VtBanner, VtSegmented, VtSelect, type VtColumn } from '@venture-co-group/ui';
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import VmLineChart from '../../Components/Charts/VmLineChart.vue';
@@ -68,9 +68,9 @@ const chartSeries = computed(() => {
 
     return [
         { name: t('plat.stats.metric.sent'), data: series.map((row) => row.sent), token: '--vt-color-accent-400' },
-        { name: t('plat.stats.metric.delivered'), data: series.map((row) => row.delivered), token: '--vt-color-success' },
-        { name: t('plat.stats.metric.bounced'), data: series.map((row) => row.bounced), token: '--vt-color-danger' },
-        { name: t('plat.stats.metric.complained'), data: series.map((row) => row.complained), token: '--vt-color-warning' },
+        { name: t('plat.stats.metric.delivered'), data: series.map((row) => row.delivered), token: '--vt-status-success' },
+        { name: t('plat.stats.metric.bounced'), data: series.map((row) => row.bounced), token: '--vt-status-danger' },
+        { name: t('plat.stats.metric.complained'), data: series.map((row) => row.complained), token: '--vt-status-warning' },
         { name: t('plat.stats.metric.opened'), data: series.map((row) => row.opened), token: '--vt-color-cyan-400' },
         { name: t('plat.stats.metric.clicked'), data: series.map((row) => row.clicked), token: '--vt-color-violet-400' },
     ];
@@ -126,9 +126,9 @@ const rows = computed<Row[]>(() =>
             </div>
         </div>
 
-        <p v-if="report === null" class="vm-banner vm-banner--warning" role="status" data-testid="stats-too-expensive">
+        <VtBanner v-if="report === null" tone="warning" role="status" data-testid="stats-too-expensive">
             {{ t('plat.stats.tooExpensive') }}
-        </p>
+        </VtBanner>
 
         <div class="vm-tiles" data-testid="stats-tiles">
             <VmStat :label="t('plat.stats.metric.sent')" :value="fmt(sum.sent)" />
@@ -175,17 +175,17 @@ const rows = computed<Row[]>(() =>
 }
 
 .vm-filters__domain {
-    width: min(100%, calc(var(--vt-space-32) * 2));
+    width: min(100%, calc(calc(var(--vt-space-8) * 4) * 2));
 }
 
 .vm-tiles {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(var(--vt-space-32) * 1.25)), 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(calc(var(--vt-space-8) * 4) * 1.25)), 1fr));
     gap: var(--vt-space-4);
 }
 
 .vm-muted {
-    color: var(--vt-text-muted);
-    font-size: var(--vt-fs-body-sm);
+    color: var(--vt-text-secondary);
+    font-size: var(--vt-type-body-m-size);
 }
 </style>

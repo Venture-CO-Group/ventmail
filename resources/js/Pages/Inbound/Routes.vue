@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { VtGlowLine, type VtColumn } from '@venture/ui';
+import { VtGlowLine, type VtColumn } from '@venture-co-group/ui';
 import VmTable from '../../Components/Form/VmTable.vue';
 import VmCard from '../../Components/Form/VmCard.vue';
 import AppLayout from '../../Layouts/AppLayout.vue';

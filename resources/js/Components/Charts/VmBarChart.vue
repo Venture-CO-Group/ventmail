@@ -24,7 +24,7 @@ const inner = ref<InstanceType<typeof VmChart> | null>(null);
 const format = useFormat();
 
 function build(token: TokenResolver): Record<string, unknown> {
-    const text = token('--vt-text-muted');
+    const text = token('--vt-text-secondary');
     const grid = token('--vt-border');
 
     return {

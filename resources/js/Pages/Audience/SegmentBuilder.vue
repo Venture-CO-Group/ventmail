@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Head, router } from '@inertiajs/vue3';
-import { VtButton, VtField, VtInput, VtSelect, VtTextarea } from '@venture/ui';
+import { VtBanner, VtButton, VtField, VtInput, VtSelect, VtTextarea } from '@venture-co-group/ui';
 import axios, { AxiosError } from 'axios';
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
@@ -165,17 +165,17 @@ function save(): void {
                     <p class="vm-seg-count" data-testid="segment-count" :data-loading="loading ? 'true' : 'false'" aria-live="polite">
                         {{ count === null ? '—' : format.number(count) }}
                     </p>
-                    <p v-if="previewError" class="vm-banner vm-banner--danger" role="alert" data-testid="segment-error">{{ previewError }}</p>
+                    <VtBanner v-if="previewError" tone="danger" role="alert" data-testid="segment-error">{{ previewError }}</VtBanner>
                     <p class="vm-seg-count__hint">{{ t('segments.reachableHint') }}</p>
 
                     <ul v-if="sample.length" class="vm-seg-sample" data-testid="segment-sample">
                         <li v-for="row in sample" :key="row.uuid" class="vm-truncate" :title="row.email">
-                            <span class="vt-text-mono">{{ row.email }}</span>
+                            <span class="vt-mono">{{ row.email }}</span>
                         </li>
                     </ul>
 
                     <VmFormActions>
-                        <VtButton glow :disabled="!name.trim() || saving || previewError !== null" data-testid="segment-save" @click="save">
+                        <VtButton :disabled="!name.trim() || saving || previewError !== null" data-testid="segment-save" @click="save">
                             {{ t('segments.save') }}
                         </VtButton>
                     </VmFormActions>
@@ -203,7 +203,7 @@ function save(): void {
                     />
                     <VtInput v-if="bulkTag === '__new__'" v-model="bulkNewTag" :placeholder="t('audience.bulkNewTagPlaceholder')" :aria-label="t('audience.bulkNewTag')" data-testid="segment-bulk-new-tag" />
                     <VmFormActions>
-                        <VtButton variant="subtle" :disabled="bulkTag === '__new__' && !bulkNewTag.trim()" data-testid="segment-bulk-apply" @click="applyBulk">
+                        <VtButton variant="ghost" :disabled="bulkTag === '__new__' && !bulkNewTag.trim()" data-testid="segment-bulk-apply" @click="applyBulk">
                             {{ t('audience.bulkApply') }}
                         </VtButton>
                     </VmFormActions>
@@ -223,7 +223,7 @@ function save(): void {
 
 .vm-seg-layout__main {
     display: flex;
-    flex: 3 1 calc(var(--vt-space-32) * 4);
+    flex: 3 1 calc(calc(var(--vt-space-8) * 4) * 4);
     flex-direction: column;
     gap: var(--vt-space-6);
     min-width: 0;
@@ -231,7 +231,7 @@ function save(): void {
 
 .vm-seg-layout__side {
     display: flex;
-    flex: 1 1 calc(var(--vt-space-32) * 2);
+    flex: 1 1 calc(calc(var(--vt-space-8) * 4) * 2);
     flex-direction: column;
     gap: var(--vt-space-6);
     min-width: 0;
@@ -241,14 +241,14 @@ function save(): void {
 .vm-seg-count__hint,
 .vm-seg-limit {
     margin: 0;
-    color: var(--vt-text-muted);
-    font-size: var(--vt-fs-body-sm);
+    color: var(--vt-text-secondary);
+    font-size: var(--vt-type-body-m-size);
 }
 
 .vm-seg-count {
     margin: 0;
     font-family: var(--vt-font-display);
-    font-size: var(--vt-fs-h2);
+    font-size: var(--vt-type-display-l-size);
     font-weight: var(--vt-weight-semibold);
     transition: opacity var(--vt-duration-fast) var(--vt-ease-standard);
 }
@@ -264,6 +264,6 @@ function save(): void {
     margin: 0;
     padding: 0;
     list-style: none;
-    font-size: var(--vt-fs-body-sm);
+    font-size: var(--vt-type-body-m-size);
 }
 </style>

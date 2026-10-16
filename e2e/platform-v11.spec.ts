@@ -181,7 +181,7 @@ test('suppression: külön listák, a panasz nem törölhető', async ({ page })
 
     await page.getByTestId('suppression-new').click();
     await page.getByTestId('suppression-email').fill(`panasz-${run}@pelda.hu`);
-    await page.getByTestId('suppression-reason').locator('select').selectOption('complaint');
+    await page.getByTestId('suppression-reason').locator('xpath=descendant-or-self::select').selectOption('complaint');
     await page.getByTestId('suppression-submit').click();
 
     await expect(page).toHaveURL(/list=complaints/);

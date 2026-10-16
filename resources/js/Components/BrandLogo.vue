@@ -13,6 +13,6 @@ const mark = '/brand/logomark.svg';
 <template>
     <a class="brand-logo" :href="href" aria-label="ventMail">
         <img class="brand-logo__mark" :src="mark" alt="" />
-        <span class="brand-logo__word vt-text-display">vent<strong>Mail</strong></span>
+        <span class="brand-logo__word vt-num">vent<strong>Mail</strong></span>
     </a>
 </template>

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { router, useForm } from '@inertiajs/vue3';
-import { VtButton, VtCheckbox, VtField, VtInput, VtSelect, VtTextarea } from '@venture/ui';
+import { VtBanner, VtButton, VtCheckbox, VtField, VtInput, VtSelect, VtTextarea } from '@venture-co-group/ui';
 import VmCard from '../../Components/Form/VmCard.vue';
 import VmForm from '../../Components/Form/VmForm.vue';
 import VmFormRow from '../../Components/Form/VmFormRow.vue';
@@ -119,9 +119,9 @@ function activate(version: number): void {
 
 <template>
     <AppLayout>
-        <h1 class="vt-text-display">{{ t('storedTemplates.title') }}</h1>
+        <h1 class="vt-num">{{ t('storedTemplates.title') }}</h1>
 
-        <p class="vm-banner" role="status">{{ t('storedTemplates.note') }}</p>
+        <VtBanner tone="info" role="status">{{ t('storedTemplates.note') }}</VtBanner>
 
         <VmCard>
             <p v-if="!templates.length" data-testid="stored-templates-empty">{{ t('storedTemplates.empty') }}</p>
@@ -137,7 +137,7 @@ function activate(version: number): void {
             <h2 class="vm-wrap">{{ selected.name }}</h2>
 
             <div v-for="version in selected.versions" :key="version.version" class="vm-cluster">
-                <span class="vt-text-mono">v{{ version.version }}</span>
+                <span class="vt-mono">v{{ version.version }}</span>
                 <span>{{ version.createdAt ? format.dateTime(version.createdAt) : '—' }}</span>
                 <span>{{ version.bytes }} B</span>
                 <span class="vm-wrap" :data-testid="`subject-${version.version}`">

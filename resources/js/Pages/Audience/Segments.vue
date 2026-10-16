@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Head, Link, router } from '@inertiajs/vue3';
-import { VtButton, VtModal } from '@venture/ui';
+import { VtButton, VtModal } from '@venture-co-group/ui';
 import { ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import VmCard from '../../Components/Form/VmCard.vue';
@@ -46,7 +46,7 @@ function remove(): void {
     <AppLayout>
         <VmPageHeader :eyebrow="t('segments.eyebrow')" :title="t('segments.title')" :lead="t('segments.lead')" testid="segments-header">
             <VtButton variant="ghost" @click="router.visit('/audience')">{{ t('segments.backToAudience') }}</VtButton>
-            <VtButton glow data-testid="segment-new" @click="router.visit('/audience/segments/new')">
+            <VtButton data-testid="segment-new" @click="router.visit('/audience/segments/new')">
                 <VmIcon name="plus" /> {{ t('segments.new') }}
             </VtButton>
         </VmPageHeader>
@@ -103,14 +103,14 @@ function remove(): void {
 
 .vm-seg-list__main {
     display: flex;
-    flex: 1 1 calc(var(--vt-space-32) * 2);
+    flex: 1 1 calc(calc(var(--vt-space-8) * 4) * 2);
     flex-direction: column;
     gap: var(--vt-space-1);
     min-width: 0;
 }
 
 .vm-seg-list__meta {
-    color: var(--vt-text-muted);
-    font-size: var(--vt-fs-body-sm);
+    color: var(--vt-text-secondary);
+    font-size: var(--vt-type-body-m-size);
 }
 </style>

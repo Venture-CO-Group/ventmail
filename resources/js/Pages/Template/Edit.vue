@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Head, Link, router } from '@inertiajs/vue3';
-import { VtButton, VtDrawer, VtModal } from '@venture/ui';
+import { VtBanner, VtButton, VtDrawer, VtModal } from '@venture-co-group/ui';
 import axios, { AxiosError } from 'axios';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
@@ -162,36 +162,28 @@ function onStageClick(event: MouseEvent): void {
 }
 
 /*
- | A RAGADÓS fejléc és panelek eltolása: a héj sávja és a szerkesztő felső sávja ragad, a
- | panelek alattuk. A magasságot mérjük (a sáv tördelhet), nem beégetjük.
+ | A RAGADÓS fejléc és panelek eltolása: a szerkesztő felső sávja a héj görgetett tartalom-oszlopának
+ | tetején ragad (a héj felső sávja azon kívül van), a panelek alatta. A magasságot mérjük (a sáv
+ | tördelhet), nem beégetjük.
  */
 const editorRoot = ref<HTMLElement | null>(null);
-const offsets = ref({ nav: 0, top: 0 });
+const topHeight = ref(0);
 let observer: ResizeObserver | null = null;
 
 function measureOffsets(): void {
-    const nav = document.querySelector<HTMLElement>('[data-testid="app-nav"]');
-    const top = editorRoot.value?.querySelector<HTMLElement>('.vm-ed-top');
-
-    offsets.value = { nav: nav?.getBoundingClientRect().height ?? 0, top: top?.getBoundingClientRect().height ?? 0 };
+    topHeight.value = editorRoot.value?.querySelector<HTMLElement>('.vm-ed-top')?.getBoundingClientRect().height ?? 0;
 }
 
-const stickyStyle = computed(() => ({
-    '--vm-ed-nav': `${offsets.value.nav}px`,
-    '--vm-ed-sticky': `${offsets.value.nav + offsets.value.top}px`,
-}));
+const stickyStyle = computed(() => ({ '--vm-ed-sticky': `${topHeight.value}px` }));
 
 onMounted(() => {
     measureOffsets();
 
-    if (typeof ResizeObserver !== 'undefined') {
+    const top = editorRoot.value?.querySelector<HTMLElement>('.vm-ed-top');
+
+    if (top && typeof ResizeObserver !== 'undefined') {
         observer = new ResizeObserver(measureOffsets);
-
-        const nav = document.querySelector<HTMLElement>('[data-testid="app-nav"]');
-        const top = editorRoot.value?.querySelector<HTMLElement>('.vm-ed-top');
-
-        if (nav) observer.observe(nav);
-        if (top) observer.observe(top);
+        observer.observe(top);
     }
 });
 
@@ -586,14 +578,15 @@ function openTest(): void {
                     </div>
                 </div>
 
-                <div v-if="locked" class="vm-banner vm-banner--warning vm-ed-locked" role="status" data-testid="template-locked">
-                    <p><strong>{{ t('editor.locked.title') }}</strong> {{ writeDenial }}</p>
-                    <VtButton variant="ghost" data-testid="editor-copy-banner" @click="openName('saveAs')">{{ t('editor.locked.copy') }}</VtButton>
-                </div>
-                <p v-if="editor.saveState.value === 'error' && editor.saveError.value" class="vm-banner vm-banner--danger vm-ed-error" role="alert" data-testid="save-error">
+                <VtBanner v-if="locked" tone="warning" class="vm-ed-locked" role="status" :title="t('editor.locked.title')" :description="writeDenial ?? undefined" data-testid="template-locked">
+                    <template #action>
+                        <VtButton variant="ghost" size="sm" data-testid="editor-copy-banner" @click="openName('saveAs')">{{ t('editor.locked.copy') }}</VtButton>
+                    </template>
+                </VtBanner>
+                <VtBanner v-if="editor.saveState.value === 'error' && editor.saveError.value" tone="danger" class="vm-ed-error" role="alert" data-testid="save-error">
                     {{ editor.saveError.value }}
-                </p>
-                <p v-if="notice" class="vm-banner vm-ed-error" role="status" data-testid="editor-notice" @click="notice = null">{{ notice }}</p>
+                </VtBanner>
+                <VtBanner v-if="notice" tone="info" class="vm-ed-error" role="status" data-testid="editor-notice" @click="notice = null">{{ notice }}</VtBanner>
             </header>
 
             <!-- CSAK OLVASHATÓ: az `inert` a vásznat, a sínt és a paneleket egyszerre teszi kezelhetetlenné. -->

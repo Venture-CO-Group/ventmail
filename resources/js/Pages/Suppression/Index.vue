@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { router } from '@inertiajs/vue3';
-import { VtButton, VtField, VtInput, VtModal, VtSelect, VtTabs, VtTextarea, type VtColumn } from '@venture/ui';
+import { VtBanner, VtButton, VtField, VtInput, VtModal, VtSelect, VtTabs, VtTextarea, type VtColumn } from '@venture-co-group/ui';
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import VmCard from '../../Components/Form/VmCard.vue';
@@ -144,11 +144,11 @@ function confirmRemove(): void {
                         <VmForm data-testid="suppression-filters" @submit.prevent="applySearch">
                             <div class="vm-search">
                                 <VtInput v-model="search" data-testid="suppression-search" :placeholder="t('plat.suppressions.searchPlaceholder')" />
-                                <VtButton type="submit" variant="glass" data-testid="suppression-search-submit">{{ t('suppressions.searchAction') }}</VtButton>
+                                <VtButton type="submit" variant="secondary" data-testid="suppression-search-submit">{{ t('suppressions.searchAction') }}</VtButton>
                             </div>
                         </VmForm>
 
-                        <p class="vm-banner" role="note" :data-testid="`list-note-${id}`">{{ t(`plat.suppressions.note.${id}`) }}</p>
+                        <VtBanner tone="info" role="note" :data-testid="`list-note-${id}`">{{ t(`plat.suppressions.note.${id}`) }}</VtBanner>
 
                         <p v-if="!rows.length" data-testid="suppressions-empty">{{ t('suppressions.empty') }}</p>
                         <VmTable v-else :columns="columns" :rows="rows" :caption="t(`plat.suppressions.list.${id}`)" data-testid="suppressions-table">
@@ -171,7 +171,7 @@ function confirmRemove(): void {
 
                         <VtButton
                             v-if="suppressions.nextCursor"
-                            variant="glass"
+                            variant="secondary"
                             data-testid="suppressions-more"
                             @click="visit(list, { cursor: suppressions.nextCursor })"
                         >
@@ -207,9 +207,9 @@ function confirmRemove(): void {
         <VtModal :open="removing !== null" :title="t('plat.suppressions.deleteTitle')" @close="removing = null">
             <VmForm @submit.prevent="confirmRemove">
                 <VmFormSection>
-                    <p class="vm-banner vm-banner--warning" role="status">
+                    <VtBanner tone="warning" role="status">
                         {{ t('plat.suppressions.deleteWarning', { email: removing?.email ?? '' }) }}
-                    </p>
+                    </VtBanner>
                     <VtField :label="t('plat.suppressions.justification')" required>
                         <VtTextarea v-model="justification" :rows="3" data-testid="suppression-justification" />
                     </VtField>
@@ -238,8 +238,8 @@ function confirmRemove(): void {
 }
 
 .vm-locked {
-    color: var(--vt-text-muted);
-    font-size: var(--vt-fs-body-sm);
+    color: var(--vt-text-secondary);
+    font-size: var(--vt-type-body-m-size);
     white-space: nowrap;
 }
 </style>

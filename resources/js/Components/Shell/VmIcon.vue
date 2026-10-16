@@ -1,15 +1,29 @@
 <script setup lang="ts">
 /*
- | Dekoratív vonal-ikon (24-es rácsú viewBox, `currentColor`).
+ | Dekoratív vonal-ikon (`currentColor`, mindig `aria-hidden`).
  |
- | JELENTÉS: hiányzó @venture/ui komponens: ikon-készlet (`VtIcon`). Amíg nincs, a héj
- | minimális, lokális ikon-térképet használ; a méretet és a színt a környezet adja
- | (`currentColor`, token-méret), nincs beégetett érték. Az ikon mindig DEKORATÍV
- | (`aria-hidden`): a jelentést a mellette álló szöveg / `aria-label` hordozza.
+ | Unified UI v2: ahol a Figma-készletben (02 · Components › icon/*) van megfelelő, a
+ | közös `VtIcon` rajzol. A lenti lokális térkép CSAK a blokkszerkesztő és a journey-vászon
+ | szakmai ikonjait tartja (heading, bold, align-*, mobile/desktop …), amelyeknek nincs
+ | Figma-párja — JELENTÉS: HUMAN-QUEUE (hiányzó ikonok a családi készletből).
  */
+import { VtIcon, type VtIconName } from '@venture-co-group/ui';
 import { computed } from 'vue';
 
-const props = defineProps<{ name: string }>();
+/** ventMail-név → Figma-ikon. */
+const FIGMA: Record<string, VtIconName> = {
+    home: 'home', users: 'users', user: 'user', filter: 'filter', 'file-text': 'file', layout: 'layout',
+    send: 'send', route: 'branch', chart: 'chart', globe: 'globe', key: 'key', server: 'server',
+    shield: 'shield', webhook: 'webhook', 'file-code': 'code', network: 'layers', activity: 'activity',
+    list: 'list', 'credit-card': 'card', inbox: 'inbox', 'check-circle': 'check', palette: 'image',
+    search: 'search', plus: 'plus', check: 'check', external: 'external', logout: 'logout', close: 'x',
+    mail: 'mail', eye: 'eye', history: 'history', trash: 'trash', copy: 'copy', link: 'link', tag: 'tag',
+    megaphone: 'megaphone', code: 'code', sliders: 'sliders', terminal: 'terminal', chevron: 'chevron-down',
+    gauge: 'gauge', image: 'image', video: 'video', menu: 'list',
+};
+
+const props = withDefaults(defineProps<{ name: string; size?: number }>(), { size: 20 });
+const figma = computed(() => FIGMA[props.name]);
 
 const PATHS: Record<string, string[]> = {
     // v1.1 · 5. modul (Studio): címke és szűrő.
@@ -98,8 +112,12 @@ const paths = computed(() => PATHS[props.name] ?? []);
 </script>
 
 <template>
+    <VtIcon v-if="figma" class="vm-icon" :name="figma" :size="size" />
     <svg
+        v-else
         class="vm-icon"
+        :width="size"
+        :height="size"
         viewBox="0 0 24 24"
         fill="none"
         stroke="currentColor"

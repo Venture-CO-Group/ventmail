@@ -6,12 +6,30 @@
  | (és a teljes érték a `title`-ben marad). Az e2e `layout-overlap.spec.ts` őrzi.
  */
 
-/* A flex/grid gyerek alapból `min-width: auto` — egy hosszú szó így kitágítja a szülőt. */
-.vm-shell__main > * {
+/*
+ | A héj tartalom-oszlopának látható magassága (a görgetés a `main`-ben van, a felső sáv és a
+ | glow-line fölötte): a teljes magasságú szerkesztők ehhez mérnek, nem a `100dvh`-hoz.
+ */
+:root {
+    --vm-shell-viewport: calc(100dvh - var(--vt-topbar-height) - var(--vt-glow-line-height));
+}
+
+/* Az oldal burka (`AppLayout`): nem doboz, a VtAppShell tartalomsávjának gapje a gyerekekre hat. */
+.vm-page {
+    display: contents;
+}
+
+/*
+ | A flex/grid gyerek alapból `min-width: auto` — egy hosszú szó így kitágítja a szülőt.
+ | A `display: contents` miatt a gyerekek a shell görgetett oszlopának flex-elemei: nem zsugorodhatnak
+ | (egy `overflow: hidden` kártya különben a keretére lapulna — a VtAppShell saját szabálya ide nem ér el).
+ */
+.vm-page > * {
+    flex-shrink: 0;
     min-width: 0;
 }
 
-.vm-shell__main :where(h1, h2, h3, h4, p, li, dd, dt, label, legend, caption) {
+.vm-page :where(h1, h2, h3, h4, p, li, dd, dt, label, legend, caption) {
     overflow-wrap: anywhere;
 }
 
@@ -22,19 +40,19 @@
  | linkek). A sablonszerkesztő vászna KIVÉTEL: ott a LEVÉL linkjei látszanak, a levél saját színével.
  | A kontrasztot (≥ 4,5 : 1 a sötét téma minden felületén) a `tests/js/design/link-contrast.test.ts` őrzi.
  */
-:where(.vm-shell__main) :where(a:not(.vm-ed-canvas a)) {
-    color: var(--vt-color-accent-300);
+:where(.vm-page) :where(a:not(.vm-ed-canvas a)) {
+    color: var(--vt-accent-hover);
     text-decoration-line: underline;
     text-decoration-thickness: from-font;
     text-underline-offset: calc(var(--vt-space-1) / 2);
 }
 
-:where(.vm-shell__main) :where(a:not(.vm-ed-canvas a)):hover {
-    color: var(--vt-color-accent-200);
+:where(.vm-page) :where(a:not(.vm-ed-canvas a)):hover {
+    color: var(--vt-accent-hover);
 }
 
-:where(.vm-shell__main) :where(a:not(.vm-ed-canvas a)):focus-visible {
-    outline: thin solid var(--vt-color-accent-300);
+:where(.vm-page) :where(a:not(.vm-ed-canvas a)):focus-visible {
+    outline: thin solid var(--vt-accent-hover);
     outline-offset: calc(var(--vt-space-1) / 2);
     border-radius: var(--vt-radius-sm);
 }
@@ -45,12 +63,12 @@
  | az elem-típus a specificitást a komponens saját (azonos súlyú) szabálya fölé emeli.
  | Az e2e `layout-overlap` „clipped-bar" mérése őrzi (390 px).
  */
-.vm-shell__main div.vt-segmented {
+.vm-page div.vt-segmented {
     flex-wrap: wrap;
     max-inline-size: 100%;
 }
 
-.vm-shell__main div.vt-tabs__list {
+.vm-page div.vt-tabs__list {
     flex-wrap: wrap;
     overflow-x: visible;
 }
@@ -65,7 +83,7 @@
 /* VÁGÁS: egy sor, `…`, a teljes érték a `title`-ben. A határ a spacing-skálából jön. */
 .vm-truncate {
     display: block;
-    max-inline-size: calc(var(--vt-space-32) * 3);
+    max-inline-size: calc(calc(var(--vt-space-8) * 4) * 3);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -119,4 +137,122 @@ div.vt-table.vm-table {
 
 .vm-truncate--center {
     margin-inline: auto;
+}
+
+/* ↓ áthozva a shell.css-ből (Unified UI v2: a héjat a @venture-co-group/ui VtAppShell adja). */
+
+
+/* VÍZSZINTES CSOPORT: gombok, választók, jelölők egy sorban, töréssel. */
+.vm-cluster {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--vt-space-3);
+}
+
+/* FÜGGŐLEGES RITMUS: a hiányzó stack-primitív helyett. */
+.vm-stack {
+    display: flex;
+    flex-direction: column;
+    gap: var(--vt-space-4);
+    min-width: 0;
+}
+
+/* KÁRTYARÁCS a mérőszámokhoz. */
+.vm-metrics {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(calc(calc(var(--vt-space-12) * 2) * 2), 1fr));
+    gap: var(--vt-space-4);
+}
+
+.vm-metric__value {
+    font-family: var(--vt-font-display);
+    color: var(--vt-text-primary);
+}
+
+.vm-metric__label {
+    color: var(--vt-text-secondary);
+}
+
+/*
+ | KÉPERNYŐOLVASÓNAK LÁTHATÓ, SZEMNEK NEM — fókuszra viszont előjön (ugrás a tartalomra).
+ | A doboz a legkisebb token-méret, és `inset(50%)` vágja — nyers hossz nem szerepel benne,
+ | mert az beégetett érték lenne.
+ */
+.vm-visually-hidden:not(:focus):not(:active) {
+    position: absolute;
+    inline-size: var(--vt-space-1);
+    block-size: var(--vt-space-1);
+    margin: calc(var(--vt-space-1) * -1);
+    padding: 0;
+    border: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
+/*
+ | KÓD-BLOKK (beágyazható űrlap-kód, diff).
+ |
+ | Saját osztály, mert a `@venture-co-group/ui`-ban ma nincs kód-primitív (a hiánylistán szerepel).
+ | Minden érték TOKEN — a betűtípus a `--vt-font-mono`, a keret és a háttér a felület
+ | többi doboza szerint.
+ */
+.vm-code {
+    font-family: var(--vt-font-mono);
+    font-size: var(--vt-type-body-m-size);
+    background: var(--vt-bg-raised);
+    border: thin solid var(--vt-border);
+    border-radius: var(--vt-radius-md);
+    padding: var(--vt-space-3);
+    overflow-x: auto;
+    white-space: pre;
+}
+
+/*
+ | VERZIÓ-DIFF. A sor típusát NEM CSAK a szín jelöli: a bal oldali jel (+/−) a
+ | `::before`-ban van, mert a színvakság a piros/zöld párost pont ott mossa össze, ahol a
+ | különbség a lényeg.
+ */
+.vm-diff {
+    font-family: var(--vt-font-mono);
+    font-size: var(--vt-type-body-m-size);
+    border: thin solid var(--vt-border);
+    border-radius: var(--vt-radius-md);
+    overflow-x: auto;
+}
+
+.vm-diff__line {
+    display: flex;
+    gap: var(--vt-space-2);
+    padding-inline: var(--vt-space-2);
+    white-space: pre;
+}
+
+.vm-diff__gutter {
+    color: var(--vt-text-secondary);
+    min-inline-size: var(--vt-space-8);
+    text-align: end;
+}
+
+.vm-diff__line--added {
+    background: var(--vt-bg-raised);
+    border-inline-start: var(--vt-space-1) solid var(--vt-status-success);
+}
+
+.vm-diff__line--removed {
+    background: var(--vt-bg-raised);
+    border-inline-start: var(--vt-space-1) solid var(--vt-status-danger);
+}
+
+.vm-diff__line--same {
+    border-inline-start: var(--vt-space-1) solid transparent;
+}
+
+.vm-diff__line--added .vm-diff__text::before {
+    content: '+ ';
+}
+
+.vm-diff__line--removed .vm-diff__text::before {
+    content: '- ';
 }

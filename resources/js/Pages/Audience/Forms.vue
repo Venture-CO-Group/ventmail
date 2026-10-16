@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { router } from '@inertiajs/vue3';
-import { VtButton, VtCheckbox, VtField, VtInput, VtSelect, VtTextarea } from '@venture/ui';
+import { VtBanner, VtButton, VtCheckbox, VtField, VtInput, VtSelect, VtTextarea } from '@venture-co-group/ui';
 import VmCard from '../../Components/Form/VmCard.vue';
 import VmForm from '../../Components/Form/VmForm.vue';
 import VmFormActions from '../../Components/Form/VmFormActions.vue';
@@ -170,9 +170,9 @@ function toggle(row: FormRow): void {
 
 <template>
     <AppLayout>
-        <h1 class="vt-text-display">{{ t('forms.title') }}</h1>
+        <h1 class="vt-num">{{ t('forms.title') }}</h1>
 
-        <p class="vm-banner" role="status">{{ t('forms.note') }}</p>
+        <VtBanner tone="info" role="status">{{ t('forms.note') }}</VtBanner>
 
         <VmCard data-testid="form-editor">
             <h2>{{ editing ? t('forms.edit') : t('forms.create') }}</h2>
@@ -212,7 +212,7 @@ function toggle(row: FormRow): void {
                 <VmFormSection data-testid="form-builder">
                     <h3>{{ t('forms.fields') }}</h3>
                     <p class="vm-form-hint">{{ t('forms.fieldsHint') }}</p>
-                    <p class="vm-banner" role="note" data-testid="form-doi">{{ t('forms.doiAlways') }}</p>
+                    <VtBanner tone="info" role="note" data-testid="form-doi">{{ t('forms.doiAlways') }}</VtBanner>
                     <VtCheckbox v-model="form.requireTiming" data-testid="form-require-timing">{{ t('forms.requireTiming') }}</VtCheckbox>
                     <p class="vm-form-hint">{{ t('forms.requireTimingHint') }}</p>
 
@@ -240,7 +240,7 @@ function toggle(row: FormRow): void {
                             :placeholder="t('forms.addField')"
                             data-testid="builder-new-field"
                         />
-                        <VtButton variant="subtle" size="sm" data-testid="builder-add-field" @click="addField">{{ t('forms.addField') }}</VtButton>
+                        <VtButton variant="ghost" size="sm" data-testid="builder-add-field" @click="addField">{{ t('forms.addField') }}</VtButton>
                     </div>
 
                     <h3>{{ t('forms.pageTexts') }}</h3>
@@ -307,7 +307,7 @@ function toggle(row: FormRow): void {
             <div v-for="row in forms" :key="row.uuid" class="vm-stack" :data-testid="`form-${row.slug}`">
                 <div class="vm-cluster">
                     <span class="vm-truncate vm-truncate--fill" :title="row.name">{{ row.name }}</span>
-                    <span class="vt-text-mono vm-wrap">{{ endpointBase }}{{ row.slug }}</span>
+                    <span class="vt-mono vm-wrap">{{ endpointBase }}{{ row.slug }}</span>
                     <span :data-testid="`state-${row.slug}`">
                         {{ row.active ? t('forms.active') : t('forms.inactive') }}
                     </span>
@@ -337,19 +337,19 @@ function toggle(row: FormRow): void {
                      szerződése, és tesztek őrzik. -->
                 <div v-if="snippetFor === row.uuid" class="vm-stack" :data-testid="`embed-${row.slug}`">
                     <div class="vm-cluster" role="group" :aria-label="t('forms.snippet')">
-                        <VtButton :variant="embedTab === 'hosted' ? 'subtle' : 'ghost'" size="sm" :data-testid="`embed-tab-hosted-${row.slug}`" @click="embedTab = 'hosted'">{{ t('forms.hostedLink') }}</VtButton>
-                        <VtButton :variant="embedTab === 'iframe' ? 'subtle' : 'ghost'" size="sm" :data-testid="`embed-tab-iframe-${row.slug}`" @click="embedTab = 'iframe'">{{ t('forms.iframeCode') }}</VtButton>
-                        <VtButton :variant="embedTab === 'html' ? 'subtle' : 'ghost'" size="sm" :data-testid="`embed-tab-html-${row.slug}`" @click="embedTab = 'html'">{{ t('forms.htmlCode') }}</VtButton>
+                        <VtButton :variant="embedTab === 'hosted' ? 'secondary' : 'ghost'" size="sm" :data-testid="`embed-tab-hosted-${row.slug}`" @click="embedTab = 'hosted'">{{ t('forms.hostedLink') }}</VtButton>
+                        <VtButton :variant="embedTab === 'iframe' ? 'secondary' : 'ghost'" size="sm" :data-testid="`embed-tab-iframe-${row.slug}`" @click="embedTab = 'iframe'">{{ t('forms.iframeCode') }}</VtButton>
+                        <VtButton :variant="embedTab === 'html' ? 'secondary' : 'ghost'" size="sm" :data-testid="`embed-tab-html-${row.slug}`" @click="embedTab = 'html'">{{ t('forms.htmlCode') }}</VtButton>
                     </div>
                     <p v-if="embedTab === 'hosted'" class="vm-cluster">
-                        <span class="vt-text-mono vm-wrap" :data-testid="`hosted-url-${row.slug}`">{{ row.hostedUrl }}</span>
+                        <span class="vt-mono vm-wrap" :data-testid="`hosted-url-${row.slug}`">{{ row.hostedUrl }}</span>
                         <a :href="row.hostedUrl" target="_blank" rel="noopener" :data-testid="`hosted-open-${row.slug}`">{{ t('forms.openHosted') }}</a>
                     </p>
                     <pre v-else-if="embedTab === 'iframe'" class="vm-code" :data-testid="`iframe-body-${row.slug}`">{{ row.iframe }}</pre>
                     <template v-else>
-                        <p v-if="row.requireTiming" class="vm-banner vm-banner--warning" role="status" :data-testid="`html-needs-timing-${row.slug}`">
+                        <VtBanner v-if="row.requireTiming" tone="warning" role="status" :data-testid="`html-needs-timing-${row.slug}`">
                             {{ t('forms.htmlNeedsTiming') }}
-                        </p>
+                        </VtBanner>
                         <!-- A KÓD a szerveren áll össze: a mezőnevek a publikus végpont
                              szerződése, és tesztek őrzik. -->
                         <pre class="vm-code" :data-testid="`snippet-body-${row.slug}`">{{ row.snippet }}</pre>
@@ -363,8 +363,8 @@ function toggle(row: FormRow): void {
 <style scoped>
 .vm-form-hint {
     margin: 0;
-    color: var(--vt-text-muted);
-    font-size: var(--vt-fs-body-sm);
+    color: var(--vt-text-secondary);
+    font-size: var(--vt-type-body-m-size);
 }
 
 .vm-form-fields {
@@ -389,12 +389,12 @@ function toggle(row: FormRow): void {
 }
 
 .vm-form-fields__fixed {
-    color: var(--vt-text-muted);
+    color: var(--vt-text-secondary);
     border-style: dashed;
 }
 
 .vm-form-fields__row > strong {
-    flex: 1 1 calc(var(--vt-space-24) + var(--vt-space-8));
+    flex: 1 1 calc(calc(var(--vt-space-12) * 2) + var(--vt-space-8));
 }
 
 .vm-form-fields__actions {
@@ -407,22 +407,22 @@ function toggle(row: FormRow): void {
     flex-direction: column;
     gap: var(--vt-space-3);
     padding: var(--vt-space-6);
-    border: thin solid var(--vt-glass-base-stroke);
+    border: thin solid var(--vt-border-subtle);
     border-radius: var(--vt-radius-lg);
-    background-color: var(--vt-glass-base-fill);
+    background-color: var(--vt-surface-1);
     overflow-wrap: anywhere;
 }
 
 .vm-form-preview small {
-    color: var(--vt-text-muted);
+    color: var(--vt-text-secondary);
 }
 
 .vm-form-preview__field {
     padding: var(--vt-space-2) var(--vt-space-3);
     border: thin solid var(--vt-border-strong);
     border-radius: var(--vt-radius-md);
-    color: var(--vt-text-subtle);
-    font-size: var(--vt-fs-body-sm);
+    color: var(--vt-text-tertiary);
+    font-size: var(--vt-type-body-m-size);
 }
 
 .vm-form-preview__button {
@@ -430,7 +430,7 @@ function toggle(row: FormRow): void {
     padding: var(--vt-space-2) var(--vt-space-5);
     border-radius: var(--vt-radius-md);
     background-color: var(--vt-accent);
-    color: var(--vt-on-accent);
+    color: var(--vt-text-on-accent);
     font-weight: var(--vt-weight-semibold);
 }
 </style>

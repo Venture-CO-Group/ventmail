@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Head, Link, router } from '@inertiajs/vue3';
-import { VtButton, VtCheckbox, VtField, VtInput, VtModal } from '@venture/ui';
+import { VtBanner, VtButton, VtCheckbox, VtField, VtInput, VtModal } from '@venture-co-group/ui';
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import TemplateThumb from '../../Components/Editor/TemplateThumb.vue';
@@ -133,12 +133,12 @@ const blockIcon: Record<string, string> = {
         <header class="vm-row" data-testid="library-header">
             <div class="vm-stack">
                 <p class="vm-ed-heading">{{ t('library.eyebrow') }}</p>
-                <h1 class="vt-text-display">{{ t('library.title') }}</h1>
+                <h1 class="vt-num">{{ t('library.title') }}</h1>
                 <p class="vt-text-lead">{{ t('library.lead') }}</p>
             </div>
             <div class="vm-cluster">
                 <VtInput v-model="search" :placeholder="t('library.search')" :aria-label="t('library.search')" data-testid="library-search" />
-                <VtButton glow data-testid="template-new" @click="openCreate()"><VmIcon name="plus" /> {{ t('library.new') }}</VtButton>
+                <VtButton data-testid="template-new" @click="openCreate()"><VmIcon name="plus" /> {{ t('library.new') }}</VtButton>
             </div>
         </header>
 
@@ -235,7 +235,7 @@ const blockIcon: Record<string, string> = {
                         <VtInput v-model="subject" data-testid="template-subject" />
                     </VtField>
                     <VtCheckbox v-if="source.kind !== 'copy'" v-model="marketing" data-testid="template-marketing">{{ t('library.create.marketing') }}</VtCheckbox>
-                    <p v-if="errors.blocks" class="vm-banner vm-banner--danger" role="status">{{ errors.blocks }}</p>
+                    <VtBanner v-if="errors.blocks" tone="danger" role="status">{{ errors.blocks }}</VtBanner>
                 </VmFormSection>
                 <VmFormActions>
                     <VtButton variant="ghost" @click="createOpen = false">{{ t('editor.common.cancel') }}</VtButton>

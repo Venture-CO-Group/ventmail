@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { VtBadge, VtInput, VtNavItem, VtSegmented, type VtColumn } from '@venture/ui';
+import { VtBadge, VtBanner, VtInput, VtNavItem, VtSegmented, type VtColumn } from '@venture-co-group/ui';
 import { computed, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import VmCard from '../../Components/Form/VmCard.vue';
@@ -272,7 +272,7 @@ const methodTone = (method: string): 'success' | 'accent' | 'warning' | 'danger'
                             :data-testid="guideTestid(item)"
                             @click="select(`guide:${item.key}`)"
                         >
-                            <template #trailing><VtBadge tone="accent-2" size="sm">{{ t('nav.soon') }}</VtBadge></template>
+                            <template #trailing><VtBadge tone="accent">{{ t('nav.soon') }}</VtBadge></template>
                         </VtNavItem>
                         <VtNavItem
                             v-for="item in soonOperations"
@@ -293,7 +293,7 @@ const methodTone = (method: string): 'success' | 'accent' | 'warning' | 'danger'
                 <VmCard :data-testid="`docs-guide-body-${guide.key}`">
                     <h2>
                         {{ guide.title }}
-                        <VtBadge v-if="guide.soon" tone="accent-2" size="sm">{{ t('nav.soon') }}</VtBadge>
+                        <VtBadge v-if="guide.soon" tone="accent">{{ t('nav.soon') }}</VtBadge>
                     </h2>
                     <!-- A törzs a szerveren készült HTML: CommonMark, NYERS HTML nélkül (DeveloperGuides). -->
                     <div class="vm-prose" data-testid="docs-guide-prose" v-html="guide.html" />
@@ -334,7 +334,7 @@ const methodTone = (method: string): 'success' | 'accent' | 'warning' | 'danger'
                             <dt>{{ t('plat.infra.mode.allowlist') }}</dt>
                             <dd>{{ sandbox.allowlistEnforced || !sandbox.live ? t('plat.infra.on') : t('plat.infra.off') }}</dd>
                             <dt>{{ t('plat.docs.testKeys') }}</dt>
-                            <dd class="vt-text-mono">{{ sandbox.testKeyPrefix }}…</dd>
+                            <dd class="vt-mono">{{ sandbox.testKeyPrefix }}…</dd>
                         </dl>
                     </template>
 
@@ -371,7 +371,7 @@ const methodTone = (method: string): 'success' | 'accent' | 'warning' | 'danger'
                 <VmCard data-testid="docs-operation">
                     <p class="vm-eyebrow">{{ operation.tag }}</p>
                     <h2>{{ operation.summary }}</h2>
-                    <p v-if="operation.soon" class="vm-banner vm-banner--warning" role="note" data-testid="docs-soon-banner">{{ t('plat.docs.soonBanner') }}</p>
+                    <VtBanner v-if="operation.soon" tone="warning" role="note" data-testid="docs-soon-banner">{{ t('plat.docs.soonBanner') }}</VtBanner>
                     <div class="vm-endpoint">
                         <VtBadge :tone="methodTone(operation.method)">{{ operation.method }}</VtBadge>
                         <code class="vm-truncate" data-testid="docs-url">{{ url }}</code>
@@ -419,14 +419,14 @@ const methodTone = (method: string): 'success' | 'accent' | 'warning' | 'danger'
 
 .vm-docnav__group {
     margin: var(--vt-space-4) 0 var(--vt-space-1);
-    color: var(--vt-text-muted);
-    font-size: var(--vt-fs-caption);
-    letter-spacing: var(--vt-tracking-wider);
+    color: var(--vt-text-secondary);
+    font-size: var(--vt-type-caption-size);
+    letter-spacing: var(--vt-type-overline-tracking);
     text-transform: uppercase;
 }
 
 .vm-docnav__soon {
-    color: var(--vt-text-muted);
+    color: var(--vt-text-secondary);
 }
 
 .vm-docnav__op {
@@ -439,8 +439,8 @@ const methodTone = (method: string): 'success' | 'accent' | 'warning' | 'danger'
 .vm-docnav__method {
     flex: 0 0 auto;
     font-family: var(--vt-font-mono);
-    font-size: var(--vt-fs-caption);
-    color: var(--vt-text-muted);
+    font-size: var(--vt-type-caption-size);
+    color: var(--vt-text-secondary);
 }
 
 .vm-endpoint,
@@ -463,7 +463,7 @@ const methodTone = (method: string): 'success' | 'accent' | 'warning' | 'danger'
 
 .vm-desc {
     display: block;
-    min-width: calc(var(--vt-space-32) * 2);
+    min-width: calc(calc(var(--vt-space-8) * 4) * 2);
     white-space: normal;
     overflow-wrap: anywhere;
 }
@@ -479,15 +479,15 @@ const methodTone = (method: string): 'success' | 'accent' | 'warning' | 'danger'
 }
 
 .vm-eyebrow {
-    color: var(--vt-text-muted);
-    font-size: var(--vt-fs-caption);
-    letter-spacing: var(--vt-tracking-wider);
+    color: var(--vt-text-secondary);
+    font-size: var(--vt-type-caption-size);
+    letter-spacing: var(--vt-type-overline-tracking);
     text-transform: uppercase;
 }
 
 .vm-muted {
-    color: var(--vt-text-muted);
-    font-size: var(--vt-fs-body-sm);
+    color: var(--vt-text-secondary);
+    font-size: var(--vt-type-body-m-size);
 }
 
 .vm-pre {
@@ -540,14 +540,14 @@ const methodTone = (method: string): 'success' | 'accent' | 'warning' | 'danger'
 
 .vm-prose :deep(code) {
     font-family: var(--vt-font-mono);
-    font-size: var(--vt-fs-body-sm);
+    font-size: var(--vt-type-body-m-size);
 }
 
 .vm-prose :deep(pre) {
     padding: var(--vt-space-4);
     border: thin solid var(--vt-border);
     border-radius: var(--vt-radius-md);
-    background: var(--vt-bg);
+    background: var(--vt-bg-base);
     overflow-x: auto;
     overflow-wrap: normal;
 }
@@ -574,9 +574,9 @@ const methodTone = (method: string): 'success' | 'accent' | 'warning' | 'danger'
 }
 
 .vm-prose :deep(th) {
-    color: var(--vt-text-muted);
-    font-size: var(--vt-fs-caption);
-    letter-spacing: var(--vt-tracking-wider);
+    color: var(--vt-text-secondary);
+    font-size: var(--vt-type-caption-size);
+    letter-spacing: var(--vt-type-overline-tracking);
     text-transform: uppercase;
 }
 
@@ -595,7 +595,7 @@ const methodTone = (method: string): 'success' | 'accent' | 'warning' | 'danger'
     border: thin solid var(--vt-border);
     border-radius: var(--vt-radius-sm);
     font-family: var(--vt-font-mono);
-    font-size: var(--vt-fs-caption);
+    font-size: var(--vt-type-caption-size);
 }
 
 .vm-linkbtn {

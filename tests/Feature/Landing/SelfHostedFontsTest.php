@@ -29,7 +29,7 @@ it('a landing és az app pontosan a két fő vágást preloadolja, a manifeszt h
     file_put_contents($manifest, json_encode([
         '../../venture-design/dist/fonts/inter-latin.woff2' => ['file' => 'assets/inter-latin-AAA.woff2'],
         '../../venture-design/dist/fonts/inter-latin-ext.woff2' => ['file' => 'assets/inter-latin-ext-BBB.woff2'],
-        'node_modules/@venture/design/dist/fonts/space-grotesk-latin.woff2' => ['file' => 'assets/space-grotesk-latin-CCC.woff2'],
+        'node_modules/@venture-co-group/design/dist/fonts/space-grotesk-latin.woff2' => ['file' => 'assets/space-grotesk-latin-CCC.woff2'],
         '../../venture-design/dist/fonts/jetbrains-mono-latin.woff2' => ['file' => 'assets/jetbrains-mono-latin-DDD.woff2'],
     ]));
     config(['vite.manifest_path' => $manifest]);
@@ -74,12 +74,12 @@ it('a resources/ és a docker/ alatt semmi forrás nem hivatkozik Google-betűre
 
 it('a három betűcsalád a saját originről jön: a belépők importálják a fonts.css-t', function () {
     foreach (['resources/js/app.ts', 'resources/css/landing.css', 'resources/css/hosted.css'] as $entry) {
-        expect((string) file_get_contents(base_path($entry)))->toContain('@venture/design/fonts.css');
+        expect((string) file_get_contents(base_path($entry)))->toContain('@venture-co-group/design/fonts.css');
     }
 });
 
 it('az OFL-licencszövegek a public/fonts alól szolgálódnak, és bájtra egyeznek a csomagéval', function () {
-    $package = base_path('node_modules/@venture/design/dist/fonts');
+    $package = base_path('node_modules/@venture-co-group/design/dist/fonts');
 
     foreach (['inter', 'space-grotesk', 'jetbrains-mono'] as $family) {
         $served = public_path("fonts/LICENSE-{$family}.txt");

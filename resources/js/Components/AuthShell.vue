@@ -27,7 +27,7 @@ const version = computed(() => page.props.app?.version ?? 'dev');
 <template>
     <main class="auth" data-testid="auth-shell">
         <div class="vm-glow-rim auth__rim">
-            <div class="vt-glass vt-glass--thick auth__card vm-glow-rim__card">
+            <div class="vt-glass auth__card vm-glow-rim__card">
                 <!-- A ventSSO-kártya mintájára: a Venture CO Group logó vezet, a termék mellette. -->
                 <div class="auth__brand">
                     <a href="https://ventureco.app" rel="noopener" class="auth__venture">

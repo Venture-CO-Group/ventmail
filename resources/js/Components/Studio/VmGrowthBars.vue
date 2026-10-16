@@ -91,7 +91,7 @@ const columns = computed(() =>
     display: flex;
     align-items: stretch;
     gap: var(--vt-space-1);
-    block-size: calc(var(--vt-space-32) * 1.5);
+    block-size: calc(calc(var(--vt-space-8) * 4) * 1.5);
 }
 
 .vm-growth__column {
@@ -126,7 +126,7 @@ const columns = computed(() =>
 }
 
 .vm-growth__bar--lost {
-    background-color: var(--vt-color-danger);
+    background-color: var(--vt-status-danger);
 }
 
 .vm-growth__axis {
@@ -134,7 +134,7 @@ const columns = computed(() =>
     justify-content: space-between;
     gap: var(--vt-space-2);
     font-family: var(--vt-font-mono);
-    font-size: var(--vt-fs-caption);
-    color: var(--vt-text-subtle);
+    font-size: var(--vt-type-caption-size);
+    color: var(--vt-text-tertiary);
 }
 </style>

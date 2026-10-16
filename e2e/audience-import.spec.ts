@@ -187,18 +187,18 @@ test('CSV (Windows-1250, pontosvessző): egyéni mező helyben, hibariport, kép
 
     // A felmérés a háttérben fut: az „Elemzés…” állapot után az oszlopok lépés következik.
     await expect(page.getByTestId('import-step-columns')).toBeVisible({ timeout: 60_000 });
-    await expect(page.getByTestId('mapping-select-0').locator('select')).toHaveValue('email');
+    await expect(page.getByTestId('mapping-select-0').locator('xpath=descendant-or-self::select')).toHaveValue('email');
     await expect(page.getByTestId('import-mapping')).toContainText('Törzsvendég-kód');
     await expect(page.getByTestId('import-mapping')).toContainText('Kovács');
 
     // ÚJ EGYÉNI MEZŐ helyben: a „Születésnap" oszlopból.
-    await page.getByTestId('mapping-select-3').locator('select').selectOption('__new__');
+    await page.getByTestId('mapping-select-3').locator('xpath=descendant-or-self::select').selectOption('__new__');
     await expect(page.getByTestId('new-field-form')).toBeVisible();
     await page.getByTestId('new-field-key').fill(`szuletes_${run}`);
-    await page.getByTestId('new-field-type').locator('select').selectOption('date');
+    await page.getByTestId('new-field-type').locator('xpath=descendant-or-self::select').selectOption('date');
     await page.getByTestId('new-field-create').click();
     await expect(page.getByTestId('new-field-form')).toHaveCount(0);
-    await expect(page.getByTestId('mapping-select-3').locator('select')).toHaveValue(`attr:szuletes_${run}`);
+    await expect(page.getByTestId('mapping-select-3').locator('xpath=descendant-or-self::select')).toHaveValue(`attr:szuletes_${run}`);
 
     await page.getByTestId('import-next').click();
     await expect(page.getByTestId('import-step-settings')).toBeVisible();
@@ -256,10 +256,10 @@ test('XLSX: munkalap-választás, majd ugyanaz a folyamat', async ({ page }) => 
 
     // Alapból az első munkalap (Üres) — átváltunk a másodikra: az újrafelmérés is a háttérben fut
     // („Elemzés…”), a leképezés utána épül újra.
-    await page.getByTestId('import-sheet').locator('select').selectOption('Vendégek');
+    await page.getByTestId('import-sheet').locator('xpath=descendant-or-self::select').selectOption('Vendégek');
     await expect(page.getByTestId('import-mapping')).toContainText('Keresztnév', { timeout: 60_000 });
-    await expect(page.getByTestId('mapping-select-0').locator('select')).toHaveValue('email');
-    await expect(page.getByTestId('mapping-select-2').locator('select')).toHaveValue('attr:company');
+    await expect(page.getByTestId('mapping-select-0').locator('xpath=descendant-or-self::select')).toHaveValue('email');
+    await expect(page.getByTestId('mapping-select-2').locator('xpath=descendant-or-self::select')).toHaveValue('attr:company');
 
     await page.getByTestId('import-next').click();
     await expect(page.getByTestId('import-step-settings')).toBeVisible();

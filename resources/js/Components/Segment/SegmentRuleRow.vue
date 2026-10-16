@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { VtButton, VtInput, VtSelect } from '@venture/ui';
+import { VtButton, VtInput, VtSelect } from '@venture-co-group/ui';
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { DAY_OPERATORS, VALUELESS, type NamedRef, type SegmentCatalog, type SegmentRule } from './types';
@@ -171,7 +171,7 @@ function setValue(value: string | number): void {
 <style scoped>
 .vm-rule {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(calc(var(--vt-space-32) * 1.25), 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(calc(calc(var(--vt-space-8) * 4) * 1.25), 1fr));
     align-items: center;
     gap: var(--vt-space-3);
     min-width: 0;
@@ -185,8 +185,8 @@ function setValue(value: string | number): void {
 }
 
 .vm-rule__unit {
-    color: var(--vt-text-muted);
-    font-size: var(--vt-fs-body-sm);
+    color: var(--vt-text-secondary);
+    font-size: var(--vt-type-body-m-size);
     white-space: nowrap;
 }
 </style>

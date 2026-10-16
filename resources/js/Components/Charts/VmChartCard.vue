@@ -77,22 +77,22 @@ function exportPng(background: ExportBackground): void {
 .vm-chartcard__title {
     margin: 0;
     font-family: var(--vt-font-display);
-    font-size: var(--vt-fs-h5);
+    font-size: var(--vt-type-heading-h1-size);
     overflow-wrap: anywhere;
 }
 
 .vm-chartcard__subtitle,
 .vm-chartcard__note {
     margin: 0;
-    color: var(--vt-text-muted);
-    font-size: var(--vt-fs-caption);
+    color: var(--vt-text-secondary);
+    font-size: var(--vt-type-caption-size);
 }
 
 .vm-chartcard__legend {
     display: flex;
     flex-wrap: wrap;
     gap: var(--vt-space-3);
-    color: var(--vt-text-muted);
-    font-size: var(--vt-fs-caption);
+    color: var(--vt-text-secondary);
+    font-size: var(--vt-type-caption-size);
 }
 </style>

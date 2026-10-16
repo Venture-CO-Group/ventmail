@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Link, router } from '@inertiajs/vue3';
-import { VtButton, VtModal } from '@venture/ui';
+import { VtBanner, VtButton, VtModal } from '@venture-co-group/ui';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import VmCard from '../../Components/Form/VmCard.vue';
@@ -143,9 +143,9 @@ onBeforeUnmount(() => {
 
         <!-- A HITELESÍTETLEN DOMAIN nem statisztika, hanem akadály: a PreSendGate 1. kapuja
              tiltja a küldést róla. Ezért figyelmeztetés, nem egy sor a többi között. -->
-        <p v-if="unverified.length" class="vm-banner vm-banner--warning" role="status" data-testid="domains-unverified">
+        <VtBanner v-if="unverified.length" tone="warning" role="status" data-testid="domains-unverified">
             {{ t('domains.unverified', { count: unverified.length }) }}
-        </p>
+        </VtBanner>
 
         <VmCard v-if="!domains.length">
             <p data-testid="domains-empty">{{ t('domains.empty') }}</p>
@@ -182,14 +182,14 @@ onBeforeUnmount(() => {
                             {{ t('plat.domains.lastChecked', { at: when(selected.lastCheckedAt) }) }}
                         </p>
                     </div>
-                    <VtButton variant="glass" data-testid="verify-button" :disabled="checking" @click="recheck">
+                    <VtButton variant="secondary" data-testid="verify-button" :disabled="checking" @click="recheck">
                         {{ t('plat.domains.recheck') }}
                     </VtButton>
                 </div>
 
-                <p class="vm-banner vm-banner--warning" role="status" v-if="pendingOptional.length" data-testid="tracking-pending">
+                <VtBanner tone="warning" role="status" v-if="pendingOptional.length" data-testid="tracking-pending">
                     {{ t('plat.domains.trackingPending') }}
-                </p>
+                </VtBanner>
 
                 <div class="vm-scroll-x">
                     <table class="vm-dns" data-testid="dns-records">
@@ -214,7 +214,7 @@ onBeforeUnmount(() => {
                         <tbody>
                             <tr v-for="record in selected.records" :key="record.key" :data-testid="`dns-row-${record.key}`">
                                 <th scope="row">{{ recordLabel(record.key) }}</th>
-                                <td class="vt-text-mono">{{ record.type }}</td>
+                                <td class="vt-mono">{{ record.type }}</td>
                                 <td>
                                     <span class="vm-dns__cell">
                                         <code>{{ record.name }}</code>
@@ -242,17 +242,17 @@ onBeforeUnmount(() => {
                 <h2 class="vm-eyebrow">{{ t('plat.domains.dkimTitle') }}</h2>
                 <dl class="vm-kv">
                     <dt>{{ t('plat.domains.activeSelector') }}</dt>
-                    <dd class="vt-text-mono" data-testid="dkim-selector">{{ selected.dkim.signingSelector }}</dd>
+                    <dd class="vt-mono" data-testid="dkim-selector">{{ selected.dkim.signingSelector }}</dd>
                     <dt>{{ t('plat.domains.publishedSelector') }}</dt>
-                    <dd class="vt-text-mono">{{ selected.dkim.selector }}</dd>
+                    <dd class="vt-mono">{{ selected.dkim.selector }}</dd>
                     <dt>{{ t('plat.domains.rotatedAt') }}</dt>
                     <dd>{{ when(selected.dkim.rotatedAt) }}</dd>
                     <template v-if="selected.dkim.previousSelector">
                         <dt>{{ t('plat.domains.previousSelector') }}</dt>
-                        <dd class="vt-text-mono">{{ selected.dkim.previousSelector }} · {{ when(selected.dkim.previousValidUntil) }}</dd>
+                        <dd class="vt-mono">{{ selected.dkim.previousSelector }} · {{ when(selected.dkim.previousValidUntil) }}</dd>
                     </template>
                 </dl>
-                <VtButton variant="glass" data-testid="rotate-button" :disabled="rotating" @click="confirmRotate = true">
+                <VtButton variant="secondary" data-testid="rotate-button" :disabled="rotating" @click="confirmRotate = true">
                     {{ t('wizard.rotate') }}
                 </VtButton>
                 <p class="vm-muted">{{ t('plat.domains.rotateHint', { days: selected.dkim.overlapDays }) }}</p>
@@ -274,7 +274,7 @@ onBeforeUnmount(() => {
     display: flex;
     flex-direction: column;
     gap: var(--vt-space-3);
-    max-height: calc(var(--vt-space-32) * 6);
+    max-height: calc(calc(var(--vt-space-8) * 4) * 6);
     overflow-y: auto;
 }
 
@@ -286,18 +286,18 @@ onBeforeUnmount(() => {
     padding: var(--vt-space-4);
     border: thin solid var(--vt-border);
     border-radius: var(--vt-radius-lg);
-    background: var(--vt-bg-elevated);
-    color: var(--vt-text);
+    background: var(--vt-bg-raised);
+    color: var(--vt-text-primary);
     text-decoration: none;
     min-width: 0;
 }
 
 .vm-domain-item--active {
-    border-color: var(--vt-color-accent-500);
+    border-color: var(--vt-accent);
 }
 
 .vm-domain-item:focus-visible {
-    outline: thin solid var(--vt-color-accent-500);
+    outline: thin solid var(--vt-accent);
 }
 
 .vm-domain-item__text {
@@ -309,15 +309,15 @@ onBeforeUnmount(() => {
 
 .vm-domain-item__meta,
 .vm-muted {
-    color: var(--vt-text-muted);
-    font-size: var(--vt-fs-body-sm);
+    color: var(--vt-text-secondary);
+    font-size: var(--vt-type-body-m-size);
 }
 
 .vm-eyebrow {
     margin: 0;
-    color: var(--vt-text-muted);
-    font-size: var(--vt-fs-caption);
-    letter-spacing: var(--vt-tracking-wider);
+    color: var(--vt-text-secondary);
+    font-size: var(--vt-type-caption-size);
+    letter-spacing: var(--vt-type-overline-tracking);
     text-transform: uppercase;
 }
 
@@ -329,7 +329,7 @@ onBeforeUnmount(() => {
 }
 
 .vm-kv dt {
-    color: var(--vt-text-muted);
+    color: var(--vt-text-secondary);
 }
 
 .vm-kv dd {
@@ -369,7 +369,7 @@ onBeforeUnmount(() => {
     width: 100%;
     border-collapse: collapse;
     table-layout: fixed;
-    min-width: calc(var(--vt-space-32) * 6);
+    min-width: calc(calc(var(--vt-space-8) * 4) * 6);
 }
 
 .vm-dns th,
@@ -381,9 +381,9 @@ onBeforeUnmount(() => {
 }
 
 .vm-dns thead th {
-    color: var(--vt-text-muted);
-    font-size: var(--vt-fs-caption);
-    letter-spacing: var(--vt-tracking-wider);
+    color: var(--vt-text-secondary);
+    font-size: var(--vt-type-caption-size);
+    letter-spacing: var(--vt-type-overline-tracking);
     text-transform: uppercase;
     font-weight: var(--vt-weight-semibold);
 }
@@ -423,7 +423,7 @@ onBeforeUnmount(() => {
     flex: 1 1 auto;
     min-width: 0;
     font-family: var(--vt-font-mono);
-    font-size: var(--vt-fs-body-sm);
+    font-size: var(--vt-type-body-m-size);
     white-space: normal;
     overflow-wrap: anywhere;
     word-break: break-all;

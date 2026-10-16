@@ -20,9 +20,6 @@
             ],
             "vue": [
                 "./node_modules/vue"
-            ],
-            "@venture/ui": [
-                "../venture-ui/dist/index.d.ts"
             ]
         }
     },

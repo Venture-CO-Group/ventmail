@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Head, router } from '@inertiajs/vue3';
-import { VtButton, VtField, VtInput, VtModal, VtSelect } from '@venture/ui';
+import { VtButton, VtField, VtInput, VtModal, VtSelect } from '@venture-co-group/ui';
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import VmCard from '../../Components/Form/VmCard.vue';
@@ -178,15 +178,15 @@ function remove(): void {
 
 .vm-tag-list__name {
     display: flex;
-    flex: 1 1 calc(var(--vt-space-32) * 1.5);
+    flex: 1 1 calc(calc(var(--vt-space-8) * 4) * 1.5);
     align-items: center;
     gap: var(--vt-space-2);
     min-width: 0;
 }
 
 .vm-tag-list__count {
-    color: var(--vt-text-muted);
-    font-size: var(--vt-fs-body-sm);
+    color: var(--vt-text-secondary);
+    font-size: var(--vt-type-body-m-size);
 }
 
 .vm-tag-list__actions {

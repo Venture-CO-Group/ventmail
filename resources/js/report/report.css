@@ -4,7 +4,7 @@
  | (`--vm-brand`, szerveren validált), különben a Venture accent tokent. A betűk a tokenek
  | font-stackjéből jönnek; hálózat nélkül a rendszer-fallback (D234, HUMAN-QUEUE: saját OFL-betűk).
  */
-@import '@venture/design/tokens.css';
+@import '@venture-co-group/design/tokens.css';
 
 html,
 body {
@@ -13,15 +13,15 @@ body {
     background: var(--vt-color-neutral-0);
     color: var(--vt-color-neutral-900);
     font-family: var(--vt-font-body);
-    font-size: var(--vt-fs-body-sm);
-    line-height: var(--vt-leading-normal);
+    font-size: var(--vt-type-body-m-size);
+    line-height: 1.45;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
 }
 
 .vm-report {
     --vm-cover-bg: var(--vm-brand, var(--vt-accent));
-    --vm-cover-fg: var(--vt-on-accent);
+    --vm-cover-fg: var(--vt-text-on-accent);
 }
 
 .vm-report--cover-light {
@@ -54,7 +54,7 @@ body {
     align-items: center;
     gap: var(--vt-space-3);
     font-weight: var(--vt-weight-semibold);
-    font-size: var(--vt-fs-body);
+    font-size: var(--vt-type-body-m-size);
 }
 
 .vm-report__logo {
@@ -73,8 +73,8 @@ body {
 .vm-report__title {
     margin: 0;
     font-family: var(--vt-font-display);
-    font-size: var(--vt-fs-h2);
-    line-height: var(--vt-leading-tight);
+    font-size: var(--vt-type-display-l-size);
+    line-height: 1.05;
     overflow-wrap: anywhere;
 }
 
@@ -101,7 +101,7 @@ body {
 .vm-report__section h2 {
     margin: 0;
     font-family: var(--vt-font-display);
-    font-size: var(--vt-fs-h5);
+    font-size: var(--vt-type-heading-h1-size);
     color: var(--vt-color-neutral-900);
 }
 
@@ -109,7 +109,7 @@ body {
 .vm-report__note {
     margin: 0;
     color: var(--vt-color-neutral-500);
-    font-size: var(--vt-fs-caption);
+    font-size: var(--vt-type-caption-size);
 }
 
 .vm-report__kpis {
@@ -130,7 +130,7 @@ body {
 
 .vm-report__kpi b {
     font-family: var(--vt-font-display);
-    font-size: var(--vt-fs-h4);
+    font-size: var(--vt-type-display-m-size);
 }
 
 .vm-report__kpi span {
@@ -139,17 +139,17 @@ body {
 
 .vm-report__chart {
     width: 100%;
-    height: calc(var(--vt-space-32) * 2);
+    height: calc(calc(var(--vt-space-8) * 4) * 2);
 }
 
 .vm-report__chart--pie {
-    height: calc(var(--vt-space-32) * 1.6);
+    height: calc(calc(var(--vt-space-8) * 4) * 1.6);
 }
 
 .vm-report__table {
     width: 100%;
     border-collapse: collapse;
-    font-size: var(--vt-fs-caption);
+    font-size: var(--vt-type-caption-size);
 }
 
 .vm-report__table th,
@@ -180,7 +180,7 @@ body {
     padding: 0 var(--vt-space-8);
     width: 100%;
     font-family: var(--vt-font-body);
-    font-size: var(--vt-fs-caption);
+    font-size: var(--vt-type-caption-size);
     color: var(--vt-color-neutral-500);
     background: transparent;
 }

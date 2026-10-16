@@ -105,7 +105,15 @@
             "author": "Autor",
             "analyst": "Analyst"
         },
-        "editorNav": "Kompakte Navigation"
+        "editorNav": "Kompakte Navigation",
+        "appSubtitle": "E-Mail-Plattform",
+        "allApps": "Alle Venture-Apps",
+        "search": "Suchen oder springen…",
+        "searchEmpty": "Keine Treffer.",
+        "env": {
+            "live": "Live",
+            "restricted": "Eingeschränkter Modus"
+        }
     },
     "dashboard": {
         "title": "Übersicht",

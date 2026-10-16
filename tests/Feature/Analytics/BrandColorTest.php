@@ -31,10 +31,10 @@ it('csak #RRGGBB alak', function (string $hex) {
 })->with(['red', '#FFF', '#GGGGGG', '#0E1322;', 'url(x)', '#0E1322 ']);
 
 it('a referenciaszínek egyeznek a @venture/design tokenekkel', function () {
-    $tokens = base_path('node_modules/@venture/design/dist/tokens.css');
+    $tokens = base_path('node_modules/@venture-co-group/design/dist/tokens.css');
 
     if (! is_file($tokens)) {
-        $this->markTestSkipped('A @venture/design csomag nincs telepítve (PHP-only CI job).');
+        $this->markTestSkipped('A @venture-co-group/design csomag nincs telepítve (PHP-only CI job).');
     }
 
     $css = (string) file_get_contents($tokens);

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Link, router, usePage } from '@inertiajs/vue3';
-import { VtBadge, VtButton, type VtColumn } from '@venture/ui';
+import { VtBadge, VtBanner, VtButton, type VtColumn } from '@venture-co-group/ui';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import VmSparkline from '../Components/Charts/VmSparkline.vue';
@@ -230,25 +230,25 @@ const rows = computed<Row[]>(() =>
             :lead="t('dashboard.lead')"
             testid="dashboard-header"
         >
-            <VtButton v-if="can('audience.manage')" variant="glass" data-testid="dashboard-import" @click="router.visit('/audience/import')">
+            <VtButton v-if="can('audience.manage')" variant="secondary" data-testid="dashboard-import" @click="router.visit('/audience/import')">
                 <VmIcon name="upload" /> {{ t('dashboard.import') }}
             </VtButton>
-            <VtButton v-if="can('campaign.create')" glow data-testid="dashboard-new-campaign" @click="router.visit('/campaigns?new=1')">
+            <VtButton v-if="can('campaign.create')" data-testid="dashboard-new-campaign" @click="router.visit('/campaigns?new=1')">
                 <VmIcon name="plus" /> {{ t('dashboard.newCampaign') }}
             </VtButton>
         </VmPageHeader>
 
-        <p v-if="restrictedMode" class="vm-banner vm-dash-mode" role="status" data-testid="sending-mode">
+        <VtBanner v-if="restrictedMode" tone="info" class="vm-dash-mode" role="status" data-testid="sending-mode">
             <VmIcon name="info" />
             <span>
                 <strong>{{ t(sendingMode.allowlistEnforced ? 'dashboard.mode.allowlist' : 'dashboard.mode.marketingOff') }}</strong>
                 {{ t('dashboard.mode.hint') }}
             </span>
-        </p>
+        </VtBanner>
 
-        <p v-if="hasUnverified" class="vm-banner vm-banner--warning" role="status" data-testid="unverified-warning">
+        <VtBanner v-if="hasUnverified" tone="warning" role="status" data-testid="unverified-warning">
             {{ t('dashboard.unverifiedWarning') }}
-        </p>
+        </VtBanner>
 
         <!--
          | A KÁRTYARÁCS (UI-polírozás · 4. pont): EGYETLEN determinisztikus CSS grid, 4 / 2 / 1
@@ -352,7 +352,7 @@ const rows = computed<Row[]>(() =>
                 >
                     <div class="vm-dash-head">
                         <h2>{{ t('dashboard.deliverability.title') }}</h2>
-                        <VtBadge :tone="deliverability.healthy ? 'success' : 'warning'" size="sm" data-testid="deliverability-health">
+                        <VtBadge :tone="deliverability.healthy ? 'success' : 'warning'" data-testid="deliverability-health">
                             {{ t(deliverability.healthy ? 'dashboard.deliverability.healthy' : 'dashboard.deliverability.attention') }}
                         </VtBadge>
                     </div>
@@ -380,7 +380,7 @@ const rows = computed<Row[]>(() =>
                         </template>
                     </dl>
 
-                    <VtButton variant="glass" size="sm" data-testid="dashboard-domains" @click="router.visit('/domains')">
+                    <VtButton variant="secondary" size="sm" data-testid="dashboard-domains" @click="router.visit('/domains')">
                         {{ t('dashboard.deliverability.openDomains') }}
                     </VtButton>
                 </VmCard>
@@ -427,8 +427,9 @@ const rows = computed<Row[]>(() =>
  */
 .vm-dash-grid {
     --vm-dash-gap: var(--vt-space-6);
-    --vm-dash-t4: calc(var(--vt-space-32) * 7.75);
-    --vm-dash-t2: calc(var(--vt-space-32) * 4);
+    /* T4 = 928 px: 1280-nál a 248 px-es sidebar mellett 952 px a tartó (Unified UI v2) — még 4 sáv. */
+    --vm-dash-t4: calc(calc(var(--vt-space-8) * 4) * 7.25);
+    --vm-dash-t2: calc(calc(var(--vt-space-8) * 4) * 4);
     --vm-dash-q: calc((100% - 3 * var(--vm-dash-gap)) / 4 - var(--vm-dash-gap) / 4);
     --vm-dash-h: calc((100% - var(--vm-dash-gap)) / 2 - var(--vm-dash-gap) / 4);
 
@@ -487,28 +488,28 @@ const rows = computed<Row[]>(() =>
 
 .vm-dash-kpi__label,
 .vm-dash-muted {
-    color: var(--vt-text-muted);
+    color: var(--vt-text-secondary);
 }
 
 .vm-dash-kpi__value {
     font-family: var(--vt-font-display);
-    font-size: var(--vt-fs-h3);
-    color: var(--vt-text);
+    font-size: var(--vt-type-display-m-size);
+    color: var(--vt-text-primary);
     font-variant-numeric: tabular-nums;
     overflow-wrap: anywhere;
 }
 
 .vm-dash-kpi__trend {
-    font-size: var(--vt-fs-body-sm);
-    color: var(--vt-text-muted);
+    font-size: var(--vt-type-body-m-size);
+    color: var(--vt-text-secondary);
 }
 
 .vm-dash-kpi__trend--up {
-    color: var(--vt-color-success);
+    color: var(--vt-status-success);
 }
 
 .vm-dash-kpi__trend--down {
-    color: var(--vt-color-danger);
+    color: var(--vt-status-danger);
 }
 
 .vm-dash-head {
@@ -523,7 +524,7 @@ const rows = computed<Row[]>(() =>
     display: inline-flex;
     align-items: center;
     gap: var(--vt-space-1);
-    color: var(--vt-text-muted);
+    color: var(--vt-text-secondary);
 }
 
 .vm-dash-link__chevron {
@@ -532,8 +533,8 @@ const rows = computed<Row[]>(() =>
 
 .vm-dash-campaign {
     display: block;
-    min-inline-size: calc(var(--vt-space-24) * 1.25);
-    color: var(--vt-text);
+    min-inline-size: calc(calc(var(--vt-space-12) * 2) * 1.25);
+    color: var(--vt-text-primary);
     overflow-wrap: break-word;
 }
 
@@ -557,7 +558,7 @@ const rows = computed<Row[]>(() =>
 .vm-dash-bar {
     block-size: var(--vt-space-1);
     border-radius: var(--vt-radius-full);
-    background-color: var(--vt-glass-thin-fill);
+    background-color: var(--vt-surface-2);
     overflow: hidden;
 }
 
@@ -598,16 +599,16 @@ const rows = computed<Row[]>(() =>
 }
 
 .vm-dash-todo__text {
-    flex: 1 1 calc(var(--vt-space-24) * 1.5);
+    flex: 1 1 calc(calc(var(--vt-space-12) * 2) * 1.5);
     min-width: 0;
     overflow-wrap: anywhere;
 }
 
 .vm-dash-todo__icon--warning {
-    color: var(--vt-color-warning);
+    color: var(--vt-status-warning);
 }
 
 .vm-dash-todo__icon--success {
-    color: var(--vt-color-success);
+    color: var(--vt-status-success);
 }
 </style>

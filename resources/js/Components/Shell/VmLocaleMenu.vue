@@ -12,11 +12,10 @@ import { router, usePage } from '@inertiajs/vue3';
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { loadLocaleMessages } from '../../i18n';
-import { VtDropdown, VtDropdownItem } from '@venture/ui';
-import { useShellMenu } from '../../composables/useMenuState';
+import { VtDropdownItem } from '@venture-co-group/ui';
 import VmIcon from './VmIcon.vue';
 
-/** `menu` (legördülő) vagy `inline` (a hamburger-panel gombsora). */
+/** `menu`: a `VtTopbar` nyelvi menüjének tételei (`locale-menu` slot); `inline`: gombsor a fiókmenüben. */
 withDefaults(defineProps<{ variant?: 'menu' | 'inline' }>(), { variant: 'menu' });
 
 const page = usePage<{ locale: string; supportedLocales: string[] }>();
@@ -24,8 +23,6 @@ const { t, locale, setLocaleMessage } = useI18n({ useScope: 'global' });
 
 const locales = computed(() => page.props.supportedLocales ?? []);
 const current = computed(() => page.props.locale);
-
-const menu = useShellMenu('locale');
 
 // A menüpont választása a `VtDropdown`-t zárja (és a fókuszt a gombra adja vissza).
 async function choose(code: string): Promise<void> {
@@ -40,14 +37,7 @@ async function choose(code: string): Promise<void> {
 
 <template>
     <!-- D315: @venture/ui `VtDropdown` menü-módban; a tételek `VtDropdownItem` (menuitemradio). -->
-    <VtDropdown v-if="variant === 'menu'" mode="menu" align="end" :label="t('shell.languageMenu')" :open="menu.open.value" @update:open="menu.setOpen">
-        <template #trigger="{ open, ...trigger }">
-            <button type="button" class="vm-tool" v-bind="trigger" data-testid="locale-switch" :data-open="open ? 'true' : undefined">
-                <VmIcon name="globe" />
-                <span class="vm-tool__code vt-text-mono" data-testid="locale-current">{{ current.toUpperCase() }}</span>
-            </button>
-        </template>
-
+    <template v-if="variant === 'menu'">
         <VtDropdownItem
             v-for="code in locales"
             :key="code"
@@ -57,22 +47,22 @@ async function choose(code: string): Promise<void> {
             :data-testid="`locale-option-${code}`"
             @select="choose(code)"
         >
-            <template #icon><span class="vm-menuitem__code vt-text-mono">{{ code.toUpperCase() }}</span></template>
+            <template #icon><span class="vm-menuitem__code vt-mono">{{ code.toUpperCase() }}</span></template>
             {{ t(`shell.languageName.${code}`) }}
             <template v-if="code === current" #trailing><VmIcon name="check" /></template>
         </VtDropdownItem>
-    </VtDropdown>
+    </template>
 
     <div v-else class="vm-langrow" role="group" :aria-label="t('shell.languageMenu')">
         <button
             v-for="code in locales"
             :key="code"
             type="button"
-            class="vm-langrow__btn vt-text-mono"
+            class="vm-langrow__btn vt-mono"
             :aria-pressed="code === current"
             :lang="code"
             :title="t(`shell.languageName.${code}`)"
-            :data-testid="`locale-option-${code}`"
+            :data-testid="`locale-inline-${code}`"
             @click="choose(code)"
         >
             {{ code.toUpperCase() }}

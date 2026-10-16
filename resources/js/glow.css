@@ -94,12 +94,12 @@
     border-radius: var(--vm-rim-radius);
     padding: var(--vt-hair);
     -webkit-mask:
-        linear-gradient(var(--vt-bg) 0 0) content-box,
-        linear-gradient(var(--vt-bg) 0 0);
+        linear-gradient(var(--vt-bg-base) 0 0) content-box,
+        linear-gradient(var(--vt-bg-base) 0 0);
     -webkit-mask-composite: xor;
     mask:
-        linear-gradient(var(--vt-bg) 0 0) content-box exclude,
-        linear-gradient(var(--vt-bg) 0 0);
+        linear-gradient(var(--vt-bg-base) 0 0) content-box exclude,
+        linear-gradient(var(--vt-bg-base) 0 0);
 }
 
 .vm-glow-rim > .vm-glow-rim__card {
@@ -107,8 +107,8 @@
     border-radius: var(--vm-rim-radius);
     background: linear-gradient(
         180deg,
-        color-mix(in srgb, var(--vt-bg-elevated) 94%, transparent),
-        color-mix(in srgb, var(--vt-bg) 96%, transparent)
+        color-mix(in srgb, var(--vt-bg-raised) 94%, transparent),
+        color-mix(in srgb, var(--vt-bg-base) 96%, transparent)
     );
 }
 

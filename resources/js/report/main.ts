@@ -4,7 +4,7 @@
  | Vue nélkül, csak `echarts/core` + vonal/oszlop/kör + SVG-renderer (éles vektor a PDF-ben),
  | animáció nélkül. Az adat a szerver által írt `<script type="application/json" id="vm-report-data">`
  | blokkból jön (JSON_HEX_* kódolással). A színek a `--vt-*` tokenek számított értékei (a
- | report.css a `@venture/design` tokenjeit hozza). Kirajzolás után egy képkocka múlva
+ | report.css a `@venture-co-group/design` tokenjeit hozza). Kirajzolás után egy képkocka múlva
  | `window.__vmReportReady = true` — erre vár a Gotenberg (`waitForExpression`); egy JS-hiba a
  | `failOnConsoleExceptions` miatt a renderelést bukja, nem ad grafikon nélküli PDF-et.
  */
@@ -45,9 +45,9 @@ const PALETTE = [
     '--vt-color-accent-500',
     '--vt-color-cyan-500',
     '--vt-color-violet-500',
-    '--vt-color-success',
-    '--vt-color-warning',
-    '--vt-color-danger',
+    '--vt-status-success',
+    '--vt-status-warning',
+    '--vt-status-danger',
     '--vt-color-accent-300',
     '--vt-color-neutral-500',
 ];
@@ -98,7 +98,7 @@ function option(def: ChartDef): Record<string, unknown> {
                 lineStyle: asLine ? { color } : undefined,
                 markLine:
                     serie.threshold && def.threshold
-                        ? { symbol: 'none', silent: true, label: { formatter: def.threshold.name, color: text, position: 'insideEndTop' }, lineStyle: { color: token('--vt-color-danger'), type: 'dashed' }, data: [{ yAxis: def.threshold.value }] }
+                        ? { symbol: 'none', silent: true, label: { formatter: def.threshold.name, color: text, position: 'insideEndTop' }, lineStyle: { color: token('--vt-status-danger'), type: 'dashed' }, data: [{ yAxis: def.threshold.value }] }
                         : undefined,
             };
         }),

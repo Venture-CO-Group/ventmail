@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Deferred, router } from '@inertiajs/vue3';
-import { VtButton, VtInput, VtSegmented, VtSelect } from '@venture/ui';
+import { VtBanner, VtButton, VtInput, VtSegmented, VtSelect } from '@venture-co-group/ui';
 import { computed, reactive, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { AudienceSection, CampaignSection, JourneySection, PlatformSection } from '../../Components/Analytics/types';
@@ -90,7 +90,7 @@ const pct = (value: number | undefined | null, digits = 1) => `${format.number((
 // --- Kampány: idősor -------------------------------------------------------------------
 const timeline = computed(() => props.campaignSection?.timeline ?? { bucket: 'day' as const, points: [] });
 const timelineSeries = computed(() => [
-    { name: t('analytics.series.opens'), data: timeline.value.points.map((p) => p.opens), token: '--vt-color-accent-500', area: true },
+    { name: t('analytics.series.opens'), data: timeline.value.points.map((p) => p.opens), token: '--vt-accent', area: true },
     { name: t('analytics.series.clicks'), data: timeline.value.points.map((p) => p.clicks), token: '--vt-color-cyan-400', area: true },
 ]);
 // D297: a kategória a NYERS nap/óra; a tengely a profil formátumában írja ki (`format.stamp`).
@@ -121,12 +121,12 @@ const uniqueClicks = computed(() => links.value.reduce((sum, link) => sum + link
 // --- Közönség --------------------------------------------------------------------------------
 const growth = computed(() => props.audienceSection?.growth ?? []);
 const growthSeries = computed(() => [
-    { name: t('analytics.series.new'), data: growth.value.map((g) => g.new), token: '--vt-color-accent-500', stack: 'g' },
-    { name: t('analytics.series.unsubscribed'), data: growth.value.map((g) => -g.unsubscribed), token: '--vt-color-danger', stack: 'g' },
+    { name: t('analytics.series.new'), data: growth.value.map((g) => g.new), token: '--vt-accent', stack: 'g' },
+    { name: t('analytics.series.unsubscribed'), data: growth.value.map((g) => -g.unsubscribed), token: '--vt-status-danger', stack: 'g' },
     { name: t('analytics.series.net'), data: growth.value.map((g) => g.net), token: '--vt-color-cyan-400', line: true },
 ]);
 const engagementItems = computed(() =>
-    (props.audienceSection?.engagement ?? []).map((row, index) => ({ name: t(`analytics.tier.${row.key}`), value: row.count, token: ['--vt-color-success', '--vt-color-warning', '--vt-color-danger', '--vt-color-neutral-400'][index] })),
+    (props.audienceSection?.engagement ?? []).map((row, index) => ({ name: t(`analytics.tier.${row.key}`), value: row.count, token: ['--vt-status-success', '--vt-status-warning', '--vt-status-danger', '--vt-color-neutral-400'][index] })),
 );
 
 // --- Journey ---------------------------------------------------------------------------------
@@ -141,9 +141,9 @@ const funnelRows = computed(() =>
 // --- Platform --------------------------------------------------------------------------------
 const deliverability = computed(() => props.platformSection?.series ?? []);
 const deliverabilitySeries = computed(() => [
-    { name: t('analytics.series.delivered'), data: deliverability.value.map((d) => d.deliveredRate), token: '--vt-color-success', area: true },
-    { name: t('analytics.series.bounced'), data: deliverability.value.map((d) => d.bounceRate), token: '--vt-color-warning' },
-    { name: t('analytics.series.complained'), data: deliverability.value.map((d) => d.complaintRate), token: '--vt-color-danger' },
+    { name: t('analytics.series.delivered'), data: deliverability.value.map((d) => d.deliveredRate), token: '--vt-status-success', area: true },
+    { name: t('analytics.series.bounced'), data: deliverability.value.map((d) => d.bounceRate), token: '--vt-status-warning' },
+    { name: t('analytics.series.complained'), data: deliverability.value.map((d) => d.complaintRate), token: '--vt-status-danger' },
 ]);
 const bounces = computed(() => props.platformSection?.bounces);
 const bounceItems = computed(() => {
@@ -190,7 +190,7 @@ function scrollToReport(): void {
                 <form v-if="showCustom" class="vm-an-custom" data-testid="analytics-custom" @submit.prevent="go({ range: 'custom', from: custom.from, to: custom.to })">
                     <VtInput v-model="custom.from" type="date" :max="selection.today" :aria-label="t('analytics.range.from')" />
                     <VtInput v-model="custom.to" type="date" :max="selection.today" :aria-label="t('analytics.range.to')" />
-                    <VtButton type="submit" variant="glass" size="sm">{{ t('analytics.range.apply') }}</VtButton>
+                    <VtButton type="submit" variant="secondary" size="sm">{{ t('analytics.range.apply') }}</VtButton>
                 </form>
                 <div class="vm-an-select">
                     <VtSelect
@@ -212,8 +212,8 @@ function scrollToReport(): void {
         <Deferred data="campaignSection">
             <template #fallback><div class="vm-an-grid"><div class="vm-an-skeleton" /><div class="vm-an-skeleton" /></div></template>
 
-            <p v-if="campaignSection === null" class="vm-banner" data-testid="analytics-empty">{{ t('analytics.empty') }}</p>
-            <p v-else-if="campaignSection && !campaignSection.available" class="vm-banner vm-banner--warning" data-testid="campaign-unavailable">{{ t('analytics.unavailable') }}</p>
+            <VtBanner v-if="campaignSection === null" tone="info" data-testid="analytics-empty">{{ t('analytics.empty') }}</VtBanner>
+            <VtBanner v-else-if="campaignSection && !campaignSection.available" tone="warning" data-testid="campaign-unavailable">{{ t('analytics.unavailable') }}</VtBanner>
             <template v-else-if="campaignSection">
                 <div class="vm-an-grid">
                     <VmChartCard id="open-click" :title="t('analytics.chart.openClick')" :subtitle="t(`analytics.bucket.${timeline.bucket}`)" :context="campaignName" :chart="timeline.points.length ? timelineChart : null">
@@ -254,7 +254,7 @@ function scrollToReport(): void {
                         <p v-if="!links.length" class="vm-an-muted" data-testid="links-empty">{{ t('analytics.noClicks') }}</p>
                         <ul v-else class="vm-an-bars vm-an-bars--links" data-testid="top-links">
                             <li v-for="link in links.slice(0, 10)" :key="link.key">
-                                <span class="vm-an-bars__label vm-truncate vt-text-mono" :title="link.url">{{ link.url.replace(/^https?:\/\//, '') }}</span>
+                                <span class="vm-an-bars__label vm-truncate vt-mono" :title="link.url">{{ link.url.replace(/^https?:\/\//, '') }}</span>
                                 <span class="vm-an-bars__value">{{ fmt(link.unique) }} · {{ pct(link.share) }}</span>
                                 <span class="vm-an-bars__track"><i :style="{ width: `${link.share}%` }" /></span>
                             </li>
@@ -270,7 +270,7 @@ function scrollToReport(): void {
             <Deferred data="audienceSection">
                 <template #fallback><div class="vm-an-skeleton" /></template>
                 <VmChartCard id="growth" :title="t('analytics.chart.growth')" :context="periodLabel" :chart="audienceSection?.available ? growthChart : null">
-                    <p v-if="!audienceSection?.available" class="vm-banner vm-banner--warning">{{ t('analytics.unavailable') }}</p>
+                    <VtBanner v-if="!audienceSection?.available" tone="warning">{{ t('analytics.unavailable') }}</VtBanner>
                     <template v-else>
                         <VmBarChart ref="growthChart" :categories="growth.map((g) => g.date)" :series="growthSeries" :label="t('analytics.chart.growth')" testid="chart-growth" />
                     </template>
@@ -304,7 +304,7 @@ function scrollToReport(): void {
                         </div>
                     </template>
                     <p v-if="journeySection === null" class="vm-an-muted">{{ t('analytics.noJourney') }}</p>
-                    <p v-else-if="!journeySection?.available || !journeySection?.nodesAvailable" class="vm-banner vm-banner--warning" data-testid="journey-unavailable">{{ t('analytics.unavailable') }}</p>
+                    <VtBanner v-else-if="!journeySection?.available || !journeySection?.nodesAvailable" tone="warning" data-testid="journey-unavailable">{{ t('analytics.unavailable') }}</VtBanner>
                     <VmFunnelBar v-else-if="funnelRows.length" ref="funnelChart" :rows="funnelRows" :label="t('analytics.chart.journey')" testid="chart-journey" />
                     <p v-else class="vm-an-muted">{{ t('analytics.noData') }}</p>
                     <template v-if="journeySection?.goal" #note>
@@ -316,7 +316,7 @@ function scrollToReport(): void {
             <Deferred data="platformSection">
                 <template #fallback><div class="vm-an-skeleton" /></template>
                 <VmChartCard id="bounces" :title="t('analytics.chart.bounces')" :context="periodLabel" :chart="bounces?.total ? bounceChart : null">
-                    <p v-if="!platformSection?.available" class="vm-banner vm-banner--warning">{{ t('analytics.unavailable') }}</p>
+                    <VtBanner v-if="!platformSection?.available" tone="warning">{{ t('analytics.unavailable') }}</VtBanner>
                     <p v-else-if="!bounces?.total" class="vm-an-muted" data-testid="bounces-empty">{{ t('analytics.noData') }}</p>
                     <div v-else class="vm-an-split">
                         <div class="vm-an-donut">
@@ -335,7 +335,7 @@ function scrollToReport(): void {
         <Deferred data="platformSection">
             <template #fallback><div class="vm-an-skeleton" /></template>
             <VmChartCard id="deliverability" :title="t('analytics.chart.deliverability')" :context="periodLabel" :chart="deliverability.length ? deliverabilityChart : null">
-                <p v-if="!platformSection?.available" class="vm-banner vm-banner--warning">{{ t('analytics.unavailable') }}</p>
+                <VtBanner v-if="!platformSection?.available" tone="warning">{{ t('analytics.unavailable') }}</VtBanner>
                 <VmLineChart
                     v-else-if="deliverability.length"
                     ref="deliverabilityChart"
@@ -343,7 +343,7 @@ function scrollToReport(): void {
                     :series="deliverabilitySeries"
                     :label="t('analytics.chart.deliverability')"
                     percent
-                    :mark-line="{ value: platformSection?.complaintThreshold ?? 0.3, name: t('analytics.series.threshold'), token: '--vt-color-danger', seriesIndex: 2 }"
+                    :mark-line="{ value: platformSection?.complaintThreshold ?? 0.3, name: t('analytics.series.threshold'), token: '--vt-status-danger', seriesIndex: 2 }"
                     testid="chart-deliverability"
                 />
                 <p v-else class="vm-an-muted">{{ t('analytics.noData') }}</p>
@@ -381,51 +381,51 @@ function scrollToReport(): void {
 
 .vm-an-select {
     min-width: 0;
-    width: min(100%, calc(var(--vt-space-32) * 2));
+    width: min(100%, calc(calc(var(--vt-space-8) * 4) * 2));
 }
 
 .vm-an-tz {
     margin: 0;
-    color: var(--vt-text-muted);
-    font-size: var(--vt-fs-caption);
+    color: var(--vt-text-secondary);
+    font-size: var(--vt-type-caption-size);
 }
 
 .vm-an-section {
     margin: var(--vt-space-4) 0 0;
-    color: var(--vt-text-muted);
-    font-size: var(--vt-fs-body-sm);
+    color: var(--vt-text-secondary);
+    font-size: var(--vt-type-body-m-size);
     font-weight: var(--vt-weight-semibold);
-    letter-spacing: var(--vt-tracking-wide);
+    letter-spacing: var(--vt-type-overline-tracking);
     text-transform: uppercase;
     overflow-wrap: anywhere;
 }
 
 .vm-an-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(var(--vt-space-32) * 3.5)), 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(calc(var(--vt-space-8) * 4) * 3.5)), 1fr));
     gap: var(--vt-space-6);
     align-items: start;
     min-width: 0;
 }
 
 .vm-an-grid--wide {
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(var(--vt-space-32) * 3)), 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(calc(var(--vt-space-8) * 4) * 3)), 1fr));
 }
 
 .vm-an-skeleton {
-    min-height: calc(var(--vt-space-32) * 2.5);
-    border-radius: var(--vt-radius-panel);
-    background: var(--vt-glass-thin-fill);
+    min-height: calc(calc(var(--vt-space-8) * 4) * 2.5);
+    border-radius: var(--vt-radius-xl);
+    background: var(--vt-surface-2);
 }
 
 .vm-an-muted {
     margin: 0;
-    color: var(--vt-text-muted);
+    color: var(--vt-text-secondary);
 }
 
 .vm-an-split {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(var(--vt-space-32) * 1.3)), 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(calc(var(--vt-space-8) * 4) * 1.3)), 1fr));
     gap: var(--vt-space-6);
     align-items: center;
     min-width: 0;
@@ -450,20 +450,20 @@ function scrollToReport(): void {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     gap: var(--vt-space-1) var(--vt-space-3);
-    font-size: var(--vt-fs-body-sm);
+    font-size: var(--vt-type-body-m-size);
 }
 
 .vm-an-bars__value {
-    color: var(--vt-text-muted);
+    color: var(--vt-text-secondary);
     font-family: var(--vt-font-mono);
-    font-size: var(--vt-fs-caption);
+    font-size: var(--vt-type-caption-size);
 }
 
 .vm-an-bars__track {
     grid-column: 1 / -1;
     height: var(--vt-space-1);
     border-radius: var(--vt-radius-full);
-    background: var(--vt-glass-thin-fill);
+    background: var(--vt-surface-2);
     overflow: hidden;
 }
 
@@ -478,7 +478,7 @@ function scrollToReport(): void {
     display: flex;
     justify-content: space-between;
     gap: var(--vt-space-3);
-    font-size: var(--vt-fs-body-sm);
+    font-size: var(--vt-type-body-m-size);
     min-width: 0;
 }
 </style>

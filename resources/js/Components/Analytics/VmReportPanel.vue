@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Link } from '@inertiajs/vue3';
-import { VtBadge, VtButton, VtCheckbox, VtField, VtInput, VtSelect, type VtBadgeTone } from '@venture/ui';
+import { VtBadge, VtBanner, VtButton, VtCheckbox, VtField, VtInput, VtSelect, type VtBadgeTone } from '@venture-co-group/ui';
 import axios, { AxiosError } from 'axios';
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
@@ -118,7 +118,7 @@ onBeforeUnmount(() => window.clearTimeout(timer));
         <section id="report" class="vm-report" data-testid="report-panel" aria-labelledby="report-title">
             <header class="vm-report__head">
                 <h2 id="report-title" class="vm-report__title">{{ t('analytics.report.title') }}</h2>
-                <VtBadge v-if="latest" :tone="tones[latest.status]" size="sm" data-testid="report-status">{{ t(`analytics.report.status.${latest.status}`) }}</VtBadge>
+                <VtBadge v-if="latest" :tone="tones[latest.status]" data-testid="report-status">{{ t(`analytics.report.status.${latest.status}`) }}</VtBadge>
             </header>
 
             <div class="vm-report__grid">
@@ -144,15 +144,15 @@ onBeforeUnmount(() => window.clearTimeout(timer));
                         </VtCheckbox>
                     </fieldset>
 
-                    <p class="vm-banner vm-report__hint">
+                    <VtBanner tone="info" class="vm-report__hint">
                         <VmIcon name="info" />
                         <span>
                             {{ t('analytics.report.brandingHint') }}
                             <Link v-if="canManageBranding" href="/settings/branding" data-testid="report-branding-link">{{ t('analytics.report.brandingLink') }}</Link>
                         </span>
-                    </p>
+                    </VtBanner>
 
-                    <p v-if="error" class="vm-banner vm-banner--danger" role="alert" data-testid="report-error">{{ error }}</p>
+                    <VtBanner v-if="error" tone="danger" role="alert" data-testid="report-error">{{ error }}</VtBanner>
 
                     <div class="vm-report__actions">
                         <VtButton type="submit" :loading="busy" :disabled="busy || !SECTIONS.some((key) => form.sections[key])" data-testid="report-create">
@@ -175,7 +175,7 @@ onBeforeUnmount(() => window.clearTimeout(timer));
                         <p v-if="!reports.length" class="vm-report__muted" data-testid="report-none">{{ t('analytics.report.none') }}</p>
                         <ul v-else class="vm-report__rows">
                             <li v-for="row in reports.slice(0, 5)" :key="row.uuid" class="vm-report__item" :data-testid="`report-row-${row.status}`">
-                                <VtBadge :tone="tones[row.status]" size="sm">{{ t(`analytics.report.status.${row.status}`) }}</VtBadge>
+                                <VtBadge :tone="tones[row.status]">{{ t(`analytics.report.status.${row.status}`) }}</VtBadge>
                                 <span class="vm-truncate">{{ row.kind === 'campaign' ? t('analytics.report.kindCampaignShort') : `${format.day(row.from ?? "")} – ${format.day(row.to ?? "")}` }}</span>
                                 <span class="vm-report__muted">{{ formatDate(row.createdAt) }}</span>
                                 <span v-if="row.status === 'failed'" class="vm-report__muted">{{ t('analytics.report.failed', { code: row.failureCode ?? '' }) }}</span>
@@ -220,12 +220,12 @@ onBeforeUnmount(() => window.clearTimeout(timer));
 .vm-report__title {
     margin: 0;
     font-family: var(--vt-font-display);
-    font-size: var(--vt-fs-h5);
+    font-size: var(--vt-type-heading-h1-size);
 }
 
 .vm-report__grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(var(--vt-space-32) * 3)), 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(calc(var(--vt-space-8) * 4) * 3)), 1fr));
     gap: var(--vt-space-8);
     align-items: start;
 }
@@ -239,19 +239,19 @@ onBeforeUnmount(() => window.clearTimeout(timer));
 
 .vm-report__row {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(var(--vt-space-32) * 1.6)), 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(calc(var(--vt-space-8) * 4) * 1.6)), 1fr));
     gap: var(--vt-space-4);
 }
 
 .vm-report__dates {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(var(--vt-space-32) * 1.1)), 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(calc(var(--vt-space-8) * 4) * 1.1)), 1fr));
     gap: var(--vt-space-3);
 }
 
 .vm-report__sections {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(var(--vt-space-32) * 1.6)), 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(calc(var(--vt-space-8) * 4) * 1.6)), 1fr));
     gap: var(--vt-space-3);
     margin: 0;
     padding: 0;
@@ -261,8 +261,8 @@ onBeforeUnmount(() => window.clearTimeout(timer));
 
 .vm-report__sections legend {
     margin-bottom: var(--vt-space-2);
-    color: var(--vt-text-muted);
-    font-size: var(--vt-fs-body-sm);
+    color: var(--vt-text-secondary);
+    font-size: var(--vt-type-body-m-size);
 }
 
 .vm-report__hint {
@@ -294,7 +294,7 @@ onBeforeUnmount(() => window.clearTimeout(timer));
 
 .vm-report__subtitle {
     margin: 0;
-    font-size: var(--vt-fs-body);
+    font-size: var(--vt-type-body-m-size);
 }
 
 .vm-report__rows {
@@ -316,7 +316,7 @@ onBeforeUnmount(() => window.clearTimeout(timer));
 
 .vm-report__muted {
     margin: 0;
-    color: var(--vt-text-muted);
-    font-size: var(--vt-fs-body-sm);
+    color: var(--vt-text-secondary);
+    font-size: var(--vt-type-body-m-size);
 }
 </style>

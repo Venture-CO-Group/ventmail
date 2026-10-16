@@ -17,7 +17,7 @@ defineProps<{
     <header class="vm-page-head" :data-testid="testid">
         <div class="vm-page-head__text">
             <p v-if="eyebrow" class="vm-page-head__eyebrow">{{ eyebrow }}</p>
-            <h1 class="vt-text-display vm-wrap">{{ title }}</h1>
+            <h1 class="vt-num vm-wrap">{{ title }}</h1>
             <p v-if="lead" class="vm-page-head__lead">{{ lead }}</p>
         </div>
         <div v-if="$slots.default" class="vm-page-head__actions">
@@ -48,16 +48,16 @@ defineProps<{
 
 .vm-page-head__eyebrow {
     margin: 0;
-    color: var(--vt-text-muted);
-    font-size: var(--vt-fs-caption);
+    color: var(--vt-text-secondary);
+    font-size: var(--vt-type-caption-size);
     font-weight: var(--vt-weight-semibold);
-    letter-spacing: var(--vt-tracking-wider);
+    letter-spacing: var(--vt-type-overline-tracking);
     text-transform: uppercase;
 }
 
 .vm-page-head__lead {
     margin: 0;
-    color: var(--vt-text-muted);
+    color: var(--vt-text-secondary);
 }
 
 .vm-page-head__actions {

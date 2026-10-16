@@ -100,7 +100,7 @@ it('a helyileg épített glow-utilityk vm- előtagot kapnak', function () {
 });
 
 it('a fókusz kényszerített színeknél is látszik (átlátszó körvonal marad)', function () {
-    foreach (['css/landing.css', 'js/auth.css', 'js/brand.css', 'js/shell.css'] as $file) {
+    foreach (['css/landing.css', 'js/auth.css', 'js/brand.css', 'js/menus.css', 'js/layout.css'] as $file) {
         expect(file_get_contents(resource_path($file)))->not->toMatch('/outline:\s*none/');
     }
 });

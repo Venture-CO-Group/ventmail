@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { type VtColumn } from '@venture/ui';
+import { VtBanner, type VtColumn } from '@venture-co-group/ui';
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import VmCard from '../../Components/Form/VmCard.vue';
@@ -96,9 +96,9 @@ const listed = computed(() => props.addresses.filter((ip) => ip.blocklist.some((
     <AppLayout>
         <VmPageHeader :eyebrow="t('plat.eyebrow.infra')" :title="t('plat.infra.title')" :lead="t('plat.infra.lead')" />
 
-        <p v-if="listed.length" class="vm-banner vm-banner--danger" role="status" data-testid="infra-listed">
+        <VtBanner v-if="listed.length" tone="danger" role="status" data-testid="infra-listed">
             {{ t('plat.infra.listedWarning', { count: listed.length }) }}
-        </p>
+        </VtBanner>
 
         <div class="vm-tiles" data-testid="infra-mode">
             <VmStat :label="t('plat.infra.mode.live')" :value="sendingMode.live ? t('plat.infra.on') : t('plat.infra.off')" :tone="sendingMode.live ? 'success' : 'warning'" />
@@ -134,7 +134,7 @@ const listed = computed(() => props.addresses.filter((ip) => ip.blocklist.some((
             <h2>{{ t('plat.infra.receivers') }}</h2>
             <dl class="vm-kv" data-testid="infra-receivers">
                 <template v-for="receiver in rateLimits.receivers" :key="receiver.domain">
-                    <dt class="vt-text-mono">{{ receiver.domain }}</dt>
+                    <dt class="vt-mono">{{ receiver.domain }}</dt>
                     <dd>{{ t('plat.infra.perMinuteN', { n: receiver.perMinute }) }}</dd>
                 </template>
                 <dt>{{ t('plat.infra.otherReceivers') }}</dt>
@@ -148,7 +148,7 @@ const listed = computed(() => props.addresses.filter((ip) => ip.blocklist.some((
 <style scoped>
 .vm-tiles {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(var(--vt-space-32) * 1.5)), 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(calc(var(--vt-space-8) * 4) * 1.5)), 1fr));
     gap: var(--vt-space-4);
 }
 
@@ -164,7 +164,7 @@ const listed = computed(() => props.addresses.filter((ip) => ip.blocklist.some((
 }
 
 .vm-muted {
-    color: var(--vt-text-muted);
-    font-size: var(--vt-fs-body-sm);
+    color: var(--vt-text-secondary);
+    font-size: var(--vt-type-body-m-size);
 }
 </style>

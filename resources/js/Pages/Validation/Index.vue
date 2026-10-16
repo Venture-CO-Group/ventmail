@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { router } from '@inertiajs/vue3';
-import { VtButton, VtField, VtInput, type VtColumn } from '@venture/ui';
+import { VtBanner, VtButton, VtField, VtInput, type VtColumn } from '@venture-co-group/ui';
 import VmTable from '../../Components/Form/VmTable.vue';
 import VmCard from '../../Components/Form/VmCard.vue';
 import VmForm from '../../Components/Form/VmForm.vue';
@@ -82,9 +82,9 @@ function useSuggestion(suggestion: string): void {
 
 <template>
     <AppLayout>
-        <h1 class="vt-text-display">{{ t('validation.title') }}</h1>
+        <h1 class="vt-num">{{ t('validation.title') }}</h1>
 
-        <p class="vm-banner" role="status">{{ t('validation.probeNote') }}</p>
+        <VtBanner tone="info" role="status">{{ t('validation.probeNote') }}</VtBanner>
 
         <VmCard>
             <h2>{{ t('validation.single') }}</h2>
@@ -106,7 +106,7 @@ function useSuggestion(suggestion: string): void {
 
         <VmCard v-if="verdict" data-testid="validation-verdict">
             <p>
-                <span class="vt-text-mono vm-wrap">{{ verdict.address }}</span>
+                <span class="vt-mono vm-wrap">{{ verdict.address }}</span>
                 — <strong data-testid="verdict-result">{{ verdict.result }}</strong>
                 ({{ t('validation.risk') }}: {{ verdict.risk }})
             </p>

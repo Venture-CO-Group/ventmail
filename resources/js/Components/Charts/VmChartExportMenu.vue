@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { VtDropdown, VtDropdownItem } from '@venture/ui';
+import { VtDropdown, VtDropdownItem } from '@venture-co-group/ui';
 import { useI18n } from 'vue-i18n';
 import { useShellMenu } from '../../composables/useMenuState';
 import VmIcon from '../Shell/VmIcon.vue';
@@ -54,19 +54,19 @@ const menu = useShellMenu(`export-${props.id}`);
     display: inline-flex;
     align-items: center;
     gap: var(--vt-space-2);
-    min-height: var(--vt-control-height);
+    min-height: var(--vt-space-10);
     padding: 0 var(--vt-space-3);
     border: thin solid var(--vt-border);
     border-radius: var(--vt-radius-md);
-    background: var(--vt-surface);
-    color: var(--vt-text);
-    font-size: var(--vt-fs-body-sm);
+    background: var(--vt-surface-1);
+    color: var(--vt-text-primary);
+    font-size: var(--vt-type-body-m-size);
     cursor: pointer;
     white-space: nowrap;
 }
 
 .vm-export__trigger:focus-visible {
     outline: none;
-    box-shadow: var(--vt-ring);
+    box-shadow: var(--vt-accent-line);
 }
 </style>

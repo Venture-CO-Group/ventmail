@@ -51,7 +51,7 @@ test('checklist-flow: a gomb csak zöld ellenőrzéseknél él, és a kapu okkó
     await page.getByTestId('section-toggle-sender').click();
     await page.getByTestId('edit-from-name').fill('E2E Studio');
     await page.getByTestId('edit-from').fill('hirlevel');
-    await page.getByTestId('edit-from-domain').locator('select').selectOption('pelda.hu');
+    await page.getByTestId('edit-from-domain').locator('xpath=descendant-or-self::select').selectOption('pelda.hu');
     await save(page, 'sender');
     await expect(page.getByTestId('section-sender')).toHaveAttribute('data-done', 'true');
     await expect(page.getByTestId('check-domain')).toHaveAttribute('data-ok', 'true');
@@ -71,7 +71,7 @@ test('checklist-flow: a gomb csak zöld ellenőrzéseknél él, és a kapu okkó
     // UI-polírozás · 6: az alapértelmezett ág az „Új template készítése" — itt a KÖNYVTÁRI ágat választjuk.
     await expect(page.getByTestId('content-mode-new').locator('input')).toBeChecked();
     await page.getByTestId('content-mode-existing').click();
-    await page.getByTestId('edit-template').locator('select').selectOption(seed.templates.placeholder.uuid);
+    await page.getByTestId('edit-template').locator('xpath=descendant-or-self::select').selectOption(seed.templates.placeholder.uuid);
     await save(page, 'content');
     await expect(page.getByTestId('check-compliance')).toHaveAttribute('data-ok', 'false');
     await expect(page.getByTestId('section-content')).toHaveAttribute('data-done', 'false');
@@ -88,7 +88,7 @@ test('checklist-flow: a gomb csak zöld ellenőrzéseknél él, és a kapu okkó
 
     // Valódi postai címes sablon → zöld.
     await page.getByTestId('section-toggle-content').click();
-    await page.getByTestId('edit-template').locator('select').selectOption(seed.templates.compliant.uuid);
+    await page.getByTestId('edit-template').locator('xpath=descendant-or-self::select').selectOption(seed.templates.compliant.uuid);
     await save(page, 'content');
     await expect(page.getByTestId('check-compliance')).toHaveAttribute('data-ok', 'true');
     await expect(page.getByTestId('checklist-progress')).toContainText('6');

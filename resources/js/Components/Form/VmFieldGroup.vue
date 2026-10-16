@@ -33,15 +33,15 @@ defineProps<{
 .vm-field-group__legend {
     padding: 0;
     margin-block-end: var(--vt-space-2);
-    font-size: var(--vt-fs-body-sm);
+    font-size: var(--vt-type-body-m-size);
     font-weight: var(--vt-weight-medium);
-    color: var(--vt-text);
+    color: var(--vt-text-primary);
 }
 
 .vm-field-group__hint {
     margin: 0;
-    font-size: var(--vt-fs-caption);
-    color: var(--vt-text-muted);
+    font-size: var(--vt-type-caption-size);
+    color: var(--vt-text-secondary);
 }
 
 .vm-field-group__items {

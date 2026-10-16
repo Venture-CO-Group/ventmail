@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { VtCard } from '@venture/ui';
+import { VtCard } from '@venture-co-group/ui';
 
 /**
  * KÁRTYA — a `VtCard` burkolója, ami a BELSŐ RITMUST is adja.

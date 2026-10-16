@@ -17,7 +17,7 @@
 
 .vm-pagehead > :first-child {
     min-inline-size: 0;
-    flex: 1 1 calc(var(--vt-space-32) * 2);
+    flex: 1 1 calc(calc(var(--vt-space-8) * 4) * 2);
 }
 
 .vm-pagehead h1,
@@ -34,18 +34,18 @@
 
 .vm-profile__main {
     gap: var(--vt-space-8);
-    flex: 2 1 calc(var(--vt-space-32) * 3);
+    flex: 2 1 calc(calc(var(--vt-space-8) * 4) * 3);
     min-inline-size: 0;
 }
 
 .vm-profile__side {
     gap: var(--vt-space-8);
-    flex: 1 1 calc(var(--vt-space-32) * 2);
+    flex: 1 1 calc(calc(var(--vt-space-8) * 4) * 2);
     min-inline-size: 0;
 }
 
 .vm-profile h2 {
-    font-size: var(--vt-fs-h4);
+    font-size: var(--vt-type-display-m-size);
 }
 
 .vm-profile__notifs {
@@ -76,8 +76,8 @@
 
 .vm-profile__notif-hint {
     padding-inline-start: var(--vt-space-8);
-    color: var(--vt-text-muted);
-    font-size: var(--vt-fs-body-sm);
+    color: var(--vt-text-secondary);
+    font-size: var(--vt-type-body-m-size);
 }
 
 .vm-profile__who {
@@ -92,7 +92,7 @@
 }
 
 .vm-profile__email {
-    color: var(--vt-text-muted);
+    color: var(--vt-text-secondary);
     overflow-wrap: anywhere;
 }
 
@@ -122,11 +122,11 @@
     align-items: center;
     justify-content: center;
     gap: var(--vt-space-2);
-    min-block-size: var(--vt-control-height);
+    min-block-size: var(--vt-space-10);
     padding: var(--vt-space-2) var(--vt-space-6);
     border-radius: var(--vt-radius-md);
     background: var(--vt-accent);
-    color: var(--vt-on-accent);
+    color: var(--vt-text-on-accent);
     font-family: var(--vt-font-body);
     font-weight: var(--vt-weight-medium);
     text-decoration: none;
@@ -138,5 +138,5 @@
 
 .vm-linkbutton:focus-visible {
     outline: thin solid transparent;
-    box-shadow: 0 0 0 var(--vt-space-1) var(--vt-ring);
+    box-shadow: 0 0 0 var(--vt-space-1) var(--vt-accent-line);
 }

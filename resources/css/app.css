@@ -1,14 +1,14 @@
 /* Design forrás: @venture/design tokenek + @venture/ui komponens-stílusok.
    Lokális szín/spacing/font érték TILOS — ha nincs token, jelentsd a design repóba. */
-@import '@venture/design/styles.css';
-@import '@venture/ui/style.css';
+@import '@venture-co-group/design/styles.css';
+@import '@venture-co-group/ui/style.css';
 
 /* Alap: sötét felület, token-szín és -betű. A téma a <html data-theme="dark">-ból jön. */
 html,
 body {
     margin: 0;
-    background: var(--vt-bg);
-    color: var(--vt-text);
+    background: var(--vt-bg-base);
+    color: var(--vt-text-primary);
     font-family: var(--vt-font-body);
 }
 

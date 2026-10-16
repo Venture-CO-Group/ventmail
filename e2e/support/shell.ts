@@ -10,8 +10,25 @@ import { expect, type Page } from '@playwright/test';
 export type NavGroup = 'studio' | 'platform' | 'settings' | 'console';
 
 /** Megnyitja egy nav-csoport panelét (desktop). */
+/** A sidebar csak 1024 px alatt fiók: ilyenkor a felső sáv menügombja nyitja. */
+export async function openSidebar(page: Page): Promise<void> {
+    const menu = page.locator('.vt-topbar__menu');
+
+    if ((await menu.count()) > 0 && (await menu.isVisible()) && (await menu.getAttribute('aria-expanded')) !== 'true') {
+        await menu.click();
+    }
+
+    await expect(page.getByTestId('app-nav')).toBeVisible();
+}
+
+/** Egy navigációs csoport (Studio / Platform / Settings / Console) gombja a sidebarban. */
+export function navGroupButton(page: Page, group: NavGroup) {
+    return page.getByTestId(`nav-${group}`).locator('button.vt-navgroup__label');
+}
+
 export async function openNavGroup(page: Page, group: NavGroup): Promise<void> {
-    const trigger = page.getByTestId(`nav-group-${group}`);
+    await openSidebar(page);
+    const trigger = navGroupButton(page, group);
 
     if ((await trigger.getAttribute('aria-expanded')) !== 'true') {
         await trigger.click();
@@ -20,26 +37,25 @@ export async function openNavGroup(page: Page, group: NavGroup): Promise<void> {
     await expect(trigger).toHaveAttribute('aria-expanded', 'true');
 }
 
-/** Kinyitja a csoportját, majd rákattint a menüpontra. */
 export async function clickNav(page: Page, group: NavGroup, testid: string): Promise<void> {
     await openNavGroup(page, group);
     await page.getByTestId(testid).click();
 }
 
-/**
- * A nyelvet a nyelvválasztón át váltja (a felhasználó útja): desktopon a sáv legördülője,
- * hamburger-nézetben a hamburger-panel gombsora.
+/*
+ | NYELVVÁLTÁS: a felső sáv nyelvi kódja nyit menüt; 520 px alatti sávban a kód rejtett, és a
+ | fiókmenü alján lévő gombsor vált.
  */
 export async function chooseLocale(page: Page, code: string): Promise<void> {
-    const hamburger = page.getByTestId('nav-hamburger');
-    const mobile = (await hamburger.count()) > 0;
+    const toggle = page.getByTestId('locale-switch');
+    const inline = !(await toggle.isVisible().catch(() => false));
 
-    if (mobile) {
-        await hamburger.click();
+    if (inline) {
+        await page.getByTestId('user-menu').click();
     } else {
-        const already = ((await page.getByTestId('locale-current').textContent()) ?? '').trim().toLowerCase() === code;
+        const already = ((await toggle.textContent()) ?? '').trim().toLowerCase() === code;
 
-        await page.getByTestId('locale-switch').click();
+        await toggle.click();
 
         // Az már aktív nyelv választása nem hív szervert (nincs mit menteni): csak zárunk.
         if (already) {
@@ -56,10 +72,6 @@ export async function chooseLocale(page: Page, code: string): Promise<void> {
         { timeout: 5_000 },
     );
 
-    await page.getByTestId(`locale-option-${code}`).click();
-    await saved.catch(() => undefined); // az aktív nyelv újraválasztása (mobil) nem hív szervert
-
-    if (mobile) {
-        await page.getByTestId('nav-hamburger').click();
-    }
+    await page.getByTestId(inline ? `locale-inline-${code}` : `locale-option-${code}`).click();
+    await saved.catch(() => undefined); // az aktív nyelv újraválasztása nem hív szervert
 }

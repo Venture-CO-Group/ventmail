@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { VtButton, VtField, VtFileUpload, VtInput } from '@venture/ui';
+import { VtButton, VtField, VtFileUpload, VtInput } from '@venture-co-group/ui';
 import axios, { AxiosError } from 'axios';
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Head, Link, router } from '@inertiajs/vue3';
-import { VtButton, VtField, VtInput, type VtColumn } from '@venture/ui';
+import { VtButton, VtField, VtInput, type VtColumn } from '@venture-co-group/ui';
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import VmCard from '../../Components/Form/VmCard.vue';
@@ -113,7 +113,7 @@ function create(): void {
 
     <AppLayout>
         <VmPageHeader :eyebrow="t('campaigns.eyebrow')" :title="t('campaigns.title')" :lead="t('campaigns.lead')">
-            <VtButton glow data-testid="campaign-new" @click="creating = !creating"><VmIcon name="plus" /> {{ t('campaigns.new') }}</VtButton>
+            <VtButton data-testid="campaign-new" @click="creating = !creating"><VmIcon name="plus" /> {{ t('campaigns.new') }}</VtButton>
         </VmPageHeader>
 
         <VmCard v-if="creating || !campaigns.length">
@@ -222,20 +222,20 @@ function create(): void {
     border: 0;
     border-radius: var(--vt-radius-sm);
     background: transparent;
-    color: var(--vt-text-muted);
+    color: var(--vt-text-secondary);
     font: inherit;
-    font-size: var(--vt-fs-body-sm);
+    font-size: var(--vt-type-body-m-size);
     cursor: pointer;
 }
 
 .vm-camp-filter[aria-pressed='true'] {
     background-color: var(--vt-surface-2);
-    color: var(--vt-text);
+    color: var(--vt-text-primary);
 }
 
 .vm-camp-filter:focus-visible {
     outline: none;
-    box-shadow: var(--vt-ring);
+    box-shadow: var(--vt-accent-line);
 }
 
 .vm-camp-search {
@@ -252,7 +252,7 @@ function create(): void {
 }
 
 .vm-camp-name small {
-    color: var(--vt-text-subtle);
+    color: var(--vt-text-tertiary);
 }
 
 .vm-camp-status {
@@ -263,10 +263,10 @@ function create(): void {
 
 .vm-camp-progress {
     display: block;
-    inline-size: calc(var(--vt-space-24) + var(--vt-space-4));
+    inline-size: calc(calc(var(--vt-space-12) * 2) + var(--vt-space-4));
     block-size: var(--vt-space-1);
     border-radius: var(--vt-radius-full);
-    background-color: var(--vt-glass-thin-fill);
+    background-color: var(--vt-surface-2);
     overflow: hidden;
 }
 
@@ -281,7 +281,7 @@ function create(): void {
     align-items: center;
     justify-content: flex-end;
     gap: var(--vt-space-2);
-    color: var(--vt-text-muted);
-    font-size: var(--vt-fs-body-sm);
+    color: var(--vt-text-secondary);
+    font-size: var(--vt-type-body-m-size);
 }
 </style>

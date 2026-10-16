@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Deferred, Link } from '@inertiajs/vue3';
-import { VtBadge, type VtColumn } from '@venture/ui';
+import { VtBadge, type VtColumn } from '@venture-co-group/ui';
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { CampaignSection } from '../../Components/Analytics/types';
@@ -62,14 +62,14 @@ const metrics = computed(() =>
 const pct = (value: unknown) => `${format.number(Number(value ?? 0), { maximumFractionDigits: 2 })}%`;
 
 const dailySeries = computed(() => [
-    { name: t('analytics.metric.delivered'), data: props.daily.map((d) => d.delivered), token: '--vt-color-success' },
-    { name: t('analytics.metric.opened'), data: props.daily.map((d) => d.opened), token: '--vt-color-accent-500' },
+    { name: t('analytics.metric.delivered'), data: props.daily.map((d) => d.delivered), token: '--vt-status-success' },
+    { name: t('analytics.metric.opened'), data: props.daily.map((d) => d.opened), token: '--vt-accent' },
     { name: t('analytics.metric.clicked'), data: props.daily.map((d) => d.clicked), token: '--vt-color-cyan-400' },
 ]);
 
 const timeline = computed(() => props.charts?.timeline ?? { bucket: 'day' as const, points: [] });
 const timelineSeries = computed(() => [
-    { name: t('analytics.series.opens'), data: timeline.value.points.map((p) => p.opens), token: '--vt-color-accent-500', area: true },
+    { name: t('analytics.series.opens'), data: timeline.value.points.map((p) => p.opens), token: '--vt-accent', area: true },
     { name: t('analytics.series.clicks'), data: timeline.value.points.map((p) => p.clicks), token: '--vt-color-cyan-400', area: true },
 ]);
 
@@ -103,7 +103,7 @@ const timelineChart = ref<InstanceType<typeof VmLineChart> | null>(null);
                 <span>{{ t('analytics.metric.delivered') }}: {{ variant.delivered }}</span>
                 <span>{{ t('analytics.kpi.openRate') }}: {{ pct(variant.open_rate) }}</span>
                 <span>{{ t('analytics.kpi.clickRate') }}: {{ pct(variant.click_rate) }}</span>
-                <VtBadge v-if="winner !== null && winner === variant.label" tone="success" size="sm" data-testid="variant-winner">{{ t('analytics.winner') }}</VtBadge>
+                <VtBadge v-if="winner !== null && winner === variant.label" tone="success" data-testid="variant-winner">{{ t('analytics.winner') }}</VtBadge>
             </div>
         </VmCard>
 
