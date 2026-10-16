@@ -20,5 +20,6 @@ paths: ["**"]
   **Sub-account (parent↔child) izoláció ugyanolyan szigorú, mint a tenant-izoláció.**
 - „teszt előbb" mindig. PR-only, auto-merge SOHA. Az író agent nem review-zza magát.
 - Secret csak env. Dev = noindex + Basic Auth. Minden admin-művelet auditált.
-- Design: csak `@venture/design` token + `@venture/ui` komponens. Hardcode szín/spacing/font TILOS —
+- Design: csak `@venture-co-group/design` token + `@venture-co-group/ui` komponens (Unified UI v2: egy
+  kiemelő szín, az app-szín csak AppIconon és GlowLine-on). Hardcode szín/spacing/font TILOS —
   ha nincs komponens, JELENTSD, ne gyárts lokálisat.

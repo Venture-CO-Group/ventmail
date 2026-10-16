@@ -54,6 +54,25 @@
 - [ ] **PNG screenshotok mérete / LFS:** `docs/screenshots/v1.1/` ~23 MB (102 kép), tömörítő nincs a gépen.
       Döntés: marad a repóban, vagy Git LFS / optimalizálás (pl. `oxipng`).
 
+## P0 — Unified UI v2 pilot (branch `feat/unified-ui-v2`, terv: `venture-design/REDESIGN-PLAN.md`)
+- [ ] **Grafikon-, nyomat- és branding-paletta (tulajdonosi döntés):** a design 2.0 a 0.x primitíveket
+      (`--vt-color-accent-300…600`, `cyan-*`, `violet-*`, `neutral-0…900`, `--vt-signature-gradient`) nem
+      szállítja. Érintett: `chartTheme.ts`, `report/*`, `Analytics/Branding.vue` + `brandContrast.ts`
+      (a kontraszt-jelzés üres — `e2e/branding.spec.ts` bukik), `BrandColor` (`BrandColorTest` bukik),
+      `editor.css`, `VmCoverPreview`, `VmHeatmap`, `VmBarList`, `DomainStats`, `glow.css`. Javaslat:
+      Figma `chart/*` + `print/*` változók a 0.x értékekkel → design 2.1.0.
+- [ ] **venture-ui 2.1.0 kiadása (PR #14)** — a héj slotjai (workspace / locale / user menü), drawer,
+      skip link. Utána a `package.json` `^2.1.0`, a lockfile a regiszterből (a `../venture-design` /
+      `../venture-ui` maradvány-bejegyzések is kiesnek). Addig a ventMail CI nem zöld.
+- [ ] **GitHub Packages „Manage Actions access":** a `@venture-co-group/design` és `/ui` csomagnál a
+      `ventmail` repónak Read jog (a CI `GITHUB_TOKEN`-nel tölt).
+- [ ] **Értesítés-funkció (csengő):** a Figma felső sávjában van, a ventMailnek nincs ilyen funkciója —
+      a csengő nem kerül ki, amíg nincs mögötte valami.
+- [ ] **Hiányzó szerkesztő-ikonok** a Figma `icon/*` készletben (a `VmIcon` a szerkesztő ikonjait még
+      helyben rajzolja).
+- [ ] **Figma-eltérések (design-jelentés):** a GlowLine helye, a táblázatfejléc magassága (35 vs 40),
+      a Billing kvóta-sáv `app/mail` színnel (a 2. szabály szerint csak AppIcon / GlowLine).
+
 ## P1 — a ventSSO-levelek átkapcsolása (sorrend kötött — RUNBOOK-mail §13)
 1. [ ] warm-up indul (docs/WARMUP-PLAN.md §8, tranzakciós IP)
 2. [ ] `SENDING_LIVE=true`

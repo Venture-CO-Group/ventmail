@@ -31,16 +31,18 @@ v1.1 óta még: ECharts (+ `vue-echarts`), `@vue-flow` (journey vászon), `opens
 **Zárás:** Billing · SuperAdmin · Api
 **ventSec-kötés:** VentSec (m2m token a ventSSO-tól · ítélet-ellenőrzés · VSES események; a `VentSecScanner` az Inbound modulban)
 
-## Felület (v1.1)
-- **Felső navigáció** (nem oldalsáv): Platform / Studio / Settings csoportok (disclosure minta, mobilon
-  harmonika), workspace-váltó, avatar-menü (monogram), nyelvválasztó. Töréspont media query nélkül
-  (`useCompactNav`). Verzió az avatar-menü alján: `VENTMAIL_VERSION` → `config('app.version')`.
+## Felület (Unified UI v2)
+- **Egy keret a családban:** `VtAppShell` (app `mail`) = 248 px `VtSidebar` (app-ikon, appváltó → ventHub
+  `VENTHUB_URL`, workspace-váltó, csoportosított menü, felhasználó) + 60 px `VtTopbar` (breadcrumb, ⌘K,
+  küldési-mód jelző, nyelv, avatar-menü) + glow-line. Felső legördülő navigáció NINCS; 1024 px alatt a
+  sidebar fiók. A menük tartalma a `Components/Shell/` alatt, a keret a @venture-co-group/ui-ból.
+  Verzió az avatar-menü alján: `VENTMAIL_VERSION` → `config('app.version')`.
 - Közös komponensek: `resources/js/Components/Form/` (`VmForm`, `VmFormSection`, `VmFormRow`, `VmTable`, …).
   Az **átfedés-kapu** `e2e/layout-overlap.spec.ts` (1440/1024/390) minden új oldalra kötelező.
 - Nyelvek: hu, en, de, fr, it, es, ru (szerver: `lang/*`, kliens: `resources/js/locales/*.json`, teljesség-teszt).
   Szám/dátum/időpont **csak** `resources/js/lib/format.ts` + `useFormat` (profil-formátum); gépi kódok
   `useCodes` / `codes.*` (minden backend enum-értékhez címke — `CodeLabelsTest`).
-- Hiányzó `@venture/ui` komponens esetén lokális `Vm*` pótlás + JELENTÉS (lista: `HUMAN-QUEUE.md`).
+- Hiányzó `@venture-co-group/ui` komponens esetén lokális `Vm*` pótlás + JELENTÉS (lista: `HUMAN-QUEUE.md`).
 
 ## Ecosystem-kötések
 - **ventSSO (ÉL):** OIDC client `ventmail`; roles `resource_access.ventmail.roles`; tenant-tagság
@@ -75,7 +77,7 @@ v1.1 óta még: ECharts (+ `vue-echarts`), `@vue-flow` (journey vászon), `opens
 ## Soha (instant blokk)
 Nyílt relay · PreSendGate megkerülése bármely útvonalon · marketing consent nélkül · transactional és
 marketing keverése · Idempotency-Key nélküli küldő endpoint · aláíratlan webhook · MIME-parse sandbox
-nélkül · hardcode-olt design token (csak `@venture/design` + `@venture/ui`) · global scope megkerülése ·
+nélkül · hardcode-olt design token (csak `@venture-co-group/design` + `/ui`) · global scope megkerülése ·
 saját identity/consent/számlázó/landing-page reimplementáció · direkt push `main`-re.
 
 ## Munkamód
