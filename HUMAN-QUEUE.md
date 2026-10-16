@@ -62,8 +62,7 @@
       `editor.css`, `VmCoverPreview`, `VmHeatmap`, `VmBarList`, `DomainStats`, `glow.css`. Döntés (2026-10-16):
       Figma `chart/*` + `print/*` változók a 0.x értékekkel → design 2.1.0.
 - [x] **venture-ui 2.1.0 kiadva** (PR #14, `v2.1.0`, tulajdonosi engedéllyel, 2026-10-16); a ventMail `^2.1.0`, a lockfile a regiszterből.
-- [ ] **GitHub Packages „Manage Actions access":** a `@venture-co-group/design` és `/ui` csomagnál a
-      `ventmail` repónak Read jog (a CI `GITHUB_TOKEN`-nel tölt).
+- [x] **GitHub Packages „Manage Actions access":** a `ventmail` repó Read joga a `@venture-co-group/design` és `/ui` csomagon (2026-10-16; a #51 CI-ja zöld).
 - [ ] **Értesítés-funkció (csengő):** a Figma felső sávjában van, a ventMailnek nincs ilyen funkciója —
       a csengő nem kerül ki, amíg nincs mögötte valami.
 - [ ] **Hiányzó szerkesztő-ikonok** a Figma `icon/*` készletben (a `VmIcon` a szerkesztő ikonjait még
