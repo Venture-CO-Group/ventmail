@@ -54,13 +54,25 @@
 - [ ] **PNG screenshotok mérete / LFS:** `docs/screenshots/v1.1/` ~23 MB (102 kép), tömörítő nincs a gépen.
       Döntés: marad a repóban, vagy Git LFS / optimalizálás (pl. `oxipng`).
 
-## P1 — a ventSSO-levelek átkapcsolása (sorrend kötött — RUNBOOK-mail §13)
-1. [ ] warm-up indul (docs/WARMUP-PLAN.md §8, tranzakciós IP)
-2. [ ] `SENDING_LIVE=true`
-3. [ ] az allowlist ki (`SEND_ALLOWLIST_ENFORCED=false`)
-4. [ ] a ventSSO driver-flag be (`VENTMAIL_DRIVER=ventmail` a trust boxon) — a `ventsso`
-       API-kulcs (`messages:send`, `templates:read`) már a trust box `.env`-jében van
-5. [ ] jelszó-reset teszt a tulajdonos saját fiókjára
+## P1 — családi bekötés: ÉLES 2026-10-16 (v1.4.0, `docs/plans/family-onboarding.md`)
+Kész: `SENDING_LIVE=true`, `SEND_ALLOWLIST_ENFORCED=false` (marketing ZÁRVA); 106 sablon a `venture` workspace-ben;
+ventSSO v1.6.3 (`VENTMAIL_DRIVER=ventmail`, `MAIL_DELIVERY_LIVE=true`), ventCookie v1.0.9 (`VENTMAIL_ENABLED=true`),
+Vemoa v0.6.5 (feladó `notify.ventureco.app`, webhook-végpont él); füstteszt készletenként a tesztcímre: kézbesítve, renderelt tárgy.
+1. [ ] warm-up figyelése (docs/WARMUP-PLAN.md §8) — a nyitás a tulajdonos utasítására warm-up előtt történt; volumen alacsony
+2. [ ] jelszó-reset / magic link teszt a tulajdonos saját fiókjára (ventSSO, valódi flow)
+3. [ ] **Vemoa saját domain:** `mail.vemoa.app` DNS (Vultr: DKIM/SPF/DMARC/return-path a `ventmail:domain:add` kimenete szerint) →
+       saját `vemoa` workspace, kulcs + webhook átköltöztetése, `VENTMAIL_FROM_DOMAIN=mail.vemoa.app` (FD17)
+4. [ ] **ventSec template-mód** kiadása: a ventSec repóban merge-ölve (#48), de a fő ág más, kiadatlan munkát is tartalmaz
+       (M2.1) — a ventSec saját kiadásával megy élesbe; addig a riasztás sima szövegként megy a ventMailen át
+5. [ ] **Consent-főkönyv bekapcsolása** (`CONSENT_LEDGER_DRIVER=ventcookie`): ventCookie belső tenant + ventMail site +
+       `ventcookie:service-token:issue --ability=email-consent:write` → `CONSENT_LEDGER_TOKEN/SITE_ID/URL`, 32 bájtos
+       `CONSENT_LEDGER_SUBJECT_KEY`; a ventCookie `ve` láncára a havi pecsét még nincs kiterjesztve (ventCookie HUMAN-QUEUE #27)
+6. [ ] **ventSec szkenner / VSES** bekapcsolása (`INBOUND_SCANNER=ventsec`, `VENTSEC_EVENTS_ENABLED`): ventSSO m2m kliens
+       (`ventsec.scan ventsec.ingest`), ventSec source + `VENTSEC_SCAN_CLIENTS`; az inbound amúgy is ki van kapcsolva
+7. [ ] Vemoa: `wipe_notification_variables` egyszeri futtatása (régi sorok tokenes linkjei) — tulajdonosi jóváhagyással
+8. [ ] DPO-kérdés: Vemoa `review_request` tranzakciós vagy marketing (most tranzakciós + opt-out)
+9. [ ] meghívó-visszaélés elleni korlát az appokban (szervezetnév hossz/URL-tiltás, rate-limit) — sablon-review javaslat
+10. [ ] teszt: `unsubscribed` esemény 500 utáni újrapróbálása (FO18 re-review SHOULD)
 
 ## P2 — kézbesíthetőség
 - [ ] **DMARC `p=none` → `quarantine`** ütemezése: 2–4 hét tiszta rua-jelentés után
