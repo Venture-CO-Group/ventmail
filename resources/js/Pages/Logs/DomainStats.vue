@@ -67,12 +67,12 @@ const chartSeries = computed(() => {
     const series = props.report?.series ?? [];
 
     return [
-        { name: t('plat.stats.metric.sent'), data: series.map((row) => row.sent), token: '--vt-color-accent-400' },
+        { name: t('plat.stats.metric.sent'), data: series.map((row) => row.sent), token: '--vt-chart-series-7' },
         { name: t('plat.stats.metric.delivered'), data: series.map((row) => row.delivered), token: '--vt-status-success' },
         { name: t('plat.stats.metric.bounced'), data: series.map((row) => row.bounced), token: '--vt-status-danger' },
         { name: t('plat.stats.metric.complained'), data: series.map((row) => row.complained), token: '--vt-status-warning' },
-        { name: t('plat.stats.metric.opened'), data: series.map((row) => row.opened), token: '--vt-color-cyan-400' },
-        { name: t('plat.stats.metric.clicked'), data: series.map((row) => row.clicked), token: '--vt-color-violet-400' },
+        { name: t('plat.stats.metric.opened'), data: series.map((row) => row.opened), token: '--vt-chart-series-2' },
+        { name: t('plat.stats.metric.clicked'), data: series.map((row) => row.clicked), token: '--vt-chart-series-3' },
     ];
 });
 

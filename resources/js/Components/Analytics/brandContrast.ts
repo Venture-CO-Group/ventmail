@@ -1,7 +1,7 @@
 /*
  | ÉLŐ KONTRASZT-JELZÉS a branding-űrlapon (v1.1 · 8. modul, D236). A DÖNTÉS a szerveré
  | (`BrandColor`); ez csak a gépelés közbeni tipp. A referenciaszínek a tokenek SZÁMÍTOTT értékei
- | (`--vt-color-neutral-0`, `--vt-color-neutral-900`, sötét `--vt-bg-base`) — nincs beégetett szín.
+ | (`--vt-print-paper`, `--vt-print-text`, sötét `--vt-bg-base`) — nincs beégetett szín.
  */
 
 const HEX = /^#?([0-9a-f]{6})$/i;

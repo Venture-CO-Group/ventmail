@@ -618,10 +618,10 @@
     gap: var(--vt-space-1);
     margin: var(--vt-space-1) 0;
     padding: 0 var(--vt-space-2);
-    border: thin solid var(--vt-color-violet-400);
+    border: thin solid var(--vt-print-marker-line);
     border-radius: var(--vt-radius-full);
-    color: var(--vt-color-violet-600);
-    background: var(--vt-color-violet-50);
+    color: var(--vt-print-marker);
+    background: var(--vt-print-marker-soft);
     font-family: var(--vt-font-body);
     font-size: var(--vt-type-caption-size);
 }
@@ -688,7 +688,7 @@
 
 .vm-ed-merge {
     padding: 0 var(--vt-space-1);
-    border: thin dashed var(--vt-color-violet-400);
+    border: thin dashed var(--vt-print-marker-line);
     border-radius: var(--vt-radius-sm);
     font-family: var(--vt-font-mono);
     font-size: smaller;
@@ -1022,7 +1022,7 @@
     min-block-size: calc(calc(var(--vt-space-8) * 4) * 3);
     border: thin solid var(--vt-border);
     border-radius: var(--vt-radius-md);
-    background: var(--vt-color-neutral-0);
+    background: var(--vt-print-paper);
 }
 
 .vm-ed-preview--mobile iframe {
@@ -1122,7 +1122,7 @@
     inline-size: 70%;
     padding: var(--vt-space-2);
     border-radius: var(--vt-radius-sm);
-    background: var(--vt-color-neutral-0);
+    background: var(--vt-print-paper);
     box-shadow: var(--vt-elevation-card);
 }
 
@@ -1136,7 +1136,7 @@
 .vm-lib-thumb__row span {
     flex: 1 1 0;
     border-radius: var(--vt-radius-sm);
-    background: var(--vt-color-neutral-100);
+    background: var(--vt-print-paper-subtle);
 }
 
 .vm-lib-thumb__row--tall {

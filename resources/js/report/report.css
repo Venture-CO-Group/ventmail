@@ -10,8 +10,8 @@ html,
 body {
     margin: 0;
     padding: 0;
-    background: var(--vt-color-neutral-0);
-    color: var(--vt-color-neutral-900);
+    background: var(--vt-print-paper);
+    color: var(--vt-print-text);
     font-family: var(--vt-font-body);
     font-size: var(--vt-type-body-m-size);
     line-height: 1.45;
@@ -25,11 +25,11 @@ body {
 }
 
 .vm-report--cover-light {
-    --vm-cover-fg: var(--vt-color-neutral-0);
+    --vm-cover-fg: var(--vt-print-paper);
 }
 
 .vm-report--cover-dark {
-    --vm-cover-fg: var(--vt-color-neutral-900);
+    --vm-cover-fg: var(--vt-print-text);
 }
 
 .vm-report__cover {
@@ -62,7 +62,7 @@ body {
     height: var(--vt-space-12);
     object-fit: contain;
     border-radius: var(--vt-radius-md);
-    background: var(--vt-color-neutral-0);
+    background: var(--vt-print-paper);
     padding: var(--vt-space-1);
 }
 
@@ -84,7 +84,7 @@ body {
 }
 
 .vm-report__generated {
-    color: var(--vt-color-neutral-500);
+    color: var(--vt-print-text-muted);
 }
 
 .vm-report__section {
@@ -102,13 +102,13 @@ body {
     margin: 0;
     font-family: var(--vt-font-display);
     font-size: var(--vt-type-heading-h1-size);
-    color: var(--vt-color-neutral-900);
+    color: var(--vt-print-text);
 }
 
 .vm-report__caption,
 .vm-report__note {
     margin: 0;
-    color: var(--vt-color-neutral-500);
+    color: var(--vt-print-text-muted);
     font-size: var(--vt-type-caption-size);
 }
 
@@ -123,7 +123,7 @@ body {
     flex-direction: column;
     gap: var(--vt-space-1);
     padding: var(--vt-space-4);
-    border: thin solid var(--vt-color-neutral-200);
+    border: thin solid var(--vt-print-rule);
     border-radius: var(--vt-radius-md);
     break-inside: avoid;
 }
@@ -134,7 +134,7 @@ body {
 }
 
 .vm-report__kpi span {
-    color: var(--vt-color-neutral-500);
+    color: var(--vt-print-text-muted);
 }
 
 .vm-report__chart {
@@ -155,14 +155,14 @@ body {
 .vm-report__table th,
 .vm-report__table td {
     padding: var(--vt-space-2) var(--vt-space-3);
-    border-bottom: thin solid var(--vt-color-neutral-200);
+    border-bottom: thin solid var(--vt-print-rule);
     text-align: start;
     vertical-align: top;
     overflow-wrap: anywhere;
 }
 
 .vm-report__table th {
-    color: var(--vt-color-neutral-600);
+    color: var(--vt-print-text-secondary);
     font-weight: var(--vt-weight-semibold);
 }
 
@@ -181,7 +181,7 @@ body {
     width: 100%;
     font-family: var(--vt-font-body);
     font-size: var(--vt-type-caption-size);
-    color: var(--vt-color-neutral-500);
+    color: var(--vt-print-text-muted);
     background: transparent;
 }
 

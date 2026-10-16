@@ -8,17 +8,17 @@
 
 /** A kategória-sorozatok palettája (a Venture tokenek NEVEI, sorrendben). */
 export const CATEGORY_TOKENS = [
-    '--vt-color-accent-500',
-    '--vt-color-cyan-400',
-    '--vt-color-violet-400',
+    '--vt-chart-series-1',
+    '--vt-chart-series-2',
+    '--vt-chart-series-3',
     '--vt-status-success',
     '--vt-status-warning',
     '--vt-status-danger',
-    '--vt-color-accent-300',
-    '--vt-color-cyan-600',
-    '--vt-color-violet-600',
-    '--vt-color-neutral-400',
-    '--vt-color-neutral-600',
+    '--vt-chart-series-4',
+    '--vt-chart-series-5',
+    '--vt-chart-series-6',
+    '--vt-chart-neutral-1',
+    '--vt-chart-neutral-3',
 ];
 
 export type TokenResolver = (token: string) => string;

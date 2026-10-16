@@ -28,7 +28,7 @@ final class BrandingService
         return [
             'color' => $color?->hex,
             // Fallback: a Venture accent tokenen fehér helyett a döntést a CSS-oldal hozza
-            // (`--vt-on-accent`); saját színnél a kontraszt-számítás.
+            // (`--vt-text-on-accent`); saját színnél a kontraszt-számítás.
             'coverText' => $color?->coverText() ?? 'default',
             'companyName' => $branding?->company_name,
             'footerText' => $branding?->footer_text,

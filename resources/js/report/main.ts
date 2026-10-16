@@ -42,22 +42,22 @@ declare global {
 }
 
 const PALETTE = [
-    '--vt-color-accent-500',
-    '--vt-color-cyan-500',
-    '--vt-color-violet-500',
+    '--vt-print-series-1',
+    '--vt-print-series-2',
+    '--vt-print-series-3',
     '--vt-status-success',
     '--vt-status-warning',
     '--vt-status-danger',
-    '--vt-color-accent-300',
-    '--vt-color-neutral-500',
+    '--vt-print-series-4',
+    '--vt-print-text-muted',
 ];
 
 const style = getComputedStyle(document.documentElement);
 const token = (name: string): string => style.getPropertyValue(name).trim();
 
 function option(def: ChartDef): Record<string, unknown> {
-    const text = token('--vt-color-neutral-600');
-    const grid = token('--vt-color-neutral-200');
+    const text = token('--vt-print-text-secondary');
+    const grid = token('--vt-print-rule');
     const base = { animation: false, textStyle: { color: text, fontFamily: token('--vt-font-body') || undefined } };
 
     if (def.type === 'pie') {

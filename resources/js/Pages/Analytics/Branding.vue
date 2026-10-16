@@ -44,15 +44,15 @@ const uploading = ref(false);
 const errors = computed(() => page.props.errors ?? {});
 
 // A swatch-ok a Venture paletta TOKENJEI; az értékük a mount után olvasódik.
-const SWATCH_TOKENS = ['--vt-color-accent-600', '--vt-color-violet-600', '--vt-color-cyan-700', '--vt-color-neutral-900', '--vt-color-accent-300'];
+const SWATCH_TOKENS = ['--vt-print-swatch-1', '--vt-print-swatch-2', '--vt-print-swatch-3', '--vt-print-swatch-4', '--vt-print-swatch-5'];
 const swatches = ref<Array<{ token: string; hex: string }>>([]);
 const refs = reactive({ light: '', dark: '', surface: '' });
 
 onMounted(() => {
     const read = tokenResolver();
     swatches.value = SWATCH_TOKENS.map((token) => ({ token, hex: read(token).toUpperCase() })).filter((s) => isHexColor(s.hex));
-    refs.light = read('--vt-color-neutral-0');
-    refs.dark = read('--vt-color-neutral-900');
+    refs.light = read('--vt-print-paper');
+    refs.dark = read('--vt-print-text');
     refs.surface = darkBackground();
 });
 

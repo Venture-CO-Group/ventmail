@@ -25,19 +25,19 @@
     --vt-hair: calc(var(--vt-space-1) / 4);
     --vm-glow-conic: conic-gradient(
         from var(--vm-rim-angle),
-        var(--vt-color-cyan-400),
+        var(--vt-accent-hover),
         var(--vt-accent),
-        var(--vt-color-violet-400),
+        var(--vt-accent-line),
         var(--vt-accent),
-        var(--vt-color-cyan-400)
+        var(--vt-accent-hover)
     );
     --vm-glow-linear: linear-gradient(
         90deg,
-        var(--vt-color-cyan-400),
+        var(--vt-accent-hover),
         var(--vt-accent),
-        var(--vt-color-violet-400),
+        var(--vt-accent-line),
         var(--vt-accent),
-        var(--vt-color-cyan-400)
+        var(--vt-accent-hover)
     );
 }
 

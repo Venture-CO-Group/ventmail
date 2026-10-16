@@ -61,14 +61,14 @@ body {
 .landing__blob--b {
     top: calc(calc(var(--vt-space-8) * 4) * 2);
     right: 0;
-    background: var(--vt-color-violet-400);
+    background: var(--vt-accent-hover);
     opacity: 0.2;
 }
 
 .landing__blob--c {
     top: calc(calc(var(--vt-space-8) * 4) * 6);
     left: 0;
-    background: var(--vt-color-cyan-400);
+    background: var(--vt-accent-hover);
     opacity: 0.14;
 }
 

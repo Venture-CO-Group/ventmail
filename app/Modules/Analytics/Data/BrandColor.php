@@ -9,10 +9,10 @@ use InvalidArgumentException;
 /**
  * A WORKSPACE ELSŐDLEGES SZÍNE (v1.1 · 8. modul, D236) — WCAG-kontraszt alapján dönt.
  *
- * (a) A riport-borító SZÖVEGE a brand-sávon: fehér (`--vt-color-neutral-0`), ha a kontraszt
- *     ≥ 4,5 : 1; különben sötét (`--vt-color-neutral-900`), ha az ≥ 4,5 : 1; különben a szín
+ * (a) A riport-borító SZÖVEGE a brand-sávon: fehér (`--vt-print-paper`), ha a kontraszt
+ *     ≥ 4,5 : 1; különben sötét (`--vt-print-text`), ha az ≥ 4,5 : 1; különben a szín
  *     ELUTASUL (olvashatatlan borító nem menthető).
- * (b) Sötét app-háttéren (`--vt-bg` sötét téma) ≥ 3 : 1 — csak figyelmeztetés (a szín a felület
+ * (b) Sötét app-háttéren (`--vt-bg-base`) ≥ 3 : 1 — csak figyelmeztetés (a szín a felület
  *     előnézetében kevésbé látszik, a nyomtatott riportot nem érinti).
  *
  * A három referenciaszín a `@venture/design` tokenek ÉRTÉKE (a kontraszt-számításhoz kell a
@@ -23,14 +23,14 @@ final class BrandColor
 {
     public const PATTERN = '/^#[0-9A-Fa-f]{6}$/';
 
-    /** `--vt-color-neutral-0` */
+    /** `--vt-print-paper` */
     public const LIGHT_TEXT = '#FFFFFF';
 
-    /** `--vt-color-neutral-900` */
+    /** `--vt-print-text` */
     public const DARK_TEXT = '#0E1322';
 
-    /** `--vt-bg` a sötét témában */
-    public const DARK_SURFACE = '#080B16';
+    /** `--vt-bg-base` (dark only) */
+    public const DARK_SURFACE = '#070A10';
 
     public const MIN_TEXT_CONTRAST = 4.5;
 

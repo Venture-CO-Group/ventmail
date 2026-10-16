@@ -173,7 +173,7 @@ const percent = (value: number) => `${format.number(value, { maximumFractionDigi
     max-width: calc(calc(var(--vt-space-8) * 4) * 4.7);
     min-height: calc(calc(var(--vt-space-8) * 4) * 2);
     flex: none;
-    background: var(--vt-color-neutral-0);
+    background: var(--vt-print-paper);
     border-radius: var(--vt-radius-md);
     overflow: hidden;
 }
@@ -209,7 +209,7 @@ const percent = (value: number) => `${format.number(value, { maximumFractionDigi
 }
 
 .vm-heat__spot--cool {
-    background: var(--vt-color-cyan-400);
+    background: var(--vt-chart-series-2);
 }
 
 .vm-heat__pct {
@@ -217,8 +217,8 @@ const percent = (value: number) => `${format.number(value, { maximumFractionDigi
     transform: translate(-50%, -50%);
     padding: var(--vt-space-1) var(--vt-space-2);
     border-radius: var(--vt-radius-full);
-    background: var(--vt-color-neutral-900);
-    color: var(--vt-color-neutral-0);
+    background: var(--vt-print-text);
+    color: var(--vt-print-paper);
     font-family: var(--vt-font-mono);
     font-size: var(--vt-type-caption-size);
     white-space: nowrap;

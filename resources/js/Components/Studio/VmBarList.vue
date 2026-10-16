@@ -123,11 +123,11 @@ const rows = computed(() =>
 }
 
 .vm-bars__tone--1 {
-    background-color: var(--vt-color-cyan-400);
+    background-color: var(--vt-chart-series-2);
 }
 
 .vm-bars__tone--2 {
-    background-color: var(--vt-color-violet-400);
+    background-color: var(--vt-chart-series-3);
 }
 
 .vm-bars__tone--3 {

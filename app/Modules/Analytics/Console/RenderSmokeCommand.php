@@ -60,12 +60,12 @@ final class RenderSmokeCommand extends Command
         $labels = array_map(static fn (int $d): string => sprintf('2026-01-%02d', $d), range(1, 14));
         $charts = [
             'timeline' => ['title' => 'Line', 'type' => 'line', 'labels' => $labels, 'series' => [
-                ['name' => 'A', 'data' => range(1, 14), 'token' => '--vt-color-accent-500'],
-                ['name' => 'B', 'data' => array_reverse(range(1, 14)), 'token' => '--vt-color-cyan-500'],
+                ['name' => 'A', 'data' => range(1, 14), 'token' => '--vt-print-series-1'],
+                ['name' => 'B', 'data' => array_reverse(range(1, 14)), 'token' => '--vt-print-series-2'],
             ]],
             'growth' => ['title' => 'Bar', 'type' => 'bar', 'labels' => $labels, 'series' => [
-                ['name' => 'A', 'data' => range(1, 14), 'token' => '--vt-color-accent-500', 'stack' => 'g'],
-                ['name' => 'B', 'data' => array_map(static fn (int $n): int => -$n, range(1, 14)), 'token' => '--vt-color-danger', 'stack' => 'g'],
+                ['name' => 'A', 'data' => range(1, 14), 'token' => '--vt-print-series-1', 'stack' => 'g'],
+                ['name' => 'B', 'data' => array_map(static fn (int $n): int => -$n, range(1, 14)), 'token' => '--vt-status-danger', 'stack' => 'g'],
             ]],
             'bounces' => ['title' => 'Pie', 'type' => 'pie', 'items' => [['name' => 'A', 'value' => 3], ['name' => 'B', 'value' => 2]]],
         ];

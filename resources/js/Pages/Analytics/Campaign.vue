@@ -64,13 +64,13 @@ const pct = (value: unknown) => `${format.number(Number(value ?? 0), { maximumFr
 const dailySeries = computed(() => [
     { name: t('analytics.metric.delivered'), data: props.daily.map((d) => d.delivered), token: '--vt-status-success' },
     { name: t('analytics.metric.opened'), data: props.daily.map((d) => d.opened), token: '--vt-accent' },
-    { name: t('analytics.metric.clicked'), data: props.daily.map((d) => d.clicked), token: '--vt-color-cyan-400' },
+    { name: t('analytics.metric.clicked'), data: props.daily.map((d) => d.clicked), token: '--vt-chart-series-2' },
 ]);
 
 const timeline = computed(() => props.charts?.timeline ?? { bucket: 'day' as const, points: [] });
 const timelineSeries = computed(() => [
     { name: t('analytics.series.opens'), data: timeline.value.points.map((p) => p.opens), token: '--vt-accent', area: true },
-    { name: t('analytics.series.clicks'), data: timeline.value.points.map((p) => p.clicks), token: '--vt-color-cyan-400', area: true },
+    { name: t('analytics.series.clicks'), data: timeline.value.points.map((p) => p.clicks), token: '--vt-chart-series-2', area: true },
 ]);
 
 const dailyChart = ref<InstanceType<typeof VmLineChart> | null>(null);

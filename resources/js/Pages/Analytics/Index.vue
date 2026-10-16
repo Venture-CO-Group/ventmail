@@ -91,7 +91,7 @@ const pct = (value: number | undefined | null, digits = 1) => `${format.number((
 const timeline = computed(() => props.campaignSection?.timeline ?? { bucket: 'day' as const, points: [] });
 const timelineSeries = computed(() => [
     { name: t('analytics.series.opens'), data: timeline.value.points.map((p) => p.opens), token: '--vt-accent', area: true },
-    { name: t('analytics.series.clicks'), data: timeline.value.points.map((p) => p.clicks), token: '--vt-color-cyan-400', area: true },
+    { name: t('analytics.series.clicks'), data: timeline.value.points.map((p) => p.clicks), token: '--vt-chart-series-2', area: true },
 ]);
 // D297: a kategória a NYERS nap/óra; a tengely a profil formátumában írja ki (`format.stamp`).
 const timelineLabels = computed(() => timeline.value.points.map((p) => (timeline.value.bucket === 'hour' ? p.at.slice(0, 16) : p.at.slice(0, 10))));
@@ -123,10 +123,10 @@ const growth = computed(() => props.audienceSection?.growth ?? []);
 const growthSeries = computed(() => [
     { name: t('analytics.series.new'), data: growth.value.map((g) => g.new), token: '--vt-accent', stack: 'g' },
     { name: t('analytics.series.unsubscribed'), data: growth.value.map((g) => -g.unsubscribed), token: '--vt-status-danger', stack: 'g' },
-    { name: t('analytics.series.net'), data: growth.value.map((g) => g.net), token: '--vt-color-cyan-400', line: true },
+    { name: t('analytics.series.net'), data: growth.value.map((g) => g.net), token: '--vt-chart-series-2', line: true },
 ]);
 const engagementItems = computed(() =>
-    (props.audienceSection?.engagement ?? []).map((row, index) => ({ name: t(`analytics.tier.${row.key}`), value: row.count, token: ['--vt-status-success', '--vt-status-warning', '--vt-status-danger', '--vt-color-neutral-400'][index] })),
+    (props.audienceSection?.engagement ?? []).map((row, index) => ({ name: t(`analytics.tier.${row.key}`), value: row.count, token: ['--vt-status-success', '--vt-status-warning', '--vt-status-danger', '--vt-chart-neutral-1'][index] })),
 );
 
 // --- Journey ---------------------------------------------------------------------------------
@@ -151,7 +151,7 @@ const bounceItems = computed(() => {
 
     return [
         ...Object.entries(classes).map(([key, value], index) => ({ key, name: t(`analytics.bounce.${key}`), value, token: CATEGORY_TOKENS[(index + 5) % CATEGORY_TOKENS.length] })),
-        { key: 'unclassified', name: t('analytics.bounce.unclassified'), value: bounces.value?.unclassified ?? 0, token: '--vt-color-neutral-500' },
+        { key: 'unclassified', name: t('analytics.bounce.unclassified'), value: bounces.value?.unclassified ?? 0, token: '--vt-chart-neutral-2' },
     ];
 });
 const bounceRate = computed(() => {
@@ -471,7 +471,7 @@ function scrollToReport(): void {
     display: block;
     height: 100%;
     border-radius: inherit;
-    background: var(--vt-signature-gradient);
+    background: var(--vt-accent);
 }
 
 .vm-an-legend li {
