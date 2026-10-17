@@ -43,7 +43,13 @@
         "guest_first_name": "string — the guest's given name (Hungarian order: the last word, never an initial)",
         "links_my_bookings": "string — https://vemoa.app/app/aktivitas",
         "links_provider_page": "string — the provider's page on vemoa.app ('' without one)",
-        "links_explore": "string — https://vemoa.app/kereses"
+        "links_explore": "string — https://vemoa.app/kereses",
+        "links_calendar_ics": "string — the booking's calendar file (.ics), a signed link until a month after the end (BL-09)",
+        "links_directions": "string — the way there: a map search for the provider's address (the provider's page without one) (BL-09)",
+        "links_manage": "string — the booking's own page without an account (signed, until the visit ends; Foglalásaim for a class seat) (BL-12)",
+        "links_cancel": "string — the same page, opening its cancel sheet (links_manage + #lemondas) (BL-12)",
+        "links_review": "string — the visit's own review page without an account (signed, for 60 days after the visit); append &rating=1–5 for a star button — nothing is written until the guest sends it (BL-12)",
+        "links_reschedule": "string — the booking's own page opening its time picker (links_manage + #athelyezes): moved at once or asked for, as the provider chose (BL-10)"
       },
       "required_links": [
         "links_my_bookings"
@@ -53,11 +59,7 @@
         "en": "Your booking is confirmed — {{ workspace_name }}"
       },
       "design": "G2-foglalas-visszaigazolva",
-      "design_pending": {
-        "links_calendar_ics": "BL-09",
-        "links_directions": "BL-09",
-        "links_manage": "BL-12"
-      }
+      "design_pending": {}
     },
     {
       "key": "waitlist_promoted",
@@ -106,7 +108,13 @@
         "guest_first_name": "string — the guest's given name (Hungarian order: the last word, never an initial)",
         "links_my_bookings": "string — https://vemoa.app/app/aktivitas",
         "links_provider_page": "string — the provider's page on vemoa.app ('' without one)",
-        "links_explore": "string — https://vemoa.app/kereses"
+        "links_explore": "string — https://vemoa.app/kereses",
+        "links_calendar_ics": "string — the booking's calendar file (.ics), a signed link until a month after the end (BL-09)",
+        "links_directions": "string — the way there: a map search for the provider's address (the provider's page without one) (BL-09)",
+        "links_manage": "string — the booking's own page without an account (signed, until the visit ends; Foglalásaim for a class seat) (BL-12)",
+        "links_cancel": "string — the same page, opening its cancel sheet (links_manage + #lemondas) (BL-12)",
+        "links_review": "string — the visit's own review page without an account (signed, for 60 days after the visit); append &rating=1–5 for a star button — nothing is written until the guest sends it (BL-12)",
+        "links_reschedule": "string — the booking's own page opening its time picker (links_manage + #athelyezes): moved at once or asked for, as the provider chose (BL-10)"
       },
       "required_links": [
         "links_my_bookings"
@@ -116,11 +124,7 @@
         "en": "Reminder: tomorrow {{ starts_at_local }} — {{ workspace_name }}"
       },
       "design": "G3-emlekezteto",
-      "design_pending": {
-        "links_cancel": "BL-12",
-        "links_reschedule": "BL-10",
-        "links_directions": "BL-09"
-      }
+      "design_pending": {}
     },
     {
       "key": "reminder_2h",
@@ -171,8 +175,13 @@
         "links_my_bookings": "string — https://vemoa.app/app/aktivitas",
         "links_provider_page": "string — the provider's page on vemoa.app ('' without one)",
         "links_explore": "string — https://vemoa.app/kereses",
-        "links_review": "string — where the review is written (Foglalásaim; one-click ?rating= waits for BL-12)",
-        "links_unsubscribe": "string — the same as optout_url: no more review requests from this provider"
+        "links_review": "string — the visit's own review page without an account (signed, for 60 days after the visit); append &rating=1–5 for a star button — nothing is written until the guest sends it (BL-12)",
+        "links_unsubscribe": "string — the same as optout_url: no more review requests from this provider",
+        "links_calendar_ics": "string — the booking's calendar file (.ics), a signed link until a month after the end (BL-09)",
+        "links_directions": "string — the way there: a map search for the provider's address (the provider's page without one) (BL-09)",
+        "links_manage": "string — the booking's own page without an account (signed, until the visit ends; Foglalásaim for a class seat) (BL-12)",
+        "links_cancel": "string — the same page, opening its cancel sheet (links_manage + #lemondas) (BL-12)",
+        "links_reschedule": "string — the booking's own page opening its time picker (links_manage + #athelyezes): moved at once or asked for, as the provider chose (BL-10)"
       },
       "required_links": [
         "links_my_bookings",
@@ -215,7 +224,13 @@
         "links_provider_page": "string — the provider's page on vemoa.app ('' without one)",
         "links_explore": "string — https://vemoa.app/kereses",
         "links_confirm": "string — the confirmation link (the token in the fragment)",
-        "booking_hold_expires_time": "string — until when the time is held ('14:30')"
+        "booking_hold_expires_time": "string — until when the time is held ('14:30')",
+        "links_calendar_ics": "string — the booking's calendar file (.ics), a signed link until a month after the end (BL-09)",
+        "links_directions": "string — the way there: a map search for the provider's address (the provider's page without one) (BL-09)",
+        "links_manage": "string — the booking's own page without an account (signed, until the visit ends; Foglalásaim for a class seat) (BL-12)",
+        "links_cancel": "string — the same page, opening its cancel sheet (links_manage + #lemondas) (BL-12)",
+        "links_review": "string — the visit's own review page without an account (signed, for 60 days after the visit); append &rating=1–5 for a star button — nothing is written until the guest sends it (BL-12)",
+        "links_reschedule": "string — the booking's own page opening its time picker (links_manage + #athelyezes): moved at once or asked for, as the provider chose (BL-10)"
       },
       "required_links": [
         "links_confirm",
@@ -759,7 +774,13 @@
         "links_my_bookings": "string — https://vemoa.app/app/aktivitas",
         "links_provider_page": "string — the provider's page on vemoa.app ('' without one)",
         "links_explore": "string — https://vemoa.app/kereses",
-        "booking_previous_datetime": "string — the old time in words ('október 16., péntek 10:00')"
+        "booking_previous_datetime": "string — the old time in words ('október 16., péntek 10:00')",
+        "links_calendar_ics": "string — the booking's calendar file (.ics), a signed link until a month after the end (BL-09)",
+        "links_directions": "string — the way there: a map search for the provider's address (the provider's page without one) (BL-09)",
+        "links_manage": "string — the booking's own page without an account (signed, until the visit ends; Foglalásaim for a class seat) (BL-12)",
+        "links_cancel": "string — the same page, opening its cancel sheet (links_manage + #lemondas) (BL-12)",
+        "links_review": "string — the visit's own review page without an account (signed, for 60 days after the visit); append &rating=1–5 for a star button — nothing is written until the guest sends it (BL-12)",
+        "links_reschedule": "string — the booking's own page opening its time picker (links_manage + #athelyezes): moved at once or asked for, as the provider chose (BL-10)"
       },
       "required_links": [
         "links_my_bookings"
@@ -769,10 +790,7 @@
         "en": "Moved: {{ booking_weekday }} {{ booking_time }}, {{ provider_name }}"
       },
       "design": "G4-athelyezve",
-      "design_pending": {
-        "links_calendar_ics": "BL-09",
-        "links_manage": "BL-12"
-      }
+      "design_pending": {}
     },
     {
       "key": "booking-cancelled",
@@ -797,7 +815,13 @@
         "guest_first_name": "string — the guest's given name (Hungarian order: the last word, never an initial)",
         "links_my_bookings": "string — https://vemoa.app/app/aktivitas",
         "links_provider_page": "string — the provider's page on vemoa.app ('' without one)",
-        "links_explore": "string — https://vemoa.app/kereses"
+        "links_explore": "string — https://vemoa.app/kereses",
+        "links_calendar_ics": "string — the booking's calendar file (.ics), a signed link until a month after the end (BL-09)",
+        "links_directions": "string — the way there: a map search for the provider's address (the provider's page without one) (BL-09)",
+        "links_manage": "string — the booking's own page without an account (signed, until the visit ends; Foglalásaim for a class seat) (BL-12)",
+        "links_cancel": "string — the same page, opening its cancel sheet (links_manage + #lemondas) (BL-12)",
+        "links_review": "string — the visit's own review page without an account (signed, for 60 days after the visit); append &rating=1–5 for a star button — nothing is written until the guest sends it (BL-12)",
+        "links_reschedule": "string — the booking's own page opening its time picker (links_manage + #athelyezes): moved at once or asked for, as the provider chose (BL-10)"
       },
       "required_links": [
         "links_my_bookings",
@@ -836,7 +860,9 @@
         "links_explore": "string — https://vemoa.app/kereses",
         "links_calendar_admin": "string — the day in the biz calendar",
         "links_create_deal": "string — the deals page (a deal on the very slot waits for BL-15)",
-        "links_account": "string — https://biz.vemoa.app/profile (the footer's „Fiókom”)"
+        "links_account": "string — https://biz.vemoa.app/profile (the footer's „Fiókom”)",
+        "links_calendar_ics": "string — the booking's calendar file (.ics), a signed link until a month after the end (BL-09)",
+        "links_directions": "string — the way there: a map search for the provider's address (the provider's page without one) (BL-09)"
       },
       "required_links": [
         "links_account",
@@ -850,6 +876,93 @@
       "design": "P3-lemondas-felszabadult",
       "design_pending": {
         "links_notification_settings": "BL-23"
+      }
+    },
+    {
+      "key": "provider-reschedule-requested",
+      "audience": "provider",
+      "channel": "transactional",
+      "purpose": "BL-10: a guest asks to move a booking — the provider approves or declines it in Teendők (the time asked for is not held).",
+      "variables": {
+        "booking_weekday": "string — the weekday of the start, on the location's clock ('szombat')",
+        "booking_date_long": "string — the day in words ('október 18., szombat')",
+        "booking_time": "string — the start time ('14:00', '9:05')",
+        "booking_end_time": "string — the end time",
+        "booking_price": "string — the price the guest pays, formatted ('9 900 Ft')",
+        "booking_cancel_deadline": "string — until when it is free to cancel, from the window kept on the booking ('október 17., péntek 14:00'; 'bármikor' once the provider moved it)",
+        "service_name": "string — the booked service",
+        "staff_name": "string — who does it",
+        "provider_name": "string — the provider's name",
+        "provider_the_name": "string — the name with its article ('a Rózsa Stúdió', 'az Ilona Stúdió')",
+        "provider_the_name_cap": "string — the same at a sentence's start ('A …', 'Az …')",
+        "provider_address": "string — the address of the place ('' when the profile has none)",
+        "provider_public_url": "string — the provider's page on vemoa.app ('' without a public page)",
+        "guest_name": "string — the guest's name",
+        "guest_first_name": "string — the guest's given name (Hungarian order: the last word, never an initial)",
+        "links_my_bookings": "string — https://vemoa.app/app/aktivitas",
+        "links_provider_page": "string — the provider's page on vemoa.app ('' without one)",
+        "links_explore": "string — https://vemoa.app/kereses",
+        "links_calendar_admin": "string — the day in the biz calendar",
+        "links_account": "string — https://biz.vemoa.app/profile (the footer's „Fiókom”)",
+        "links_calendar_ics": "string — the booking's calendar file (.ics), a signed link until a month after the end (BL-09)",
+        "links_directions": "string — the way there: a map search for the provider's address (the provider's page without one) (BL-09)",
+        "booking_requested_datetime": "string — the time asked for, in words",
+        "links_requests": "string — biz „Ma”, where Teendők lists the request"
+      },
+      "required_links": [
+        "links_account",
+        "links_requests"
+      ],
+      "subject": {
+        "hu": "Áthelyezést kértek: {{ guest_name }}, {{ booking_weekday }} {{ booking_time }}",
+        "en": "A guest asks to move a booking — {{ provider_name }}"
+      },
+      "design": null,
+      "design_pending": {
+        "design": "BL-10: no design yet (a P-family message)"
+      }
+    },
+    {
+      "key": "provider-booking-rescheduled",
+      "audience": "provider",
+      "channel": "transactional",
+      "purpose": "BL-10: the guest moved a booking themselves (at once, or a request the provider approved) — the new time, and the one freed.",
+      "variables": {
+        "booking_weekday": "string — the weekday of the start, on the location's clock ('szombat')",
+        "booking_date_long": "string — the day in words ('október 18., szombat')",
+        "booking_time": "string — the start time ('14:00', '9:05')",
+        "booking_end_time": "string — the end time",
+        "booking_price": "string — the price the guest pays, formatted ('9 900 Ft')",
+        "booking_cancel_deadline": "string — until when it is free to cancel, from the window kept on the booking ('október 17., péntek 14:00'; 'bármikor' once the provider moved it)",
+        "service_name": "string — the booked service",
+        "staff_name": "string — who does it",
+        "provider_name": "string — the provider's name",
+        "provider_the_name": "string — the name with its article ('a Rózsa Stúdió', 'az Ilona Stúdió')",
+        "provider_the_name_cap": "string — the same at a sentence's start ('A …', 'Az …')",
+        "provider_address": "string — the address of the place ('' when the profile has none)",
+        "provider_public_url": "string — the provider's page on vemoa.app ('' without a public page)",
+        "guest_name": "string — the guest's name",
+        "guest_first_name": "string — the guest's given name (Hungarian order: the last word, never an initial)",
+        "links_my_bookings": "string — https://vemoa.app/app/aktivitas",
+        "links_provider_page": "string — the provider's page on vemoa.app ('' without one)",
+        "links_explore": "string — https://vemoa.app/kereses",
+        "links_calendar_admin": "string — the day in the biz calendar",
+        "links_account": "string — https://biz.vemoa.app/profile (the footer's „Fiókom”)",
+        "links_calendar_ics": "string — the booking's calendar file (.ics), a signed link until a month after the end (BL-09)",
+        "links_directions": "string — the way there: a map search for the provider's address (the provider's page without one) (BL-09)",
+        "booking_previous_datetime": "string — the time it had before, in words ('október 18., szombat 14:00')"
+      },
+      "required_links": [
+        "links_account",
+        "links_calendar_admin"
+      ],
+      "subject": {
+        "hu": "Áthelyezték: {{ booking_weekday }} {{ booking_time }}, {{ guest_name }}",
+        "en": "A guest moved a booking — {{ provider_name }}"
+      },
+      "design": null,
+      "design_pending": {
+        "design": "BL-10: no design yet (a P-family message)"
       }
     },
     {
@@ -878,6 +991,95 @@
       "design": "P6-uj-ertekeles",
       "design_pending": {
         "links_notification_settings": "BL-23"
+      }
+    },
+    {
+      "key": "booking-cancelled-by-provider",
+      "audience": "guest",
+      "channel": "transactional",
+      "purpose": "The provider cancelled the booking (booking.appointment_cancelled_by_provider), with the reason it gave (BL-22) and the way to book again.",
+      "variables": {
+        "booking_weekday": "string — the weekday of the start, on the location's clock ('szombat')",
+        "booking_date_long": "string — the day in words ('október 18., szombat')",
+        "booking_time": "string — the start time ('14:00', '9:05')",
+        "booking_end_time": "string — the end time",
+        "booking_price": "string — the price the guest pays, formatted ('9 900 Ft')",
+        "booking_cancel_deadline": "string — until when it is free to cancel, from the window kept on the booking ('október 17., péntek 14:00'; 'bármikor' once the provider moved it)",
+        "service_name": "string — the booked service",
+        "staff_name": "string — who does it",
+        "provider_name": "string — the provider's name",
+        "provider_the_name": "string — the name with its article ('a Rózsa Stúdió', 'az Ilona Stúdió')",
+        "provider_the_name_cap": "string — the same at a sentence's start ('A …', 'Az …')",
+        "provider_address": "string — the address of the place ('' when the profile has none)",
+        "provider_public_url": "string — the provider's page on vemoa.app ('' without a public page)",
+        "guest_name": "string — the guest's name",
+        "guest_first_name": "string — the guest's given name (Hungarian order: the last word, never an initial)",
+        "links_my_bookings": "string — https://vemoa.app/app/aktivitas",
+        "links_provider_page": "string — the provider's page on vemoa.app ('' without one)",
+        "links_explore": "string — https://vemoa.app/kereses",
+        "links_calendar_ics": "string — the booking's calendar file (.ics), a signed link until a month after the end (BL-09)",
+        "links_directions": "string — the way there: a map search for the provider's address (the provider's page without one) (BL-09)",
+        "cancel_reason": "string — why the provider cancelled (required when it cancels, max. 500 characters)",
+        "links_rebook": "string — where to book again: the provider's page (the discovery list without one)",
+        "links_manage": "string — the booking's own page without an account (signed, until the visit ends; Foglalásaim for a class seat) (BL-12)",
+        "links_cancel": "string — the same page, opening its cancel sheet (links_manage + #lemondas) (BL-12)",
+        "links_review": "string — the visit's own review page without an account (signed, for 60 days after the visit); append &rating=1–5 for a star button — nothing is written until the guest sends it (BL-12)",
+        "links_reschedule": "string — the booking's own page opening its time picker (links_manage + #athelyezes): moved at once or asked for, as the provider chose (BL-10)"
+      },
+      "required_links": [
+        "links_explore",
+        "links_my_bookings",
+        "links_rebook"
+      ],
+      "subject": {
+        "hu": "Elmarad: {{ booking_weekday }} {{ booking_time }}, {{ provider_name }}",
+        "en": "Cancelled by the provider: {{ booking_weekday }} {{ booking_time }}, {{ provider_name }}"
+      },
+      "design": "G6-elmarad-szolgaltato",
+      "design_pending": {}
+    },
+    {
+      "key": "reschedule-declined",
+      "audience": "guest",
+      "channel": "transactional",
+      "purpose": "BL-10: the provider declined the guest's request to move a booking — the booking keeps its time; another time can be asked for.",
+      "variables": {
+        "booking_weekday": "string — the weekday of the start, on the location's clock ('szombat')",
+        "booking_date_long": "string — the day in words ('október 18., szombat')",
+        "booking_time": "string — the start time ('14:00', '9:05')",
+        "booking_end_time": "string — the end time",
+        "booking_price": "string — the price the guest pays, formatted ('9 900 Ft')",
+        "booking_cancel_deadline": "string — until when it is free to cancel, from the window kept on the booking ('október 17., péntek 14:00'; 'bármikor' once the provider moved it)",
+        "service_name": "string — the booked service",
+        "staff_name": "string — who does it",
+        "provider_name": "string — the provider's name",
+        "provider_the_name": "string — the name with its article ('a Rózsa Stúdió', 'az Ilona Stúdió')",
+        "provider_the_name_cap": "string — the same at a sentence's start ('A …', 'Az …')",
+        "provider_address": "string — the address of the place ('' when the profile has none)",
+        "provider_public_url": "string — the provider's page on vemoa.app ('' without a public page)",
+        "guest_name": "string — the guest's name",
+        "guest_first_name": "string — the guest's given name (Hungarian order: the last word, never an initial)",
+        "links_my_bookings": "string — https://vemoa.app/app/aktivitas",
+        "links_provider_page": "string — the provider's page on vemoa.app ('' without one)",
+        "links_explore": "string — https://vemoa.app/kereses",
+        "links_calendar_ics": "string — the booking's calendar file (.ics), a signed link until a month after the end (BL-09)",
+        "links_directions": "string — the way there: a map search for the provider's address (the provider's page without one) (BL-09)",
+        "links_manage": "string — the booking's own page without an account (signed, until the visit ends; Foglalásaim for a class seat) (BL-12)",
+        "links_cancel": "string — the same page, opening its cancel sheet (links_manage + #lemondas) (BL-12)",
+        "links_review": "string — the visit's own review page without an account (signed, for 60 days after the visit); append &rating=1–5 for a star button — nothing is written until the guest sends it (BL-12)",
+        "links_reschedule": "string — the booking's own page opening its time picker (links_manage + #athelyezes): moved at once or asked for, as the provider chose (BL-10)"
+      },
+      "required_links": [
+        "links_my_bookings",
+        "links_reschedule"
+      ],
+      "subject": {
+        "hu": "Az időpontod marad: {{ booking_weekday }} {{ booking_time }}",
+        "en": "Your booking keeps its time — {{ provider_name }}"
+      },
+      "design": null,
+      "design_pending": {
+        "design": "BL-10: no design yet (a G-family message)"
       }
     }
   ]
