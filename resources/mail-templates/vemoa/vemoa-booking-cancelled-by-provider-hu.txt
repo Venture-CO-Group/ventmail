@@ -2,7 +2,7 @@ SAJNOS ELMARAD.
 
 {{ provider_the_name_cap }} lemondta az időpontodat ({{ booking_date_long }}, {{ booking_time }} · {{ service_name }}).
 
-„{{ cancel_reason }}”
+„{{ cancel_reason || indoklás nélkül }}”
 — Üzenet a szolgáltatótól
 
 Másik időpontot választok: {{ links_rebook }}

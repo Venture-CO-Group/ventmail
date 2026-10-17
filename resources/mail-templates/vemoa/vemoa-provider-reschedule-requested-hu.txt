@@ -1,12 +1,12 @@
 EGY VENDÉG ÁTHELYEZÉST KÉR.
 
-{{ guest_name }} áthelyezné az időpontját: {{ booking_date_long }}, {{ booking_time }} · {{ service_name }}, {{ staff_name }}.
+{{ guest_name }} áthelyezné ezt az időpontját: {{ booking_date_long }}, {{ booking_time }} · {{ service_name }}, {{ staff_name }}.
 
 Kért új időpont: {{ booking_requested_datetime }}
 
 Jóváhagyom vagy elutasítom: {{ links_requests }}
 
-A kért időpontot nem tartjuk fenn: ha közben más foglalja le, a jóváhagyás nem megy át. Amíg nem döntesz, a foglalás az eredeti időpontban marad.
+A kért időpontot nem tartjuk fenn: ha közben más foglalja le, már nem tudod jóváhagyni. Amíg nem döntesz, a foglalás az eredeti időpontban marad.
 
 —
 Ezt a levelet azért kapod, mert te kezeled {{ provider_the_name }} Vemoa-fiókját.

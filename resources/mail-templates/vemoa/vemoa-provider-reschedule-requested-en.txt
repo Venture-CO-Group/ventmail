@@ -1,6 +1,6 @@
 A GUEST ASKS TO MOVE A BOOKING.
 
-{{ guest_name }} would like to move: {{ booking_date_long }}, {{ booking_time }} · {{ service_name }}, {{ staff_name }}.
+{{ guest_name }} would like to move this booking: {{ booking_date_long }}, {{ booking_time }} · {{ service_name }}, {{ staff_name }}.
 
 New time asked for: {{ booking_requested_datetime }}
 

@@ -1,8 +1,8 @@
-SORRY, IT IS OFF.
+SORRY, IT IS CANCELLED.
 
 {{ provider_name }} cancelled your booking ({{ booking_date_long }}, {{ booking_time }} · {{ service_name }}).
 
-„{{ cancel_reason }}”
+„{{ cancel_reason || no reason given }}”
 — A message from the provider
 
 Pick another time: {{ links_rebook }}
