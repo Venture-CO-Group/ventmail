@@ -1,0 +1,1 @@
+Cancelled by the provider: {{ booking_weekday }} {{ booking_time }}, {{ provider_name }}

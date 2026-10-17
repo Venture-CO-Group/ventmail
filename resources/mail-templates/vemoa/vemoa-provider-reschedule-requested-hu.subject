@@ -1,0 +1,1 @@
+Áthelyezést kértek: {{ guest_name }}, {{ booking_weekday }} {{ booking_time }}

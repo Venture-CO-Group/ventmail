@@ -1,0 +1,15 @@
+SAJNOS ELMARAD.
+
+{{ provider_the_name_cap }} lemondta az időpontodat ({{ booking_date_long }}, {{ booking_time }} · {{ service_name }}).
+
+„{{ cancel_reason || indoklás nélkül }}”
+— Üzenet a szolgáltatótól
+
+Másik időpontot választok: {{ links_rebook }}
+
+Más szolgáltatót keresek a közelben: {{ links_explore }}
+
+—
+Ezt a levelet azért kaptad, mert ezzel az e-mail-címmel időpontot foglaltak a Vemoán.
+Foglalásaim: {{ links_my_bookings }}
+Vemoa — időpont, nem telefon. A Venture CO Group terméke.
