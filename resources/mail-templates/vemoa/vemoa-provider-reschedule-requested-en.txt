@@ -1,0 +1,14 @@
+A GUEST ASKS TO MOVE A BOOKING.
+
+{{ guest_name }} would like to move: {{ booking_date_long }}, {{ booking_time }} · {{ service_name }}, {{ staff_name }}.
+
+New time asked for: {{ booking_requested_datetime }}
+
+Approve or decline: {{ links_requests }}
+
+The time asked for is not held: if someone else books it meanwhile, the approval does not go through. Until you decide, the booking keeps its original time.
+
+—
+You received this e-mail because you manage {{ provider_the_name }} on Vemoa.
+My account: {{ links_account }}
+Vemoa — book a time, not a call. A Venture CO Group product.

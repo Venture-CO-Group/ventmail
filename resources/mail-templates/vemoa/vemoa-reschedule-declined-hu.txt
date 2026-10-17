@@ -1,0 +1,17 @@
+AZ IDŐPONTOD MARAD.
+
+Szia {{ guest_first_name }}! {{ provider_the_name_cap }} most nem tudja áthelyezni a foglalásodat, ezért az eredeti időpontban várnak rád.
+
+Mikor: {{ booking_date_long }}, {{ booking_time }}–{{ booking_end_time }}
+Mit: {{ service_name }} · {{ staff_name }}
+Hol: {{ provider_name }}, {{ provider_address }}
+Ár: {{ booking_price }}
+
+Másik időpontot kérek: {{ links_reschedule }}
+
+Ha az eredeti időpont nem jó, lemondhatod is. Díjmentes lemondás határideje: {{ booking_cancel_deadline }}.
+
+—
+Ezt a levelet azért kaptad, mert ezzel az e-mail-címmel időpontot foglaltak a Vemoán.
+Foglalásaim: {{ links_my_bookings }}
+Vemoa — időpont, nem telefon. A Venture CO Group terméke.

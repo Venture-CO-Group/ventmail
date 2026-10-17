@@ -1,0 +1,17 @@
+YOUR BOOKING KEEPS ITS TIME.
+
+Hi {{ guest_first_name }}! {{ provider_name }} cannot move your booking right now, so they expect you at the original time.
+
+When: {{ booking_date_long }}, {{ booking_time }}–{{ booking_end_time }}
+What: {{ service_name }} · {{ staff_name }}
+Where: {{ provider_name }}, {{ provider_address }}
+Price: {{ booking_price }}
+
+Ask for another time: {{ links_reschedule }}
+
+If the original time does not suit you, you can cancel too. Free cancellation deadline: {{ booking_cancel_deadline }}.
+
+—
+You received this e-mail because a booking was made with this address on Vemoa.
+My bookings: {{ links_my_bookings }}
+Vemoa — book a time, not a call. A Venture CO Group product.

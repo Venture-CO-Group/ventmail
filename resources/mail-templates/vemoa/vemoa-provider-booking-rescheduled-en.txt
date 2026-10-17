@@ -1,0 +1,10 @@
+A GUEST MOVED THEIR BOOKING.
+
+{{ guest_name }} picked a new time: {{ booking_date_long }}, {{ booking_time }} · {{ service_name }}, {{ staff_name }}. The previous one ({{ booking_previous_datetime }}) is free again.
+
+See it in the calendar: {{ links_calendar_admin }}
+
+—
+You received this e-mail because you manage {{ provider_the_name }} on Vemoa.
+My account: {{ links_account }}
+Vemoa — book a time, not a call. A Venture CO Group product.

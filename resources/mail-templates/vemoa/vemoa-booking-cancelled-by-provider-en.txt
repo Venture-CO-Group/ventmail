@@ -1,0 +1,15 @@
+SORRY, IT IS OFF.
+
+{{ provider_name }} cancelled your booking ({{ booking_date_long }}, {{ booking_time }} · {{ service_name }}).
+
+„{{ cancel_reason }}”
+— A message from the provider
+
+Pick another time: {{ links_rebook }}
+
+Find another provider nearby: {{ links_explore }}
+
+—
+You received this e-mail because a booking was made with this address on Vemoa.
+My bookings: {{ links_my_bookings }}
+Vemoa — book a time, not a call. A Venture CO Group product.

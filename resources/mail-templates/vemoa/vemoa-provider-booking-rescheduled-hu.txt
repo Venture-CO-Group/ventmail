@@ -1,0 +1,10 @@
+EGY VENDÉG ÁTHELYEZTE AZ IDŐPONTJÁT.
+
+{{ guest_name }} új időpontot választott: {{ booking_date_long }}, {{ booking_time }} · {{ service_name }}, {{ staff_name }}. Az előző ({{ booking_previous_datetime }}) felszabadult.
+
+Megnézem a naptárban: {{ links_calendar_admin }}
+
+—
+Ezt a levelet azért kapod, mert te kezeled {{ provider_the_name }} Vemoa-fiókját.
+Fiókom: {{ links_account }}
+Vemoa — időpont, nem telefon. A Venture CO Group terméke.
