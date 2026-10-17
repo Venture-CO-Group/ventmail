@@ -5,6 +5,14 @@ A részletes döntési nyomvonal: `docs/plans/v1.1.md` (D1–D300).
 
 ## [Unreleased]
 
+## [1.4.2] — 2026-10-17 (Vemoa áthelyezés és szolgáltatói lemondás)
+
+### Added
+- **Vemoa sablonkészlet:** négy új kulcs, hu + en — `reschedule-declined` (a szolgáltató elutasította a vendég áthelyezési kérését), `provider-booking-rescheduled` (a vendég áthelyezte a foglalását), `provider-reschedule-requested` (a vendég áthelyezést kér), `booking-cancelled-by-provider` (a szolgáltató lemondta, indoklással). `docs/integration/manifests/vemoa.json` frissítve a Vemoa szerződéséből.
+
+### Telepítés
+- `ops ventmail:templates:import venture vemoa`, utána a Vemoa `VEMOA_MAIL_PENDING_TEMPLATES` listája üríthető.
+
 ## [1.4.1] — 2026-10-16 (Vemoa redesign e-mailek)
 
 ### Changed
