@@ -1,0 +1,1 @@
+Holnap: {{ tomorrow_count }} foglalás — {{ tomorrow_date }}

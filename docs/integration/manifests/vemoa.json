@@ -1131,6 +1131,83 @@
       },
       "design": "S3-adatmodositas-elutasitva",
       "design_pending": {}
+    },
+    {
+      "key": "provider-new-booking",
+      "audience": "provider",
+      "channel": "transactional",
+      "purpose": "BL-23 (P2): a new booking (public page, marketplace, widget; not one the provider made) — to the members who chose it (a staff member: their own booking).",
+      "variables": {
+        "booking_weekday": "string — the weekday of the start, on the location's clock ('szombat')",
+        "booking_date_long": "string — the day in words ('október 18., szombat')",
+        "booking_time": "string — the start time ('14:00', '9:05')",
+        "booking_end_time": "string — the end time",
+        "booking_price": "string — the price the guest pays, formatted ('9 900 Ft')",
+        "booking_cancel_deadline": "string — until when it is free to cancel, from the window kept on the booking ('október 17., péntek 14:00'; 'bármikor' once the provider moved it)",
+        "service_name": "string — the booked service",
+        "staff_name": "string — who does it",
+        "provider_name": "string — the provider's name",
+        "provider_the_name": "string — the name with its article ('a Rózsa Stúdió', 'az Ilona Stúdió')",
+        "provider_the_name_cap": "string — the same at a sentence's start ('A …', 'Az …')",
+        "provider_address": "string — the address of the place ('' when the profile has none)",
+        "provider_public_url": "string — the provider's page on vemoa.app ('' without a public page)",
+        "guest_name": "string — the guest's name",
+        "links_calendar_ics": "string — the booking's calendar file (.ics), a signed link until a month after the end (BL-09)",
+        "links_directions": "string — the way there: a map search for the provider's address (the provider's page without one) (BL-09)",
+        "guest_email": "string — the guest's e-mail address (the provider's own client)",
+        "guest_phone": "string — the guest's phone ('' when not given)",
+        "guest_visit_label": "string — 'új vendég' or 'visszatérő vendég'",
+        "booking_source": "string — where it came from, in words ('Vemoa piactér', 'Saját link')",
+        "links_booking_admin": "string — the day in the biz calendar",
+        "links_calendar_admin": "string — the day in the biz calendar",
+        "links_account": "string — https://biz.vemoa.app/profile (the footer's „Fiókom”)",
+        "links_notification_settings": "string — https://biz.vemoa.app/settings/notifications (BL-23)"
+      },
+      "required_links": [
+        "links_booking_admin",
+        "links_account"
+      ],
+      "subject": {
+        "hu": "Új foglalás: {{ guest_name }}, {{ booking_weekday }} {{ booking_time }}",
+        "en": "New booking: {{ guest_name }}, {{ booking_weekday }} {{ booking_time }}"
+      },
+      "design": "P2-uj-foglalas",
+      "design_pending": {}
+    },
+    {
+      "key": "provider-daily-summary",
+      "audience": "provider",
+      "channel": "transactional",
+      "purpose": "BL-24 (P4): the evening summary of tomorrow, from 19:00 local, once a day; a day off sends nothing.",
+      "variables": {
+        "provider_the_name": "string — the name with its article",
+        "tomorrow_date": "string — tomorrow in words ('október 19., vasárnap')",
+        "tomorrow_count": "string — tomorrow's bookings",
+        "tomorrow_first_time": "string — the first one's start ('—' with none)",
+        "tomorrow_utilization": "string — how full tomorrow is ('72%')",
+        "tomorrow_free_slots": "string — the free stretches left",
+        "tomorrow_new_guests": "string — the bookings of guests new to the provider",
+        "tomorrow_list": "string — the bookings in one line ('9:00 Kiss Anna (Manikűr, Edit); …'; at most 20, then 'és még N foglalás')",
+        "links_calendar_admin": "string — tomorrow in the biz calendar",
+        "links_notification_settings": "string — https://biz.vemoa.app/settings/notifications",
+        "links_account": "string — https://biz.vemoa.app/profile"
+      },
+      "required_links": [
+        "links_calendar_admin",
+        "links_account"
+      ],
+      "subject": {
+        "hu": "Holnap: {{ tomorrow_count }} foglalás — {{ tomorrow_date }}",
+        "en": "Tomorrow: {{ tomorrow_count }} bookings — {{ tomorrow_date }}"
+      },
+      "design": "P4-napi-osszefoglalo",
+      "design_pending": {
+        "tomorrow_bookings": "BL-21",
+        "guest_name": "BL-21",
+        "service": "BL-21",
+        "staff": "BL-21",
+        "time": "BL-21"
+      }
     }
   ]
 }

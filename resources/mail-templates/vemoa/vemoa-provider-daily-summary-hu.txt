@@ -1,0 +1,17 @@
+EZ VÁR HOLNAP.
+
+Nap: {{ tomorrow_date }}
+Foglalás: {{ tomorrow_count }} · az első {{ tomorrow_first_time }}
+Telítettség: {{ tomorrow_utilization }}
+Új vendég: {{ tomorrow_new_guests }}
+
+{{ tomorrow_list || Holnapra még nincs foglalás. }}
+
+{{ tomorrow_free_slots }} szabad sáv van még holnap. Egy akcióval szólhatsz a környéknek, hogy van hely.
+
+Megnyitom a holnapi napot: {{ links_calendar_admin }}
+
+—
+Ezt a levelet azért kapod, mert te kezeled {{ provider_the_name }} Vemoa-fiókját.
+Fiókom: {{ links_account }}
+Vemoa — időpont, nem telefon. A Venture CO Group terméke.
