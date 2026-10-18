@@ -1,0 +1,14 @@
+THIS STILL NEEDS FIXING.
+
+We could not accept the change of your business details this time. Your earlier details still show.
+
+Request: {{ change_fields }}
+Reason: {{ change_reason }}
+Next step: {{ change_next_step }}
+
+Send a new request: {{ links_merchant_settings }}
+
+—
+This is a required notice about your account; you cannot unsubscribe from it.
+My account: {{ links_account }}
+Vemoa — book a time, not a call. A Venture CO Group product.

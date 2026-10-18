@@ -1,0 +1,14 @@
+EZT MÉG JAVÍTANI KELL.
+
+A kereskedői adataid módosítását most nem tudtuk elfogadni. A korábbi adataid változatlanul látszanak.
+
+Kérelem: {{ change_fields }}
+Indok: {{ change_reason }}
+Teendő: {{ change_next_step }}
+
+Új kérelmet küldök: {{ links_merchant_settings }}
+
+—
+Ez fiókhoz kapcsolódó, kötelező értesítés, nem lehet leiratkozni róla.
+Fiókom: {{ links_account }}
+Vemoa — időpont, nem telefon. A Venture CO Group terméke.

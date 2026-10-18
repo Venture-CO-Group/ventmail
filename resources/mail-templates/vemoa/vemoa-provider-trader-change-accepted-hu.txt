@@ -1,0 +1,13 @@
+RENDBEN, FRISSÍTETTÜK.
+
+Elfogadtuk a kereskedői adataid módosítását. Az új adatok már látszanak a nyilvános profilodon.
+
+Módosult: {{ change_fields || — }}
+Elbírálva: {{ change_decided_at }}
+
+Megnézem a profilomat: {{ links_public_preview }}
+
+—
+Ez fiókhoz kapcsolódó, kötelező értesítés, nem lehet leiratkozni róla.
+Fiókom: {{ links_account }}
+Vemoa — időpont, nem telefon. A Venture CO Group terméke.

@@ -1081,6 +1081,56 @@
       "design_pending": {
         "design": "BL-10: no design yet (a G-family message)"
       }
+    },
+    {
+      "key": "provider-trader-change-accepted",
+      "audience": "provider",
+      "channel": "transactional",
+      "purpose": "BL-18: the super admin accepted the provider's trader-details change request — the details as changed show on the public profile.",
+      "variables": {
+        "provider_name": "string — the provider's business name",
+        "provider_the_name": "string — the name with its article ('a Rózsa Stúdió', 'az Ilona Stúdió')",
+        "links_account": "string — https://biz.vemoa.app/profile (the footer's „Fiókom”)",
+        "change_decided_at": "string — when it was decided, in words ('október 18., szombat 10:00')",
+        "change_fields": "string — the fields that changed, in Hungarian words ('Cím, Telefon'; empty when the request changed nothing)",
+        "links_public_preview": "string — the provider's page on vemoa.app (vemoa.app without one)"
+      },
+      "required_links": [
+        "links_account",
+        "links_public_preview"
+      ],
+      "subject": {
+        "hu": "Elfogadtuk a kereskedői adataid módosítását",
+        "en": "We accepted the change of your business details"
+      },
+      "design": "S2-adatmodositas-elfogadva",
+      "design_pending": {}
+    },
+    {
+      "key": "provider-trader-change-declined",
+      "audience": "provider",
+      "channel": "transactional",
+      "purpose": "BL-18: the super admin declined the provider's trader-details change request, with the reason and the next step (the details stay as they were).",
+      "variables": {
+        "provider_name": "string — the provider's business name",
+        "provider_the_name": "string — the name with its article ('a Rózsa Stúdió', 'az Ilona Stúdió')",
+        "links_account": "string — https://biz.vemoa.app/profile (the footer's „Fiókom”)",
+        "change_decided_at": "string — when it was decided, in words ('október 18., szombat 10:00')",
+        "change_reason": "string — why it was declined",
+        "change_next_step": "string — what the provider can do next",
+        "links_merchant_settings": "string — biz Profil, the trader details (https://biz.vemoa.app/profile#kereskedo)",
+        "change_fields": "string — what the provider asked for (its own words, up to 300 characters)"
+      },
+      "required_links": [
+        "links_account",
+        "links_merchant_settings"
+      ],
+      "subject": {
+        "hu": "Nem tudtuk elfogadni a kereskedői adataid módosítását",
+        "en": "We could not accept the change of your business details"
+      },
+      "design": "S3-adatmodositas-elutasitva",
+      "design_pending": {}
     }
   ]
 }
