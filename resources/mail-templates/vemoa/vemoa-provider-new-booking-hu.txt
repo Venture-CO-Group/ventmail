@@ -1,0 +1,14 @@
+ÚJ FOGLALÁS ÉRKEZETT.
+
+Vendég: {{ guest_name }} · {{ guest_visit_label }}
+Mikor: {{ booking_date_long }}, {{ booking_time }}–{{ booking_end_time }}
+Mit: {{ service_name }} · {{ staff_name }}
+Honnan: {{ booking_source }}
+Elérhetőség: {{ guest_email }} {{ guest_phone }}
+
+Megnyitom a naptárban: {{ links_booking_admin }}
+
+—
+Ezt a levelet azért kapod, mert te kezeled {{ provider_the_name }} Vemoa-fiókját.
+Fiókom: {{ links_account }}
+Vemoa — időpont, nem telefon. A Venture CO Group terméke.

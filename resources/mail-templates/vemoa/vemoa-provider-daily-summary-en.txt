@@ -1,0 +1,17 @@
+HERE IS TOMORROW.
+
+Day: {{ tomorrow_date }}
+Bookings: {{ tomorrow_count }} · the first at {{ tomorrow_first_time }}
+How full: {{ tomorrow_utilization }}
+New guests: {{ tomorrow_new_guests }}
+
+{{ tomorrow_list || No bookings for tomorrow yet. }}
+
+{{ tomorrow_free_slots }} free stretches left tomorrow. A deal tells the neighbourhood there is room.
+
+Open tomorrow: {{ links_calendar_admin }}
+
+—
+You received this e-mail because you manage {{ provider_the_name }} on Vemoa.
+My account: {{ links_account }}
+Vemoa — book a time, not a call. A Venture CO Group product.

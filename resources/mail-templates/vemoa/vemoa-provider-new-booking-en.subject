@@ -1,0 +1,1 @@
+New booking: {{ guest_name }}, {{ booking_weekday }} {{ booking_time }}

@@ -1,0 +1,1 @@
+Tomorrow: {{ tomorrow_count }} bookings — {{ tomorrow_date }}

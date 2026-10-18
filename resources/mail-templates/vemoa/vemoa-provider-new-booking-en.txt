@@ -1,0 +1,14 @@
+A NEW BOOKING.
+
+Guest: {{ guest_name }} · {{ guest_visit_label }}
+When: {{ booking_date_long }}, {{ booking_time }}–{{ booking_end_time }}
+What: {{ service_name }} · {{ staff_name }}
+From: {{ booking_source }}
+Contact: {{ guest_email }} {{ guest_phone }}
+
+Open it in the calendar: {{ links_booking_admin }}
+
+—
+You received this e-mail because you manage {{ provider_the_name }} on Vemoa.
+My account: {{ links_account }}
+Vemoa — book a time, not a call. A Venture CO Group product.
