@@ -1,0 +1,13 @@
+DONE, WE UPDATED IT.
+
+We accepted the change of your business details. The new details already show on your public profile.
+
+Changed: {{ change_fields || — }}
+Decided: {{ change_decided_at }}
+
+See my profile: {{ links_public_preview }}
+
+—
+This is a required notice about your account; you cannot unsubscribe from it.
+My account: {{ links_account }}
+Vemoa — book a time, not a call. A Venture CO Group product.
