@@ -1,0 +1,14 @@
+FIZESD KI A LÁTOGATÁSODAT.
+
+Szia {{ guest_name }}! A látogatásod díját kéri tőled: {{ workspace_name }}. A gombbal megnyitod a fizetési oldalt.
+
+Szolgáltató: {{ workspace_name }}
+Fizetendő: {{ amount }}
+
+Kifizetem: {{ pay_url }}
+
+A link {{ expires_in_hours }} óráig él. Ha nem te foglaltál, nincs teendőd.
+
+—
+Ezt a levelet azért kaptad, mert ezzel az e-mail-címmel időpontot foglaltak a Vemoán.
+Vemoa — időpont, nem telefon. A Venture CO Group terméke.

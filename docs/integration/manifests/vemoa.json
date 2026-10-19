@@ -284,6 +284,44 @@
       }
     },
     {
+      "key": "balance-payment-request",
+      "audience": "guest",
+      "channel": "transactional",
+      "purpose": "The provider asked the guest to pay the rest of their visit (the balance) and it could not be taken from their saved card (no consent for it, no card, the bank asks for the guest, declined): a link to a page where they pay on the provider's own account. Valid 24 hours.",
+      "variables": {
+        "guest_name": "string — the guest's name",
+        "workspace_name": "string — the business that asks the payment",
+        "amount": "string — the amount to pay, formatted with currency",
+        "pay_url": "string — link to the guest's payment page (token in the URL fragment: no click tracking)",
+        "expires_in_hours": "int — hours the link is valid"
+      },
+      "required_links": [
+        "pay_url"
+      ],
+      "subject": {
+        "hu": "Fizesd ki a látogatásodat — {{ workspace_name }}",
+        "en": "Pay for your visit — {{ workspace_name }}"
+      }
+    },
+    {
+      "key": "balance-receipt",
+      "audience": "guest",
+      "channel": "transactional",
+      "purpose": "Receipt for a balance taken from the guest's saved card after the visit (the provider's „Fizetés”), without the guest present. Says what was paid, to whom and when; the invoice comes separately from the provider.",
+      "variables": {
+        "guest_name": "string — the guest's name",
+        "workspace_name": "string — the business that charged",
+        "amount": "string — the amount paid, formatted with currency",
+        "paid_on": "string — the day of the payment, 'YYYY. MM. DD.'",
+        "reason": "string — the provider's note when the amount was edited (extras, discount); empty otherwise"
+      },
+      "required_links": [],
+      "subject": {
+        "hu": "Kifizetve: {{ amount }} — {{ workspace_name }}",
+        "en": "Paid: {{ amount }} — {{ workspace_name }}"
+      }
+    },
+    {
       "key": "pass-purchased",
       "audience": "guest",
       "channel": "transactional",
