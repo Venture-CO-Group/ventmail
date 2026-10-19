@@ -1,0 +1,14 @@
+PAID.
+
+Hi {{ guest_name }}! Your visit was paid from your saved card.
+
+Amount: {{ amount }}
+To: {{ workspace_name }}
+On: {{ paid_on }}
+Note: {{ reason || — }}
+
+The provider sends the invoice in a separate e-mail.
+
+—
+You received this e-mail because a booking was made with this address on Vemoa.
+Vemoa — book a time, not a call. A Venture CO Group product.

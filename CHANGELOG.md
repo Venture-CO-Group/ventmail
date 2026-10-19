@@ -5,6 +5,14 @@ A részletes döntési nyomvonal: `docs/plans/v1.1.md` (D1–D300).
 
 ## [Unreleased]
 
+## [1.4.5] — 2026-10-19 (Vemoa fennmaradó összeg)
+
+### Added
+- **Vemoa sablonkészlet:** `balance-payment-request` (BL-60, fizetési link a látogatás fennmaradó összegére, 24 óráig él) és `balance-receipt` (BL-60, nyugta a mentett kártya terheléséről), hu + en. `docs/integration/manifests/vemoa.json` frissítve.
+
+### Telepítés
+- `ops ventmail:templates:import venture vemoa`, a Vemoa BL-60 kiadása előtt.
+
 ## [1.4.4] — 2026-10-18 (Vemoa szolgáltatói értesítések)
 
 ### Added

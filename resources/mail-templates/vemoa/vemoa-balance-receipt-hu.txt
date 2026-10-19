@@ -1,0 +1,14 @@
+KIFIZETVE.
+
+Szia {{ guest_name }}! A látogatásod díját levonták a mentett kártyádról.
+
+Összeg: {{ amount }}
+Kinek: {{ workspace_name }}
+Mikor: {{ paid_on }}
+Megjegyzés: {{ reason || — }}
+
+A számlát külön e-mailben küldi a szolgáltató.
+
+—
+Ezt a levelet azért kaptad, mert ezzel az e-mail-címmel időpontot foglaltak a Vemoán.
+Vemoa — időpont, nem telefon. A Venture CO Group terméke.
