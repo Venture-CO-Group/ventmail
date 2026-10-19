@@ -7,7 +7,7 @@ Kinek: {{ workspace_name }}
 Mikor: {{ paid_on }}
 Megjegyzés: {{ reason || — }}
 
-A számlát külön e-mailben küldi a szolgáltató.
+A számlát a szolgáltató állítja ki.
 
 —
 Ezt a levelet azért kaptad, mert ezzel az e-mail-címmel időpontot foglaltak a Vemoán.

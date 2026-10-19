@@ -7,7 +7,7 @@ To: {{ workspace_name }}
 On: {{ paid_on }}
 Note: {{ reason || — }}
 
-The provider sends the invoice in a separate e-mail.
+The provider issues the invoice.
 
 —
 You received this e-mail because a booking was made with this address on Vemoa.
