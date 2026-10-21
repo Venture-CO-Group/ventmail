@@ -304,6 +304,27 @@
       }
     },
     {
+      "key": "deposit-payment-request",
+      "audience": "guest",
+      "channel": "transactional",
+      "purpose": "The provider booked the guest by hand and holds the time until the deposit is paid (BL-34): a link to a page where the guest pays the deposit on the provider's own account; paid, the booking is confirmed; unpaid by the deadline, the time is released.",
+      "variables": {
+        "guest_name": "string — the guest's name",
+        "workspace_name": "string — the business that asks the deposit",
+        "amount": "string — the deposit, formatted with currency",
+        "starts_at_local": "string — the appointment's start in the location's time zone, 'YYYY-MM-DD HH:MM'",
+        "pay_url": "string — link to the guest's deposit page (token in the URL fragment: no click tracking)",
+        "expires_in_hours": "int — hours the time is held for the payment"
+      },
+      "required_links": [
+        "pay_url"
+      ],
+      "subject": {
+        "hu": "Fizesd be az előleget — {{ workspace_name }}",
+        "en": "Pay the deposit for your booking — {{ workspace_name }}"
+      }
+    },
+    {
       "key": "balance-receipt",
       "audience": "guest",
       "channel": "transactional",
