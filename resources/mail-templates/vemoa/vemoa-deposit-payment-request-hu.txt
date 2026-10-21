@@ -1,0 +1,15 @@
+FIZESD BE AZ ELŐLEGET.
+
+Szia {{ guest_name }}! Időpontot foglalt neked: {{ workspace_name }}, és előleget kér hozzá. Ha befizeted, a foglalásod megerősített.
+
+Szolgáltató: {{ workspace_name }}
+Időpont: {{ starts_at_local }}
+Előleg: {{ amount }}
+
+Befizetem az előleget: {{ pay_url }}
+
+Az időpontot {{ expires_in_hours }} óráig tartjuk neked. Ha addig nem fizeted be az előleget, a foglalás elmarad, és az időpont felszabadul. Ha nem te foglaltál, nincs teendőd.
+
+—
+Ezt a levelet azért kaptad, mert ezzel az e-mail-címmel időpontot foglaltak a Vemoán.
+Vemoa — időpont, nem telefon. A Venture CO Group terméke.

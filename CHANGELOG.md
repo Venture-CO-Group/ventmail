@@ -5,6 +5,17 @@ A részletes döntési nyomvonal: `docs/plans/v1.1.md` (D1–D300).
 
 ## [Unreleased]
 
+## [1.4.6] — 2026-10-21 (Vemoa előleg-link)
+
+### Added
+- **Vemoa sablonkészlet:** `deposit-payment-request` (BL-34, előleg-link a kézzel rögzített foglaláshoz; az időpontot a befizetésig tartjuk, utána a foglalás elmarad), hu + en. `docs/integration/manifests/vemoa.json` frissítve.
+
+### Changed
+- **Vemoa sablonok lábléce:** az üzemeltető minden Vemoa-levélben a Venture CO Group Kft. (címmel, adószámmal) — a Vemoa #170 export-szinkronja.
+
+### Telepítés
+- `ops ventmail:templates:import venture vemoa`, utána a Vemoa `VEMOA_MAIL_PENDING_TEMPLATES` listájából a `deposit-payment-request` törölhető.
+
 ## [1.4.5] — 2026-10-19 (Vemoa fennmaradó összeg)
 
 ### Added

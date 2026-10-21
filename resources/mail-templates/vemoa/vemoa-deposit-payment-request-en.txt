@@ -1,0 +1,15 @@
+PAY THE DEPOSIT.
+
+Hi {{ guest_name }}! {{ workspace_name }} booked a time for you and asks a deposit for it. Once you pay it, your booking is confirmed.
+
+Provider: {{ workspace_name }}
+When: {{ starts_at_local }}
+Deposit: {{ amount }}
+
+Pay the deposit: {{ pay_url }}
+
+We hold the time for you for {{ expires_in_hours }} hours. If the deposit is not paid by then, the booking lapses and the time is released. If you did not book, there is nothing to do.
+
+—
+You received this e-mail because a booking was made with this address on Vemoa.
+Vemoa — book a time, not a call. A Venture CO Group product.
