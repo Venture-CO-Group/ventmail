@@ -1,0 +1,18 @@
+EGY FOGLALÁS JÓVÁHAGYÁSRA VÁR.
+
+Vendég: {{ guest_name }}
+Mikor: {{ booking_date_long }}, {{ booking_time }}–{{ booking_end_time }}
+Mit: {{ service_name }} · {{ staff_name }}
+Ár: {{ booking_price }}
+Válaszolj eddig: {{ booking_answer_by }}
+
+Jóváhagyom vagy elutasítom: {{ links_requests }}
+
+Megnézem a naptárban: {{ links_calendar_admin }}
+
+Ha {{ booking_answer_by }}-ig nem döntesz, a kérés elmarad, és szólunk a vendégnek. Ha elutasítod, megírhatod az okát — a vendég ezt olvassa.
+
+—
+Ezt a levelet azért kapod, mert te kezeled {{ provider_the_name }} Vemoa-fiókját.
+Fiókom: {{ links_account }}
+Vemoa — időpont, nem telefon. A Venture CO Group terméke.

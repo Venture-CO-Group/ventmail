@@ -1,0 +1,19 @@
+RECEIVED — WAITING FOR APPROVAL.
+
+Hi {{ guest_first_name }}! {{ provider_name }} approves its bookings by hand, so this is not a confirmation yet. Once they approve it, we send you the confirmation.
+
+When: {{ booking_date_long }}, {{ booking_time }}–{{ booking_end_time }}
+What: {{ service_name }} · {{ staff_name }}
+Where: {{ provider_name }}, {{ provider_address }}
+Price: {{ booking_price }}
+
+View the request: {{ links_manage }}
+
+Withdraw the request: {{ links_cancel }}
+
+If there is no answer by {{ booking_answer_by }}, the request lapses and we tell you. Until then you can withdraw it any time, free.
+
+—
+You received this e-mail because a booking was made with this address on Vemoa.
+My bookings: {{ links_my_bookings }}
+Vemoa — book a time, not a call. A Venture CO Group product.

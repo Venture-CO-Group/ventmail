@@ -1,0 +1,24 @@
+DÖNTÖTTÜNK A BEJELENTÉSEDRŐL.
+
+Felülvizsgáltuk a bejelentésedet ({{ content_label }} · {{ provider_name }}). A döntés és az indoklása:
+
+Hivatkozási szám: {{ notice_ref }}
+Döntés: {{ decision_label }}
+Alap: {{ decision_ground_label }}
+Indok: {{ decision_reason_label }}
+Jogszabály, ÁSZF-pont: {{ decision_ref || — }}
+
+„{{ decision_text || — }}”
+— Tények és körülmények: a moderátor indoklása
+
+Ha nem értesz egyet a döntéssel, {{ appeal_months }} hónapon belül panaszt tehetsz a {{ support_email }} címen — írd bele a hivatkozási számot. A panaszt ember bírálja el, és nem az, aki a döntést hozta. Peren kívüli vitarendező testülethez (DSA 21. cikk) és bírósághoz is fordulhatsz; a testületek listáját a tartalomszabályzat tartalmazza.
+
+Tartalomszabályzat és vitarendezés: {{ links_policy }}
+
+A tartalom: {{ links_content }}
+
+A döntést munkatársunk hozta, automatizált döntéshozatal nélkül, az (EU) 2022/2065 rendelet (DSA) 16., 20. és 21. cikke szerint.
+
+—
+Ezt a levelet azért kaptad, mert ezzel az e-mail-címmel bejelentést tettél a Vemoán.
+Vemoa — időpont, nem telefon. A Venture CO Group terméke.

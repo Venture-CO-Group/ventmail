@@ -12,7 +12,8 @@
     "Do not use ventMail-reserved names for variables (unsubscribe_url, preferences_url, browser_url, recipient_email, current_year): ventMail overwrites them. Vemoa's own opt-out link is optout_url; ventMail's List-Unsubscribe still works and arrives as the unsubscribed webhook.",
     "Transactional mail is sent with o:tracking=no; the unsubscribe links are /unsubscribe/... so a rewriting tracker leaves them alone.",
     "Marketing keys (rebook_nudge, birthday_greeting, win_back, fill_offer) go on the marketing channel, closed until ventMail opens it; review_request stays transactional with an opt-out (owner/DPO question open).",
-    "Redesign 2026 (docs/design/email-templates): a designed template's dotted name (booking.time) is sent with underscores (booking_time) — ventMail reads a dot as nesting, and t:variables are flat scalars. `design` names the designed template a key stands for; `design_pending` the variables that wait for a backlog item."
+    "Redesign 2026 (docs/design/email-templates): a designed template's dotted name (booking.time) is sent with underscores (booking_time) — ventMail reads a dot as nesting, and t:variables are flat scalars. `design` names the designed template a key stands for; `design_pending` the variables that wait for a backlog item.",
+    "BL-25: a `design` that is not a Figma design (docs/design/email-templates/manifest.json) is written by docs/design/email-templates/export_ventmail.py in the family's blocks (BL-39, BL-40, BL-44); docs/design/email-templates/ventmail/ holds the export of every key — the files ventMail imports (resources/mail-templates/vemoa, `ventmail:templates:import <workspace> vemoa`)."
   ],
   "templates": [
     {
@@ -764,6 +765,7 @@
         "suspension_reason": "string — the reason the operator gave (also in reason)",
         "suspension_effective_at": "string — since when, in words ('október 16., péntek 10:30')",
         "suspension_impact": "string — what it means, in words",
+        "suspension_terms_ref": "string — BL-47: the terms point the suspension rests on ('5.2 — Valós kereskedői adatok'); may be empty",
         "support_email": "string — where the provider objects (VEMOA_SUPPORT_EMAIL, support@vemoa.hu)",
         "links_appeal": "string — mailto: the support address with the subject naming the provider"
       },
@@ -1267,6 +1269,302 @@
         "staff": "BL-21",
         "time": "BL-21"
       }
+    },
+    {
+      "key": "booking-request-received",
+      "audience": "guest",
+      "channel": "transactional",
+      "purpose": "BL-44: the provider approves its online bookings by hand — the guest's booking waits for its answer (booking.appointment_pending_approval). Not a confirmation: the confirmation comes once it is approved; unanswered by booking_answer_by, it lapses and the guest is told (booking-request-declined).",
+      "variables": {
+        "booking_weekday": "string — the weekday of the start, on the location's clock ('szombat')",
+        "booking_date_long": "string — the day in words ('október 18., szombat')",
+        "booking_time": "string — the start time ('14:00', '9:05')",
+        "booking_end_time": "string — the end time",
+        "booking_price": "string — the price the guest pays, formatted ('9 900 Ft')",
+        "booking_cancel_deadline": "string — until when it is free to cancel, from the window kept on the booking ('október 17., péntek 14:00'; 'bármikor' once the provider moved it)",
+        "service_name": "string — the booked service",
+        "staff_name": "string — who does it",
+        "provider_name": "string — the provider's name",
+        "provider_the_name": "string — the name with its article ('a Rózsa Stúdió', 'az Ilona Stúdió')",
+        "provider_the_name_cap": "string — the same at a sentence's start ('A …', 'Az …')",
+        "provider_address": "string — the address of the place ('' when the profile has none)",
+        "provider_public_url": "string — the provider's page on vemoa.app ('' without a public page)",
+        "guest_name": "string — the guest's name",
+        "guest_first_name": "string — the guest's given name (Hungarian order: the last word, never an initial)",
+        "links_my_bookings": "string — https://vemoa.app/app/aktivitas",
+        "links_provider_page": "string — the provider's page on vemoa.app ('' without one)",
+        "links_explore": "string — https://vemoa.app/kereses",
+        "links_directions": "string — the way there: a map search for the provider's address (the provider's page without one) (BL-09)",
+        "links_manage": "string — the booking's own page without an account (signed, until the visit ends; Foglalásaim for a class seat) (BL-12)",
+        "links_cancel": "string — the request's own page opening its withdraw sheet (links_manage + #lemondas): the guest may withdraw the request any time, free",
+        "booking_answer_by": "string — until when the provider answers, in words ('október 17., péntek 14:00')"
+      },
+      "required_links": [
+        "links_my_bookings",
+        "links_cancel",
+        "links_manage"
+      ],
+      "subject": {
+        "hu": "Jóváhagyásra vár: {{ booking_weekday }} {{ booking_time }}, {{ provider_name }}",
+        "en": "Waiting for approval: {{ booking_weekday }} {{ booking_time }}, {{ provider_name }}"
+      },
+      "design": "BL44-jovahagyasra-var",
+      "design_pending": {}
+    },
+    {
+      "key": "booking-request-declined",
+      "audience": "guest",
+      "channel": "transactional",
+      "purpose": "BL-44: a booking waiting for approval was declined by the provider (booking.appointment_declined, with its reason) or left unanswered until its deadline (booking.appointment_expired from pending_approval) — the time is free again; the way to book another.",
+      "variables": {
+        "booking_weekday": "string — the weekday of the start, on the location's clock ('szombat')",
+        "booking_date_long": "string — the day in words ('október 18., szombat')",
+        "booking_time": "string — the start time ('14:00', '9:05')",
+        "booking_end_time": "string — the end time",
+        "booking_price": "string — the price the guest pays, formatted ('9 900 Ft')",
+        "booking_cancel_deadline": "string — until when it is free to cancel, from the window kept on the booking ('október 17., péntek 14:00'; 'bármikor' once the provider moved it)",
+        "service_name": "string — the booked service",
+        "staff_name": "string — who does it",
+        "provider_name": "string — the provider's name",
+        "provider_the_name": "string — the name with its article ('a Rózsa Stúdió', 'az Ilona Stúdió')",
+        "provider_the_name_cap": "string — the same at a sentence's start ('A …', 'Az …')",
+        "provider_address": "string — the address of the place ('' when the profile has none)",
+        "provider_public_url": "string — the provider's page on vemoa.app ('' without a public page)",
+        "guest_name": "string — the guest's name",
+        "guest_first_name": "string — the guest's given name (Hungarian order: the last word, never an initial)",
+        "links_my_bookings": "string — https://vemoa.app/app/aktivitas",
+        "links_provider_page": "string — the provider's page on vemoa.app ('' without one)",
+        "links_explore": "string — https://vemoa.app/kereses",
+        "links_directions": "string — the way there: a map search for the provider's address (the provider's page without one) (BL-09)",
+        "request_outcome": "string — 'declined' (the provider said no) or 'unanswered' (no answer by the deadline)",
+        "decline_reason": "string — why the provider declined (may be empty; always empty when unanswered)",
+        "links_rebook": "string — where to book again: the provider's page (the discovery list without one)"
+      },
+      "required_links": [
+        "links_explore",
+        "links_rebook",
+        "links_my_bookings"
+      ],
+      "subject": {
+        "hu": "Nem jött létre: {{ booking_weekday }} {{ booking_time }}, {{ provider_name }}",
+        "en": "Not booked: {{ booking_weekday }} {{ booking_time }}, {{ provider_name }}"
+      },
+      "design": "BL44-nem-jott-letre",
+      "design_pending": {}
+    },
+    {
+      "key": "provider-booking-request",
+      "audience": "provider",
+      "channel": "transactional",
+      "purpose": "BL-44: an online booking waits for the provider's approval (Automatikus elfogadás off) — approved or declined in Teendők by booking_answer_by, else it lapses. Sent to the members who chose new-booking e-mails (BL-23).",
+      "variables": {
+        "booking_weekday": "string — the weekday of the start, on the location's clock ('szombat')",
+        "booking_date_long": "string — the day in words ('október 18., szombat')",
+        "booking_time": "string — the start time ('14:00', '9:05')",
+        "booking_end_time": "string — the end time",
+        "booking_price": "string — the price the guest pays, formatted ('9 900 Ft')",
+        "booking_cancel_deadline": "string — until when it is free to cancel, from the window kept on the booking ('október 17., péntek 14:00'; 'bármikor' once the provider moved it)",
+        "service_name": "string — the booked service",
+        "staff_name": "string — who does it",
+        "provider_name": "string — the provider's name",
+        "provider_the_name": "string — the name with its article ('a Rózsa Stúdió', 'az Ilona Stúdió')",
+        "provider_the_name_cap": "string — the same at a sentence's start ('A …', 'Az …')",
+        "provider_address": "string — the address of the place ('' when the profile has none)",
+        "provider_public_url": "string — the provider's page on vemoa.app ('' without a public page)",
+        "guest_name": "string — the guest's name",
+        "guest_first_name": "string — the guest's given name (Hungarian order: the last word, never an initial)",
+        "links_my_bookings": "string — https://vemoa.app/app/aktivitas",
+        "links_provider_page": "string — the provider's page on vemoa.app ('' without one)",
+        "links_explore": "string — https://vemoa.app/kereses",
+        "links_calendar_admin": "string — the day in the biz calendar",
+        "links_account": "string — https://biz.vemoa.app/profile (the footer's „Fiókom”)",
+        "links_calendar_ics": "string — the booking's calendar file (.ics), a signed link until a month after the end (BL-09)",
+        "links_directions": "string — the way there: a map search for the provider's address (the provider's page without one) (BL-09)",
+        "booking_answer_by": "string — until when it can be answered, in words",
+        "links_requests": "string — biz „Ma”, where Teendők lists the request"
+      },
+      "required_links": [
+        "links_account",
+        "links_requests",
+        "links_calendar_admin"
+      ],
+      "subject": {
+        "hu": "Jóváhagyásra vár: {{ guest_name }}, {{ booking_weekday }} {{ booking_time }}",
+        "en": "A booking waits for your approval — {{ provider_name }}"
+      },
+      "design": "BL44-foglalasi-keres",
+      "design_pending": {}
+    },
+    {
+      "key": "provider-terms-changed",
+      "audience": "provider",
+      "channel": "transactional",
+      "purpose": "BL-40 (P2B art. 3): a new version of the providers' terms (ÁSZF) was published — what changes, from when (at least 15 days later unless an art. 3(4) ground is named), where to read it; it is accepted at the next sign-in from that day, or ahead of it in Biz. To the trader contact and every owner's own address, once per version and recipient.",
+      "variables": {
+        "provider_name": "string — the provider's business name",
+        "provider_the_name": "string — the name with its article ('a Rózsa Stúdió', 'az Ilona Stúdió')",
+        "terms_version": "string — the new version's number ('2')",
+        "terms_effective_from": "string — the day it takes effect, in words ('november 8., vasárnap')",
+        "terms_change_summary": "string — what changes, in the admin's words ('' for the first version)",
+        "terms_notice_exception": "string — why it takes effect sooner than 15 days (P2B art. 3(4)), in words; '' normally",
+        "links_terms": "string — the new version on vemoa.app (https://vemoa.app/aszf/szolgaltatoknak?version=2)",
+        "links_account": "string — https://biz.vemoa.app/ (where it is accepted)",
+        "support_email": "string — where to write with a question or an objection (VEMOA_SUPPORT_EMAIL)"
+      },
+      "required_links": [
+        "links_terms",
+        "links_account"
+      ],
+      "subject": {
+        "hu": "Változik a Vemoa szolgáltatói ÁSZF-je — {{ terms_effective_from }}",
+        "en": "Vemoa's terms for providers change — {{ terms_effective_from }}"
+      },
+      "design": "BL40-aszf-valtozik",
+      "design_pending": {}
+    },
+    {
+      "key": "content-notice-received",
+      "audience": "user",
+      "channel": "transactional",
+      "purpose": "BL-39 (DSA art. 16(4)): confirms the receipt of a notice of illegal content sent on vemoa.app/{slug}/bejelentes, to the notifier's address (none for an anonymous child-safety notice). Sent from the platform's own outbox (platform_mail_outbox), never a provider's: the address is wiped once delivered.",
+      "variables": {
+        "notice_ref": "string — the notice's short reference (the last 8 characters of its id), to quote in a reply",
+        "provider_name": "string — the provider whose page the content is on",
+        "content_label": "string — what was reported, in words ('egy értékelés', 'egy kép', 'a szolgáltató oldala')",
+        "category_label": "string — the category the notifier chose, in words",
+        "notice_received_at": "string — when it arrived, in words ('október 22., csütörtök')",
+        "links_content": "string — the reported content's address",
+        "links_policy": "string — how notices are handled (https://vemoa.app/aszf/tartalom)"
+      },
+      "required_links": [
+        "links_policy",
+        "links_content"
+      ],
+      "subject": {
+        "hu": "Megkaptuk a bejelentésedet ({{ notice_ref }})",
+        "en": "We received your notice ({{ notice_ref }})"
+      },
+      "design": "BL39-bejelentes-beerkezett",
+      "design_pending": {}
+    },
+    {
+      "key": "content-notice-decided",
+      "audience": "user",
+      "channel": "transactional",
+      "purpose": "BL-39 (DSA art. 16(5), 17): tells the notifier the decision on the notice with its reasons, and how to complain (art. 20, six months, the support address) or turn to an out-of-court body (art. 21). Sent from the platform's own outbox (platform_mail_outbox), never a provider's.",
+      "variables": {
+        "notice_ref": "string — the notice's short reference (the last 8 characters of its id), to quote in a reply",
+        "provider_name": "string — the provider whose page the content is on",
+        "provider_the_name": "string — the name with its article ('a Rózsa Stúdió', 'az Ilona Stúdió')",
+        "content_label": "string — what the notice is about, in words ('egy értékelés', 'egy kép', 'a szolgáltató oldala')",
+        "links_content": "string — the content's address on vemoa.app (never empty: the content policy when none was kept)",
+        "decision": "string — code: keep | hide | escalate",
+        "decision_label": "string — the decision in words (a sentence, e.g. 'A tartalmat elrejtettük')",
+        "decision_ground_label": "string — the ground in words (the law / the terms / no breach found)",
+        "decision_reason_label": "string — the reason from the fixed set, in words",
+        "decision_ref": "string — the law or terms point the decision rests on (DSA art. 17(3)(e)); '' when nothing was restricted",
+        "decision_text": "string — the moderator's own explanation",
+        "support_email": "string — where a complaint goes (DSA art. 20; VEMOA_SUPPORT_EMAIL)",
+        "appeal_months": "string — how long a complaint can be made ('6')",
+        "links_policy": "string — the content rules with the out-of-court bodies (https://vemoa.app/aszf/tartalom)"
+      },
+      "required_links": [
+        "links_policy",
+        "links_content"
+      ],
+      "subject": {
+        "hu": "Döntés a bejelentésedről ({{ notice_ref }})",
+        "en": "A decision on your notice ({{ notice_ref }})"
+      },
+      "design": "BL39-bejelentes-dontes",
+      "design_pending": {}
+    },
+    {
+      "key": "content-restricted-provider",
+      "audience": "provider",
+      "channel": "transactional",
+      "purpose": "BL-39 (DSA art. 17): the statement of reasons to the provider when content on its page was restricted after a notice (a review hidden, a picture removed): what, why (ground, reason, the moderator's words), and how to complain (art. 20) or turn to an out-of-court body (art. 21). To the trader contact, or the owners while there is none.",
+      "variables": {
+        "notice_ref": "string — the notice's short reference (the last 8 characters of its id), to quote in a reply",
+        "provider_name": "string — the provider whose page the content is on",
+        "provider_the_name": "string — the name with its article ('a Rózsa Stúdió', 'az Ilona Stúdió')",
+        "content_label": "string — what the notice is about, in words ('egy értékelés', 'egy kép', 'a szolgáltató oldala')",
+        "links_content": "string — the content's address on vemoa.app (never empty: the content policy when none was kept)",
+        "decision": "string — code: keep | hide | escalate",
+        "decision_label": "string — the decision in words (a sentence, e.g. 'A tartalmat elrejtettük')",
+        "decision_ground_label": "string — the ground in words (the law / the terms / no breach found)",
+        "decision_reason_label": "string — the reason from the fixed set, in words",
+        "decision_ref": "string — the law or terms point the decision rests on (DSA art. 17(3)(e)); '' when nothing was restricted",
+        "decision_text": "string — the moderator's own explanation",
+        "support_email": "string — where a complaint goes (DSA art. 20; VEMOA_SUPPORT_EMAIL)",
+        "appeal_months": "string — how long a complaint can be made ('6')",
+        "links_policy": "string — the content rules with the out-of-court bodies (https://vemoa.app/aszf/tartalom)"
+      },
+      "required_links": [
+        "links_policy",
+        "links_content"
+      ],
+      "subject": {
+        "hu": "Korlátoztunk egy tartalmat az oldaladon ({{ notice_ref }})",
+        "en": "We restricted content on your page ({{ notice_ref }})"
+      },
+      "design": "BL39-tartalom-korlatozva-szolgaltato",
+      "design_pending": {}
+    },
+    {
+      "key": "content-restricted-author",
+      "audience": "guest",
+      "channel": "transactional",
+      "purpose": "BL-39 (DSA art. 17): the statement of reasons to a review's author when the review was hidden after a notice of illegal content, with how to complain (art. 20) or turn to an out-of-court body (art. 21). Not sent to a record the provider gave another address (ADR-0019).",
+      "variables": {
+        "notice_ref": "string — the notice's short reference (the last 8 characters of its id), to quote in a reply",
+        "provider_name": "string — the provider whose page the content is on",
+        "provider_the_name": "string — the name with its article ('a Rózsa Stúdió', 'az Ilona Stúdió')",
+        "content_label": "string — what the notice is about, in words ('egy értékelés', 'egy kép', 'a szolgáltató oldala')",
+        "links_content": "string — the content's address on vemoa.app (never empty: the content policy when none was kept)",
+        "decision": "string — code: keep | hide | escalate",
+        "decision_label": "string — the decision in words (a sentence, e.g. 'A tartalmat elrejtettük')",
+        "decision_ground_label": "string — the ground in words (the law / the terms / no breach found)",
+        "decision_reason_label": "string — the reason from the fixed set, in words",
+        "decision_ref": "string — the law or terms point the decision rests on (DSA art. 17(3)(e)); '' when nothing was restricted",
+        "decision_text": "string — the moderator's own explanation",
+        "support_email": "string — where a complaint goes (DSA art. 20; VEMOA_SUPPORT_EMAIL)",
+        "appeal_months": "string — how long a complaint can be made ('6')",
+        "links_policy": "string — the content rules with the out-of-court bodies (https://vemoa.app/aszf/tartalom)"
+      },
+      "required_links": [
+        "links_policy",
+        "links_content"
+      ],
+      "subject": {
+        "hu": "Döntés az értékelésedről ({{ notice_ref }})",
+        "en": "A decision about your review ({{ notice_ref }})"
+      },
+      "design": "BL39-tartalom-korlatozva-szerzo",
+      "design_pending": {}
+    },
+    {
+      "key": "privacy-notice-changed",
+      "audience": "guest",
+      "channel": "transactional",
+      "purpose": "2026-10-22 (GDPR art. 12–13): a new version of Vemoa's privacy notice was published — what changes, from when, where to read it. To every guest with a Vemoa account and an address on file, once per version and guest, from the platform's own outbox (platform_mail_outbox). The guest also finds it in the notification centre. Held back (VEMOA_MAIL_PENDING_TEMPLATES) until imported.",
+      "variables": {
+        "document_title": "string — the document's name ('Adatkezelési tájékoztató')",
+        "document_version": "string — the new version's number ('2')",
+        "document_effective_from": "string — the day it takes effect, in words ('november 8., vasárnap')",
+        "document_change_summary": "string — what changes, in the admin's words",
+        "links_document": "string — the new version on vemoa.app (https://vemoa.app/adatvedelem?version=2)",
+        "support_email": "string — where to write with a question (VEMOA_SUPPORT_EMAIL)"
+      },
+      "required_links": [
+        "links_document"
+      ],
+      "subject": {
+        "hu": "Változik a Vemoa adatkezelési tájékoztatója — {{ document_effective_from }}",
+        "en": "Vemoa's privacy notice changes — {{ document_effective_from }}"
+      },
+      "design": "BL40-adatkezeles-valtozik",
+      "design_pending": {}
     }
   ]
 }

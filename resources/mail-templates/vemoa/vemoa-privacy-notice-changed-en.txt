@@ -1,0 +1,15 @@
+OUR PRIVACY NOTICE CHANGES.
+
+We updated how we handle your personal data. Here is what changes, and from when.
+
+Document: {{ document_title }}, version {{ document_version }}
+In effect from: {{ document_effective_from }}
+What changes: {{ document_change_summary || the full text is at the link }}
+
+Read the new version: {{ links_document }}
+
+There is nothing you need to do: the new version applies from the day it takes effect. A question about your data? Write to {{ support_email }}.
+
+—
+You received this e-mail because you have a Vemoa account. It is a required notice; you cannot unsubscribe from it.
+Vemoa — book a time, not a call. A Venture CO Group product.

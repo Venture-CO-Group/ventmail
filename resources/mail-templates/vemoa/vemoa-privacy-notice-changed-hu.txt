@@ -1,0 +1,15 @@
+VÁLTOZIK AZ ADATKEZELÉSI TÁJÉKOZTATÓNK.
+
+Frissítettük, hogyan kezeljük a személyes adataidat. Összefoglaljuk, mi változik, és mikortól érvényes.
+
+Dokumentum: {{ document_title }}, {{ document_version }}. változat
+Hatályos: {{ document_effective_from }}
+Mi változik: {{ document_change_summary || a teljes szöveget a linken olvashatod }}
+
+Elolvasom az új változatot: {{ links_document }}
+
+Nincs teendőd: az új változat a hatálybalépés napjától érvényes. Kérdésed van az adataiddal kapcsolatban? Írj a {{ support_email }} címre.
+
+—
+Ezt a levelet azért kaptad, mert Vemoa-fiókod van. Ez kötelező tájékoztatás, nem lehet leiratkozni róla.
+Vemoa — időpont, nem telefon. A Venture CO Group terméke.

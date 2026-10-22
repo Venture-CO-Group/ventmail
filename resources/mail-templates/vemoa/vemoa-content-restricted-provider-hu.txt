@@ -1,0 +1,26 @@
+KORLÁTOZTUNK EGY TARTALMAT AZ OLDALADON.
+
+Egy bejelentés alapján felülvizsgáltuk {{ provider_the_name }} oldalának egyik tartalmát ({{ content_label }}), és korlátoztuk. A döntést az (EU) 2022/2065 rendelet (DSA) 17. cikke szerint indokoljuk.
+
+Hivatkozási szám: {{ notice_ref }}
+Döntés: {{ decision_label }}
+Alap: {{ decision_ground_label }}
+Indok: {{ decision_reason_label }}
+Jogszabály, ÁSZF-pont: {{ decision_ref || — }}
+
+„{{ decision_text || — }}”
+— Tények és körülmények: a moderátor indoklása
+
+A döntést munkatársunk hozta, egy bejelentés alapján; a tartalom felismeréséhez és a döntéshez automatizált eszközt nem használtunk.
+
+Ha nem értesz egyet a döntéssel, {{ appeal_months }} hónapon belül panaszt tehetsz a {{ support_email }} címen — írd bele a hivatkozási számot. A panaszt ember bírálja el, és nem az, aki a döntést hozta. Peren kívüli vitarendező testülethez (DSA 21. cikk) és bírósághoz is fordulhatsz; a testületek listáját a tartalomszabályzat tartalmazza.
+
+Tartalomszabályzat és vitarendezés: {{ links_policy }}
+
+Az érintett tartalom: {{ links_content }}
+
+Ha a panaszod jogos, a tartalmat visszaállítjuk. A bejelentő személyét nem adjuk ki.
+
+—
+Ez fiókhoz kapcsolódó, kötelező értesítés, nem lehet leiratkozni róla.
+Vemoa — időpont, nem telefon. A Venture CO Group terméke.
