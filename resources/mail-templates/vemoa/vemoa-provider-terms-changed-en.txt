@@ -1,0 +1,20 @@
+VEMOA'S TERMS FOR PROVIDERS CHANGE.
+
+We published a new version of Vemoa's terms for providers. Here is what changes, and from when.
+
+New version: {{ terms_version }}
+In effect from: {{ terms_effective_from }}
+What changes: {{ terms_change_summary || the full text of the new version is at the link }}
+
+Read the new terms: {{ links_terms }}
+
+From the day it takes effect, we ask you to accept it at your first sign-in to Biz; you can also accept it ahead. If you disagree with the change, you can end the contract before it takes effect. Questions or objections go to {{ support_email }}.
+
+Open Biz: {{ links_account }}
+
+We notify you of the change as Regulation (EU) 2019/1150 (P2B) art. 3 requires. {{ terms_notice_exception }} Keep this e-mail: it records the change and the day it takes effect.
+
+—
+This is a required notice about your account; you cannot unsubscribe from it.
+My account: {{ links_account }}
+Vemoa — book a time, not a call. A Venture CO Group product.

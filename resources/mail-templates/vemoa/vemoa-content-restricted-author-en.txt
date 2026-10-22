@@ -1,0 +1,26 @@
+WE DECIDED ABOUT YOUR REVIEW.
+
+Following a notice, we reviewed the review you wrote on the page of {{ provider_name }} and restricted it. We give the reasons as art. 17 of Regulation (EU) 2022/2065 (DSA) requires.
+
+Reference: {{ notice_ref }}
+Decision: {{ decision_label }}
+Ground: {{ decision_ground_label }}
+Reason: {{ decision_reason_label }}
+Law or terms point: {{ decision_ref || — }}
+
+„{{ decision_text || — }}”
+— Facts and circumstances: the moderator's explanation
+
+A member of our team made the decision, following a notice; no automated means were used to detect the content or to decide.
+
+If you disagree with the decision, you can complain within {{ appeal_months }} months at {{ support_email }} — quote the reference. A person reviews the complaint, never the one who made the decision. You can also turn to an out-of-court dispute settlement body (DSA art. 21) or to a court; the content policy lists the bodies.
+
+Content policy and dispute settlement: {{ links_policy }}
+
+Your review: {{ links_content }}
+
+If your complaint is upheld, we restore your review.
+
+—
+You received this e-mail because you wrote a review with this address on Vemoa.
+Vemoa — book a time, not a call. A Venture CO Group product.

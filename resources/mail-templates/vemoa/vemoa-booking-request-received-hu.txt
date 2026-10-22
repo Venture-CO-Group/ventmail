@@ -1,0 +1,19 @@
+MEGKAPTUK, JÓVÁHAGYÁSRA VÁR.
+
+Szia {{ guest_first_name }}! {{ provider_the_name_cap }} maga hagyja jóvá a foglalásait, ezért ez még nem visszaigazolás. Amint jóváhagyja, küldjük a visszaigazolást.
+
+Mikor: {{ booking_date_long }}, {{ booking_time }}–{{ booking_end_time }}
+Mit: {{ service_name }} · {{ staff_name }}
+Hol: {{ provider_name }}, {{ provider_address }}
+Ár: {{ booking_price }}
+
+Megnézem a foglalási kérést: {{ links_manage }}
+
+Visszavonom a kérést: {{ links_cancel }}
+
+Ha {{ booking_answer_by }}-ig nem kapsz választ, a kérés elmarad, és erről is írunk. Addig bármikor díjmentesen visszavonhatod.
+
+—
+Ezt a levelet azért kaptad, mert ezzel az e-mail-címmel időpontot foglaltak a Vemoán.
+Foglalásaim: {{ links_my_bookings }}
+Vemoa — időpont, nem telefon. A Venture CO Group terméke.

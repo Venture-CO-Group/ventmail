@@ -1,0 +1,20 @@
+VÁLTOZIK A SZOLGÁLTATÓI ÁSZF.
+
+Közzétettük a Vemoa szolgáltatói ÁSZF-jének új változatát. Összefoglaljuk, mi változik, és mikortól érvényes.
+
+Új változat: {{ terms_version }}.
+Hatályos: {{ terms_effective_from }}
+Mi változik: {{ terms_change_summary || az új változat teljes szövegét a linken olvashatod }}
+
+Elolvasom az új ÁSZF-et: {{ links_terms }}
+
+A hatálybalépés napjától a Biz felületen, az első bejelentkezéskor kérjük, hogy fogadd el; előre is elfogadhatod. Ha nem értesz egyet a változással, a hatálybalépés előtt felmondhatod a szerződést. Kérdést vagy kifogást a {{ support_email }} címre írhatsz.
+
+Megnyitom a Biz felületet: {{ links_account }}
+
+A változásról az (EU) 2019/1150 rendelet (P2B) 3. cikke szerint értesítünk. {{ terms_notice_exception }} Őrizd meg ezt a levelet: rögzíti a változást és a hatálybalépés napját.
+
+—
+Ez fiókhoz kapcsolódó, kötelező értesítés, nem lehet leiratkozni róla.
+Fiókom: {{ links_account }}
+Vemoa — időpont, nem telefon. A Venture CO Group terméke.

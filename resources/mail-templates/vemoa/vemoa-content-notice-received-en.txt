@@ -1,0 +1,18 @@
+WE RECEIVED YOUR NOTICE.
+
+Thank you for telling us. We recorded your notice; a member of our team reviews it, and we e-mail you the decision with its reasons.
+
+Reference: {{ notice_ref }}
+Received: {{ notice_received_at }}
+What you reported: {{ content_label }} · {{ provider_name }}
+Category: {{ category_label }}
+
+How we handle notices: {{ links_policy }}
+
+The reported content: {{ links_content }}
+
+We handle the notice under art. 16 of Regulation (EU) 2022/2065 (Digital Services Act). Quote the reference whenever you write about it.
+
+—
+You received this e-mail because a notice was sent with this address on Vemoa.
+Vemoa — book a time, not a call. A Venture CO Group product.

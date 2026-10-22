@@ -1,0 +1,18 @@
+A BOOKING WAITS FOR YOUR APPROVAL.
+
+Guest: {{ guest_name }}
+When: {{ booking_date_long }}, {{ booking_time }}–{{ booking_end_time }}
+What: {{ service_name }} · {{ staff_name }}
+Price: {{ booking_price }}
+Answer by: {{ booking_answer_by }}
+
+Approve or decline: {{ links_requests }}
+
+See it in the calendar: {{ links_calendar_admin }}
+
+If you do not decide by {{ booking_answer_by }}, the request lapses and we tell the guest. If you decline, you can say why — the guest reads it.
+
+—
+You received this e-mail because you manage {{ provider_the_name }} on Vemoa.
+My account: {{ links_account }}
+Vemoa — book a time, not a call. A Venture CO Group product.

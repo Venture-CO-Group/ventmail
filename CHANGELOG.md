@@ -5,6 +5,14 @@ A részletes döntési nyomvonal: `docs/plans/v1.1.md` (D1–D300).
 
 ## [Unreleased]
 
+## [1.4.8] — 2026-10-22 (Vemoa BL-25 függő sablonok)
+
+### Added
+- **Vemoa sablonkészlet (BL-25):** kilenc kulcs, hu + en — `booking-request-received`, `booking-request-declined`, `provider-booking-request` (jóváhagyásos foglalás, BL-44), `provider-terms-changed` (ÁSZF-változás, P2B 3. cikk, BL-40), `privacy-notice-changed` (adatkezelési tájékoztató új verziója, GDPR 12–13. cikk), `content-notice-received`, `content-notice-decided`, `content-restricted-provider`, `content-restricted-author` (DSA tartalombejelentés és indokolás, BL-39). A Vemoa `export_ventmail.py` exportja; `docs/integration/manifests/vemoa.json` frissítve.
+
+### Telepítés
+- `ops ventmail:templates:import venture vemoa`, utána a Vemoa `VEMOA_MAIL_PENDING_TEMPLATES` listájából a kilenc kulcs törölhető.
+
 ## [1.4.7] — 2026-10-22 (PHP 8.3.36 biztonsági javítás)
 
 ### Security

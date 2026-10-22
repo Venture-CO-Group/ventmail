@@ -1,0 +1,1 @@
+Nem jött létre: {{ booking_weekday }} {{ booking_time }}, {{ provider_name }}

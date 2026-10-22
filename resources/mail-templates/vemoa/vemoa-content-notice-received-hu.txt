@@ -1,0 +1,18 @@
+MEGKAPTUK A BEJELENTÉSEDET.
+
+Köszönjük, hogy szóltál. A bejelentésedet rögzítettük; munkatársunk bírálja el, és a döntésről indoklással együtt e-mailben értesítünk.
+
+Hivatkozási szám: {{ notice_ref }}
+Beérkezett: {{ notice_received_at }}
+Mit jelentettél: {{ content_label }} · {{ provider_name }}
+Kategória: {{ category_label }}
+
+Így kezeljük a bejelentéseket: {{ links_policy }}
+
+A bejelentett tartalom: {{ links_content }}
+
+A bejelentést a digitális szolgáltatásokról szóló (EU) 2022/2065 rendelet (DSA) 16. cikke szerint kezeljük. Ha hivatkozol rá, add meg a hivatkozási számot.
+
+—
+Ezt a levelet azért kaptad, mert ezzel az e-mail-címmel bejelentést tettél a Vemoán.
+Vemoa — időpont, nem telefon. A Venture CO Group terméke.

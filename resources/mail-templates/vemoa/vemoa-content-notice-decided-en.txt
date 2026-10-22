@@ -1,0 +1,24 @@
+WE DECIDED ON YOUR NOTICE.
+
+We reviewed your notice ({{ content_label }} · {{ provider_name }}). The decision and its reasons:
+
+Reference: {{ notice_ref }}
+Decision: {{ decision_label }}
+Ground: {{ decision_ground_label }}
+Reason: {{ decision_reason_label }}
+Law or terms point: {{ decision_ref || — }}
+
+„{{ decision_text || — }}”
+— Facts and circumstances: the moderator's explanation
+
+If you disagree with the decision, you can complain within {{ appeal_months }} months at {{ support_email }} — quote the reference. A person reviews the complaint, never the one who made the decision. You can also turn to an out-of-court dispute settlement body (DSA art. 21) or to a court; the content policy lists the bodies.
+
+Content policy and dispute settlement: {{ links_policy }}
+
+The content: {{ links_content }}
+
+A member of our team made the decision, with no automated decision-making, under art. 16, 20 and 21 of Regulation (EU) 2022/2065 (DSA).
+
+—
+You received this e-mail because a notice was sent with this address on Vemoa.
+Vemoa — book a time, not a call. A Venture CO Group product.

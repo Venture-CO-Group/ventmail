@@ -1,0 +1,16 @@
+THIS TIME WAS NOT BOOKED.
+
+Hi {{ guest_first_name }}! {{ provider_name }} did not confirm your booking request, so the time was not booked and is free again.
+
+What you asked for: {{ service_name }} · {{ provider_name }}
+When: {{ booking_date_long }}, {{ booking_time }}
+Message: {{ decline_reason || — }}
+
+Pick another time: {{ links_rebook }}
+
+Find another provider nearby: {{ links_explore }}
+
+—
+You received this e-mail because a booking was made with this address on Vemoa.
+My bookings: {{ links_my_bookings }}
+Vemoa — book a time, not a call. A Venture CO Group product.
