@@ -1,0 +1,18 @@
+YOUR LINK IS READY. SEND IT OUT.
+
+Hi! The booking page of {{ provider_the_name_cap }} is live. Put it in your Instagram bio and on your Google profile, and send it to your regulars.
+
+Your link: {{ provider_public_url }}
+
+1. Profile: cover photo and gallery — With a photo, more people open your page.
+2. Business details — They put you on the marketplace — until then, guests can book on your link.
+3. Import your client list — So your existing clients get reminders too.
+
+Open the admin: {{ links_admin }}
+
+Your to-do list is on the admin's home page too: whatever you finish ticks itself off.
+
+—
+You received this e-mail because you manage {{ provider_the_name }} on Vemoa.
+My account: {{ links_account }}
+Vemoa — book a time, not a call. A Venture CO Group product.
