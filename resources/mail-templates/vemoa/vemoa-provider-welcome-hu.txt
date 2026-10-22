@@ -1,0 +1,18 @@
+KÉSZ A LINKED. MEHET KI A VILÁGBA.
+
+Szia! {{ provider_the_name_cap }} foglalási oldala él. Tedd ki az Instagram-bióba, a Google-profilodra, és küldd el a törzsvendégeidnek.
+
+A te linked: {{ provider_public_url }}
+
+1. Profil: borítókép és galéria — Fotóval többen nyitják meg az oldaladat.
+2. Kereskedői adatok — Ezzel jelensz meg a piactéren — addig a linkeden is foglalhatnak.
+3. Vendéglista importálása — Így a régi vendégeid is kapnak emlékeztetőt.
+
+Megnyitom az admint: {{ links_admin }}
+
+A teendőid listáját az admin kezdőlapján is látod: amit elvégeztél, magától kipipálódik.
+
+—
+Ezt a levelet azért kapod, mert te kezeled {{ provider_the_name }} Vemoa-fiókját.
+Fiókom: {{ links_account }}
+Vemoa — időpont, nem telefon. A Venture CO Group terméke.

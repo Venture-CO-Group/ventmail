@@ -5,6 +5,14 @@ A részletes döntési nyomvonal: `docs/plans/v1.1.md` (D1–D300).
 
 ## [Unreleased]
 
+## [1.4.9] — 2026-10-22 (Vemoa szolgáltatói üdvözlés)
+
+### Added
+- **Vemoa sablonkészlet (BL-54):** `provider-welcome` (a beállító varázsló végén: a megosztható foglalási link és a beállítási lista — profil, üzleti adatok, ügyfélimport), hu + en. A Vemoa `export_ventmail.py` exportja; `docs/integration/manifests/vemoa.json` frissítve.
+
+### Telepítés
+- `ops ventmail:templates:import venture vemoa`, utána a Vemoa `VEMOA_MAIL_PENDING_TEMPLATES` listájából a `provider-welcome` törölhető.
+
 ## [1.4.8] — 2026-10-22 (Vemoa BL-25 függő sablonok)
 
 ### Added

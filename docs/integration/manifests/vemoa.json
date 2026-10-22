@@ -711,6 +711,33 @@
       }
     },
     {
+      "key": "provider-welcome",
+      "audience": "provider",
+      "channel": "transactional",
+      "purpose": "BL-54 (P1): the onboarding wizard is finished — the booking link to share and the setup checklist (profile, business details, client import). To the owner who finished, at their ventSSO-verified address (BL-23), once per workspace (notify:provider-welcome:{workspace}). Vemoa keeps no person's name, so the greeting has none (the design's owner.first_name is never sent).",
+      "variables": {
+        "provider_name": "string — the provider's business name",
+        "provider_the_name": "string — the name with its article ('a Rózsa Stúdió', 'az Ilona Stúdió'); the bare name in English",
+        "provider_the_name_cap": "string — the same, capitalised ('A Rózsa Stúdió'); the bare name in English",
+        "provider_public_url": "string — the booking link as text, without the scheme ('vemoa.app/rozsa-studio'; 'vemoa.app' before an address is set)",
+        "links_admin": "string — https://biz.vemoa.app/ (the dashboard with the setup checklist)",
+        "links_account": "string — https://biz.vemoa.app/profile"
+      },
+      "required_links": [
+        "links_admin",
+        "links_account"
+      ],
+      "subject": {
+        "hu": "Kész a foglalási linked",
+        "en": "Your booking link is ready"
+      },
+      "design": "P1-udvozles",
+      "design_pending": {
+        "owner_first_name": "BL-54",
+        "links_notification_settings": "BL-23"
+      }
+    },
+    {
       "key": "provider-approved",
       "audience": "provider",
       "channel": "transactional",
