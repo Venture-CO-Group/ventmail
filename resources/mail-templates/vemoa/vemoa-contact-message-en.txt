@@ -1,0 +1,18 @@
+A NEW MESSAGE FROM THE CONTACT FORM.
+
+Reference: {{ message_ref }}
+From: {{ sender_name }} · {{ sender_email }}
+Topic: {{ topic_label }}
+Page language: {{ sender_locale_label }}
+Sent: {{ sent_at_label }}
+
+„{{ message_text }}”
+— The message as the sender wrote it
+
+Reply: {{ links_reply }}
+
+The sender agreed that we handle the message to answer it. The app's database does not keep the message; this e-mail and the reply stay in this mailbox — keep them as the privacy policy says.
+
+—
+The vemoa.app/kapcsolat form sent this e-mail to Vemoa's support team. Replies go to the sender.
+Vemoa — book a time, not a call. A Venture CO Group product.

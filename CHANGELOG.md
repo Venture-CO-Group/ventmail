@@ -5,6 +5,14 @@ A részletes döntési nyomvonal: `docs/plans/v1.1.md` (D1–D300).
 
 ## [Unreleased]
 
+## [1.4.10] — 2026-10-23 (Vemoa kapcsolatfelvételi üzenet)
+
+### Added
+- **Vemoa sablonkészlet:** `contact-message` (a vemoa.app/kapcsolat űrlapon küldött üzenet a Vemoa support-postafiókjába; a `Reply-To` a feladó címe, a „Válaszolok” gomb `mailto:` link — a `links_reply`), hu + en. A Vemoa `export_ventmail.py` exportja; `docs/integration/manifests/vemoa.json` frissítve. Kódváltozás nem kellett: a `h:Reply-To` a `HeaderSafetyGate` engedélyezett fejléce.
+
+### Telepítés
+- `ops ventmail:templates:import venture vemoa`, utána a Vemoa `VEMOA_MAIL_PENDING_TEMPLATES` listájából a `contact-message` törölhető.
+
 ## [1.4.9] — 2026-10-22 (Vemoa szolgáltatói üdvözlés)
 
 ### Added
