@@ -1592,6 +1592,30 @@
       },
       "design": "BL40-adatkezeles-valtozik",
       "design_pending": {}
+    },
+    {
+      "key": "contact-message",
+      "audience": "operator",
+      "channel": "transactional",
+      "purpose": "2026-10-22: a message someone sent on the vemoa.app/kapcsolat contact form, to Vemoa's support mailbox (vemoa.support_email) — always in Hungarian (the team's language; the sender's page language is a variable). Sent from the platform's own outbox (platform_mail_outbox): the sender's name, address and words are wiped once delivered, nothing else keeps them. Reply-To is the sender's address (MailTemplates::REPLY_TO). No copy goes to the sender (the form would otherwise send mail to any address). Held back (VEMOA_MAIL_PENDING_TEMPLATES) until imported: until then the page shows the support address instead of the form.",
+      "variables": {
+        "message_ref": "string — the message's short reference (8 characters), the one the sender saw on the page",
+        "sender_name": "string — the name the sender gave",
+        "sender_email": "string — the address the sender gave (also the Reply-To)",
+        "topic": "string — code: guest | provider | partnership | other",
+        "topic_label": "string — the topic in words ('Vendégként kérdezek')",
+        "message_text": "string — the message as written (plain text, line breaks kept; up to 4000 characters)",
+        "sender_locale_label": "string — the language of the page it was sent from, in words ('magyar', 'angol'): the language to answer in",
+        "sent_at_label": "string — when it was sent, in words ('október 22., csütörtök 14:05')",
+        "links_reply": "string — mailto: the sender's address, the answer button"
+      },
+      "required_links": [
+        "links_reply"
+      ],
+      "subject": {
+        "hu": "Kapcsolat: {{ topic_label }} ({{ message_ref }})",
+        "en": "Contact: {{ topic_label }} ({{ message_ref }})"
+      }
     }
   ]
 }

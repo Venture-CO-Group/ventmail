@@ -1,0 +1,18 @@
+ÚJ ÜZENET A KAPCSOLATI ŰRLAPRÓL.
+
+Hivatkozási szám: {{ message_ref }}
+Feladó: {{ sender_name }} · {{ sender_email }}
+Téma: {{ topic_label }}
+Az oldal nyelve: {{ sender_locale_label }}
+Elküldve: {{ sent_at_label }}
+
+„{{ message_text }}”
+— Az üzenet, ahogy a feladó írta
+
+Válaszolok: {{ links_reply }}
+
+A feladó hozzájárult, hogy az üzenetét a megkeresése megválaszolásához kezeljük. Az alkalmazás adatbázisa nem őrzi meg az üzenetet; ez a levél és a válasz ebben a postafiókban marad — a megőrzést az adatkezelési tájékoztató szerint kezeld.
+
+—
+Ezt a levelet a vemoa.app/kapcsolat űrlapja küldte a Vemoa ügyfélszolgálatának. A válasz a feladó címére megy.
+Vemoa — időpont, nem telefon. A Venture CO Group terméke.
