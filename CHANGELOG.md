@@ -5,6 +5,14 @@ A részletes döntési nyomvonal: `docs/plans/v1.1.md` (D1–D300).
 
 ## [Unreleased]
 
+## [1.4.7] — 2026-10-22 (PHP 8.3.36 biztonsági javítás)
+
+### Security
+- **PHP 8.3.33 → 8.3.36** (`php:8.3.36-fpm-alpine3.24`, index digest `sha256:aaf1ad25fc6484613be770743d1038e98e3e7e07409d78b97410eccdf3628f75`): a PHP2Shell (CVE-2026-109618, CVE-2026-109619, CVSS 9.2, hitelesítés nélküli RCE) javítása. Más változás nincs.
+
+### Telepítés
+- `./deploy.sh v1.4.7`; konténerenként `php -v` / `php-fpm -v` = 8.3.36.
+
 ## [1.4.6] — 2026-10-21 (Vemoa előleg-link)
 
 ### Added

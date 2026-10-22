@@ -13,7 +13,7 @@
 # Built and pushed only by .github/workflows/release.yml. Never on the server.
 # The same pattern as ventSSO; PHP 8.3 is the ventMail spec's locked version.
 
-ARG PHP_IMAGE=php:8.3.33-fpm-alpine3.24
+ARG PHP_IMAGE=php:8.3.36-fpm-alpine3.24
 ARG COMPOSER_IMAGE=composer:2.9.8
 ARG CADDY_IMAGE=caddy:2.11.7-alpine
 
