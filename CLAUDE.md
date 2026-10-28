@@ -97,7 +97,7 @@ saját identity/consent/számlázó/landing-page reimplementáció · direkt pus
 | Parancs | Mit |
 |---|---|
 | `php artisan test --parallel` (Pest) | backend; `heavy` csoport (300k import) és `smtp-socket` / `timescale` külön CI-lépés |
-| `npm run test:unit` | frontend unit (vitest 4.1.11 + happy-dom 20.14.5, `tests/js/`) |
+| `npm run test:unit` | frontend unit (vitest 4.1.12 + happy-dom 21.0.4, `tests/js/`) |
 | `npm run e2e` (Playwright) | flow-k + `layout-overlap`; `E2E_IMPORT_300K=1` a 300k importra (CI-ban mindig, lokálisan opt-in) |
 | `npm run screenshots` | `docs/screenshots/v1.1/` (app + mockup, desktop + mobil); **csak tiszta demó-DB-n**: `php artisan migrate:fresh --seed` CSAK a helyi dev DB-n |
 | `npm run typecheck` · `npm run build` | `vue-tsc`; build = app + külön riport-IIFE (`vite.report.config.ts`) |
