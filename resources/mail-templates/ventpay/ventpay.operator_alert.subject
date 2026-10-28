@@ -1,0 +1,1 @@
+[ventPay] {{ alert_name }} ({{ mode || deployment }})

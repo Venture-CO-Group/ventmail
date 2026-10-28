@@ -1,0 +1,33 @@
+{
+  "prefix": "ventpay",
+  "locales": ["hu"],
+  "notes": [
+    "Source: ventPay config/ventpay.php `alerts` (owner decision D3, 2026-10-26; HUMAN-QUEUE #26, #99) and app/Modules/Platform/Application/Alerts/SendOperatorAlert.php. ventPay has no docs/integration/ventmail-templates.json yet; this file is the reference until it does.",
+    "ventPay sends `template=ventpay.operator_alert` with no locale suffix and no o:channel (= transactional), with its own API key (workspace `venture`). The stored name is therefore fixed (`name`), and the one template is bilingual: Hungarian first, English below — the set carries a single manifest locale (hu).",
+    "ventPay always sends its own subject (`[ventPay] alarm: <name> (<mode>)` / `[ventPay] job failed: ...`); the request subject wins, the template subject is only the fallback.",
+    "Identifiers only, never personal data or a payload: an alert mail is read, forwarded and kept in an inbox.",
+    "Import: `ventmail:templates:import venture ventpay`."
+  ],
+  "templates": [
+    {
+      "key": "operator_alert",
+      "name": "ventpay.operator_alert",
+      "audience": "operator",
+      "channel": "transactional",
+      "purpose": "Something in ventPay a person has to look at: an outbox alarm (outcome unknown, refund contradicted, money after close …), a failed scheduled task, a dead-lettered outbox event or a token order that needs a person.",
+      "variables": {
+        "alert_kind": "string — outbox_alarm | scheduled_task_failed | outbox_dead_letter | token_order",
+        "alert_name": "string — the alarm's / event's name (e.g. payment.outcome_unknown) or the failed task",
+        "reference": "string — the outbox row or the exception class it points at; empty when there is none",
+        "tenant_id": "string — the ventPay tenant's identifier; empty for a deployment-wide alert",
+        "mode": "string — live | test; empty for a deployment-wide alert",
+        "occurred_at": "string — ISO 8601 UTC, e.g. 2026-10-28T09:30:00Z",
+        "admin_url": "string — the ventPay admin's base URL (APP_URL)"
+      },
+      "required_links": ["admin_url"],
+      "subject": {
+        "hu": "[ventPay] {{ alert_name }} ({{ mode || deployment }})"
+      }
+    }
+  ]
+}

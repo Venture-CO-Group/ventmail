@@ -1,0 +1,32 @@
+[ventPay] {{ alert_name }}
+
+Üzemeltetői riasztás a ventPay-ből: valakinek rá kell néznie.
+
+Típus: {{ alert_kind }}
+Riasztás: {{ alert_name }}
+Hivatkozás: {{ reference || nincs }}
+Tenant: {{ tenant_id || az egész telepítés }}
+Világ: {{ mode || az egész telepítés }}
+Időpont (UTC): {{ occurred_at }}
+
+ventPay admin megnyitása:
+{{ admin_url }}
+
+---
+
+Operator alert from ventPay: somebody has to look.
+
+Kind: {{ alert_kind }}
+Alert: {{ alert_name }}
+Reference: {{ reference || none }}
+Tenant: {{ tenant_id || whole deployment }}
+World: {{ mode || whole deployment }}
+Time (UTC): {{ occurred_at }}
+
+Open the ventPay admin:
+{{ admin_url }}
+
+-- 
+Üzemeltetői riasztás, csak azonosítókkal, személyes adat nélkül. Automatikus értesítés, kérjük, ne válaszolj rá.
+Operator alert, identifiers only, no personal data. Automatic notice, please do not reply.
+Venture co. group · ventPay

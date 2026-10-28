@@ -155,3 +155,26 @@ it('a tárgy-fájl eltávolítása (törzs változatlan) új, tárgy nélküli v
         removeSet($set);
     }
 });
+
+it('a ventPay üzemeltetői riasztása pontosan azon a néven kerül be, amelyen a ventPay küldi', function () {
+    // ventPay SendOperatorAlert: `template` = `ventpay.operator_alert`, nyelvi utótag nélkül,
+    // `v:alert_kind`, `v:alert_name`, `v:reference`, `v:tenant_id`, `v:mode`, `v:occurred_at`, `v:admin_url`.
+    expect(Artisan::call('ventmail:templates:import', ['workspace' => 'venture', 'set' => 'ventpay']))->toBe(0);
+
+    app(WorkspaceContext::class)->set($this->workspace);
+
+    $version = StoredTemplateVersion::query()
+        ->whereHas('template', fn ($q) => $q->where('name', 'ventpay.operator_alert'))
+        ->where('is_active', true)->first();
+
+    expect($version)->not->toBeNull()
+        ->and($version->subject)->toBe('[ventPay] {{ alert_name }} ({{ mode || deployment }})')
+        ->and($version->body)->toContain('href="{{ admin_url }}"')
+        ->and($version->body)->toContain('lang="hu"')
+        ->and($version->body)->toContain('lang="en"')
+        ->and($version->body_text)->toContain('{{ alert_name }}');
+
+    foreach (['alert_kind', 'alert_name', 'reference', 'tenant_id', 'mode', 'occurred_at'] as $var) {
+        expect($version->body)->toContain('{{ '.$var);
+    }
+});
