@@ -11,7 +11,7 @@ use App\Modules\StoredTemplates\Services\TemplateRenderer;
  | önállósága miatt él másolat). DB nélkül fut.
  */
 
-const FAMILY_SET_DIRS = ['ventsso' => 'ventsso', 'ventsec' => 'ventsec', 'ventcookie' => 'ventcookie', 'vemoa' => 'vemoa'];
+const FAMILY_SET_DIRS = ['ventsso' => 'ventsso', 'ventsec' => 'ventsec', 'ventcookie' => 'ventcookie', 'vemoa' => 'vemoa', 'ventpay' => 'ventpay'];
 
 /** @return array<string, array{0: string, 1: string, 2: string, 3: array<string, mixed>}> */
 function familyTemplateCases(): array
@@ -29,7 +29,13 @@ function familyTemplateCases(): array
 
         foreach ($manifest['templates'] as $template) {
             foreach ($manifest['locales'] as $locale) {
-                $name = "{$manifest['prefix']}-{$template['key']}-{$locale}";
+                // Fix wire name (`name`): the app sends exactly this, with no locale suffix —
+                // then the set carries one locale (a bilingual body), so the name stays unique.
+                if (isset($template['name']) && count($manifest['locales']) !== 1) {
+                    throw new LogicException("{$set}/{$template['key']}: a fixed `name` needs exactly one manifest locale");
+                }
+
+                $name = $template['name'] ?? "{$manifest['prefix']}-{$template['key']}-{$locale}";
                 $cases["{$set}/{$name}"] = [$dir, $name, $locale, $template];
             }
         }

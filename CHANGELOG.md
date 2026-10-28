@@ -5,6 +5,14 @@ A részletes döntési nyomvonal: `docs/plans/v1.1.md` (D1–D300).
 
 ## [Unreleased]
 
+## [1.4.11] — 2026-10-28 (ventPay üzemeltetői riasztás)
+
+### Added
+- **ventPay sablonkészlet:** `ventpay.operator_alert` — a ventPay üzemeltetői riasztása (outbox-riasztás, elbukott ütemezett feladat, dead-letter, beavatkozást igénylő tokenrendelés; owner D3, ventPay HUMAN-QUEUE #26/#99). Pontosan azon a néven, amelyen a ventPay küldi (`template=ventpay.operator_alert`, nyelvi utótag nélkül, tranzakciós csatorna), ezért egyetlen, kétnyelvű (magyar, alatta angol) sablon; változók: `alert_kind`, `alert_name`, `reference`, `tenant_id`, `mode`, `occurred_at`, `admin_url` — csak azonosítók, személyes adat nincs. Új manifeszt: `docs/integration/manifests/ventpay.json`; a `FamilyTemplateSetsTest` a manifeszt `name` mezőjével a rögzített (utótag nélküli) nevet is ellenőrzi.
+
+### Telepítés
+- `ops ventmail:templates:import venture ventpay`. A küldéshez a ventPay oldalán: `VENTPAY_MAIL_DRIVER=ventmail`, `VENTMAIL_ENABLED=true`, `VENTPAY_ALERT_EMAIL`.
+
 ## [1.4.10] — 2026-10-23 (Vemoa kapcsolatfelvételi üzenet)
 
 ### Added
