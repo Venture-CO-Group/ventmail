@@ -1,0 +1,20 @@
+VÁLTOZIK AZ ADATFELDOLGOZÓI MEGÁLLAPODÁS.
+
+Közzétettük a Vemoa adatfeldolgozói megállapodásának új változatát. A megállapodás a szolgáltatói ÁSZF melléklete: azt rögzíti, hogyan kezeli a Vemoa a nevedben a vendégeid adatait.
+
+Új változat: {{ dpa_version }}.
+Hatályos: {{ dpa_effective_from }}
+Mi változik: {{ dpa_change_summary || az új változat teljes szövegét a linken olvashatod }}
+
+Elolvasom a megállapodást: {{ links_dpa }}
+
+Külön elfogadni nem kell: a megállapodás az ÁSZF része, és a hatálybalépés napjától azzal együtt érvényes — a Vemoa további használatával tudomásul veszed. Ha nem értesz egyet a változással, a hatálybalépés előtt felmondhatod a szerződést. Kérdést vagy kifogást a {{ support_email }} címre írhatsz.
+
+Megnyitom a Biz felületet: {{ links_account }}
+
+A változásról a hatálybalépés előtt legalább 15 nappal értesítünk (ÁSZF; (EU) 2019/1150 rendelet, 3. cikk). {{ dpa_notice_exception }} Őrizd meg ezt a levelet: rögzíti a változást és a hatálybalépés napját.
+
+—
+Ez fiókhoz kapcsolódó, kötelező értesítés, nem lehet leiratkozni róla.
+Fiókom: {{ links_account }}
+Vemoa — időpont, nem telefon. A Venture CO Group terméke.

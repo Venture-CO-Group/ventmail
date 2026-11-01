@@ -1426,7 +1426,7 @@
       "key": "provider-terms-changed",
       "audience": "provider",
       "channel": "transactional",
-      "purpose": "BL-40 (P2B art. 3): a new version of the providers' terms (ÁSZF) was published — what changes, from when (at least 15 days later unless an art. 3(4) ground is named), where to read it; it is accepted at the next sign-in from that day, or ahead of it in Biz. To the trader contact and every owner's own address, once per version and recipient.",
+      "purpose": "BL-40 (P2B art. 3): a new version of the providers' terms (ÁSZF) was published — what changes, from when (at least 15 days later unless an art. 3(4) ground is named), where to read it; it is accepted at the next sign-in from that day, or ahead of it in Biz. To the trader contact and every owner's own address, once per version and recipient. When the data processing agreement is published together with the terms (within 10 minutes), its change (version, day, summary, link) is named in terms_change_summary and no separate e-mail goes.",
       "variables": {
         "provider_name": "string — the provider's business name",
         "provider_the_name": "string — the name with its article ('a Rózsa Stúdió', 'az Ilona Stúdió')",
@@ -1447,6 +1447,33 @@
         "en": "Vemoa's terms for providers change — {{ terms_effective_from }}"
       },
       "design": "BL40-aszf-valtozik",
+      "design_pending": {}
+    },
+    {
+      "key": "provider-dpa-changed",
+      "audience": "provider",
+      "channel": "transactional",
+      "purpose": "2026-11-01 (GDPR art. 28; P2B art. 3 via the terms): a new version of the data processing agreement — the providers' terms' annex — was published on its own: what changes, from when (at least 15 days later unless an art. 3(4) ground is named), where to read it. No separate acceptance: it is part of the terms and applies with them from that day (the provider may end the contract before it). To the trader contact and every owner's own address, once per version and recipient (notify:legal-dpa:{document}:{workspace}:{who}). Held back (VEMOA_MAIL_PENDING_TEMPLATES) until imported; while held back no agreement version can be published.",
+      "variables": {
+        "provider_name": "string — the provider's business name",
+        "provider_the_name": "string — the name with its article ('a Rózsa Stúdió', 'az Ilona Stúdió')",
+        "dpa_version": "string — the new version's number ('2')",
+        "dpa_effective_from": "string — the day it takes effect, in words ('november 8., vasárnap')",
+        "dpa_change_summary": "string — what changes, in the admin's words ('' for a version without one)",
+        "dpa_notice_exception": "string — why it takes effect sooner than 15 days (P2B art. 3(4)), in words; '' normally",
+        "links_dpa": "string — the new version on vemoa.app (https://vemoa.app/aszf/adatfeldolgozas?version=2)",
+        "links_account": "string — https://biz.vemoa.app/",
+        "support_email": "string — where to write with a question or an objection (VEMOA_SUPPORT_EMAIL)"
+      },
+      "required_links": [
+        "links_dpa",
+        "links_account"
+      ],
+      "subject": {
+        "hu": "Változik a Vemoa adatfeldolgozói megállapodása — {{ dpa_effective_from }}",
+        "en": "Vemoa's data processing agreement changes — {{ dpa_effective_from }}"
+      },
+      "design": "BL40-adatfeldolgozas-valtozik",
       "design_pending": {}
     },
     {
