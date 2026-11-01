@@ -1,0 +1,15 @@
+VÉGET ÉRT A FIZETŐS CSOMAGOD.
+
+{{ provider_the_name_cap }} {{ plan_name }} csomagjának megújítási díját többszöri próbálkozás után sem sikerült beszedni, ezért a csomag véget ért. A munkahelyed mostantól az Ingyenes csomagon fut.
+
+Ami megmarad: Minden adatod: az ügyfeleid, a foglalásaid és az eladott bérletek.
+Ami szünetel: Az Ingyenes csomag keretén felüli naptárak és funkciók; az online foglalás az Ingyenes csomag havi keretéig megy.
+
+Újra előfizetek: {{ links_billing }}
+
+Ha szerinted tévedés történt, vagy közben rendezted a díjat, válaszolj erre a levélre.
+
+—
+Ez fiókhoz kapcsolódó, kötelező értesítés, nem lehet leiratkozni róla.
+Fiókom: {{ links_account }}
+Vemoa — időpont, nem telefon. A Venture CO Group terméke.

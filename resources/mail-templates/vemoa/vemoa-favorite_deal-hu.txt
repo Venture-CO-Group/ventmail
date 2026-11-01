@@ -1,0 +1,18 @@
+ÚJ AKCIÓ EGY KEDVENC HELYEDEN.
+
+{{ provider_the_name_cap }} új akciót indított: {{ deal_label }}. Nézd meg, és foglalj, amíg tart.
+
+Akció: {{ deal_label }}
+Mire: {{ deal_service || a kínálatra }}
+Mikor: {{ deal_when || amíg az akció tart }}
+Ár: {{ deal_price || a foglalásnál látod }}
+
+Megnézem és foglalok: {{ links_provider_page }}
+
+Az akció a szolgáltató saját kedvezménye, nem hirdetés. Legfeljebb naponta egy ilyen levelet küldünk.
+
+—
+Ezt a levelet azért kaptad, mert kedvencnek jelölted ezt a helyet, és bekapcsoltad a kedvenc helyeid akcióiról szóló e-mailt (Profil → Értesítések).
+Foglalásaim: {{ links_my_bookings }}
+Leiratkozás: {{ links_unsubscribe }}
+Vemoa — időpont, nem telefon. A Venture CO Group terméke.

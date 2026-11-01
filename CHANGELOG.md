@@ -5,6 +5,18 @@ A részletes döntési nyomvonal: `docs/plans/v1.1.md` (D1–D300).
 
 ## [Unreleased]
 
+## [1.4.12] — 2026-11-01 (Vemoa: kedvenc helyek akciói, csomag vége)
+
+### Added
+- **Vemoa sablonkészlet (BL-74):** `favorite_deal` — egy kedvenc hely új akciója a vendégnek (marketing-csatorna, a vendég saját opt-inje; a Vemoa aláírt egykattintásos leiratkozó linkje `links_unsubscribe`, a ventMail List-Unsubscribe-ja `unsubscribed` webhookként jön vissza `v:guest_mail_id`-vel), hu + en.
+- **Vemoa sablonkészlet (M3.4):** `billing-plan-ended` — a fizetős csomag a ventPay behajtása után véget ért (eddig hiányzott a készletből), hu + en.
+
+### Changed
+- `vemoa-review_request-en`: a lábléc leiratkozó linkje angolul („Unsubscribe”). A Vemoa `export_ventmail.py` exportja; `docs/integration/manifests/vemoa.json` frissítve.
+
+### Telepítés
+- `ops ventmail:templates:import venture vemoa`, utána a Vemoa `VEMOA_MAIL_PENDING_TEMPLATES` listájából a `favorite_deal` és a `billing-plan-ended` törölhető. A `favorite_deal` csak nyitott marketing-csatornán megy ki (Vemoa: `VENTMAIL_MARKETING_ENABLED=true`).
+
 ## [1.4.11] — 2026-10-28 (ventPay üzemeltetői riasztás)
 
 ### Added

@@ -1,0 +1,15 @@
+YOUR PAID PLAN HAS ENDED.
+
+We could not collect the renewal of the {{ plan_name }} plan of {{ provider_name }}, even after several tries, so the plan has ended. Your workspace now runs on the Free plan.
+
+What stays: All your data: your clients, your bookings and the passes you sold.
+What pauses: The calendars and features beyond the Free plan; online booking goes up to the Free plan's monthly allowance.
+
+Subscribe again: {{ links_billing }}
+
+If you think this is a mistake, or you have settled the fee meanwhile, reply to this e-mail.
+
+—
+This is a required notice about your account; you cannot unsubscribe from it.
+My account: {{ links_account }}
+Vemoa — book a time, not a call. A Venture CO Group product.

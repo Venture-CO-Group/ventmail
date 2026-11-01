@@ -11,7 +11,7 @@
     "Variables are scalars. `*_label` and `amount` are ready-made words in the message language; the raw code/amount_minor stay for conditions.",
     "Do not use ventMail-reserved names for variables (unsubscribe_url, preferences_url, browser_url, recipient_email, current_year): ventMail overwrites them. Vemoa's own opt-out link is optout_url; ventMail's List-Unsubscribe still works and arrives as the unsubscribed webhook.",
     "Transactional mail is sent with o:tracking=no; the unsubscribe links are /unsubscribe/... so a rewriting tracker leaves them alone.",
-    "Marketing keys (rebook_nudge, birthday_greeting, win_back, fill_offer) go on the marketing channel, closed until ventMail opens it; review_request stays transactional with an opt-out (owner/DPO question open).",
+    "Marketing keys (rebook_nudge, birthday_greeting, win_back, fill_offer, favorite_deal) go on the marketing channel, closed until ventMail opens it; review_request stays transactional with an opt-out (owner/DPO question open).",
     "Redesign 2026 (docs/design/email-templates): a designed template's dotted name (booking.time) is sent with underscores (booking_time) — ventMail reads a dot as nesting, and t:variables are flat scalars. `design` names the designed template a key stands for; `design_pending` the variables that wait for a backlog item.",
     "BL-25: a `design` that is not a Figma design (docs/design/email-templates/manifest.json) is written by docs/design/email-templates/export_ventmail.py in the family's blocks (BL-39, BL-40, BL-44); docs/design/email-templates/ventmail/ holds the export of every key — the files ventMail imports (resources/mail-templates/vemoa, `ventmail:templates:import <workspace> vemoa`)."
   ],
@@ -1616,6 +1616,59 @@
         "hu": "Kapcsolat: {{ topic_label }} ({{ message_ref }})",
         "en": "Contact: {{ topic_label }} ({{ message_ref }})"
       }
+    },
+    {
+      "key": "billing-plan-ended",
+      "audience": "provider",
+      "channel": "transactional",
+      "purpose": "M3.4 (provider terms 10a): the workspace's paid Vemoa plan ended because ventPay could not collect its renewal (ventPay's dunning ran out: the entitlement went from full access to unpaid) — the workspace now runs on Free, its data stays. Not sent when the owner cancelled. To every owner's own address, once per ventPay entitlement version and owner.",
+      "variables": {
+        "provider_name": "string — the provider's business name",
+        "provider_the_name": "string — the name with its article ('a Rózsa Stúdió', 'az Ilona Stúdió')",
+        "provider_the_name_cap": "string — the same at a sentence's start ('A …', 'Az …')",
+        "plan_name": "string — the plan that ended ('Start', 'Pro', 'Studio')",
+        "links_billing": "string — https://biz.vemoa.app/settings/billing (the plan, buying it again, ventPay's invoices)",
+        "links_account": "string — https://biz.vemoa.app/"
+      },
+      "required_links": [
+        "links_billing",
+        "links_account"
+      ],
+      "subject": {
+        "hu": "Véget ért a {{ plan_name }} csomagod — {{ provider_name }}",
+        "en": "Your {{ plan_name }} plan has ended — {{ provider_name }}"
+      },
+      "design": "BL08-csomag-veget-ert",
+      "design_pending": {}
+    },
+    {
+      "key": "favorite_deal",
+      "audience": "guest",
+      "channel": "marketing",
+      "purpose": "BL-74: a provider the guest favourited published a new deal (its own discount — not an ad, rule 9). Marketing: only to a guest who switched it on (notify.email.favorites_deals, off by default), from the guests' own outbox (platform context, never a provider's); the address is read at sending. Once per deal and guest (notify:favorite_deal:{deal}:{guest}), at most one a day per guest and one a week per guest and provider. The opt-out link and ventMail's unsubscribe turn the switch off. Held back (VEMOA_MAIL_PENDING_TEMPLATES) until imported.",
+      "variables": {
+        "provider_name": "string — the provider's business name",
+        "provider_the_name_cap": "string — the name with its article at a sentence's start ('A Rózsa Stúdió', 'Az Ilona Stúdió')",
+        "deal_label": "string — the deal's label as guests see it on the provider's card ('−20%')",
+        "deal_service": "string — the service it is for ('' when it is for every service)",
+        "deal_price": "string — the price with the deal, formatted ('7 920 Ft'; '' without a fixed price)",
+        "deal_list_price": "string — the price before it, formatted ('9 900 Ft'; '' without a fixed price)",
+        "deal_when": "string — when it can be taken, in words ('október 18., szombat 9:00' or '9:00–12:00'; '' when any time)",
+        "links_provider_page": "string — the provider's page on vemoa.app (https://vemoa.app/szolgaltato/rozsa-studio), where the deal is booked",
+        "links_my_bookings": "string — https://vemoa.app/app/aktivitas",
+        "links_unsubscribe": "string — Vemoa's signed one-click opt-out (/unsubscribe/guest/…): turns the guest's favourite-deal e-mails off. NOT ventMail's reserved unsubscribe_url"
+      },
+      "required_links": [
+        "links_provider_page",
+        "links_my_bookings",
+        "links_unsubscribe"
+      ],
+      "subject": {
+        "hu": "Új akció: {{ provider_name }} — {{ deal_label }}",
+        "en": "New deal at {{ provider_name }} — {{ deal_label }}"
+      },
+      "design": "BL74-kedvenc-akcio",
+      "design_pending": {}
     }
   ]
 }

@@ -1,0 +1,18 @@
+A NEW DEAL AT ONE OF YOUR FAVOURITE PLACES.
+
+{{ provider_name }} started a new deal: {{ deal_label }}. Take a look and book while it lasts.
+
+Deal: {{ deal_label }}
+For: {{ deal_service || the whole menu }}
+When: {{ deal_when || while the deal lasts }}
+Price: {{ deal_price || shown when you book }}
+
+See it and book: {{ links_provider_page }}
+
+The deal is the provider's own discount, not an ad. We send at most one such e-mail a day.
+
+—
+You received this e-mail because you marked this place as a favourite and turned on e-mails about your favourite places' deals (Profile → Notifications).
+My bookings: {{ links_my_bookings }}
+Unsubscribe: {{ links_unsubscribe }}
+Vemoa — book a time, not a call. A Venture CO Group product.
