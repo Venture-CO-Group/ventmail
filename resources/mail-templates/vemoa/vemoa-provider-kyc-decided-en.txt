@@ -1,0 +1,25 @@
+ELAVON DECIDED ON YOUR MERCHANT ACCOUNT.
+
+Elavon Financial Services DAC decided on the merchant account (account verification, KYC) of {{ provider_name }}; NOVOPAYMENT Kft. passed the decision on to us, and we recorded it. Vemoa does not make this decision.
+
+Decision: {{ kyc_decision_label }}
+Elavon's reason: {{ kyc_reason }}
+Reference: {{ kyc_reference || — }}
+Recorded: {{ kyc_decided_at }}
+
+{{ kyc_impact }}
+
+What to do next: {{ kyc_next_step }}
+
+See the account verification: {{ links_verification }}
+
+If you think we recorded or applied the decision wrongly, you can complain free of charge at {{ support_email }} (provider terms, section 11); we answer with reasons within 15 days. Elavon's decision itself you can contest through NOVOPAYMENT Kft.
+
+Open Vemoa Biz: {{ links_account }}
+
+We give the decision on a durable medium under Regulation (EU) 2019/1150 (P2B). Keep this e-mail.
+
+—
+This is a required notice about your account; you cannot unsubscribe from it.
+My account: {{ links_account }}
+Vemoa — book a time, not a call. A Venture CO Group product.

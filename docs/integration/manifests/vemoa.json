@@ -1477,6 +1477,35 @@
       "design_pending": {}
     },
     {
+      "key": "provider-kyc-decided",
+      "audience": "provider",
+      "channel": "transactional",
+      "purpose": "BL-83 (Tamás, 2026-11-02; ADR-0025): Elavon's decision on the provider's merchant account (KYC) was recorded — approved (online booking opens), rejected (Vemoa refuses the provider online booking: a restriction under P2B art. 4, this e-mail is its statement of reasons on a durable medium, with the complaint route of the provider terms 11) or more needed. Elavon decides, never Vemoa; a platform admin records it until NovoPayment's API delivers it (BL-82). Not sent for 'in progress'. To every owner's own address and the trader contact, once per decision record and recipient (notify:kyc:{workspace}:{decision}:{decision_no}:{member|contact}: a second request for more is a second e-mail). Held back (VEMOA_MAIL_PENDING_TEMPLATES) until imported.",
+      "variables": {
+        "provider_name": "string — the provider's business name",
+        "provider_the_name": "string — the name with its article ('a Rózsa Stúdió', 'az Ilona Stúdió')",
+        "kyc_decision_label": "string — the decision in words ('Az Elavon elutasította a kereskedői fiókodat')",
+        "kyc_reason": "string — Elavon's reason, as recorded (never empty)",
+        "kyc_reference": "string — Elavon's or NovoPayment's case reference ('' when none)",
+        "kyc_decided_at": "string — when it was recorded, in words, on the workspace's clock ('november 2., hétfő 14:05')",
+        "kyc_impact": "string — what it means for online booking (a rejection: the P2B art. 4 restriction and the terms points it rests on)",
+        "kyc_next_step": "string — what the provider does next",
+        "links_verification": "string — https://biz.vemoa.app/settings/verification (the KYC page)",
+        "links_account": "string — https://biz.vemoa.app/",
+        "support_email": "string — where a complaint or a question goes (VEMOA_SUPPORT_EMAIL)"
+      },
+      "required_links": [
+        "links_verification",
+        "links_account"
+      ],
+      "subject": {
+        "hu": "Fiók-ellenőrzés: {{ kyc_decision_label }} — {{ provider_name }}",
+        "en": "Account verification: Elavon's decision — {{ provider_name }}"
+      },
+      "design": "BL83-kyc-dontes",
+      "design_pending": {}
+    },
+    {
       "key": "content-notice-received",
       "audience": "user",
       "channel": "transactional",

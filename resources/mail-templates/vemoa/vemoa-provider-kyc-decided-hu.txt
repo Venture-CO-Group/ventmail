@@ -1,0 +1,25 @@
+DÖNTÉS SZÜLETETT A KERESKEDŐI FIÓKODRÓL.
+
+{{ provider_the_name }} kereskedői fiókjáról (fiók-ellenőrzés, KYC) az Elavon Financial Services DAC döntött; a döntést a NOVOPAYMENT Kft.-től kaptuk meg, és rögzítettük. A döntést nem a Vemoa hozza.
+
+Döntés: {{ kyc_decision_label }}
+Az Elavon indoka: {{ kyc_reason }}
+Hivatkozási szám: {{ kyc_reference || — }}
+Rögzítve: {{ kyc_decided_at }}
+
+{{ kyc_impact }}
+
+Mi a teendőd: {{ kyc_next_step }}
+
+Megnézem a fiók-ellenőrzést: {{ links_verification }}
+
+Ha szerinted a döntést hibásan rögzítettük vagy alkalmaztuk, ingyenesen panaszt tehetsz a {{ support_email }} címen (szolgáltatói ÁSZF 11. pont); 15 napon belül indokolással válaszolunk. Magát az Elavon döntését a NOVOPAYMENT Kft.-n keresztül kifogásolhatod.
+
+Megnyitom a Biz felületet: {{ links_account }}
+
+A döntést az (EU) 2019/1150 rendelet (P2B) szerint, tartós adathordozón közöljük. Őrizd meg ezt a levelet.
+
+—
+Ez fiókhoz kapcsolódó, kötelező értesítés, nem lehet leiratkozni róla.
+Fiókom: {{ links_account }}
+Vemoa — időpont, nem telefon. A Venture CO Group terméke.
