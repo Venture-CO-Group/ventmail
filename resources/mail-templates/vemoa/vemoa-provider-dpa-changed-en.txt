@@ -1,0 +1,20 @@
+OUR DATA PROCESSING AGREEMENT CHANGES.
+
+We published a new version of Vemoa's data processing agreement. The agreement is the annex to the terms for providers: it sets out how Vemoa handles your guests' data on your behalf.
+
+New version: {{ dpa_version }}
+In effect from: {{ dpa_effective_from }}
+What changes: {{ dpa_change_summary || the full text is at the link }}
+
+Read the agreement: {{ links_dpa }}
+
+There is nothing separate to accept: the agreement is part of the terms and applies with them from the day it takes effect — by continuing to use Vemoa you take note of it. If you disagree with the change, you can end the contract before it takes effect. Questions or objections: {{ support_email }}.
+
+Open Vemoa Biz: {{ links_account }}
+
+We tell you of the change at least 15 days before it takes effect (terms; Regulation (EU) 2019/1150, art. 3). {{ dpa_notice_exception }} Keep this e-mail: it records the change and the day it takes effect.
+
+—
+This is a required notice about your account; you cannot unsubscribe from it.
+My account: {{ links_account }}
+Vemoa — book a time, not a call. A Venture CO Group product.

@@ -11,7 +11,7 @@
     "Variables are scalars. `*_label` and `amount` are ready-made words in the message language; the raw code/amount_minor stay for conditions.",
     "Do not use ventMail-reserved names for variables (unsubscribe_url, preferences_url, browser_url, recipient_email, current_year): ventMail overwrites them. Vemoa's own opt-out link is optout_url; ventMail's List-Unsubscribe still works and arrives as the unsubscribed webhook.",
     "Transactional mail is sent with o:tracking=no; the unsubscribe links are /unsubscribe/... so a rewriting tracker leaves them alone.",
-    "Marketing keys (rebook_nudge, birthday_greeting, win_back, fill_offer) go on the marketing channel, closed until ventMail opens it; review_request stays transactional with an opt-out (owner/DPO question open).",
+    "Marketing keys (rebook_nudge, birthday_greeting, win_back, fill_offer, favorite_deal) go on the marketing channel, closed until ventMail opens it; review_request stays transactional with an opt-out (owner/DPO question open).",
     "Redesign 2026 (docs/design/email-templates): a designed template's dotted name (booking.time) is sent with underscores (booking_time) — ventMail reads a dot as nesting, and t:variables are flat scalars. `design` names the designed template a key stands for; `design_pending` the variables that wait for a backlog item.",
     "BL-25: a `design` that is not a Figma design (docs/design/email-templates/manifest.json) is written by docs/design/email-templates/export_ventmail.py in the family's blocks (BL-39, BL-40, BL-44); docs/design/email-templates/ventmail/ holds the export of every key — the files ventMail imports (resources/mail-templates/vemoa, `ventmail:templates:import <workspace> vemoa`)."
   ],
@@ -1426,7 +1426,7 @@
       "key": "provider-terms-changed",
       "audience": "provider",
       "channel": "transactional",
-      "purpose": "BL-40 (P2B art. 3): a new version of the providers' terms (ÁSZF) was published — what changes, from when (at least 15 days later unless an art. 3(4) ground is named), where to read it; it is accepted at the next sign-in from that day, or ahead of it in Biz. To the trader contact and every owner's own address, once per version and recipient.",
+      "purpose": "BL-40 (P2B art. 3): a new version of the providers' terms (ÁSZF) was published — what changes, from when (at least 15 days later unless an art. 3(4) ground is named), where to read it; it is accepted at the next sign-in from that day, or ahead of it in Biz. To the trader contact and every owner's own address, once per version and recipient. When the data processing agreement is published together with the terms (within 10 minutes), its change (version, day, summary, link) is named in terms_change_summary and no separate e-mail goes.",
       "variables": {
         "provider_name": "string — the provider's business name",
         "provider_the_name": "string — the name with its article ('a Rózsa Stúdió', 'az Ilona Stúdió')",
@@ -1447,6 +1447,62 @@
         "en": "Vemoa's terms for providers change — {{ terms_effective_from }}"
       },
       "design": "BL40-aszf-valtozik",
+      "design_pending": {}
+    },
+    {
+      "key": "provider-dpa-changed",
+      "audience": "provider",
+      "channel": "transactional",
+      "purpose": "2026-11-01 (GDPR art. 28; P2B art. 3 via the terms): a new version of the data processing agreement — the providers' terms' annex — was published on its own: what changes, from when (at least 15 days later unless an art. 3(4) ground is named), where to read it. No separate acceptance: it is part of the terms and applies with them from that day (the provider may end the contract before it). To the trader contact and every owner's own address, once per version and recipient (notify:legal-dpa:{document}:{workspace}:{who}). Held back (VEMOA_MAIL_PENDING_TEMPLATES) until imported; while held back no agreement version can be published.",
+      "variables": {
+        "provider_name": "string — the provider's business name",
+        "provider_the_name": "string — the name with its article ('a Rózsa Stúdió', 'az Ilona Stúdió')",
+        "dpa_version": "string — the new version's number ('2')",
+        "dpa_effective_from": "string — the day it takes effect, in words ('november 8., vasárnap')",
+        "dpa_change_summary": "string — what changes, in the admin's words ('' for a version without one)",
+        "dpa_notice_exception": "string — why it takes effect sooner than 15 days (P2B art. 3(4)), in words; '' normally",
+        "links_dpa": "string — the new version on vemoa.app (https://vemoa.app/aszf/adatfeldolgozas?version=2)",
+        "links_account": "string — https://biz.vemoa.app/",
+        "support_email": "string — where to write with a question or an objection (VEMOA_SUPPORT_EMAIL)"
+      },
+      "required_links": [
+        "links_dpa",
+        "links_account"
+      ],
+      "subject": {
+        "hu": "Változik a Vemoa adatfeldolgozói megállapodása — {{ dpa_effective_from }}",
+        "en": "Vemoa's data processing agreement changes — {{ dpa_effective_from }}"
+      },
+      "design": "BL40-adatfeldolgozas-valtozik",
+      "design_pending": {}
+    },
+    {
+      "key": "provider-kyc-decided",
+      "audience": "provider",
+      "channel": "transactional",
+      "purpose": "BL-83 (Tamás, 2026-11-02; ADR-0025): Elavon's decision on the provider's merchant account (KYC) was recorded — approved (online booking opens), rejected (Vemoa refuses the provider online booking: a restriction under P2B art. 4, this e-mail is its statement of reasons on a durable medium, with the complaint route of the provider terms 11) or more needed. Elavon decides, never Vemoa; a platform admin records it until NovoPayment's API delivers it (BL-82). Not sent for 'in progress'. To every owner's own address and the trader contact, once per decision record and recipient (notify:kyc:{workspace}:{decision}:{decision_no}:{member|contact}: a second request for more is a second e-mail). Held back (VEMOA_MAIL_PENDING_TEMPLATES) until imported.",
+      "variables": {
+        "provider_name": "string — the provider's business name",
+        "provider_the_name": "string — the name with its article ('a Rózsa Stúdió', 'az Ilona Stúdió')",
+        "kyc_decision_label": "string — the decision in words ('Az Elavon elutasította a kereskedői fiókodat')",
+        "kyc_reason": "string — Elavon's reason, as recorded (never empty)",
+        "kyc_reference": "string — Elavon's or NovoPayment's case reference ('' when none)",
+        "kyc_decided_at": "string — when it was recorded, in words, on the workspace's clock ('november 2., hétfő 14:05')",
+        "kyc_impact": "string — what it means for online booking (a rejection: the P2B art. 4 restriction and the terms points it rests on)",
+        "kyc_next_step": "string — what the provider does next",
+        "links_verification": "string — https://biz.vemoa.app/settings/verification (the KYC page)",
+        "links_account": "string — https://biz.vemoa.app/",
+        "support_email": "string — where a complaint or a question goes (VEMOA_SUPPORT_EMAIL)"
+      },
+      "required_links": [
+        "links_verification",
+        "links_account"
+      ],
+      "subject": {
+        "hu": "Fiók-ellenőrzés: {{ kyc_decision_label }} — {{ provider_name }}",
+        "en": "Account verification: Elavon's decision — {{ provider_name }}"
+      },
+      "design": "BL83-kyc-dontes",
       "design_pending": {}
     },
     {
@@ -1616,6 +1672,59 @@
         "hu": "Kapcsolat: {{ topic_label }} ({{ message_ref }})",
         "en": "Contact: {{ topic_label }} ({{ message_ref }})"
       }
+    },
+    {
+      "key": "billing-plan-ended",
+      "audience": "provider",
+      "channel": "transactional",
+      "purpose": "M3.4 (provider terms 10a): the workspace's paid Vemoa plan ended because ventPay could not collect its renewal (ventPay's dunning ran out: the entitlement went from full access to unpaid) — the workspace now runs on Free, its data stays. Not sent when the owner cancelled. To every owner's own address, once per ventPay entitlement version and owner.",
+      "variables": {
+        "provider_name": "string — the provider's business name",
+        "provider_the_name": "string — the name with its article ('a Rózsa Stúdió', 'az Ilona Stúdió')",
+        "provider_the_name_cap": "string — the same at a sentence's start ('A …', 'Az …')",
+        "plan_name": "string — the plan that ended ('Start', 'Pro', 'Studio')",
+        "links_billing": "string — https://biz.vemoa.app/settings/billing (the plan, buying it again, ventPay's invoices)",
+        "links_account": "string — https://biz.vemoa.app/"
+      },
+      "required_links": [
+        "links_billing",
+        "links_account"
+      ],
+      "subject": {
+        "hu": "Véget ért a {{ plan_name }} csomagod — {{ provider_name }}",
+        "en": "Your {{ plan_name }} plan has ended — {{ provider_name }}"
+      },
+      "design": "BL08-csomag-veget-ert",
+      "design_pending": {}
+    },
+    {
+      "key": "favorite_deal",
+      "audience": "guest",
+      "channel": "marketing",
+      "purpose": "BL-74: a provider the guest favourited published a new deal (its own discount — not an ad, rule 9). Marketing: only to a guest who switched it on (notify.email.favorites_deals, off by default), from the guests' own outbox (platform context, never a provider's); the address is read at sending. Once per deal and guest (notify:favorite_deal:{deal}:{guest}), at most one a day per guest and one a week per guest and provider. The opt-out link and ventMail's unsubscribe turn the switch off. Held back (VEMOA_MAIL_PENDING_TEMPLATES) until imported.",
+      "variables": {
+        "provider_name": "string — the provider's business name",
+        "provider_the_name_cap": "string — the name with its article at a sentence's start ('A Rózsa Stúdió', 'Az Ilona Stúdió')",
+        "deal_label": "string — the deal's label as guests see it on the provider's card ('−20%')",
+        "deal_service": "string — the service it is for ('' when it is for every service)",
+        "deal_price": "string — the price with the deal, formatted ('7 920 Ft'; '' without a fixed price)",
+        "deal_list_price": "string — the price before it, formatted ('9 900 Ft'; '' without a fixed price)",
+        "deal_when": "string — when it can be taken, in words ('október 18., szombat 9:00' or '9:00–12:00'; '' when any time)",
+        "links_provider_page": "string — the provider's page on vemoa.app (https://vemoa.app/szolgaltato/rozsa-studio), where the deal is booked",
+        "links_my_bookings": "string — https://vemoa.app/app/aktivitas",
+        "links_unsubscribe": "string — Vemoa's signed one-click opt-out (/unsubscribe/guest/…): turns the guest's favourite-deal e-mails off. NOT ventMail's reserved unsubscribe_url"
+      },
+      "required_links": [
+        "links_provider_page",
+        "links_my_bookings",
+        "links_unsubscribe"
+      ],
+      "subject": {
+        "hu": "Új akció: {{ provider_name }} — {{ deal_label }}",
+        "en": "New deal at {{ provider_name }} — {{ deal_label }}"
+      },
+      "design": "BL74-kedvenc-akcio",
+      "design_pending": {}
     }
   ]
 }
