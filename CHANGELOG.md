@@ -5,6 +5,11 @@ A részletes döntési nyomvonal: `docs/plans/v1.1.md` (D1–D300).
 
 ## [Unreleased]
 
+## [1.4.13] — 2026-11-05 (Symfony biztonsági javítások)
+
+### Security
+- Symfony 7.4.x javítóverziók (`http-foundation`, `http-kernel`, `routing`, `yaml` 7.4.23 és függőségeik): a `composer audit` hét új figyelmeztetése miatt bukott a v1.4.12 kiadási kapuja. Csak a `composer.lock` változott, új csomag nincs. A v1.4.12 tartalma ezzel a kiadással megy ki.
+
 ## [1.4.12] — 2026-11-02 (Vemoa: kedvenc helyek akciói, csomag vége, DPA-változás, KYC-döntés)
 
 ### Added
