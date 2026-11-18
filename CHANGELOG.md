@@ -3,7 +3,7 @@
 Formátum: [Keep a Changelog](https://keepachangelog.com/hu/1.1.0/). Verziózás: a kiadás tagje `vMAJOR.MINOR.PATCH`.
 A részletes döntési nyomvonal: `docs/plans/v1.1.md` (D1–D300).
 
-## [Unreleased]
+## [1.5.0] — 2026-11-19 (kézbesítési-esemény webhookok)
 
 ### Added
 - **Kézbesítési-esemény webhookok az integrációknak** (Jersey Magic kérése): új `failed` eseménytípus — a ventMail VÉGLEG feladta a kézbesítést végleges bounce nélkül (a driver-újrapróbálások kimerültek, vagy a Postal ideiglenes kóddal adta fel a `MessageDeliveryFailed`-et). A `/v1/events`, a `/v1/webhooks/endpoints` és a felület eseménylistája bővült vele. **Figyelem:** az üres eseménylistájú (= minden esemény) meglévő végpontok a deploy után `failed` eseményt is kapnak, és a szűretlen `GET /v1/events` is visszaadja — az OpenAPI mostantól kimondja, hogy ismeretlen típust a fogadó hagyjon figyelmen kívül (2xx-szel); egy ismeretlen típusra 4xx-et adó fogadó 6 kísérlet után dead-letterbe fut.
