@@ -15,6 +15,9 @@ A részletes döntési nyomvonal: `docs/plans/v1.1.md` (D1–D300).
 - A driver ÁTMENETI elutasítása (kivétel nélkül, kód nélkül vagy 4xx — pl. a Postal HTTP nem-2xx-e) után az üzenet `deferred` maradt `next_attempt_at` nélkül, tehát sosem próbálkoztunk újra és végállapot sem született. Most a `RetryPolicy` ütemez, a kimerült keret `failed` (üzenet + esemény).
 - A Postal kód nélküli `MessageDeliveryFailed`-je (pl. „Connection timed out”, `SoftFail`) eddig 550-es hard bounce lett, azonnali suppressionnel. Most `failed` esemény, suppression nélkül (a `HardFail` viselkedése változatlan).
 
+### Security
+- `laravel/framework` 12.69.0 → 12.73.0 (GHSA-63hm-g96r-2m2q / PKSA-yxbx-3c9s-cjt9, „Task Output Injection — Concurrency Process”): a `composer audit` új figyelmeztetése miatt bukott a backend-kapu. Csak a `composer.lock` változott, egyetlen csomag.
+
 ### Changed
 - A `/v1` webhook-replay (`POST /v1/webhooks/deliveries/{uuid}/replay`) mostantól auditált (`webhook.replayed`, mint a felületi replay; a kontextusban az API-kulcs uuid-ja).
 
