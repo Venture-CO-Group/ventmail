@@ -118,7 +118,11 @@ final class PostalWebhookController
             // kísérletként számolnánk, egy greylistelő vagy egy órára leálló fogadó öt
             // késleltetés után VÉGLEG tiltólistára tenné a címet. Csak trace-esemény.
             'MessageDelayed' => $this->event($message, $recipient, 'deferred', ['reason' => 'MTA_DELAYED', 'code' => $code, 'enhanced_code' => $enhanced]),
-            'MessageDeliveryFailed' => $outcome($message, $recipient, $code ?? 550, $text ?: 'Delivery failed', $enhanced),
+            // Kód NÉLKÜLI kimenet (időtúllépés, DNS-hiba) nem a címzett válasza: `SoftFail`-nél
+            // nem csinálunk belőle 550-es hard bounce-ot (azonnali suppression) — `failed` lesz.
+            'MessageDeliveryFailed' => $code === null && ($payload['status'] ?? null) !== 'HardFail'
+                ? $this->event($message, $recipient, 'failed', ['reason' => 'MTA_GAVE_UP'])
+                : $this->deliveryFailed($message, $recipient, $code ?? 550, $text ?: 'Delivery failed', $enhanced, $outcome),
             // Az aszinkron bounce (DSN) a kézbesítés UTÁN jön: a fogadó elfogadta, majd
             // visszadobta. Végleges kudarcnak kezeljük — a Postal a DSN-t magát nem bontja
             // kódra, és egy halott címre küldeni tovább drágább, mint egy téves tiltás.
@@ -126,6 +130,31 @@ final class PostalWebhookController
             'MessageHeld' => $this->event($message, $recipient, 'deferred', ['reason' => 'MTA_HELD']),
             default => null,
         };
+    }
+
+    /**
+     * A Postal FELADTA a kézbesítést — ez végleges, akkor is, ha az utolsó válasz ideiglenes
+     * (4xx) volt (újrapróbálások kimerültek). 5xx-nél a `RecordDeliveryOutcome` `bounced`-ot ír;
+     * 4xx-nél csak `deferred`-et, ezért itt külön `failed` esemény kell — különben a hívó app
+     * sosem tudná meg, hogy a levél nem érkezett meg.
+     */
+    private function deliveryFailed(Message $message, string $recipient, int $code, string $text, ?string $enhanced, RecordDeliveryOutcome $outcome): void
+    {
+        $class = $outcome($message, $recipient, $code, $text, $enhanced);
+
+        if ($code < 500) {
+            MessageEvent::create([
+                'message_uuid' => $message->uuid,
+                'type' => 'failed',
+                'recipient' => $recipient,
+                'channel' => $message->channel,
+                'reason' => $class->value,
+                'tags' => $message->tags,
+                'variables' => $message->echoedVariables(),
+                // A fogadó SZÖVEGE itt sem megy ki (lásd `RecordDeliveryOutcome`).
+                'payload' => ['source' => 'postal', 'code' => $code, 'enhanced_code' => $enhanced, 'classification' => $class->value],
+            ]);
+        }
     }
 
     private function delivered(Message $message, string $recipient, bool $tls): void

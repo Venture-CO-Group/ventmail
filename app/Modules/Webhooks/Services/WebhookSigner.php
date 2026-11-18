@@ -13,7 +13,7 @@ namespace App\Modules\Webhooks\Services;
  * aláírt adatnak, tehát nem cserélhető ki.
  *
  * A fogadó oldalnak HÁROM dolgot kell ellenőriznie: (1) az aláírás stimmel, (2) az időbélyeg
- * friss, (3) az `X-VentMail-Delivery` azonosítót még nem látta. A harmadik nélkül a
+ * friss, (3) az eseményt (az ALÁÍRT törzs `id`-jét) még nem látta — a fejlécek nincsenek aláírva. A harmadik nélkül a
  * tűréshatáron belül (5 perc) az elkapott kérés újrajátszható marad — az időbélyeg-ablak
  * SZŰKÍTI a replay-t, de nem szünteti meg.
  */

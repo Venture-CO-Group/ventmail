@@ -2452,7 +2452,9 @@
             "rotateTitle": "Rotate signing secret",
             "rotateText": "A new secret is generated and shown once. The action is audited.",
             "grace": "Keep the old secret valid for {hours} hours (second signature) — turn off after a leak.",
-            "deleteConfirm": "The endpoint \"{name}\" will be deleted and receive no more events. The action is audited."
+            "deleteConfirm": "The endpoint \"{name}\" will be deleted and receive no more events. The action is audited.",
+            "redactRecipient": "Mask recipient",
+            "redactRecipientHint": "Only the masked address (a***@example.com) is sent instead of message.recipient — also on deliveries not yet sent. v:* variables are sent as given."
         },
         "logs": {
             "lead": "Every message from acceptance to click, with the SMTP responses.",

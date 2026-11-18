@@ -39,7 +39,7 @@ final class EventsController
     /** Az elfogadott eseménytípusok — a `/v1` szerződés zárt listája. */
     private const TYPES = [
         'accepted', 'rejected', 'delivered', 'deferred', 'bounced',
-        'complained', 'unsubscribed', 'opened', 'clicked', 'stored',
+        'complained', 'unsubscribed', 'opened', 'clicked', 'stored', 'failed',
     ];
 
     public function __invoke(Request $request, DomainNormalizer $normalizer): JsonResponse

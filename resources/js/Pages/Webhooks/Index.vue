@@ -30,6 +30,7 @@ interface Endpoint {
     url: string;
     events: string[];
     active: boolean;
+    redactRecipient: boolean;
     lastSuccessAt: string | null;
     lastFailureAt: string | null;
     secretHint: string;
@@ -73,11 +74,13 @@ const creating = ref(false);
 const name = ref('');
 const url = ref('');
 const events = ref<string[]>([]);
+const redactRecipient = ref(false);
 
 const selectedUuid = ref<string | null>(props.endpointFilter ?? props.endpoints[0]?.uuid ?? null);
 const selected = computed(() => props.endpoints.find((endpoint) => endpoint.uuid === selectedUuid.value) ?? props.endpoints[0] ?? null);
 
 const editEvents = ref<string[]>([]);
+const editRedact = ref(false);
 const testEvent = ref(props.testEvents[0] ?? 'delivered');
 const rotating = ref(false);
 const grace = ref(true);
@@ -87,6 +90,7 @@ watch(
     selected,
     (endpoint) => {
         editEvents.value = endpoint ? [...endpoint.events] : [];
+        editRedact.value = endpoint?.redactRecipient ?? false;
     },
     { immediate: true },
 );
@@ -150,7 +154,7 @@ function create(): void {
 
     router.post(
         '/webhooks',
-        { name: name.value.trim(), url: url.value.trim(), events: events.value },
+        { name: name.value.trim(), url: url.value.trim(), events: events.value, redact_recipient: redactRecipient.value },
         {
             preserveScroll: true,
             onSuccess: () => {
@@ -158,6 +162,7 @@ function create(): void {
                 name.value = '';
                 url.value = '';
                 events.value = [];
+                redactRecipient.value = false;
             },
         },
     );
@@ -166,7 +171,7 @@ function create(): void {
 function saveEvents(): void {
     if (!selected.value) return;
 
-    router.patch(`/webhooks/${selected.value.uuid}`, { events: editEvents.value }, { preserveScroll: true });
+    router.patch(`/webhooks/${selected.value.uuid}`, { events: editEvents.value, redact_recipient: editRedact.value }, { preserveScroll: true });
 }
 
 function setActive(active: boolean): void {
@@ -297,6 +302,12 @@ function successRate(endpoint: Endpoint): string {
                     </VtCheckbox>
                 </VmFieldGroup>
 
+                <VtField :hint="t('plat.webhooks.redactRecipientHint')">
+                    <VtCheckbox v-model="editRedact" data-testid="edit-redact-recipient">
+                        {{ t('plat.webhooks.redactRecipient') }}
+                    </VtCheckbox>
+                </VtField>
+
                 <div class="vm-cluster">
                     <VtButton variant="secondary" size="sm" data-testid="events-save" @click="saveEvents">{{ t('plat.save') }}</VtButton>
                     <VtButton variant="ghost" size="sm" data-testid="endpoint-toggle" @click="setActive(!selected.active)">
@@ -396,6 +407,12 @@ function successRate(endpoint: Endpoint): string {
                             {{ event }}
                         </VtCheckbox>
                     </VmFieldGroup>
+
+                    <VtField :hint="t('plat.webhooks.redactRecipientHint')">
+                        <VtCheckbox v-model="redactRecipient" data-testid="endpoint-redact-recipient">
+                            {{ t('plat.webhooks.redactRecipient') }}
+                        </VtCheckbox>
+                    </VtField>
                 </VmFormSection>
 
                 <VmFormActions>

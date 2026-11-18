@@ -15,6 +15,7 @@ use App\Modules\Inbound\Models\InboundMessage;
 use App\Modules\Journey\Models\JourneyRun;
 use App\Modules\Logs\Models\ErasedRecipient;
 use App\Modules\Logs\Models\SmtpTransaction;
+use App\Modules\Logs\Services\LogExport;
 use App\Modules\Sending\Models\DeliveryAttempt;
 use App\Modules\Sending\Models\Message;
 use App\Modules\Sending\Models\RawMimeMessage;
@@ -114,6 +115,12 @@ final class RedactSubjectCommand extends Command
                         ['erased_at' => now()],
                     );
 
+                    // A `redact_recipient` végpontok kézbesítési sorában nincs nyers cím, csak
+                    // `message.id` + maszkolt alak — ezeket az esemény-redakció ELŐTT gyűjtjük,
+                    // mert utána az esemény már nem köti össze az üzenetet a címmel.
+                    $messageUuids = MessageEvent::query()->whereRaw('lower(recipient) = ?', [$key])
+                        ->whereNotNull('message_uuid')->distinct()->pluck('message_uuid')->all();
+
                     $redacted['messages'] += $this->redactMessages($key, $redacted);
                     $redacted['events'] += $this->redactEvents($key);
 
@@ -125,7 +132,7 @@ final class RedactSubjectCommand extends Command
                         ->whereRaw('lower(recipient) = ?', [$key])
                         ->update(['recipient' => null, 'response' => null, 'redacted_at' => now()]);
 
-                    $redacted['webhooks'] += $this->redactWebhookDeliveries($key);
+                    $redacted['webhooks'] += $this->redactWebhookDeliveries($key, $messageUuids);
                     $redacted['suppressions'] += $this->redactSuppressions($key);
                     $redacted['inbound'] += $this->redactInbound($key);
                     $redacted['campaign_recipients'] += $this->redactCampaignRecipients($key);
@@ -470,12 +477,24 @@ final class RedactSubjectCommand extends Command
      * `v:*` változók (amiket a hívó adott meg, és amikbe bármit tehetett), a `response_excerpt`
      * pedig a fogadó válaszának eleje, ami gyakran visszaidézi a címzettet.
      */
-    private function redactWebhookDeliveries(string $key): int
+    /**
+     * A `redact_recipient` végpont sorában a cím csak maszkolva van (`a***@domain`): ezt az
+     * érintett üzenetein (`message_uuid`) belül a maszkolt alakkal azonosítjuk — így ugyanannak
+     * az üzenetnek a MÁSIK címzettjéhez tartozó sor nem tűnik el.
+     *
+     * @param  list<string>  $messageUuids
+     */
+    private function redactWebhookDeliveries(string $key, array $messageUuids = []): int
     {
+        $masked = LogExport::mask($key);
+
         return WebhookDelivery::query()
             ->where(fn (Builder $query) => $query
                 ->whereRaw('lower(payload::text) like ?', ['%'.$key.'%'])
-                ->orWhereRaw('lower(response_excerpt) like ?', ['%'.$key.'%']))
+                ->orWhereRaw('lower(response_excerpt) like ?', ['%'.$key.'%'])
+                ->when($messageUuids !== [], fn (Builder $query) => $query->orWhere(fn (Builder $inner) => $inner
+                    ->whereIn('message_uuid', $messageUuids)
+                    ->whereRaw("lower(payload->'message'->>'recipient_masked') = ?", [$masked]))))
             ->update(['payload' => [], 'response_excerpt' => null, 'redacted_at' => now()]);
     }
 }

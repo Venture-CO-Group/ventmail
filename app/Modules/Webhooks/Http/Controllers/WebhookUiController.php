@@ -41,14 +41,14 @@ final class WebhookUiController
     /** UGYANAZ a lista, mint a `/v1` végponton — két listából előbb-utóbb kettő lesz. */
     private const TYPES = [
         'accepted', 'rejected', 'delivered', 'deferred', 'bounced',
-        'complained', 'unsubscribed', 'opened', 'clicked', 'stored',
+        'complained', 'unsubscribed', 'opened', 'clicked', 'stored', 'failed',
         // v1.1 · 6. modul (review SEC-S2): a journey webhook-csomópontja csak az erre
         // feliratkozott végpontnak küld. (A `/v1` szerződés eseménylistája változatlan.)
         'journey.step',
     ];
 
-    /** A felületről indítható teszt-események — a `/v1` szerződés hat ügyfél-eseménye. */
-    public const TEST_TYPES = ['delivered', 'opened', 'clicked', 'bounced', 'complained', 'unsubscribed'];
+    /** A felületről indítható teszt-események — a `/v1` szerződés ügyfél-eseményei. */
+    public const TEST_TYPES = ['delivered', 'opened', 'clicked', 'bounced', 'complained', 'unsubscribed', 'failed'];
 
     /** A rotációs türelmi ablak (óra), ha a felhasználó kéri. */
     public const GRACE_HOURS = 24;
@@ -98,6 +98,7 @@ final class WebhookUiController
                 // hiányzó érték „semmi"-nek látszana.
                 'events' => array_values((array) $endpoint->events),
                 'active' => (bool) $endpoint->active,
+                'redactRecipient' => (bool) $endpoint->redact_recipient,
                 'lastSuccessAt' => $endpoint->last_success_at?->toIso8601String(),
                 'lastFailureAt' => $endpoint->last_failure_at?->toIso8601String(),
                 // A titokból CSAK az utolsó négy karakter: ebből ismerhető fel, melyik él.
@@ -141,6 +142,7 @@ final class WebhookUiController
             'url' => ['required', 'string', 'max:2048'],
             'events' => ['nullable', 'array'],
             'events.*' => ['string', Rule::in(self::TYPES)],
+            'redact_recipient' => ['sometimes', 'boolean'],
         ]);
 
         try {
@@ -148,6 +150,7 @@ final class WebhookUiController
                 $validated['name'],
                 $validated['url'],
                 array_values($validated['events'] ?? []),
+                (bool) ($validated['redact_recipient'] ?? false),
             );
         } catch (InvalidArgumentException $e) {
             // SSRF-elutasítás: a hibát OTT jelezzük, ahol az ügyfél beírja a címet, nem a
@@ -161,7 +164,7 @@ final class WebhookUiController
         return back()->with('secret', ['kind' => 'webhook', 'value' => $issued['secret']]);
     }
 
-    /** Eseménytípusok és aktív állapot módosítása (auditált: `Auditable`). */
+    /** Eseménytípusok, aktív állapot és címzett-maszkolás módosítása (auditált: `Auditable`). */
     public function update(Request $request, string $uuid): RedirectResponse
     {
         Gate::authorize('webhook.manage');
@@ -172,6 +175,7 @@ final class WebhookUiController
             'events' => ['sometimes', 'array'],
             'events.*' => ['string', Rule::in(self::TYPES)],
             'active' => ['sometimes', 'boolean'],
+            'redact_recipient' => ['sometimes', 'boolean'],
         ]);
 
         $endpoint->fill($validated)->save();
@@ -229,7 +233,7 @@ final class WebhookUiController
             'webhook_endpoint_id' => $endpoint->getKey(),
             'event_type' => $validated['event'],
             'message_uuid' => null,
-            'payload' => self::samplePayload($validated['event']),
+            'payload' => self::samplePayload($validated['event'], (bool) $endpoint->redact_recipient),
             'status' => 'pending',
             'is_test' => true,
             // A söprő ne vegye fel párhuzamosan (ugyanaz az ok, mint a dispatchernél).
@@ -249,26 +253,30 @@ final class WebhookUiController
      *
      * @return array<string, mixed>
      */
-    public static function samplePayload(string $event): array
+    public static function samplePayload(string $event, bool $redactRecipient = false): array
     {
         $bounce = $event === 'bounced';
+        $failed = $event === 'failed';
 
         return [
+            'id' => (string) Str::uuid(),
             'event' => $event,
             'timestamp' => now()->getTimestamp(),
             'test' => true,
             'message' => [
                 'id' => (string) Str::uuid(),
-                'recipient' => 'recipient@example.com',
+                'recipient' => $redactRecipient ? null : 'recipient@example.com',
+                'recipient_masked' => 'r***@example.com',
                 'channel' => 'transactional',
                 'tags' => ['test'],
             ],
-            'reason' => $bounce ? 'hard_bounce' : null,
+            'reason' => $bounce ? 'hard' : ($failed ? 'soft' : null),
             'variables' => ['order_id' => 'TEST-1001'],
             'delivery' => [
-                'code' => $bounce ? 550 : ($event === 'delivered' ? 250 : null),
-                'enhanced_code' => $bounce ? '5.1.1' : ($event === 'delivered' ? '2.0.0' : null),
-                'classification' => $bounce ? 'hard' : null,
+                'code' => $bounce ? 550 : ($failed ? 451 : ($event === 'delivered' ? 250 : null)),
+                'enhanced_code' => $bounce ? '5.1.1' : ($failed ? '4.4.1' : ($event === 'delivered' ? '2.0.0' : null)),
+                'classification' => $bounce ? 'hard' : ($failed ? 'soft' : null),
+                'bounce_type' => $bounce ? 'hard' : null,
             ],
         ];
     }

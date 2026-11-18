@@ -442,6 +442,49 @@ guides:
 
         **Replay:** a dead-letter (vagy bármely) kézbesítés újraküldhető a felületről vagy a
         `POST /webhooks/deliveries/{uuid}/replay` végponttal.
+
+        **Esemény-azonosító:** az `X-VentMail-Event-Id` fejléc és a payload `id` mezője az ESEMÉNY stabil azonosítója — végpontonként, újrapróbálásnál és replay-nél ugyanaz; erre (az ALÁÍRT törzs `id`-jére) dedupolj — a fejlécek nincsenek aláírva. A `message.id` a `POST /v1/messages` válaszának `id`-je.
+
+        **Kézbesítési események:** `bounced` — végleges elutasítás; `delivery.bounce_type` = `hard` (a cím nem létezik, a ventMail azonnal tiltólistára tette) vagy `soft` (tele postafiók, blokk, spam, policy). `failed` — a ventMail végleg feladta (az újrapróbálások kimerültek), a levél nem érkezett meg. `deferred` — átmeneti, még próbálkozunk. `complained` — a szerződés része, de a panasz-visszacsatolás még nem él.
+
+        ```json
+        {
+          "id": "0193f2a4-6f1e-7c3a-9d2b-5e8f1a2b3c4d",
+          "event": "bounced",
+          "timestamp": 1763460000,
+          "message": {
+            "id": "0193f2a0-1111-7aaa-8bbb-123456789abc",
+            "recipient": null,
+            "recipient_masked": "a***@example.com",
+            "channel": "transactional",
+            "tags": ["delivery"]
+          },
+          "reason": "hard",
+          "variables": [],
+          "delivery": { "code": 550, "enhanced_code": "5.1.1", "classification": "hard", "bounce_type": "hard" }
+        }
+        ```
+
+        **Címzett:** `redact_recipient: true` végponton a `message.recipient` `null`, csak a `message.recipient_masked` (pl. `a***@example.com`) megy ki. Visszamenőleg is érvényes. A `variables` (`v:*`) változatlanul visszhangzik — címet ne tegyél bele. Levéltörzs és tárgy sosem.
+
+        **KAT-vektorok** (a törzs a pontos nyers bájtsor, UTF-8; ne kódold újra):
+
+        ```text
+        secret    = whsec_teszt
+        timestamp = 1756800000
+        body      = {"event":"delivered"}
+        signature = 363c17654baea444d069d95204c10390972dda1d4118ed255c6d23537ec1fe24
+
+        secret    = whsec_kat_test_secret_do_not_use
+        timestamp = 1763460000
+        body      = {"id":"0193f2a4-6f1e-7c3a-9d2b-5e8f1a2b3c4d","event":"bounced","timestamp":1763460000,"message":{"id":"0193f2a0-1111-7aaa-8bbb-123456789abc","recipient":null,"recipient_masked":"a***@example.com","channel":"transactional","tags":["delivery"]},"reason":"hard","variables":[],"delivery":{"code":550,"enhanced_code":"5.1.1","classification":"hard","bounce_type":"hard"}}
+        signature = c3cd335fffdc8fd94835d95dd009edd462510d8dd985e6cc22659487d078742a
+
+        secret    = whsec_kat_test_secret_do_not_use
+        timestamp = 1763460100
+        body      = {"id":"0193f2a5-0000-7000-8000-000000000003","event":"failed","timestamp":1763460100,"message":{"id":"0193f2a0-2222-7aaa-8bbb-123456789abc","recipient":null,"recipient_masked":"z***@pelda.hu","channel":"transactional","tags":["számla/2026"]},"reason":"soft","variables":{"order":"Ő-42"},"delivery":{"code":451,"enhanced_code":"4.4.1","classification":"soft","bounce_type":null}}
+        signature = 5f6232948accfdb88dff6973ac60e0772ad5fb9ec20b4e3625792e84bf39c854
+        ```
       en: |
         Every webhook request is signed with **HMAC-SHA256**. Headers:
 
@@ -461,6 +504,49 @@ guides:
 
         **Replay:** a dead-lettered (or any) delivery can be re-sent from the UI or with
         `POST /webhooks/deliveries/{uuid}/replay`.
+
+        **Event id:** the `X-VentMail-Event-Id` header and the payload `id` are the EVENT's stable id — the same for every endpoint, retry and replay; deduplicate on the SIGNED body `id` — the headers are not signed. `message.id` is the `id` returned by `POST /v1/messages`.
+
+        **Delivery events:** `bounced` — permanent rejection; `delivery.bounce_type` = `hard` (the address does not exist; ventMail suppressed it at once) or `soft` (mailbox full, blocked, spam, policy). `failed` — ventMail gave up for good (retries exhausted); the message was not delivered. `deferred` — temporary, still retrying. `complained` — part of the contract, but complaint feedback is not live yet.
+
+        ```json
+        {
+          "id": "0193f2a4-6f1e-7c3a-9d2b-5e8f1a2b3c4d",
+          "event": "bounced",
+          "timestamp": 1763460000,
+          "message": {
+            "id": "0193f2a0-1111-7aaa-8bbb-123456789abc",
+            "recipient": null,
+            "recipient_masked": "a***@example.com",
+            "channel": "transactional",
+            "tags": ["delivery"]
+          },
+          "reason": "hard",
+          "variables": [],
+          "delivery": { "code": 550, "enhanced_code": "5.1.1", "classification": "hard", "bounce_type": "hard" }
+        }
+        ```
+
+        **Recipient:** on an endpoint with `redact_recipient: true`, `message.recipient` is `null` and only `message.recipient_masked` (e.g. `a***@example.com`) is sent. It also applies retroactively. `variables` (`v:*`) are echoed as given — do not put addresses in them. Never the body or subject.
+
+        **KAT vectors** (the body is the exact raw byte sequence, UTF-8; do not re-encode it):
+
+        ```text
+        secret    = whsec_teszt
+        timestamp = 1756800000
+        body      = {"event":"delivered"}
+        signature = 363c17654baea444d069d95204c10390972dda1d4118ed255c6d23537ec1fe24
+
+        secret    = whsec_kat_test_secret_do_not_use
+        timestamp = 1763460000
+        body      = {"id":"0193f2a4-6f1e-7c3a-9d2b-5e8f1a2b3c4d","event":"bounced","timestamp":1763460000,"message":{"id":"0193f2a0-1111-7aaa-8bbb-123456789abc","recipient":null,"recipient_masked":"a***@example.com","channel":"transactional","tags":["delivery"]},"reason":"hard","variables":[],"delivery":{"code":550,"enhanced_code":"5.1.1","classification":"hard","bounce_type":"hard"}}
+        signature = c3cd335fffdc8fd94835d95dd009edd462510d8dd985e6cc22659487d078742a
+
+        secret    = whsec_kat_test_secret_do_not_use
+        timestamp = 1763460100
+        body      = {"id":"0193f2a5-0000-7000-8000-000000000003","event":"failed","timestamp":1763460100,"message":{"id":"0193f2a0-2222-7aaa-8bbb-123456789abc","recipient":null,"recipient_masked":"z***@pelda.hu","channel":"transactional","tags":["számla/2026"]},"reason":"soft","variables":{"order":"Ő-42"},"delivery":{"code":451,"enhanced_code":"4.4.1","classification":"soft","bounce_type":null}}
+        signature = 5f6232948accfdb88dff6973ac60e0772ad5fb9ec20b4e3625792e84bf39c854
+        ```
       de: |
         Jede Webhook-Anfrage ist mit **HMAC-SHA256** signiert. Header:
 
@@ -480,6 +566,49 @@ guides:
 
         **Replay:** eine Dead-Letter- (oder beliebige) Zustellung kann in der Oberfläche oder über
         `POST /webhooks/deliveries/{uuid}/replay` erneut gesendet werden.
+
+        **Ereignis-ID:** der Header `X-VentMail-Event-Id` und das Feld `id` sind die stabile ID des EREIGNISSES — gleich für jeden Endpunkt, jede Wiederholung und jedes Replay; am SIGNIERTEN Body-Feld `id` deduplizieren — die Header sind nicht signiert. `message.id` ist die `id` aus der Antwort von `POST /v1/messages`.
+
+        **Zustell-Ereignisse:** `bounced` — endgültige Ablehnung; `delivery.bounce_type` = `hard` (Adresse existiert nicht, sofort gesperrt) oder `soft` (Postfach voll, blockiert, Spam, Policy). `failed` — ventMail hat endgültig aufgegeben (Wiederholungen erschöpft), die Nachricht wurde nicht zugestellt. `deferred` — vorübergehend, wird wiederholt. `complained` — Teil des Vertrags, Beschwerde-Feedback ist aber noch nicht aktiv.
+
+        ```json
+        {
+          "id": "0193f2a4-6f1e-7c3a-9d2b-5e8f1a2b3c4d",
+          "event": "bounced",
+          "timestamp": 1763460000,
+          "message": {
+            "id": "0193f2a0-1111-7aaa-8bbb-123456789abc",
+            "recipient": null,
+            "recipient_masked": "a***@example.com",
+            "channel": "transactional",
+            "tags": ["delivery"]
+          },
+          "reason": "hard",
+          "variables": [],
+          "delivery": { "code": 550, "enhanced_code": "5.1.1", "classification": "hard", "bounce_type": "hard" }
+        }
+        ```
+
+        **Empfänger:** bei `redact_recipient: true` ist `message.recipient` `null`, gesendet wird nur `message.recipient_masked` (z. B. `a***@example.com`). Gilt auch rückwirkend. `variables` (`v:*`) werden unverändert zurückgegeben — keine Adressen hineinlegen. Nie Body oder Betreff.
+
+        **KAT-Vektoren** (der Body ist die exakte Roh-Bytefolge, UTF-8; nicht neu kodieren):
+
+        ```text
+        secret    = whsec_teszt
+        timestamp = 1756800000
+        body      = {"event":"delivered"}
+        signature = 363c17654baea444d069d95204c10390972dda1d4118ed255c6d23537ec1fe24
+
+        secret    = whsec_kat_test_secret_do_not_use
+        timestamp = 1763460000
+        body      = {"id":"0193f2a4-6f1e-7c3a-9d2b-5e8f1a2b3c4d","event":"bounced","timestamp":1763460000,"message":{"id":"0193f2a0-1111-7aaa-8bbb-123456789abc","recipient":null,"recipient_masked":"a***@example.com","channel":"transactional","tags":["delivery"]},"reason":"hard","variables":[],"delivery":{"code":550,"enhanced_code":"5.1.1","classification":"hard","bounce_type":"hard"}}
+        signature = c3cd335fffdc8fd94835d95dd009edd462510d8dd985e6cc22659487d078742a
+
+        secret    = whsec_kat_test_secret_do_not_use
+        timestamp = 1763460100
+        body      = {"id":"0193f2a5-0000-7000-8000-000000000003","event":"failed","timestamp":1763460100,"message":{"id":"0193f2a0-2222-7aaa-8bbb-123456789abc","recipient":null,"recipient_masked":"z***@pelda.hu","channel":"transactional","tags":["számla/2026"]},"reason":"soft","variables":{"order":"Ő-42"},"delivery":{"code":451,"enhanced_code":"4.4.1","classification":"soft","bounce_type":null}}
+        signature = 5f6232948accfdb88dff6973ac60e0772ad5fb9ec20b4e3625792e84bf39c854
+        ```
       fr: |
         Chaque requête webhook est signée en **HMAC-SHA256**. En-têtes :
 
@@ -499,6 +628,49 @@ guides:
 
         **Replay :** une livraison en dead-letter (ou toute autre) peut être renvoyée depuis l’interface
         ou avec `POST /webhooks/deliveries/{uuid}/replay`.
+
+        **Identifiant d’événement :** l’en-tête `X-VentMail-Event-Id` et le champ `id` sont l’identifiant stable de l’ÉVÉNEMENT — identique pour chaque point de terminaison, nouvelle tentative et replay ; dédupliquez sur l’`id` du corps SIGNÉ — les en-têtes ne sont pas signés. `message.id` est l’`id` renvoyé par `POST /v1/messages`.
+
+        **Événements de livraison :** `bounced` — rejet définitif ; `delivery.bounce_type` = `hard` (l’adresse n’existe pas, supprimée immédiatement) ou `soft` (boîte pleine, bloqué, spam, politique). `failed` — ventMail a abandonné définitivement (tentatives épuisées), le message n’a pas été livré. `deferred` — temporaire, nouvelle tentative en cours. `complained` — fait partie du contrat, mais le retour de plaintes n’est pas encore actif.
+
+        ```json
+        {
+          "id": "0193f2a4-6f1e-7c3a-9d2b-5e8f1a2b3c4d",
+          "event": "bounced",
+          "timestamp": 1763460000,
+          "message": {
+            "id": "0193f2a0-1111-7aaa-8bbb-123456789abc",
+            "recipient": null,
+            "recipient_masked": "a***@example.com",
+            "channel": "transactional",
+            "tags": ["delivery"]
+          },
+          "reason": "hard",
+          "variables": [],
+          "delivery": { "code": 550, "enhanced_code": "5.1.1", "classification": "hard", "bounce_type": "hard" }
+        }
+        ```
+
+        **Destinataire :** avec `redact_recipient: true`, `message.recipient` vaut `null` et seul `message.recipient_masked` (ex. `a***@example.com`) est envoyé. S’applique aussi rétroactivement. Les `variables` (`v:*`) sont renvoyées telles quelles — n’y mettez pas d’adresses. Jamais le corps ni l’objet.
+
+        **Vecteurs KAT** (le corps est la séquence d’octets brute exacte, UTF-8 ; ne pas le réencoder) :
+
+        ```text
+        secret    = whsec_teszt
+        timestamp = 1756800000
+        body      = {"event":"delivered"}
+        signature = 363c17654baea444d069d95204c10390972dda1d4118ed255c6d23537ec1fe24
+
+        secret    = whsec_kat_test_secret_do_not_use
+        timestamp = 1763460000
+        body      = {"id":"0193f2a4-6f1e-7c3a-9d2b-5e8f1a2b3c4d","event":"bounced","timestamp":1763460000,"message":{"id":"0193f2a0-1111-7aaa-8bbb-123456789abc","recipient":null,"recipient_masked":"a***@example.com","channel":"transactional","tags":["delivery"]},"reason":"hard","variables":[],"delivery":{"code":550,"enhanced_code":"5.1.1","classification":"hard","bounce_type":"hard"}}
+        signature = c3cd335fffdc8fd94835d95dd009edd462510d8dd985e6cc22659487d078742a
+
+        secret    = whsec_kat_test_secret_do_not_use
+        timestamp = 1763460100
+        body      = {"id":"0193f2a5-0000-7000-8000-000000000003","event":"failed","timestamp":1763460100,"message":{"id":"0193f2a0-2222-7aaa-8bbb-123456789abc","recipient":null,"recipient_masked":"z***@pelda.hu","channel":"transactional","tags":["számla/2026"]},"reason":"soft","variables":{"order":"Ő-42"},"delivery":{"code":451,"enhanced_code":"4.4.1","classification":"soft","bounce_type":null}}
+        signature = 5f6232948accfdb88dff6973ac60e0772ad5fb9ec20b4e3625792e84bf39c854
+        ```
       it: |
         Ogni richiesta webhook è firmata con **HMAC-SHA256**. Header:
 
@@ -518,6 +690,49 @@ guides:
 
         **Replay:** una consegna in dead-letter (o qualsiasi altra) si può reinviare dall’interfaccia o
         con `POST /webhooks/deliveries/{uuid}/replay`.
+
+        **ID evento:** l’header `X-VentMail-Event-Id` e il campo `id` sono l’ID stabile dell’EVENTO — uguale per ogni endpoint, ritentativo e replay; deduplica sull’`id` del corpo FIRMATO — gli header non sono firmati. `message.id` è l’`id` restituito da `POST /v1/messages`.
+
+        **Eventi di consegna:** `bounced` — rifiuto definitivo; `delivery.bounce_type` = `hard` (l’indirizzo non esiste, soppresso subito) o `soft` (casella piena, bloccato, spam, policy). `failed` — ventMail ha rinunciato definitivamente (ritentativi esauriti), il messaggio non è stato consegnato. `deferred` — temporaneo, ritentativo in corso. `complained` — parte del contratto, ma il feedback sui reclami non è ancora attivo.
+
+        ```json
+        {
+          "id": "0193f2a4-6f1e-7c3a-9d2b-5e8f1a2b3c4d",
+          "event": "bounced",
+          "timestamp": 1763460000,
+          "message": {
+            "id": "0193f2a0-1111-7aaa-8bbb-123456789abc",
+            "recipient": null,
+            "recipient_masked": "a***@example.com",
+            "channel": "transactional",
+            "tags": ["delivery"]
+          },
+          "reason": "hard",
+          "variables": [],
+          "delivery": { "code": 550, "enhanced_code": "5.1.1", "classification": "hard", "bounce_type": "hard" }
+        }
+        ```
+
+        **Destinatario:** con `redact_recipient: true`, `message.recipient` è `null` e viene inviato solo `message.recipient_masked` (es. `a***@example.com`). Vale anche retroattivamente. Le `variables` (`v:*`) sono restituite così come sono — non inserirvi indirizzi. Mai corpo od oggetto.
+
+        **Vettori KAT** (il corpo è la sequenza esatta di byte grezzi, UTF-8; non ricodificarlo):
+
+        ```text
+        secret    = whsec_teszt
+        timestamp = 1756800000
+        body      = {"event":"delivered"}
+        signature = 363c17654baea444d069d95204c10390972dda1d4118ed255c6d23537ec1fe24
+
+        secret    = whsec_kat_test_secret_do_not_use
+        timestamp = 1763460000
+        body      = {"id":"0193f2a4-6f1e-7c3a-9d2b-5e8f1a2b3c4d","event":"bounced","timestamp":1763460000,"message":{"id":"0193f2a0-1111-7aaa-8bbb-123456789abc","recipient":null,"recipient_masked":"a***@example.com","channel":"transactional","tags":["delivery"]},"reason":"hard","variables":[],"delivery":{"code":550,"enhanced_code":"5.1.1","classification":"hard","bounce_type":"hard"}}
+        signature = c3cd335fffdc8fd94835d95dd009edd462510d8dd985e6cc22659487d078742a
+
+        secret    = whsec_kat_test_secret_do_not_use
+        timestamp = 1763460100
+        body      = {"id":"0193f2a5-0000-7000-8000-000000000003","event":"failed","timestamp":1763460100,"message":{"id":"0193f2a0-2222-7aaa-8bbb-123456789abc","recipient":null,"recipient_masked":"z***@pelda.hu","channel":"transactional","tags":["számla/2026"]},"reason":"soft","variables":{"order":"Ő-42"},"delivery":{"code":451,"enhanced_code":"4.4.1","classification":"soft","bounce_type":null}}
+        signature = 5f6232948accfdb88dff6973ac60e0772ad5fb9ec20b4e3625792e84bf39c854
+        ```
       es: |
         Cada solicitud de webhook está firmada con **HMAC-SHA256**. Cabeceras:
 
@@ -537,6 +752,49 @@ guides:
 
         **Replay:** una entrega en dead-letter (o cualquier otra) se puede reenviar desde la interfaz o
         con `POST /webhooks/deliveries/{uuid}/replay`.
+
+        **ID de evento:** la cabecera `X-VentMail-Event-Id` y el campo `id` son el ID estable del EVENTO — igual para cada endpoint, reintento y replay; deduplica con el `id` del cuerpo FIRMADO — las cabeceras no están firmadas. `message.id` es el `id` devuelto por `POST /v1/messages`.
+
+        **Eventos de entrega:** `bounced` — rechazo definitivo; `delivery.bounce_type` = `hard` (la dirección no existe, suprimida al instante) o `soft` (buzón lleno, bloqueado, spam, política). `failed` — ventMail desistió definitivamente (reintentos agotados), el mensaje no se entregó. `deferred` — temporal, se sigue reintentando. `complained` — forma parte del contrato, pero el feedback de quejas aún no está activo.
+
+        ```json
+        {
+          "id": "0193f2a4-6f1e-7c3a-9d2b-5e8f1a2b3c4d",
+          "event": "bounced",
+          "timestamp": 1763460000,
+          "message": {
+            "id": "0193f2a0-1111-7aaa-8bbb-123456789abc",
+            "recipient": null,
+            "recipient_masked": "a***@example.com",
+            "channel": "transactional",
+            "tags": ["delivery"]
+          },
+          "reason": "hard",
+          "variables": [],
+          "delivery": { "code": 550, "enhanced_code": "5.1.1", "classification": "hard", "bounce_type": "hard" }
+        }
+        ```
+
+        **Destinatario:** con `redact_recipient: true`, `message.recipient` es `null` y solo se envía `message.recipient_masked` (p. ej. `a***@example.com`). También se aplica retroactivamente. Las `variables` (`v:*`) se devuelven tal cual — no pongas direcciones en ellas. Nunca el cuerpo ni el asunto.
+
+        **Vectores KAT** (el cuerpo es la secuencia exacta de bytes en bruto, UTF-8; no lo recodifiques):
+
+        ```text
+        secret    = whsec_teszt
+        timestamp = 1756800000
+        body      = {"event":"delivered"}
+        signature = 363c17654baea444d069d95204c10390972dda1d4118ed255c6d23537ec1fe24
+
+        secret    = whsec_kat_test_secret_do_not_use
+        timestamp = 1763460000
+        body      = {"id":"0193f2a4-6f1e-7c3a-9d2b-5e8f1a2b3c4d","event":"bounced","timestamp":1763460000,"message":{"id":"0193f2a0-1111-7aaa-8bbb-123456789abc","recipient":null,"recipient_masked":"a***@example.com","channel":"transactional","tags":["delivery"]},"reason":"hard","variables":[],"delivery":{"code":550,"enhanced_code":"5.1.1","classification":"hard","bounce_type":"hard"}}
+        signature = c3cd335fffdc8fd94835d95dd009edd462510d8dd985e6cc22659487d078742a
+
+        secret    = whsec_kat_test_secret_do_not_use
+        timestamp = 1763460100
+        body      = {"id":"0193f2a5-0000-7000-8000-000000000003","event":"failed","timestamp":1763460100,"message":{"id":"0193f2a0-2222-7aaa-8bbb-123456789abc","recipient":null,"recipient_masked":"z***@pelda.hu","channel":"transactional","tags":["számla/2026"]},"reason":"soft","variables":{"order":"Ő-42"},"delivery":{"code":451,"enhanced_code":"4.4.1","classification":"soft","bounce_type":null}}
+        signature = 5f6232948accfdb88dff6973ac60e0772ad5fb9ec20b4e3625792e84bf39c854
+        ```
       ru: |
         Каждый запрос вебхука подписан **HMAC-SHA256**. Заголовки:
 
@@ -556,6 +814,49 @@ guides:
 
         **Replay:** доставку в dead-letter (или любую другую) можно отправить повторно из интерфейса или
         через `POST /webhooks/deliveries/{uuid}/replay`.
+
+        **ID события:** заголовок `X-VentMail-Event-Id` и поле `id` — стабильный идентификатор СОБЫТИЯ, одинаковый для каждого эндпоинта, повтора и replay; дедуплицируйте по `id` из ПОДПИСАННОГО тела — заголовки не подписаны. `message.id` — это `id` из ответа `POST /v1/messages`.
+
+        **События доставки:** `bounced` — окончательный отказ; `delivery.bounce_type` = `hard` (адрес не существует, сразу заблокирован) или `soft` (ящик переполнен, блокировка, спам, политика). `failed` — ventMail окончательно сдался (повторы исчерпаны), письмо не доставлено. `deferred` — временно, повторы продолжаются. `complained` — часть контракта, но обработка жалоб пока не работает.
+
+        ```json
+        {
+          "id": "0193f2a4-6f1e-7c3a-9d2b-5e8f1a2b3c4d",
+          "event": "bounced",
+          "timestamp": 1763460000,
+          "message": {
+            "id": "0193f2a0-1111-7aaa-8bbb-123456789abc",
+            "recipient": null,
+            "recipient_masked": "a***@example.com",
+            "channel": "transactional",
+            "tags": ["delivery"]
+          },
+          "reason": "hard",
+          "variables": [],
+          "delivery": { "code": 550, "enhanced_code": "5.1.1", "classification": "hard", "bounce_type": "hard" }
+        }
+        ```
+
+        **Получатель:** при `redact_recipient: true` поле `message.recipient` равно `null`, отправляется только `message.recipient_masked` (например, `a***@example.com`). Действует и задним числом. `variables` (`v:*`) возвращаются как есть — не кладите туда адреса. Тело и тема — никогда.
+
+        **KAT-векторы** (тело — точная последовательность сырых байтов, UTF-8; не перекодируйте):
+
+        ```text
+        secret    = whsec_teszt
+        timestamp = 1756800000
+        body      = {"event":"delivered"}
+        signature = 363c17654baea444d069d95204c10390972dda1d4118ed255c6d23537ec1fe24
+
+        secret    = whsec_kat_test_secret_do_not_use
+        timestamp = 1763460000
+        body      = {"id":"0193f2a4-6f1e-7c3a-9d2b-5e8f1a2b3c4d","event":"bounced","timestamp":1763460000,"message":{"id":"0193f2a0-1111-7aaa-8bbb-123456789abc","recipient":null,"recipient_masked":"a***@example.com","channel":"transactional","tags":["delivery"]},"reason":"hard","variables":[],"delivery":{"code":550,"enhanced_code":"5.1.1","classification":"hard","bounce_type":"hard"}}
+        signature = c3cd335fffdc8fd94835d95dd009edd462510d8dd985e6cc22659487d078742a
+
+        secret    = whsec_kat_test_secret_do_not_use
+        timestamp = 1763460100
+        body      = {"id":"0193f2a5-0000-7000-8000-000000000003","event":"failed","timestamp":1763460100,"message":{"id":"0193f2a0-2222-7aaa-8bbb-123456789abc","recipient":null,"recipient_masked":"z***@pelda.hu","channel":"transactional","tags":["számla/2026"]},"reason":"soft","variables":{"order":"Ő-42"},"delivery":{"code":451,"enhanced_code":"4.4.1","classification":"soft","bounce_type":null}}
+        signature = 5f6232948accfdb88dff6973ac60e0772ad5fb9ec20b4e3625792e84bf39c854
+        ```
 
   - key: errors
     title:

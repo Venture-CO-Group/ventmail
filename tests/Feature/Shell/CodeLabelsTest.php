@@ -47,7 +47,7 @@ it('minden felületen megjelenő gépi kódnak van címkéje mind a hét nyelven
         'codes.suppressionReason' => array_map(fn (SuppressionReason $case) => $case->value, SuppressionReason::cases()),
         'codes.scope' => array_map(fn (SuppressionScope $case) => $case->value, SuppressionScope::cases()),
         'codes.dkim' => ['no_signing_key', 'signing_failed'],
-        'codes.event' => ['queued', 'accepted', 'rejected', 'delivered', 'deferred', 'bounced', 'complained', 'unsubscribed', 'opened', 'clicked', 'stored'],
+        'codes.event' => ['queued', 'accepted', 'rejected', 'delivered', 'deferred', 'bounced', 'complained', 'unsubscribed', 'opened', 'clicked', 'stored', 'failed'],
         'journeyCanvas.nodes' => array_map(fn (TriggerType $case) => $case->value, TriggerType::cases()),
     ];
 

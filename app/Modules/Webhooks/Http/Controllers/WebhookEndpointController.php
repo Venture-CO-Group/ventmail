@@ -27,7 +27,7 @@ final class WebhookEndpointController
     /** A `/v1/events` zárt típuslistája — ugyanaz a szerződés. */
     private const TYPES = [
         'accepted', 'rejected', 'delivered', 'deferred', 'bounced',
-        'complained', 'unsubscribed', 'opened', 'clicked', 'stored',
+        'complained', 'unsubscribed', 'opened', 'clicked', 'stored', 'failed',
     ];
 
     public function index(): JsonResponse
@@ -46,6 +46,8 @@ final class WebhookEndpointController
             // ÜRES lista = minden esemény. Az explicit lista szűkít.
             'events' => ['sometimes', 'array'],
             'events.*' => ['string', 'in:'.implode(',', self::TYPES)],
+            // `true`: a nyers címzett-cím nem megy ki, csak a maszkolt alak (PII-minimum).
+            'redact_recipient' => ['sometimes', 'boolean'],
         ]);
 
         if ($validator->fails()) {
@@ -57,6 +59,7 @@ final class WebhookEndpointController
                 (string) $request->input('name'),
                 (string) $request->input('url'),
                 array_values((array) $request->input('events', [])),
+                (bool) $request->boolean('redact_recipient'),
             );
         } catch (InvalidArgumentException $e) {
             // SSRF-elutasítás: a hibát OTT jelezzük, ahol az ügyfél beírja a címet, nem a
@@ -87,6 +90,7 @@ final class WebhookEndpointController
             'events' => ['sometimes', 'array'],
             'events.*' => ['string', 'in:'.implode(',', self::TYPES)],
             'active' => ['sometimes', 'boolean'],
+            'redact_recipient' => ['sometimes', 'boolean'],
         ]);
 
         if ($validator->fails()) {
@@ -147,6 +151,7 @@ final class WebhookEndpointController
             'url' => $endpoint->url,
             'events' => $endpoint->events,
             'active' => $endpoint->active,
+            'redact_recipient' => (bool) $endpoint->redact_recipient,
             'last_success_at' => $endpoint->last_success_at?->toIso8601String(),
             'last_failure_at' => $endpoint->last_failure_at?->toIso8601String(),
         ];

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Webhooks\Services;
 
 use App\Modules\Events\Models\MessageEvent;
+use App\Modules\Logs\Services\LogExport;
 use App\Modules\Webhooks\Jobs\DeliverWebhook;
 use App\Modules\Webhooks\Models\WebhookDelivery;
 use App\Modules\Webhooks\Models\WebhookEndpoint;
@@ -44,7 +45,7 @@ final class WebhookDispatcher
                 'webhook_endpoint_id' => $endpoint->getKey(),
                 'event_type' => (string) $event->type,
                 'message_uuid' => $event->message_uuid,
-                'payload' => $this->payload($event),
+                'payload' => self::payload($event, (bool) $endpoint->redact_recipient),
                 'status' => 'pending',
                 // A söprő parancs `next_attempt_at <= now()`-ra keres. `now()`-val az ÚJ sor
                 // azonnal esedékes, tehát ha a queue-késés nagyobb, mint a söprés periódusa,
@@ -77,16 +78,26 @@ final class WebhookDispatcher
      * a payload HARMADIK FÉLHEZ megy ki. A `v:*` változók viszont igen — azokat a hívó
      * maga küldte, és azokból azonosítja a saját rekordjait (Mailgun-paritás).
      *
+     * A mezők csak BŐVÜLHETNEK (`/v1`): az `id` (az esemény stabil azonosítója — végpontonként,
+     * újrapróbálásnál és replay-nél ugyanaz, erre dedupol a fogadó), a `recipient_masked` és a
+     * `bounce_type` későbbi, additív mezők. `redact_recipient` végpontnál a nyers cím `null`:
+     * a tárolt kézbesítési sorba sem kerül be.
+     *
      * @return array<string, mixed>
      */
-    private function payload(MessageEvent $event): array
+    public static function payload(MessageEvent $event, bool $redactRecipient = false): array
     {
+        $recipient = $event->recipient === null ? null : (string) $event->recipient;
+        $classification = $event->payload['classification'] ?? null;
+
         return [
+            'id' => (string) $event->uuid,
             'event' => $event->type,
             'timestamp' => $event->occurred_at?->getTimestamp(),
             'message' => [
                 'id' => $event->message_uuid,
-                'recipient' => $event->recipient,
+                'recipient' => $redactRecipient ? null : $recipient,
+                'recipient_masked' => $recipient === null ? null : LogExport::mask($recipient),
                 'channel' => $event->channel,
                 'tags' => $event->tags,
             ],
@@ -95,8 +106,23 @@ final class WebhookDispatcher
             'delivery' => [
                 'code' => $event->payload['code'] ?? null,
                 'enhanced_code' => $event->payload['enhanced_code'] ?? null,
-                'classification' => $event->payload['classification'] ?? null,
+                'classification' => $classification,
+                'bounce_type' => self::bounceType((string) $event->type, $classification),
             ],
         ];
+    }
+
+    /**
+     * `hard`: a cím nem létezik / végleg érvénytelen — a ventMail azonnal suppression-listára
+     * tette. `soft`: végleges elutasítás, de nem a cím hibája (tele postafiók, blokk, spam,
+     * policy) — a cím nem tiltódik azonnal (csak ismétlődő soft bounce után).
+     */
+    private static function bounceType(string $type, mixed $classification): ?string
+    {
+        if ($type !== 'bounced') {
+            return null;
+        }
+
+        return $classification === 'hard' ? 'hard' : 'soft';
     }
 }

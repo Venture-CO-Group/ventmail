@@ -48,7 +48,7 @@ it('a dokumentáció képernyő a fejlesztőnek és az elemzőnek nyílik, a sze
                 ->component('Platform/Docs')
                 ->where('webhook.sample.event', 'delivered')
                 ->missing('webhook.sample.test')
-                ->where('webhook.events', ['delivered', 'opened', 'clicked', 'bounced', 'complained', 'unsubscribed'])
+                ->where('webhook.events', ['delivered', 'opened', 'clicked', 'bounced', 'complained', 'unsubscribed', 'failed'])
                 ->where('sandbox.testKeyPrefix', 'vm_test_')
                 ->has('reference.operations')
             );

@@ -2452,7 +2452,9 @@
             "rotateTitle": "Rotar el secreto de firma",
             "rotateText": "Se genera un nuevo secreto que se muestra una sola vez. La acción queda auditada.",
             "grace": "Mantener válido el secreto anterior {hours} horas (segunda firma): desactívalo si hubo una filtración.",
-            "deleteConfirm": "El endpoint «{name}» se eliminará y no recibirá más eventos. La acción queda auditada."
+            "deleteConfirm": "El endpoint «{name}» se eliminará y no recibirá más eventos. La acción queda auditada.",
+            "redactRecipient": "Enmascarar destinatario",
+            "redactRecipientHint": "Solo se envía la dirección enmascarada (a***@example.com) en lugar de message.recipient — también en entregas aún no enviadas. Las variables v:* se envían tal cual."
         },
         "logs": {
             "lead": "Cada mensaje desde la aceptación hasta el clic, con las respuestas SMTP.",

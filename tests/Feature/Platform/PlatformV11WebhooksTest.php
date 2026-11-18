@@ -190,7 +190,7 @@ it('az eseménytípus-szerkesztés zárt listából menthető és auditált; a t
         ->assertOk()
         ->assertInertia(fn ($page) => $page
             ->where('endpoints.0.secretHint', substr($this->secret, -4))
-            ->where('testEvents', ['delivered', 'opened', 'clicked', 'bounced', 'complained', 'unsubscribed'])
+            ->where('testEvents', ['delivered', 'opened', 'clicked', 'bounced', 'complained', 'unsubscribed', 'failed'])
         )
         ->assertDontSee($this->secret);
 });
@@ -239,4 +239,19 @@ it('RS5: inaktív végpontra nem küldhető teszt-esemény (validációs hiba, n
         ->assertSessionHasErrors('event');
 
     expect(WebhookDelivery::query()->withoutGlobalScopes()->count())->toBe(0);
+});
+
+it('a felületről a címzett-maszkolás be- és kikapcsolható, és a képernyő mutatja (auditált)', function () {
+    whAs()->from('/webhooks')->patch("/webhooks/{$this->endpoint->uuid}", ['redact_recipient' => true])
+        ->assertRedirect('/webhooks');
+
+    expect(app(WorkspaceContext::class)->runFor($this->workspace, fn () => $this->endpoint->fresh()->redact_recipient))->toBeTrue();
+
+    whAs()->get('/webhooks')->assertInertia(fn ($page) => $page->where('endpoints.0.redactRecipient', true)
+        ->where('availableEvents', fn ($events) => collect($events)->contains('failed')));
+
+    whAs()->from('/webhooks')->post('/webhooks', ['name' => 'JM', 'url' => 'https://jm.test/hook', 'events' => ['bounced', 'failed'], 'redact_recipient' => true])
+        ->assertRedirect('/webhooks');
+
+    expect(app(WorkspaceContext::class)->runFor($this->workspace, fn () => WebhookEndpoint::query()->where('name', 'JM')->value('redact_recipient')))->toBeTrue();
 });

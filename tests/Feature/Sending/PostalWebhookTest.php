@@ -326,3 +326,40 @@ it('a Postal-eseményekre a webhook megkapja az üzenet v: változóit (a hívó
         expect($event->variables)->toBe(['notification_id' => '01J0000000000000000000000A']);
     }
 });
+
+it('a VÉGLEGES kudarc ideiglenes kóddal (a Postal feladta) failed eseményt ír — a fogadó app ebből tudja, hogy nem ért célba', function () {
+    postWebhook('transactional', postalBody('MessageDeliveryFailed', [
+        'message' => postalMessage(), 'status' => 'SoftFail', 'details' => 'Gave up after retries',
+        'output' => '451 4.4.1 Connection timed out', 'sent_with_ssl' => false, 'timestamp' => microtime(true), 'time' => 30.0,
+    ]), $this->txPrivate)->assertNoContent();
+
+    $failed = MessageEvent::query()->withoutGlobalScopes()
+        ->where('message_uuid', $this->message->uuid)->where('type', 'failed')->first();
+
+    expect($failed)->not->toBeNull();
+    expect($failed->recipient)->toBe('halott@example.test');
+    expect($failed->payload['code'])->toBe(451);
+});
+
+it('a hard fail bounced eseményt ír, failed-et NEM (a kettő nem duplázódik)', function () {
+    postWebhook('transactional', postalBody('MessageDeliveryFailed', [
+        'message' => postalMessage(), 'status' => 'HardFail', 'details' => 'Permanent',
+        'output' => '550 5.1.1 No such user', 'sent_with_ssl' => true, 'timestamp' => microtime(true), 'time' => 0.3,
+    ]), $this->txPrivate)->assertNoContent();
+
+    $types = MessageEvent::query()->withoutGlobalScopes()->where('message_uuid', $this->message->uuid)->pluck('type')->all();
+
+    expect($types)->toContain('bounced')->not->toContain('failed');
+});
+
+it('SMTP-kód nélküli (időtúllépés) végleges kudarc failed — NEM hard bounce, nincs suppression', function () {
+    postWebhook('transactional', postalBody('MessageDeliveryFailed', [
+        'message' => postalMessage(), 'status' => 'SoftFail', 'details' => 'Gave up',
+        'output' => 'Connection timed out', 'sent_with_ssl' => false, 'timestamp' => microtime(true), 'time' => 30.0,
+    ]), $this->txPrivate)->assertNoContent();
+
+    $types = MessageEvent::query()->withoutGlobalScopes()->where('message_uuid', $this->message->uuid)->pluck('type')->all();
+
+    expect($types)->toContain('failed')->not->toContain('bounced');
+    expect(Suppression::query()->withoutGlobalScopes()->where('email', 'halott@example.test')->exists())->toBeFalse();
+});
