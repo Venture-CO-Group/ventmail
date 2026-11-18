@@ -2454,7 +2454,7 @@
             "grace": "Mantener válido el secreto anterior {hours} horas (segunda firma): desactívalo si hubo una filtración.",
             "deleteConfirm": "El endpoint «{name}» se eliminará y no recibirá más eventos. La acción queda auditada.",
             "redactRecipient": "Enmascarar destinatario",
-            "redactRecipientHint": "Solo se envía la dirección enmascarada (a***@example.com) en lugar de message.recipient — también en entregas aún no enviadas. Las variables v:* se envían tal cual."
+            "redactRecipientHint": "Solo se envía la dirección enmascarada (a***{'@'}example.com) en lugar de message.recipient — también en entregas aún no enviadas. Las variables v:* se envían tal cual."
         },
         "logs": {
             "lead": "Cada mensaje desde la aceptación hasta el clic, con las respuestas SMTP.",

@@ -2454,7 +2454,7 @@
             "grace": "Garder l'ancien secret valide {hours} heures (seconde signature) — à désactiver en cas de fuite.",
             "deleteConfirm": "Le point de terminaison « {name} » sera supprimé et ne recevra plus d'événements. L'action est auditée.",
             "redactRecipient": "Masquer le destinataire",
-            "redactRecipientHint": "Seule l’adresse masquée (a***@example.com) est envoyée à la place de message.recipient — y compris pour les livraisons pas encore envoyées. Les variables v:* sont envoyées telles quelles."
+            "redactRecipientHint": "Seule l’adresse masquée (a***{'@'}example.com) est envoyée à la place de message.recipient — y compris pour les livraisons pas encore envoyées. Les variables v:* sont envoyées telles quelles."
         },
         "logs": {
             "lead": "Chaque message, de l'acceptation au clic, avec les réponses SMTP.",

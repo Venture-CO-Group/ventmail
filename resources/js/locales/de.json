@@ -2454,7 +2454,7 @@
             "grace": "Altes Geheimnis {hours} Stunden gültig lassen (zweite Signatur) — bei einem Leck deaktivieren.",
             "deleteConfirm": "Der Endpunkt „{name}\" wird gelöscht und erhält keine Ereignisse mehr. Die Aktion wird protokolliert.",
             "redactRecipient": "Empfänger maskieren",
-            "redactRecipientHint": "Statt message.recipient wird nur die maskierte Adresse (a***@example.com) gesendet — auch bei noch nicht gesendeten Zustellungen. v:*-Variablen bleiben unverändert."
+            "redactRecipientHint": "Statt message.recipient wird nur die maskierte Adresse (a***{'@'}example.com) gesendet — auch bei noch nicht gesendeten Zustellungen. v:*-Variablen bleiben unverändert."
         },
         "logs": {
             "lead": "Jede Nachricht von der Annahme bis zum Klick, mit den SMTP-Antworten.",
