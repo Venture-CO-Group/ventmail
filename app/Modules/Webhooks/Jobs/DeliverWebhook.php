@@ -145,6 +145,15 @@ final class DeliverWebhook implements ShouldQueue
             return;
         }
 
+        // A `redact_recipient` VISSZAMENŐLEG is érvényes: a kapcsoló előtt rögzített (függő,
+        // újrapróbált, dead-letter, replay-elt) sor sem viheti ki a nyers címet. A tárolt sorból
+        // is eltűnik — a PII-minimum nem csak a hálózaton, a mi adatbázisunkban is cél.
+        if ((bool) $endpoint->redact_recipient && is_string($delivery->payload['message']['recipient'] ?? null)) {
+            $redacted = $delivery->payload;
+            $redacted['message']['recipient'] = null;
+            $delivery->forceFill(['payload' => $redacted])->save();
+        }
+
         $payload = (string) json_encode($delivery->payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         $timestamp = now()->getTimestamp();
 
@@ -163,6 +172,12 @@ final class DeliverWebhook implements ShouldQueue
         // egy már frissített fogadó semmit nem vesz észre.
         if ($previous !== null) {
             $headers['X-VentMail-Signature-Previous'] = $signer->sign($previous, $payload, $timestamp);
+        }
+
+        // Az ESEMÉNY stabil azonosítója (a payload `id`-je): végpontonként, újrapróbálásnál és
+        // replay-nél ugyanaz — erre dedupol a fogadó. A régebbi (mező nélküli) sornál nincs.
+        if (is_string($delivery->payload['id'] ?? null)) {
+            $headers['X-VentMail-Event-Id'] = $delivery->payload['id'];
         }
 
         if ((bool) $delivery->is_test) {

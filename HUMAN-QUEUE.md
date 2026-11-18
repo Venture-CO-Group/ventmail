@@ -90,6 +90,11 @@
       a journey-be — maradjon-e a megnyitás triggerként, vagy csak a kattintás.
 
 ## P2 — termékdöntések (tulajdonos)
+- [ ] **Panasz-visszacsatolás (FBL / ARF) feldolgozása:** a `complained` esemény a `/v1` szerződésben és a
+      webhook-listában szerepel, de ma SEMMI nem írja (a Postal nem dolgoz fel FBL-t; az MX-fogadó az ARF-jelentést
+      nem bontja). Döntés kell: Yahoo CFL / Microsoft JMRP regisztráció (P0 fent) + ARF-parser az Inbound modulban
+      (MIME-parser → `venture-security` review), vagy külső FBL-szolgáltatás. Addig a Jersey Magic és a többi
+      integráció panasz-webhookot NEM kap.
 - [ ] **Verified-consent import → `confirmed` consent?** Ma a kontakt `subscribed`, de a `consents` sor
       `pending` marad (D30, golden rule 4), így a 3. kapu marketingre zár megerősítésig. Ha legyen
       `confirmed`, tulajdonosi (jogi) döntés.

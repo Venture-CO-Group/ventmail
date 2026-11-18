@@ -3,7 +3,26 @@
 Formátum: [Keep a Changelog](https://keepachangelog.com/hu/1.1.0/). Verziózás: a kiadás tagje `vMAJOR.MINOR.PATCH`.
 A részletes döntési nyomvonal: `docs/plans/v1.1.md` (D1–D300).
 
-## [Unreleased]
+## [1.5.0] — 2026-11-19 (kézbesítési-esemény webhookok)
+
+### Added
+- **Kézbesítési-esemény webhookok az integrációknak** (Jersey Magic kérése): új `failed` eseménytípus — a ventMail VÉGLEG feladta a kézbesítést végleges bounce nélkül (a driver-újrapróbálások kimerültek, vagy a Postal ideiglenes kóddal adta fel a `MessageDeliveryFailed`-et). A `/v1/events`, a `/v1/webhooks/endpoints` és a felület eseménylistája bővült vele. **Figyelem:** az üres eseménylistájú (= minden esemény) meglévő végpontok a deploy után `failed` eseményt is kapnak, és a szűretlen `GET /v1/events` is visszaadja — az OpenAPI mostantól kimondja, hogy ismeretlen típust a fogadó hagyjon figyelmen kívül (2xx-szel); egy ismeretlen típusra 4xx-et adó fogadó 6 kísérlet után dead-letterbe fut.
+- Webhook-payload (additív mezők): `id` — az esemény stabil azonosítója (= `/v1/events` `id`; végpontonként, újrapróbálásnál és replay-nél ugyanaz) és az `X-VentMail-Event-Id` fejléc; `message.recipient_masked` (`a***@domain`); `delivery.bounce_type` (`hard` | `soft`, csak `bounced`-on).
+- Végpont-kapcsoló `redact_recipient` (`/v1` és felület): `true` esetén a nyers címzett-cím nem megy ki és nem tárolódik a kézbesítési sorban, csak a maszkolt alak. Alapérték `false` (a meglévő végpontok szerződése változatlan).
+- A webhook-aláírás KAT-vektorai a fogyasztói dokumentációban (`docs/openapi/ventmail-v1.yaml` `x-webhook-signature`, fejlesztői útmutató, mind a 7 nyelven); a teszt a dokumentált vektorokat a futó aláíróval ellenőrzi.
+
+### Fixed
+- A driver ÁTMENETI elutasítása (kivétel nélkül, kód nélkül vagy 4xx — pl. a Postal HTTP nem-2xx-e) után az üzenet `deferred` maradt `next_attempt_at` nélkül, tehát sosem próbálkoztunk újra és végállapot sem született. Most a `RetryPolicy` ütemez, a kimerült keret `failed` (üzenet + esemény).
+- A Postal kód nélküli `MessageDeliveryFailed`-je (pl. „Connection timed out”, `SoftFail`) eddig 550-es hard bounce lett, azonnali suppressionnel. Most `failed` esemény, suppression nélkül (a `HardFail` viselkedése változatlan).
+
+### Security
+- `laravel/framework` 12.69.0 → 12.73.0 (GHSA-63hm-g96r-2m2q / PKSA-yxbx-3c9s-cjt9, „Task Output Injection — Concurrency Process”): a `composer audit` új figyelmeztetése miatt bukott a backend-kapu. Csak a `composer.lock` változott, egyetlen csomag.
+
+### Changed
+- A `/v1` webhook-replay (`POST /v1/webhooks/deliveries/{uuid}/replay`) mostantól auditált (`webhook.replayed`, mint a felületi replay; a kontextusban az API-kulcs uuid-ja).
+
+### Telepítés
+- Migráció: `webhook_endpoints.redact_recipient` (expand-only, alapértékes oszlop).
 
 ## [1.4.13] — 2026-11-05 (Symfony biztonsági javítások)
 

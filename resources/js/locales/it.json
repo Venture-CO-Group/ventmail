@@ -2452,7 +2452,9 @@
             "rotateTitle": "Ruota il segreto di firma",
             "rotateText": "Viene generato un nuovo segreto, mostrato una sola volta. L'azione è registrata.",
             "grace": "Mantieni valido il vecchio segreto per {hours} ore (seconda firma) — disattiva in caso di fuga.",
-            "deleteConfirm": "L'endpoint \"{name}\" verrà eliminato e non riceverà più eventi. L'azione è registrata."
+            "deleteConfirm": "L'endpoint \"{name}\" verrà eliminato e non riceverà più eventi. L'azione è registrata.",
+            "redactRecipient": "Maschera il destinatario",
+            "redactRecipientHint": "Viene inviato solo l’indirizzo mascherato (a***{'@'}example.com) al posto di message.recipient — anche per le consegne non ancora inviate. Le variabili v:* restano invariate."
         },
         "logs": {
             "lead": "Ogni messaggio dall'accettazione al clic, con le risposte SMTP.",

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Webhooks\Http\Controllers;
 
 use App\Modules\Api\Support\ApiError;
+use App\Modules\Audit\Services\AuditLogger;
 use App\Modules\Webhooks\Jobs\DeliverWebhook;
 use App\Modules\Webhooks\Models\WebhookDelivery;
 use Illuminate\Http\JsonResponse;
@@ -42,7 +43,7 @@ final class WebhookDeliveryController
         ]);
     }
 
-    public function replay(string $uuid): JsonResponse
+    public function replay(Request $request, string $uuid): JsonResponse
     {
         $delivery = WebhookDelivery::query()->where('uuid', $uuid)->first();
 
@@ -58,6 +59,14 @@ final class WebhookDeliveryController
         // kísérletnél jártunk — különben egy örökre hibázó végpont végtelen ciklusba
         // vihetné a sort.
         $delivery->forceFill(['status' => 'failed', 'next_attempt_at' => now()])->save();
+
+        // Ugyanaz az audit-sor, mint a felületi replay-nél: a gépi út sem lehet nyomtalan.
+        app(AuditLogger::class)->log('webhook.replayed', $delivery->endpoint, context: [
+            'delivery' => (string) $delivery->uuid,
+            'via' => 'api',
+            // API-kulcsos hívásnál nincs felhasználó: a KULCS az aktor (uuid, nem a titok).
+            'api_key' => $request->attributes->get('api_key')?->uuid,
+        ]);
 
         DeliverWebhook::dispatch((int) $delivery->workspace_id, (string) $delivery->uuid);
 

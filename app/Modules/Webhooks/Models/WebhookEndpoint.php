@@ -32,12 +32,12 @@ final class WebhookEndpoint extends Model
      * első `create($request->validated())` engedné az ügyfélnek a saját, gyenge titkát —
      * és az aláírásunk annyit érne, amennyit az ő „titka".
      */
-    protected $fillable = ['name', 'url', 'events', 'active'];
+    protected $fillable = ['name', 'url', 'events', 'active', 'redact_recipient'];
 
     protected $hidden = ['secret', 'previous_secret'];
 
     /** A végpont ALAPÉRTELMEZÉSBEN aktív — a DB-alapérték a modellben nem látszana. */
-    protected $attributes = ['active' => true, 'events' => '[]'];
+    protected $attributes = ['active' => true, 'events' => '[]', 'redact_recipient' => false];
 
     protected static function booted(): void
     {
@@ -60,6 +60,7 @@ final class WebhookEndpoint extends Model
         return [
             'events' => 'array',
             'active' => 'boolean',
+            'redact_recipient' => 'boolean',
             'last_success_at' => 'datetime',
             'last_failure_at' => 'datetime',
             'previous_secret_expires_at' => 'datetime',
@@ -138,7 +139,7 @@ final class WebhookEndpoint extends Model
      *
      * @return array{endpoint: self, secret: string}
      */
-    public static function issue(string $name, string $url, array $events): array
+    public static function issue(string $name, string $url, array $events, bool $redactRecipient = false): array
     {
         $secret = 'whsec_'.Str::random(40);
 
@@ -148,6 +149,7 @@ final class WebhookEndpoint extends Model
                 'url' => $url,
                 'events' => $events,
                 'active' => true,
+                'redact_recipient' => $redactRecipient,
             ]), function (self $endpoint) use ($secret): void {
                 // A titok NEM tömegesen kitölthető: itt, explicit adjuk meg.
                 $endpoint->secret = $secret;

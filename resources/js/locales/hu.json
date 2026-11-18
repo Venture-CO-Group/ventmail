@@ -2452,7 +2452,9 @@
             "rotateTitle": "Aláíró titok rotálása",
             "rotateText": "Új titkot generálunk; egyszer látod. A művelet auditált.",
             "grace": "A régi titok még {hours} óráig érvényes (második aláírás) — szivárgásnál kapcsold ki.",
-            "deleteConfirm": "A(z) „{name}” végpont törlődik; több eseményt nem kap. A művelet auditált."
+            "deleteConfirm": "A(z) „{name}” végpont törlődik; több eseményt nem kap. A művelet auditált.",
+            "redactRecipient": "Címzett maszkolása",
+            "redactRecipientHint": "Csak a maszkolt cím (a***{'@'}pelda.hu) megy ki a message.recipient helyett — a még ki nem ment kézbesítéseken is. A v:* változók változatlanul mennek."
         },
         "logs": {
             "lead": "Minden üzenet útja az elfogadástól a kattintásig, az SMTP-válaszokkal.",

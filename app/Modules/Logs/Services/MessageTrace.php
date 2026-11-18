@@ -166,7 +166,7 @@ final class MessageTrace
 
         // Azonos időbélyegnél a LÁNC sorrendje dönt (accepted → … → clicked), nem a véletlen.
         $rank = ['queued' => 0, 'gate_passed' => 1, 'gate_rejected' => 1, 'rejected' => 2, 'accepted' => 2, 'attempt' => 3,
-            'deferred' => 4, 'delivered' => 5, 'bounced' => 5, 'opened' => 6, 'clicked' => 7, 'complained' => 8, 'unsubscribed' => 8];
+            'deferred' => 4, 'delivered' => 5, 'bounced' => 5, 'failed' => 5, 'opened' => 6, 'clicked' => 7, 'complained' => 8, 'unsubscribed' => 8];
 
         usort($items, static fn (array $a, array $b): int => [(string) $a['at'], $rank[$a['kind']] ?? 9] <=> [(string) $b['at'], $rank[$b['kind']] ?? 9]);
 

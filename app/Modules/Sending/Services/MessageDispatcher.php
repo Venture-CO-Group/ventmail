@@ -299,11 +299,24 @@ final class MessageDispatcher
             $result->accepted ? $message->recipients : $result->acceptedRecipients
         )));
 
+        // ÁTMENETI elutasítás (kód nélkül vagy 4xx — pl. a Postal HTTP nem-2xx-e): eddig a sor
+        // `deferred` maradt `next_attempt_at` NÉLKÜL, tehát az ütemező sosem vette elő újra, és
+        // végleges állapot sem született. Most a `RetryPolicy` ütemez; a kimerült keret `failed`.
+        // (Az 5xx-es elutasítás viselkedése változatlan: azt a bounce-ág kezeli.)
+        $transient = $status === 'deferred' && ($result->code === null || $result->code < 500);
+        $final = $transient && $this->retry->shouldGiveUp((int) $message->attempts);
+
+        if ($final) {
+            $status = 'failed';
+        }
+
         $message->forceFill([
             'status' => $status,
             'reason' => $result->accepted ? null : 'DRIVER_REJECTED',
             'sent_at' => now(),
             'options' => [...$message->options, 'delivered_recipients' => $delivered],
+            ...($transient && ! $final ? ['next_attempt_at' => now()->addSeconds($this->retry->delaySeconds((int) $message->attempts))] : []),
+            ...($final ? ['next_attempt_at' => null] : []),
             // A titkos render-változók csak addig élnek, amíg újrapróbálás jöhet.
             ...($status === 'deferred' ? [] : ['render_variables' => null]),
         ])->save();
@@ -346,6 +359,14 @@ final class MessageDispatcher
             ['provider_message_id' => $result->providerMessageId],
             array_values(array_diff($message->recipients, $delivered))
         );
+
+        if ($final) {
+            $pending = array_values(array_diff($message->recipients, $delivered));
+
+            if ($pending !== []) {
+                $this->events($message, 'failed', $rendered, ['provider_message_id' => $result->providerMessageId, 'code' => $result->code], $pending);
+            }
+        }
     }
 
     /** @param array<string, array{html: ?string, text: ?string}> $rendered */
@@ -373,6 +394,17 @@ final class MessageDispatcher
         ])->save();
 
         $this->events($message, 'deferred', $rendered, ['attempt' => $message->attempts]);
+
+        // VÉGLEGES kudarc: a hívó app (webhookon) csak ebből tudja meg, hogy a levél NEM ért
+        // célba, és nem is fog — a `deferred` önmagában „még próbálkozunk"-ot jelent. Csak
+        // azokra a címzettekre, akiket az MTA még nem vett át.
+        if ($final) {
+            $pending = array_values(array_diff($message->recipients, (array) ($message->options['delivered_recipients'] ?? [])));
+
+            if ($pending !== []) {
+                $this->events($message, 'failed', $rendered, ['attempt' => $message->attempts], $pending);
+            }
+        }
     }
 
     /**

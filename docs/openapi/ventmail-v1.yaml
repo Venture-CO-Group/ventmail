@@ -382,6 +382,10 @@ paths:
                   type: array
                   description: Üres vagy hiányzó lista = MINDEN esemény.
                   items: { $ref: '#/components/schemas/EventType' }
+                redact_recipient:
+                  type: boolean
+                  default: false
+                  description: '`true`: a nyers címzett-cím nem megy ki (`message.recipient = null`), csak a maszkolt alak.'
       responses:
         '201':
           description: Létrehozva — a titokkal együtt
@@ -416,6 +420,7 @@ paths:
                 url: { type: string, maxLength: 2048 }
                 events: { type: array, items: { $ref: '#/components/schemas/EventType' } }
                 active: { type: boolean }
+                redact_recipient: { type: boolean }
       responses:
         '200':
           description: Módosítva
@@ -998,6 +1003,68 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+x-webhook-signature:
+  description: |
+    Minden webhook-kérés aláírt. Fejlécek:
+    `X-VentMail-Timestamp` (unix mp), `X-VentMail-Signature` = hex(HMAC-SHA256(titok, timestamp + "." + nyers törzs)),
+    `X-VentMail-Signature-Previous` (csak titok-rotáció türelmi ablakában, a régi titokkal),
+    `X-VentMail-Event` (eseménytípus), `X-VentMail-Event-Id` (az esemény stabil id-je = payload `id`),
+    `X-VentMail-Delivery` (a kézbesítés id-je, végpontonként), `X-VentMail-Test: 1` (csak teszt-eseményen).
+    A titok a nyers `whsec_…` string UTF-8 bájtjai (nem dekódolandó). Az aláírt adat a NYERS
+    kérés-törzs bájtjai — a JSON-t NE dekódold és kódold újra ellenőrzés előtt.
+    Fogadó oldalon: (1) időben állandó összehasonlítás; (2) elutasítás, ha az időbélyeg
+    300 mp-nél régebbi vagy 60 mp-nél jövőbelibb; (3) a már látott esemény eldobása (2xx-szel) —
+    a dedup kulcsa az ALÁÍRT törzs `id` mezője. A fejlécek (`X-VentMail-Event-Id`,
+    `X-VentMail-Delivery`) NINCSENEK aláírva, csak kényelmi célúak; replay-védelemre ne használd őket. Bármely 2xx = sikeres kézbesítés; más válasz / időtúllépés (10 mp) →
+    újrapróbálás 1, 2, 4, 8, 16 perc után (összesen 6 kísérlet), utána dead-letter (replay-elhető).
+  algorithm: HMAC-SHA256
+  signed_payload: '{timestamp}.{raw_body}'
+  encoding: hex (lowercase)
+  tolerance_seconds: 300
+  future_tolerance_seconds: 60
+  kat:
+    - name: minimal
+      secret: 'whsec_teszt'
+      timestamp: 1756800000
+      body: '{"event":"delivered"}'
+      signature: '363c17654baea444d069d95204c10390972dda1d4118ed255c6d23537ec1fe24'
+    - name: bounced-hard-redacted
+      secret: 'whsec_kat_test_secret_do_not_use'
+      timestamp: 1763460000
+      body: '{"id":"0193f2a4-6f1e-7c3a-9d2b-5e8f1a2b3c4d","event":"bounced","timestamp":1763460000,"message":{"id":"0193f2a0-1111-7aaa-8bbb-123456789abc","recipient":null,"recipient_masked":"a***@example.com","channel":"transactional","tags":["delivery"]},"reason":"hard","variables":[],"delivery":{"code":550,"enhanced_code":"5.1.1","classification":"hard","bounce_type":"hard"}}'
+      signature: 'c3cd335fffdc8fd94835d95dd009edd462510d8dd985e6cc22659487d078742a'
+    - name: failed-unicode
+      secret: 'whsec_kat_test_secret_do_not_use'
+      timestamp: 1763460100
+      body: '{"id":"0193f2a5-0000-7000-8000-000000000003","event":"failed","timestamp":1763460100,"message":{"id":"0193f2a0-2222-7aaa-8bbb-123456789abc","recipient":null,"recipient_masked":"z***@pelda.hu","channel":"transactional","tags":["számla/2026"]},"reason":"soft","variables":{"order":"Ő-42"},"delivery":{"code":451,"enhanced_code":"4.4.1","classification":"soft","bounce_type":null}}'
+      signature: '5f6232948accfdb88dff6973ac60e0772ad5fb9ec20b4e3625792e84bf39c854'
+
+webhooks:
+  deliveryEvent:
+    post:
+      tags: [webhooks]
+      summary: Kézbesítési esemény a workspace webhook-végpontjára
+      description: |
+        A ventMail HÍVJA a végpontot (a `POST /v1/webhooks/endpoints`-szal regisztrált https URL-t).
+        Aláírás és ellenőrzés: `x-webhook-signature` (KAT-vektorokkal).
+      operationId: deliveryEventWebhook
+      parameters:
+        - { name: X-VentMail-Timestamp, in: header, required: true, schema: { type: string } }
+        - { name: X-VentMail-Signature, in: header, required: true, schema: { type: string } }
+        - { name: X-VentMail-Signature-Previous, in: header, required: false, schema: { type: string } }
+        - { name: X-VentMail-Event, in: header, required: true, schema: { $ref: '#/components/schemas/EventType' } }
+        - { name: X-VentMail-Event-Id, in: header, required: false, description: 'NEM aláírt kényelmi fejléc (= törzs `id`); a funkció előtt rögzített kézbesítésen hiányzik', schema: { type: string, format: uuid } }
+        - { name: X-VentMail-Delivery, in: header, required: true, schema: { type: string, format: uuid } }
+        - { name: X-VentMail-Test, in: header, required: false, schema: { type: string, enum: ['1'] } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/WebhookPayload' }
+      responses:
+        '2XX': { description: 'Átvéve (a duplikátum is 2xx-et kapjon)' }
+        default: { description: 'Újrapróbálás exponenciális visszalépéssel; 6 kísérlet után dead-letter' }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -1412,7 +1479,19 @@ components:
 
     EventType:
       type: string
-      enum: [accepted, rejected, delivered, deferred, bounced, complained, unsubscribed, opened, clicked, stored]
+      description: |
+        Az esemény típusa. A lista csak BŐVÜLHET — a fogadó az ismeretlen típust hagyja figyelmen kívül.
+
+        - `bounced`: a fogadó szerver véglegesen elutasította (5xx vagy aszinkron DSN). A
+          `delivery.bounce_type` mondja meg, hard vagy soft.
+        - `failed`: a ventMail VÉGLEG feladta a kézbesítést anélkül, hogy végleges bounce
+          érkezett volna (az újrapróbálások kimerültek: ideiglenes 4xx-ek, időtúllépés, MTA-hiba).
+          A levél nem érkezett meg, és nem is fog. Előtte ugyanarra a címzettre egy `deferred` is
+          érkezhet (külön `id`-vel).
+        - `deferred`: átmeneti hiba, a ventMail még próbálkozik (nem végállapot).
+        - `complained`: a címzett spamnek jelölte (FBL). A típus a szerződés része; a panasz-
+          visszacsatolás feldolgozása még nem él, ezért jelenleg NEM keletkezik ilyen esemény.
+      enum: [accepted, rejected, delivered, deferred, bounced, complained, unsubscribed, opened, clicked, stored, failed]
 
     WebhookEndpoint:
       type: object
@@ -1425,6 +1504,9 @@ components:
           description: Üres lista = MINDEN esemény.
           items: { $ref: '#/components/schemas/EventType' }
         active: { type: boolean }
+        redact_recipient:
+          type: boolean
+          description: '`true`: a payload `message.recipient` mezője `null`, csak a `message.recipient_masked` megy ki. Alapérték `false`.'
         last_success_at: { type: [string, 'null'], format: date-time }
         last_failure_at: { type: [string, 'null'], format: date-time }
 
@@ -1440,6 +1522,61 @@ components:
         response_excerpt: { type: [string, 'null'], description: 'a válasz eleje (max 500 karakter)' }
         next_attempt_at: { type: [string, 'null'], format: date-time }
         dead_lettered_at: { type: [string, 'null'], format: date-time }
+
+    WebhookPayload:
+      type: object
+      description: |
+        A kimenő webhook törzse (`POST` a végpont URL-jére, `Content-Type: application/json`).
+        A mezők csak BŐVÜLHETNEK; az ismeretlen mezőt a fogadó hagyja figyelmen kívül. Levéltörzs,
+        tárgy és a fogadó SMTP-válaszszövege SOHA nincs benne.
+      required: [id, event, timestamp, message, delivery]
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: |
+            Az ESEMÉNY stabil azonosítója (ugyanaz, mint a `GET /v1/events` `id`-je). Végpontonként,
+            újrapróbálásnál és replay-nél is ugyanaz — a fogadó erre dedupoljon. A
+            `X-VentMail-Event-Id` fejléc ugyanezt hordozza.
+        event: { $ref: '#/components/schemas/EventType' }
+        timestamp: { type: [integer, 'null'], description: 'az esemény ideje, unix másodperc (NEM az aláírás időbélyege)' }
+        test: { type: boolean, description: 'csak a felületről küldött teszt-eseményen van jelen (`true`)' }
+        message:
+          type: object
+          properties:
+            id: { type: [string, 'null'], description: 'a `POST /v1/messages` (és `/v1/messages.mime`) válaszának `id`-je' }
+            recipient: { type: [string, 'null'], description: 'a címzett — `null`, ha a végpont `redact_recipient: true` (visszamenőleg is: a kapcsoló előtt rögzített, még ki nem ment kézbesítésen is), vagy ha a címzett törlési kérést kért. A redakció CSAK erre a mezőre vonatkozik: a `variables` a hívó saját `v:*` értékeit változatlanul visszhangozza.' }
+            recipient_masked: { type: [string, 'null'], description: 'a címzett maszkolva: az első karakter + `***` + `@domain` (pl. `a***@example.com`)' }
+            channel: { type: string, enum: [transactional, marketing, journey, campaign] }
+            tags: { type: [array, 'null'], items: { type: string } }
+        reason:
+          type: [string, 'null']
+          description: |
+            `bounced` esetén a bounce-osztály (`hard`, `soft`, `mailbox_full`, `blocked`, `spam`, `policy`).
+            `failed` esetén a bounce-osztály, ha volt SMTP-válasz (a Postal 4xx-szel adta fel), `DRIVER_ERROR`
+            / `DRIVER_REJECTED`, ha a ventMail saját újrapróbálásai merültek ki, vagy `null` (az MTA kód nélkül
+            adta fel, pl. időtúllépés). Más eseményen strukturált ok vagy `null`. Ismeretlen értéket a fogadó
+            kezeljen általános okként.
+        variables:
+          description: 'a hívó `v:*` változói visszhangozva. Üresen `[]` (JSON-tömb), egyébként objektum.'
+          oneOf:
+            - { type: object, additionalProperties: true }
+            - { type: array, maxItems: 0 }
+        delivery:
+          type: object
+          properties:
+            code: { type: [integer, 'null'], description: 'a fogadó SMTP-kódja (pl. 550, 451)' }
+            enhanced_code: { type: [string, 'null'], description: 'RFC 3463 kód (pl. `5.1.1`)' }
+            classification: { type: [string, 'null'], enum: [hard, soft, mailbox_full, blocked, spam, policy, null] }
+            bounce_type:
+              type: [string, 'null']
+              enum: [hard, soft, null]
+              description: |
+                Csak `bounced` eseményen. `hard`: a cím nem létezik / végleg érvénytelen — a ventMail
+                azonnal suppression-listára tette, további küldés rá elutasítódik. `soft`: végleges
+                elutasítás, de nem a cím hibája (tele postafiók, blokk, spam, policy); a cím csak
+                ismétlődő `soft` / `mailbox_full` bounce után (5) kerül suppression-listára; a `blocked`,
+                `spam`, `policy` a küldő oldali okot jelzi, a címet nem tiltja.
 
     ErrorCode:
       type: string
