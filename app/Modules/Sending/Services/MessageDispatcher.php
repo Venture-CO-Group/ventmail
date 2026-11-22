@@ -269,10 +269,20 @@ final class MessageDispatcher
             })
             ->update([
                 'status' => 'sending',
-                'sending_started_at' => now(),
+                'sending_started_at' => $startedAt = now(),
                 'attempts' => $message->attempts + 1,
                 'updated_at' => now(),
             ]);
+
+        // A memóriabeli példány is `sending` — ÉS ez az eredeti állapota. Enélkül egy
+        // `deferred` levél újrapróbálásánál a végén beírt `deferred` NEM volt „dirty" (a
+        // példány szerint nem változott), tehát nem íródott ki: a sor `sending`-ben ragadt,
+        // amit az ütemező nem vesz elő — a levél soha nem jutott `failed`-ig, és a
+        // csatolmánya a lejáratig megmaradt.
+        if ($claimed > 0) {
+            $message->forceFill(['status' => 'sending', 'sending_started_at' => $startedAt])
+                ->syncOriginalAttributes(['status', 'sending_started_at']);
+        }
 
         return $claimed > 0;
     }
