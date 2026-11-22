@@ -127,6 +127,13 @@ paths:
               schema: { $ref: '#/components/schemas/Error' }
         '429':
           description: Rate-limit
+        '503':
+          description: |
+            `ATTACHMENT_STORE_FAILED` — a csatolmányt nem tudtuk eltárolni; a levél NEM ment ki, az
+            `Idempotency-Key` felszabadult, ugyanazzal a kulccsal újrapróbálható (`Retry-After`).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
 
   /messages.mime:
     post:
@@ -1639,6 +1646,8 @@ components:
         - ATTACHMENT_TYPE_MISMATCH
         - ATTACHMENT_TOO_LARGE
         - TOO_MANY_ATTACHMENTS
+        # A csatolmány leírása nem sikerült (503, Retry-After; a kulcs felszabadul).
+        - ATTACHMENT_STORE_FAILED
         - MIME_TOO_LARGE
         - MIME_MALFORMED
         - MIME_DUPLICATE_HEADER

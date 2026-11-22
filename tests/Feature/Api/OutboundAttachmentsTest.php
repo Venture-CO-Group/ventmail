@@ -600,3 +600,35 @@ it('az esemény nem hordoz csatolmány-tartalmat', function () {
         expect(json_encode($event->payload))->not->toContain('content');
     });
 });
+
+// --- S2: a csatolmány-sorok az `accepted` átmenettel ATOMIKUSAN íródnak -------------------
+
+it('ha a csatolmány nem írható le, a levél nem marad accepted: rejected, a kulcs felszabadul', function () {
+    $fail = true;
+    MessageAttachment::creating(function () use (&$fail) {
+        if ($fail) {
+            throw new RuntimeException('disk full');
+        }
+    });
+
+    sendWith([attachment(jpegBytes())], [], 'jm-atomic-1')
+        ->assertStatus(503)
+        ->assertJsonPath('error.code', 'ATTACHMENT_STORE_FAILED')
+        ->assertHeader('Retry-After');
+
+    $message = Message::query()->first();
+
+    expect($message->status)->toBe('rejected')
+        ->and($message->reason)->toBe('ATTACHMENT_STORE_FAILED')
+        ->and($message->idempotency_key)->toBeNull()
+        ->and($message->gate_decided_at)->toBeNull()
+        ->and(MessageAttachment::query()->count())->toBe(0)
+        ->and(FakeDriver::$sent)->toBe([])
+        ->and(MessageEvent::query()->where('message_uuid', $message->uuid)->pluck('type')->all())->toBe(['rejected']);
+
+    // Ugyanazzal a kulccsal az újrapróbálás most kimegy.
+    $fail = false;
+    sendWith([attachment(jpegBytes())], [], 'jm-atomic-1')->assertAccepted();
+
+    expect(FakeDriver::$sent)->toHaveCount(1);
+});

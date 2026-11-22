@@ -187,6 +187,17 @@ final class SendMessageController
                 )->header('Retry-After', '1');
             }
 
+            // A csatolmány leírása nem sikerült (H123): a mi hibánk, nem a kapu döntése —
+            // 503, újrapróbálható, a kulcs felszabadult.
+            if ($result->decision->reason === GateReason::AttachmentStoreFailed->value) {
+                return ApiError::response(
+                    GateReason::AttachmentStoreFailed->value,
+                    'A csatolmányt nem tudtuk eltárolni, a levél NEM ment ki. Próbáld újra ugyanazzal az Idempotency-Key-jel.',
+                    503,
+                    ['id' => $result->message->uuid]
+                )->header('Retry-After', '5');
+            }
+
             return ApiError::rejected(
                 (string) $result->decision->reason,
                 $this->explain($result->decision->reason),

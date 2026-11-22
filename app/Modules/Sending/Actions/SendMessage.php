@@ -138,22 +138,35 @@ final class SendMessage
         // A gate döntése az üzenetre kerül: a `gate_decided_at` teszi lehetővé, hogy egy
         // ütemezett küldésnél (deliverytime) a dispatcher újraértékeltethesse a gyorsan
         // változó kapukat — a közben érkezett leiratkozás különben nem számítana.
-        $message->forceFill([
-            'status' => 'accepted',
-            'gate_decided_at' => now(),
-            // A gate MINDEN kapujának eredménye az üzenetre kerül: az A3 trace-nek nem
-            // csak az elutasítás okára van szüksége, hanem arra is, hogy MIÉRT MENT KI.
-            // Az audit-sor erre nem alkalmas: az tenant-független és nem lekérdezhető
-            // üzenetenként.
-            'options' => [...$message->options, 'gate_trace' => $decision->trace()],
-        ])->save();
-        $this->event($message, 'accepted');
+        //
+        // A CSATOLMÁNY bájtjai (H123) UGYANABBAN a tranzakcióban íródnak, mint az `accepted`
+        // átmenet: vagy mindkettő megvan, vagy egyik sem. Különben egy félbeszakadt írás után
+        // a sor `accepted` maradna csatolmány nélkül — a kulcs lekötve, a levél pedig a
+        // kiküldéskor (fail-closed) csak `failed`-ig jutna, a hívó újrapróbálása replayt kapna.
+        // Csak az elfogadott, ténylegesen kiküldendő levélhez: testmode-ban nem íródik le.
+        $options = [...$message->options, 'gate_trace' => $decision->trace()];
 
-        // A CSATOLMÁNY bájtjai (H123) — CSAK az elfogadott, ténylegesen kiküldendő levélhez.
-        // Az elutasított levélé soha nem íródik le, a testmode-é sem (az sosem megy ki).
-        if (! $message->testmode) {
-            $this->storeAttachments($message, (array) Arr::get($attributes, 'attachments', []));
+        try {
+            DB::transaction(function () use ($message, $options, $attributes): void {
+                $message->forceFill([
+                    'status' => 'accepted',
+                    'gate_decided_at' => now(),
+                    // A gate MINDEN kapujának eredménye az üzenetre kerül: az A3 trace-nek nem
+                    // csak az elutasítás okára van szüksége, hanem arra is, hogy MIÉRT MENT KI.
+                    // Az audit-sor erre nem alkalmas: az tenant-független és nem lekérdezhető
+                    // üzenetenként.
+                    'options' => $options,
+                ])->save();
+
+                if (! $message->testmode) {
+                    $this->storeAttachments($message, (array) Arr::get($attributes, 'attachments', []));
+                }
+            });
+        } catch (Throwable $e) {
+            return $this->rejectUnstored($message, $options, $e);
         }
+
+        $this->event($message, 'accepted');
 
         // Az ÜTEMEZETT üzenet nem megy ki azonnal: a `deliverytime` a Mailgun-paritás része
         // (o:deliverytime). A sorból az A2 ütemezője veszi majd ki — és mivel a gate-döntésnek
@@ -504,6 +517,44 @@ final class SendMessage
         // KULCSOLT lenyomat: a `t:variables` (pl. egy 6 jegyű OTP) a kérés része, és a
         // többi mező ismert — kulcs nélküli SHA-256-ból offline visszafejthető lenne.
         return KeyedHash::of('request_fingerprint', json_encode($canonical, JSON_INVALID_UTF8_SUBSTITUTE) ?: serialize($canonical));
+    }
+
+    /**
+     * A csatolmány leírása nem sikerült — a tranzakció visszagördült, a sor `queued`.
+     *
+     * ÁTMENETI elutasítás: `rejected` + ok, a kulcs FELSZABADUL (az ismételt kérés újra
+     * lefut), a titkos render-változók törlődnek. A kivétel SZÖVEGE nem megy a sorba és a
+     * válaszba (titok/útvonal-szivárgás ellen), csak a szerver-logba — tartalom nélkül.
+     *
+     * @param  array<string, mixed>  $options
+     */
+    private function rejectUnstored(Message $message, array $options, Throwable $e): SendResult
+    {
+        $reason = GateReason::AttachmentStoreFailed;
+
+        if ($reason === GateReason::AttachmentStoreFailed) {
+            Log::error('A csatolmány leírása sikertelen — a levél nem került elfogadásra', [
+                'message_uuid' => (string) $message->uuid,
+                'workspace_id' => (int) $message->workspace_id,
+                'exception' => $e::class,
+            ]);
+        }
+
+        // A memóriabeli példány az elfogadott állapotot hiszi; az adatbázis a visszagördült
+        // `queued`-ot tartja. A kettőt előbb összehangoljuk, különben a mentés csak a
+        // „változott" mezőket írná ki.
+        $message->refresh();
+        $message->forceFill([
+            'status' => 'rejected',
+            'reason' => $reason->value,
+            'render_variables' => null,
+            'idempotency_key' => null,
+            'options' => $options,
+        ])->save();
+
+        $this->event($message, 'rejected', $reason->value);
+
+        return new SendResult($message, GateDecision::rejected($reason->value, []));
     }
 
     /**

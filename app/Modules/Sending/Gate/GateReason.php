@@ -40,6 +40,12 @@ enum GateReason: string
      */
     case InProgress = 'IN_PROGRESS';
 
+    /**
+     * H123 · a csatolmány-bájtok leírása nem sikerült (a tranzakció visszagördült). Átmeneti:
+     * a kulcs felszabadul, ugyanazzal a kulccsal újrapróbálható.
+     */
+    case AttachmentStoreFailed = 'ATTACHMENT_STORE_FAILED';
+
     /** Ugyanaz az Idempotency-Key MÁS kérés-tartalommal. */
     case IdempotencyKeyReused = 'IDEMPOTENCY_KEY_REUSED';
 
@@ -55,6 +61,7 @@ enum GateReason: string
         return in_array($this, [
             self::DomainUnverified, self::QuotaExceeded, self::RateLimited,
             self::SendingRestricted, self::ChannelDisabled, self::GateError,
+            self::AttachmentStoreFailed,
         ], true);
     }
 }
