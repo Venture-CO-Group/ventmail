@@ -168,9 +168,11 @@
       (a) `venture-security` review (payload-méret DoS, content-type hamisítás, PII-retenció — a PR
       leírásában); (b) `@venture/sdk`: `attachments?: {filename, content_type?, content}[]` + a hibakód-unió
       (`INVALID_ATTACHMENT`, `UNSUPPORTED_ATTACHMENT_TYPE`, `ATTACHMENT_TYPE_MISMATCH`, `ATTACHMENT_TOO_LARGE`,
-      `TOO_MANY_ATTACHMENTS`) — drift = 0; (c) a kimenő csatolmány NEM megy át víruskeresőn (csak
-      típus-allowlist + mágikus bájt + méret): döntés, kell-e a dispatcherben `VirusScanner`
-      (fail-closed, `deferred` a szkenner kiesésekor), legalább a PDF-re; (d) kiadás + migráció
+      `TOO_MANY_ATTACHMENTS`) — drift = 0; (c) **a PDF-csatolmány alapból KI** (`SENDING_ATTACHMENT_TYPES`,
+      security review S3), és KI IS MARAD, amíg a kimenő úton nincs fail-closed `VirusScanner`
+      (a dispatcherben, `deferred` a szkenner kiesésekor, `failed`/elutasítás fertőzöttre). Ma a
+      kimenő csatolmány csak típus-allowlistet + mágikus bájtot + méretet kap. A PDF bekapcsolása
+      e nélkül tilos; (d) kiadás + migráció
       (`message_attachments`), a `messages:purge-attachments` óránként fut (scheduler).
 - [ ] **API-referencia csak magyarul:** az in-app fejlesztői doksi (D177) az OpenAPI szövegeiből épül, amelyek
       magyarok. Döntés: angol OpenAPI-leírások (fordítás) vagy külön nyelvi réteg.

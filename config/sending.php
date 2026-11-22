@@ -41,7 +41,8 @@ return [
     /*
      | KIMENŐ CSATOLMÁNY a `POST /v1/messages`-en (JSON, base64; H123).
      |
-     | - Allowlist: képek (JPEG, PNG, GIF, WebP) és PDF. A deklarált típusnak a tartalom
+     | - Allowlist: képek (JPEG, PNG, GIF, WebP); a PDF a katalógusban van, de alapból KI
+ |   (`SENDING_ATTACHMENT_TYPES`). A deklarált típusnak a tartalom
      |   mágikus bájtjaival egyeznie kell (`ATTACHMENT_TYPE_MISMATCH`). SVG/HTML nincs:
      |   szkriptet hordozhat, és a levélkliensek egy része megnyitja.
      | - Méret: darabonként és üzenetenként; a `max_batch_bytes` a csatolmány-bájt × címzett
@@ -55,6 +56,14 @@ return [
      |   típus és a méret marad (trace), fájlnév nem.
      */
     'attachments' => [
+        // Az ENGEDETT típusok — a `AttachmentParser::ALLOWED` katalógusát csak SZŰKÍTHETI
+        // (ismeretlen típushoz nincs tartalom-szippantás). A PDF ALAPBÓL KI: amíg a kimenő
+        // úton nincs fail-closed víruskereső (`VirusScanner`), egy kompromittált API-kulccsal
+        // a mi IP-inkről, a mi DKIM-ünkkel menne ki kártevő (S3, HUMAN-QUEUE).
+        'allowed_types' => array_values(array_filter(array_map(
+            static fn (string $type) => strtolower(trim($type)),
+            explode(',', (string) env('SENDING_ATTACHMENT_TYPES', 'image/jpeg,image/png,image/gif,image/webp'))
+        ))),
         'max_count' => (int) env('SENDING_ATTACHMENT_MAX_COUNT', 10),
         'max_file_bytes' => (int) env('SENDING_ATTACHMENT_MAX_FILE_BYTES', 5 * 1024 * 1024),
         'max_total_bytes' => (int) env('SENDING_ATTACHMENT_MAX_TOTAL_BYTES', 10 * 1024 * 1024),

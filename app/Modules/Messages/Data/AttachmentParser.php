@@ -27,7 +27,10 @@ use Normalizer;
  */
 final class AttachmentParser
 {
-    /** Kanonikus típus → elfogadott kiterjesztések (az első a kanonikus). */
+    /**
+     * A KATALÓGUS: kanonikus típus → elfogadott kiterjesztések (az első a kanonikus). Ami
+     * ténylegesen engedett, azt a `sending.attachments.allowed_types` szűkíti (`enabled()`).
+     */
     public const ALLOWED = [
         'image/jpeg' => ['jpg', 'jpeg', 'jpe'],
         'image/png' => ['png'],
@@ -142,7 +145,9 @@ final class AttachmentParser
             $sniffed = self::sniff($bytes);
             $declared = self::declaredType($item['content_type'] ?? null, $index);
 
-            if ($declared !== null && ! array_key_exists($declared, self::ALLOWED)) {
+            $enabled = self::enabled();
+
+            if ($declared !== null && ! in_array($declared, $enabled, true)) {
                 throw self::unsupported($index, $declared);
             }
 
@@ -150,6 +155,12 @@ final class AttachmentParser
             // `image/jpeg`-nek álcázva); deklaráció nélkül egyszerűen nem engedett típus.
             if ($sniffed === null && $declared === null) {
                 throw self::unsupported($index, 'ismeretlen tartalom');
+            }
+
+            // Deklaráció nélkül a SZIPPANTOTT típusnak is engedettnek kell lennie (egy
+            // típus nélkül küldött PDF ne kerülje meg a kikapcsolt PDF-et).
+            if ($declared === null && ! in_array($sniffed, $enabled, true)) {
+                throw self::unsupported($index, (string) $sniffed);
             }
 
             if ($sniffed === null || ($declared !== null && $declared !== $sniffed)) {
@@ -185,6 +196,19 @@ final class AttachmentParser
         }
 
         return $attachments;
+    }
+
+    /**
+     * Az engedett típusok: a konfiguráció ∩ a katalógus.
+     *
+     * @return list<string>
+     */
+    public static function enabled(): array
+    {
+        return array_values(array_intersect(
+            array_keys(self::ALLOWED),
+            array_map('strtolower', (array) config('sending.attachments.allowed_types', []))
+        ));
     }
 
     /**
@@ -308,7 +332,7 @@ final class AttachmentParser
             'UNSUPPORTED_ATTACHMENT_TYPE|A(z) %d. csatolmány típusa (%s) nem engedett. Engedett: %s.',
             $index + 1,
             $type,
-            implode(', ', array_keys(self::ALLOWED))
+            implode(', ', self::enabled()) ?: '—'
         ));
     }
 }

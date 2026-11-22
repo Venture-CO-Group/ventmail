@@ -78,8 +78,8 @@ paths:
         Batch: legfeljebb 1000 címzett hívásonként, `recipient-variables`-szel címzettre
         bontott behelyettesítéssel.
 
-        **Csatolmány** (`attachments`, csak JSON-ban, base64): képek (JPEG, PNG, GIF, WebP) és
-        PDF; darabonként ≤ 5 MB, üzenetenként ≤ 10 MB és ≤ 10 darab, batch-ben a csatolmány-bájt
+        **Csatolmány** (`attachments`, csak JSON-ban, base64): képek (JPEG, PNG, GIF, WebP; a PDF
+        alapból kikapcsolva); darabonként ≤ 5 MB, üzenetenként ≤ 10 MB és ≤ 10 darab, batch-ben a csatolmány-bájt
         × címzett ≤ 50 MB. A kódolt kérés teljes mérete ≤ 16 MB. A bájtok titkosítva, csak a
         kiküldésig / az újrapróbálás végéig (legfeljebb a kiküldés + 48 óráig) tárolódnak; az
         üzenet-naplóban csak a típus és a méret marad. A multipart `attachment` / `inline`
@@ -1337,7 +1337,11 @@ components:
         content_type:
           type: string
           enum: [image/jpeg, image/png, image/gif, image/webp, application/pdf]
-          description: 'Elhagyható: ekkor a tartalomból állapítjuk meg. Az `image/jpg` alias elfogadott.'
+          description: |
+            Elhagyható: ekkor a tartalomból állapítjuk meg. Az `image/jpg` alias elfogadott.
+            Alapból engedett: JPEG, PNG, GIF, WebP. Az `application/pdf` a katalógusban van, de
+            **alapból ki van kapcsolva** (amíg a kimenő úton nincs víruskeresés) — kikapcsolt
+            típusra `UNSUPPORTED_ATTACHMENT_TYPE`.
         content:
           type: string
           format: byte

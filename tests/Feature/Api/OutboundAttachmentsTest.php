@@ -107,7 +107,15 @@ it('JPEG-csatolmánnyal 202, és a driver megkapja a fájlt', function () {
         ]]);
 });
 
-it('PNG, GIF, WebP és PDF engedett', function (string $bytes, string $name, string $type) {
+/** A PDF alapból KI van kapcsolva (S3: amíg nincs fail-closed víruskereső) — itt bekapcsoljuk. */
+function enablePdf(): void
+{
+    config(['sending.attachments.allowed_types' => ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf']]);
+}
+
+it('PNG, GIF, WebP és (bekapcsolva) PDF engedett', function (string $bytes, string $name, string $type) {
+    enablePdf();
+
     sendWith([attachment($bytes, $name, $type)])->assertAccepted();
 
     expect(FakeDriver::$sent[0]['attachments'][0]['content_type'])->toBe($type);
@@ -131,6 +139,8 @@ it('az image/jpg alias image/jpeg-ként megy ki, a paraméterek levágva', funct
 });
 
 it('több csatolmány a sorrendjük szerint megy ki', function () {
+    enablePdf();
+
     sendWith([attachment(jpegBytes(), 'elso.jpg'), attachment(pdfBytes(), 'masodik.pdf', 'application/pdf')])
         ->assertAccepted();
 
@@ -238,6 +248,8 @@ it('nem engedett típus: UNSUPPORTED_ATTACHMENT_TYPE', function (string $bytes, 
 ]);
 
 it('a deklarált típus és a tartalom eltérése: ATTACHMENT_TYPE_MISMATCH', function (string $bytes, string $type) {
+    enablePdf();
+
     sendWith([attachment($bytes, 'kep.jpg', $type)])
         ->assertStatus(400)
         ->assertJsonPath('error.code', 'ATTACHMENT_TYPE_MISMATCH');
@@ -631,4 +643,40 @@ it('ha a csatolmány nem írható le, a levél nem marad accepted: rejected, a k
     sendWith([attachment(jpegBytes())], [], 'jm-atomic-1')->assertAccepted();
 
     expect(FakeDriver::$sent)->toHaveCount(1);
+});
+
+// --- S3: a típus-allowlist konfigurálható, a PDF alapból KI --------------------------------
+
+it('a PDF alapból nem engedett (nincs még kimenő víruskereső)', function (?string $type) {
+    sendWith([attachment(pdfBytes(), 'szamla.pdf', $type)])
+        ->assertStatus(400)
+        ->assertJsonPath('error.code', 'UNSUPPORTED_ATTACHMENT_TYPE');
+
+    expect(config('sending.attachments.allowed_types'))->not->toContain('application/pdf');
+})->with(['deklarálva' => ['application/pdf'], 'deklaráció nélkül' => [null]]);
+
+it('az allowlist szűkíthető: kikapcsolt típus UNSUPPORTED_ATTACHMENT_TYPE', function () {
+    config(['sending.attachments.allowed_types' => ['image/jpeg']]);
+
+    sendWith([attachment(pngBytes(), 'kep.png', 'image/png')])
+        ->assertStatus(400)
+        ->assertJsonPath('error.code', 'UNSUPPORTED_ATTACHMENT_TYPE');
+
+    sendWith([attachment(jpegBytes())])->assertAccepted();
+});
+
+it('az allowlist a katalóguson kívüli típust bekapcsolva sem enged', function () {
+    // Az env-ből jövő lista csak SZŰKÍT: ismeretlen típushoz nincs tartalom-szippantás.
+    config(['sending.attachments.allowed_types' => ['image/jpeg', 'text/html']]);
+
+    sendWith([attachment('<html></html>', 'a.html', 'text/html')])
+        ->assertStatus(400)
+        ->assertJsonPath('error.code', 'UNSUPPORTED_ATTACHMENT_TYPE');
+});
+
+it('az alapértelmezett allowlist a config-fájlból: képek, PDF nélkül', function () {
+    expect(configFileWith('sending', ['SENDING_ATTACHMENT_TYPES' => null])['attachments']['allowed_types'])
+        ->toBe(['image/jpeg', 'image/png', 'image/gif', 'image/webp'])
+        ->and(configFileWith('sending', ['SENDING_ATTACHMENT_TYPES' => 'image/jpeg, Application/PDF'])['attachments']['allowed_types'])
+        ->toBe(['image/jpeg', 'application/pdf']);
 });
