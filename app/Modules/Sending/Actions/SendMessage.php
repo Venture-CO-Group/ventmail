@@ -9,6 +9,7 @@ use App\Modules\Audit\Services\KeyedHash;
 use App\Modules\Billing\Enums\UsageDimension;
 use App\Modules\Billing\Services\Metering;
 use App\Modules\Events\Models\MessageEvent;
+use App\Modules\Sending\Data\OutboundAttachment;
 use App\Modules\Sending\Data\SendQueue;
 use App\Modules\Sending\Data\SendResult;
 use App\Modules\Sending\Enums\Channel;
@@ -18,6 +19,7 @@ use App\Modules\Sending\Gate\GateResult;
 use App\Modules\Sending\Gate\PreSendGate;
 use App\Modules\Sending\Jobs\DeliverMessage;
 use App\Modules\Sending\Models\Message;
+use App\Modules\Sending\Models\MessageAttachment;
 use App\Modules\Sending\Models\RawMimeMessage;
 use App\Modules\Sending\Services\DomainNormalizer;
 use App\Modules\Sending\Services\MessageDispatcher;
@@ -147,6 +149,12 @@ final class SendMessage
         ])->save();
         $this->event($message, 'accepted');
 
+        // A CSATOLMÁNY bájtjai (H123) — CSAK az elfogadott, ténylegesen kiküldendő levélhez.
+        // Az elutasított levélé soha nem íródik le, a testmode-é sem (az sosem megy ki).
+        if (! $message->testmode) {
+            $this->storeAttachments($message, (array) Arr::get($attributes, 'attachments', []));
+        }
+
         // Az ÜTEMEZETT üzenet nem megy ki azonnal: a `deliverytime` a Mailgun-paritás része
         // (o:deliverytime). A sorból az A2 ütemezője veszi majd ki — és mivel a gate-döntésnek
         // szavatossági ideje van, a küldés előtt újraértékelés kell.
@@ -240,7 +248,8 @@ final class SendMessage
         // („unsupported Unicode escape sequence", „invalid byte sequence"), és mivel a sor
         // a kapuk ELŐTT íródik, a hívó `QueryException` → 500-at kapott az egységes
         // `error.code` alak helyett. A nyers MIME kivétel: az `bytea`-ba megy.
-        $unstorable = $this->firstUnstorableField(Arr::except($attributes, ['raw_mime']));
+        // A csatolmány is kivétel: bináris bájtsor, ami TITKOSÍTVA, külön táblába megy.
+        $unstorable = $this->firstUnstorableField(Arr::except($attributes, ['raw_mime', 'attachments']));
 
         if ($unstorable !== null) {
             // A MEZŐNÉV maga is tartalmazhatja a hibás bájtot (`v:"ne\0v"`), és ez a szöveg
@@ -410,6 +419,13 @@ final class SendMessage
                 array_filter([
                     'body_html' => Arr::get($attributes, 'rendered_html') ?? Arr::get($attributes, 'html'),
                     'body_text' => Arr::get($attributes, 'text'),
+                    // A csatolmány METAADATA a trace-hez (típus + méret), és a driver ebből
+                    // tudja, hány csatolmányt KELL találnia (fail-closed). Fájlnév nincs: az
+                    // PII lehet (`kiss-anna.jpg`), a `messages` pedig a napló főtáblája.
+                    'attachments' => array_map(
+                        fn (OutboundAttachment $attachment) => ['content_type' => $attachment->contentType, 'size' => $attachment->size()],
+                        $this->attachmentsOf($attributes)
+                    ) ?: null,
                 ], fn ($value) => $value !== null)
             ),
             'deliverytime' => Arr::get($attributes, 'deliverytime'),
@@ -454,6 +470,19 @@ final class SendMessage
             'options', 'ip_pool_id', 'raw_sha256',
         ]);
 
+        // A CSATOLMÁNY a tartalom része: ugyanaz a kulcs MÁS fotóval 409, nem csendes replay.
+        // Csak akkor kerül a lenyomatba, ha van — a csatolmány nélküli kérések lenyomata így
+        // változatlan (a már kiadott kulcsok replay-e nem törik el).
+        $attachments = $this->attachmentsOf($attributes);
+
+        if ($attachments !== []) {
+            $canonical['attachments'] = array_map(fn (OutboundAttachment $attachment) => [
+                $attachment->filename,
+                $attachment->contentType,
+                hash('sha256', $attachment->content),
+            ], $attachments);
+        }
+
         // SABLONOS kérésnél az ujjlenyomat azt fedi, amit a hívó KÜLDÖTT (sablon-név, változók,
         // címzettek…), nem a feloldott törzset/tárgyat: egy közben aktivált új verzió miatt a
         // válasz-vesztés utáni újrapróbálás ne kapjon 409-et. Sablon nélkül a viselkedés változatlan
@@ -475,6 +504,55 @@ final class SendMessage
         // KULCSOLT lenyomat: a `t:variables` (pl. egy 6 jegyű OTP) a kérés része, és a
         // többi mező ismert — kulcs nélküli SHA-256-ból offline visszafejthető lenne.
         return KeyedHash::of('request_fingerprint', json_encode($canonical, JSON_INVALID_UTF8_SUBSTITUTE) ?: serialize($canonical));
+    }
+
+    /**
+     * @param  array<string, mixed>  $attributes
+     * @return list<OutboundAttachment>
+     */
+    private function attachmentsOf(array $attributes): array
+    {
+        return array_values(array_filter(
+            (array) Arr::get($attributes, 'attachments', []),
+            fn ($attachment) => $attachment instanceof OutboundAttachment
+        ));
+    }
+
+    /**
+     * A csatolmány-bájtok — titkosítva, LEJÁRATTAL (H123).
+     *
+     * A lejárat a kiküldés várható időpontjától számít (ütemezett levélnél a
+     * `deliverytime`-tól): a bájtokra a kiküldésig és az újrapróbálás végéig van szükség,
+     * utána nincs jogalap a megőrzésükre. A lezárt üzenet sorait a `Message` hook törli
+     * azonnal; a lejárat a felső határ, amit a `messages:purge-attachments` érvényesít.
+     *
+     * @param  array<int, mixed>  $attachments
+     */
+    private function storeAttachments(Message $message, array $attachments): void
+    {
+        $attachments = $this->attachmentsOf(['attachments' => $attachments]);
+
+        if ($attachments === []) {
+            return;
+        }
+
+        $from = $message->deliverytime !== null && $message->deliverytime->isFuture()
+            ? $message->deliverytime->copy()
+            : now();
+        $expiresAt = $from->addHours((int) config('sending.attachments.retention_hours'));
+
+        foreach ($attachments as $position => $attachment) {
+            MessageAttachment::query()->create([
+                'message_uuid' => $message->uuid,
+                'position' => $position,
+                'filename' => $attachment->filename,
+                'content_type' => $attachment->contentType,
+                'size' => $attachment->size(),
+                'sha256' => KeyedHash::of('attachment', $attachment->content),
+                'content' => $attachment->content,
+                'expires_at' => $expiresAt,
+            ]);
+        }
     }
 
     /**

@@ -38,13 +38,15 @@ final class SendMessageController
         /** @var ApiKey|null $apiKey */
         $apiKey = $request->attributes->get('api_key');
 
-        // A csatolmányt ma nem támogatjuk — a NÉMA eldobás rosszabb szerződés, mint a hiba:
-        // a hívó 202-t kapna, és a levél csatolmány nélkül menne ki.
+        // A MULTIPART fájl-csatolmányt (Mailgun `attachment` / `inline`) ma nem támogatjuk —
+        // a NÉMA eldobás rosszabb szerződés, mint a hiba: a hívó 202-t kapna, és a levél
+        // csatolmány nélkül menne ki. A csatolmány útja a JSON `attachments` mező (base64,
+        // H123): típus-allowlist, tartalom-szippantás, méret- és darabkorlát.
         if ($request->hasFile('attachment') || $request->hasFile('inline')) {
             return ApiError::badRequest(
                 'UNSUPPORTED_ATTACHMENT',
-                'A csatolmány-küldés még nem támogatott (ventSec ClamAV-lánc: A4). '
-                .'Használj hivatkozást a tartalomra.'
+                'A multipart fájl-csatolmány (`attachment`, `inline`) nem támogatott. '
+                .'Csatolmányt az `attachments` mezőben küldj: [{filename, content_type, content (base64)}].'
             );
         }
 
@@ -156,6 +158,9 @@ final class SendMessageController
             'testmode' => $payload->testmode || $apiKey?->testmode === true,
             'ip_pool_id' => $ipPoolId,
             'idempotency_key' => (string) $request->attributes->get('idempotency_key'),
+            // Ellenőrzött csatolmányok (H123): a bájtokat a `SendMessage` titkosítva, a
+            // kiküldésig tárolja — a `messages` sorba csak a típus és a méret kerül.
+            'attachments' => $payload->attachments,
         ]);
 
         if (! $result->decision->allowed) {

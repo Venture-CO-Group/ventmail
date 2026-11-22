@@ -18,6 +18,7 @@ use App\Modules\Logs\Models\SmtpTransaction;
 use App\Modules\Logs\Services\LogExport;
 use App\Modules\Sending\Models\DeliveryAttempt;
 use App\Modules\Sending\Models\Message;
+use App\Modules\Sending\Models\MessageAttachment;
 use App\Modules\Sending\Models\RawMimeMessage;
 use App\Modules\Sending\Services\DomainNormalizer;
 use App\Modules\Suppression\Models\Suppression;
@@ -283,6 +284,13 @@ final class RedactSubjectCommand extends Command
                 // és a szerkezet is ép maradjon. A megőrzés jogalapja pedig gyengébb, mint a
                 // törlési kötelezettség — a kézbesítés tényét a `messages` sor őrzi.
                 $redacted['mime'] += RawMimeMessage::query()
+                    ->where('message_uuid', $message->uuid)
+                    ->delete();
+
+                // A KIMENŐ CSATOLMÁNY (H123) ugyanígy: egy közös fájl, amit nem lehet
+                // címzettenként szétválasztani — és a bájtok PII-k (pl. az érintett fotója).
+                // Ha a levél még nem ment ki, a dispatcher fail-closed: csonkán nem küld.
+                MessageAttachment::query()
                     ->where('message_uuid', $message->uuid)
                     ->delete();
 

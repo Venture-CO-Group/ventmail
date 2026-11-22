@@ -38,6 +38,11 @@ final class LogDriver implements SendingDriver
             'workspace_id' => $message->workspace_id,
             'channel' => $message->channel,
             'recipient_count' => count($message->recipients),
+            // Csatolmány: csak darabszám és méret — sem tartalom, sem fájlnév.
+            'attachments' => array_map(
+                fn ($attachment) => ['content_type' => $attachment->contentType, 'size' => $attachment->size()],
+                $message->outboundAttachments()
+            ),
             'bodies' => $fingerprints,
         ]);
 

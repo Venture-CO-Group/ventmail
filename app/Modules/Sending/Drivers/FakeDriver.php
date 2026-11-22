@@ -22,7 +22,7 @@ use App\Modules\Sending\Models\Message;
  */
 final class FakeDriver implements SendingDriver
 {
-    /** @var list<array{uuid: string, channel: string, bodies: array<string, array{html: ?string, text: ?string}>}> */
+    /** @var list<array{uuid: string, channel: string, bodies: array<string, array{html: ?string, text: ?string}>, attachments: list<array{filename: string, content_type: string, size: int, sha256: string}>}> */
     public static array $sent = [];
 
     public static function reset(): void
@@ -36,6 +36,12 @@ final class FakeDriver implements SendingDriver
             'uuid' => (string) $message->uuid,
             'channel' => (string) $message->channel,
             'bodies' => $message->renderedBodies,
+            // A csatolmány METAADATA + lenyomata (a bájtok nem kellenek a teszthez, és
+            // memóriában sem tartunk fotót tovább a szükségesnél).
+            'attachments' => array_map(fn ($attachment) => [
+                ...$attachment->meta(),
+                'sha256' => hash('sha256', $attachment->content),
+            ], $message->outboundAttachments()),
         ];
 
         // Determinisztikus azonosító: ugyanaz az üzenet ugyanazt az id-t kapja, tehát az

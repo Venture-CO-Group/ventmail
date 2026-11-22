@@ -77,6 +77,13 @@ paths:
 
         Batch: legfeljebb 1000 címzett hívásonként, `recipient-variables`-szel címzettre
         bontott behelyettesítéssel.
+
+        **Csatolmány** (`attachments`, csak JSON-ban, base64): képek (JPEG, PNG, GIF, WebP) és
+        PDF; darabonként ≤ 5 MB, üzenetenként ≤ 10 MB és ≤ 10 darab, batch-ben a csatolmány-bájt
+        × címzett ≤ 50 MB. A kódolt kérés teljes mérete ≤ 16 MB. A bájtok titkosítva, csak a
+        kiküldésig / az újrapróbálás végéig (legfeljebb a kiküldés + 48 óráig) tárolódnak; az
+        üzenet-naplóban csak a típus és a méret marad. A multipart `attachment` / `inline`
+        fájlmező továbbra sem támogatott (`400 UNSUPPORTED_ATTACHMENT`).
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
@@ -1278,6 +1285,18 @@ components:
           items: { type: string }
           maxItems: 3
           description: 'Legfeljebb 3 tag üzenetenként.'
+        attachments:
+          type: array
+          maxItems: 10
+          description: |
+            Kimenő csatolmányok (csak `application/json` kérésben). Ellenőrzés: típus-allowlist,
+            a deklarált `content_type` és a tartalom mágikus bájtjainak egyezése
+            (`ATTACHMENT_TYPE_MISMATCH`), darabonkénti / összesített / batch-méretkorlát
+            (`ATTACHMENT_TOO_LARGE`), darabszám (`TOO_MANY_ATTACHMENTS`). A fájlnév tisztítva megy
+            ki (útvonal, vezérlő- és irányjelző karakterek nélkül, ≤ 100 karakter, a tartalomhoz
+            illő kiterjesztéssel). Az idempotencia-lenyomat a csatolmányt is fedi: ugyanaz a
+            kulcs más csatolmánnyal `409`.
+          items: { $ref: '#/components/schemas/OutboundAttachment' }
         o:tracking: { type: string }
         o:tracking-clicks: { type: string, enum: ['yes', 'no', 'htmlonly'] }
         o:tracking-opens: { type: string }
@@ -1299,6 +1318,27 @@ components:
             miatt), a publikus API-ról nem választhatók.
       additionalProperties:
         description: '`h:X-*` egyedi fejlécek és `v:*` változók.'
+
+    OutboundAttachment:
+      type: object
+      required: [filename, content]
+      properties:
+        filename:
+          type: string
+          description: 'A megjelenő fájlnév (UTF-8). Tisztítva megy ki; ha a kiterjesztés nem illik a tartalomhoz, a helyes hozzáfűződik.'
+          example: jersey-magic.jpg
+        content_type:
+          type: string
+          enum: [image/jpeg, image/png, image/gif, image/webp, application/pdf]
+          description: 'Elhagyható: ekkor a tartalomból állapítjuk meg. Az `image/jpg` alias elfogadott.'
+        content:
+          type: string
+          format: byte
+          description: 'A fájl base64-kódolva (sortörés megengedett). Dekódolva darabonként ≤ 5 MB.'
+      example:
+        filename: jersey-magic.jpg
+        content_type: image/jpeg
+        content: /9j/4AAQSkZJRgABAQAAAQABAAD...
 
     SendAccepted:
       type: object
@@ -1593,6 +1633,12 @@ components:
         - INVALID_CHANNEL
         - CHANNEL_NOT_ALLOWED
         - UNSUPPORTED_ATTACHMENT
+        # Kimenő csatolmány (`attachments`, H123).
+        - INVALID_ATTACHMENT
+        - UNSUPPORTED_ATTACHMENT_TYPE
+        - ATTACHMENT_TYPE_MISMATCH
+        - ATTACHMENT_TOO_LARGE
+        - TOO_MANY_ATTACHMENTS
         - MIME_TOO_LARGE
         - MIME_MALFORMED
         - MIME_DUPLICATE_HEADER

@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace App\Modules\Sending\Models;
 
+use App\Modules\Audit\Services\KeyedHash;
 use App\Modules\Consent\Services\PreferenceTokens;
 use App\Modules\Domains\Models\Domain;
 use App\Modules\IpPools\Models\IpAddress;
+use App\Modules\Sending\Data\OutboundAttachment;
 use App\Modules\Sending\Enums\Channel;
 use App\Modules\Sending\Services\UnsubscribeHeaderPolicy;
 use App\Modules\Suppression\Services\UnsubscribeBaseUrl;
@@ -16,6 +18,7 @@ use App\Modules\Tenancy\Concerns\BelongsToWorkspace;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use RuntimeException;
 
 /**
  * Kimenő üzenet (spec 8., 25.).
@@ -386,8 +389,26 @@ final class Message extends Model
 
     protected $attributes = ['status' => 'queued', 'testmode' => false];
 
+    /**
+     * Azok az állapotok, ahonnan a levél többé NEM megy ki (újrapróbálás sincs): itt a
+     * csatolmány-bájtokra nincs szükség, és nincs jogalap a megőrzésükre (H123).
+     */
+    public const ATTACHMENT_RELEASING_STATUSES = ['delivered', 'sent', 'bounced', 'failed', 'rejected'];
+
     protected static function booted(): void
     {
+        // A CSATOLMÁNY-BÁJTOK TÖRLÉSE a lezáráskor — MODELL-HOOKBAN, mert öt út zárja le az
+        // üzenetet (kapu, dispatcher-eredmény, driver-kivétel, job-feladás, ütemezett
+        // újraértékelés), és bármelyik elfelejtené, a fotó a lejáratig bent maradna. A
+        // hookot megkerülő írásra a `messages:purge-attachments` a háló.
+        self::updated(function (self $message): void {
+            if ($message->wasChanged('status')
+                && in_array($message->status, self::ATTACHMENT_RELEASING_STATUSES, true)
+                && ($message->options['attachments'] ?? []) !== []) {
+                MessageAttachment::query()->where('message_uuid', $message->uuid)->delete();
+            }
+        });
+
         // ONE-CLICK LEIRATKOZÁS (RFC 8058) — MINDEN marketing üzenetre, minden úton.
         //
         // A Gmail és a Yahoo 2024 februárja óta MEGKÖVETELI a tömeges küldőktől; a hiánya
@@ -484,6 +505,59 @@ final class Message extends Model
     public function subjectFor(string $recipient): ?string
     {
         return $this->renderedBodies[$recipient]['subject'] ?? $this->subject;
+    }
+
+    /** @var list<OutboundAttachment>|null a küldés idejére memoizálva — SZÁNDÉKOSAN nem attribútum */
+    private ?array $outboundAttachmentsCache = null;
+
+    /**
+     * A kimenő csatolmányok, visszafejtve — a driver és a MIME-építő ezt csatolja (H123).
+     *
+     * EGYSZER töltődik be küldésenként: a MIME címzettenként épül, és ezer címzettnél a
+     * soronkénti visszafejtés ezerszer olvasná ugyanazt a fotót.
+     *
+     * FAIL-CLOSED: ha a soron csatolmány-metaadat van, de a bájtok hiányoznak (lejártak,
+     * törölték, sérültek), kivételt dobunk — a dispatcher ebből `deferred`-et, a keret
+     * kimerülésekor `failed`-et csinál. Csatolmány nélkül kiküldeni egy „itt a képed"
+     * levelet rosszabb, mint nem küldeni.
+     *
+     * @return list<OutboundAttachment>
+     */
+    public function outboundAttachments(): array
+    {
+        if ($this->outboundAttachmentsCache !== null) {
+            return $this->outboundAttachmentsCache;
+        }
+
+        $expected = (array) ($this->options['attachments'] ?? []);
+
+        if ($expected === []) {
+            return $this->outboundAttachmentsCache = [];
+        }
+
+        $rows = MessageAttachment::query()
+            ->where('message_uuid', $this->uuid)
+            ->orderBy('position')
+            ->get();
+
+        if ($rows->count() !== count($expected)) {
+            throw new RuntimeException(sprintf(
+                'A(z) %s üzenet %d csatolmányából %d érhető el (lejárt vagy törölt) — csonka levelet nem küldünk ki.',
+                $this->uuid,
+                count($expected),
+                $rows->count()
+            ));
+        }
+
+        return $this->outboundAttachmentsCache = $rows->map(function (MessageAttachment $row): OutboundAttachment {
+            $content = (string) $row->content;
+
+            if (strlen($content) !== (int) $row->size || ! KeyedHash::matches('attachment', $content, (string) $row->sha256)) {
+                throw new RuntimeException(sprintf('A(z) %s üzenet csatolmánya sérült — nem küldjük ki.', $this->uuid));
+            }
+
+            return new OutboundAttachment((string) $row->filename, (string) $row->content_type, $content);
+        })->values()->all();
     }
 
     /** @param array<string, array{html: ?string, text: ?string, subject?: ?string}> $bodies */

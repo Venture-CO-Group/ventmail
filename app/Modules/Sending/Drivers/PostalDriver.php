@@ -152,6 +152,13 @@ final class PostalDriver implements SendingDriver
                 // tehát a batch minden levelébe a sajátja kell (lásd `headersFor`).
                 'headers' => $message->headersFor($recipient),
                 'tag' => $message->tags[0] ?? null,
+                // A CSATOLMÁNY (H123) a Postal `send/message` alakjában: név, típus, base64.
+                // Az aláírt úton (fent) a csatolmány már a MIME része.
+                'attachments' => array_map(fn ($attachment) => [
+                    'name' => $attachment->filename,
+                    'content_type' => $attachment->contentType,
+                    'data' => base64_encode($attachment->content),
+                ], $message->outboundAttachments()),
                 // Idempotencia a MÁSIK oldalon is: egy retry különben kétszer kézbesítene.
                 // CÍMZETTENKÉNT egyedi, különben a második címzett a firstre futna rá.
                 'idempotency_key' => $message->uuid.':'.hash('sha256', $recipient),

@@ -164,6 +164,14 @@
 - [ ] **`@venture/sdk`:** (a) `/v1/suppressions` metódusok + az additív `detail` mező (D174, D206) —
       OpenAPI ↔ SDK drift = 0 (golden rule 7); (b) hibakód-unió: `SENDING_RESTRICTED`, `CHANNEL_DISABLED`
       (korábbi tétel), `IDEMPOTENCY_KEY_RESERVED`, `SUPPRESSION_IRREVOCABLE`, `UNKNOWN_SUPPRESSION`.
+- [ ] **Kimenő csatolmány (`/v1/messages` `attachments`, Jersey Magic H123) — kiadás előtt:**
+      (a) `venture-security` review (payload-méret DoS, content-type hamisítás, PII-retenció — a PR
+      leírásában); (b) `@venture/sdk`: `attachments?: {filename, content_type?, content}[]` + a hibakód-unió
+      (`INVALID_ATTACHMENT`, `UNSUPPORTED_ATTACHMENT_TYPE`, `ATTACHMENT_TYPE_MISMATCH`, `ATTACHMENT_TOO_LARGE`,
+      `TOO_MANY_ATTACHMENTS`) — drift = 0; (c) a kimenő csatolmány NEM megy át víruskeresőn (csak
+      típus-allowlist + mágikus bájt + méret): döntés, kell-e a dispatcherben `VirusScanner`
+      (fail-closed, `deferred` a szkenner kiesésekor), legalább a PDF-re; (d) kiadás + migráció
+      (`message_attachments`), a `messages:purge-attachments` óránként fut (scheduler).
 - [ ] **API-referencia csak magyarul:** az in-app fejlesztői doksi (D177) az OpenAPI szövegeiből épül, amelyek
       magyarok. Döntés: angol OpenAPI-leírások (fordítás) vagy külön nyelvi réteg.
 - [ ] **ventSSO `picture` claim** tárolása + CSP `img-src` az avatar-képhez (D22; ma monogram).

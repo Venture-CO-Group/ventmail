@@ -38,6 +38,30 @@ return [
     // A beadott nyers MIME felső korlátja (a Mailgun 25 MB-ot enged csatolmányokkal).
     'max_mime_bytes' => (int) env('SENDING_MAX_MIME_BYTES', 26_214_400),
 
+    /*
+     | KIMENŐ CSATOLMÁNY a `POST /v1/messages`-en (JSON, base64; H123).
+     |
+     | - Allowlist: képek (JPEG, PNG, GIF, WebP) és PDF. A deklarált típusnak a tartalom
+     |   mágikus bájtjaival egyeznie kell (`ATTACHMENT_TYPE_MISMATCH`). SVG/HTML nincs:
+     |   szkriptet hordozhat, és a levélkliensek egy része megnyitja.
+     | - Méret: darabonként és üzenetenként; a `max_batch_bytes` a csatolmány-bájt × címzett
+     |   szorzat felső korlátja — a MIME címzettenként épül, és a worker memóriája véges.
+     |   A kódolt kérés a `APP_MAX_BODY_MB` (16 MB) alá kell férjen: 10 MB bináris ≈ 13,4 MB
+     |   base64.
+     | - Megőrzés: a bájtok TITKOSÍTVA (APP_KEY) a `message_attachments` táblában, és csak a
+     |   kiküldésig / az újrapróbálás végéig élnek. A lezárt üzenet (delivered, sent, bounced,
+     |   failed, rejected) bájtjai azonnal törlődnek; a `retention_hours` a felső határ
+     |   (ütemezett levélnél a kiküldés időpontjától számítva). A `messages` soron csak a
+     |   típus és a méret marad (trace), fájlnév nem.
+     */
+    'attachments' => [
+        'max_count' => (int) env('SENDING_ATTACHMENT_MAX_COUNT', 10),
+        'max_file_bytes' => (int) env('SENDING_ATTACHMENT_MAX_FILE_BYTES', 5 * 1024 * 1024),
+        'max_total_bytes' => (int) env('SENDING_ATTACHMENT_MAX_TOTAL_BYTES', 10 * 1024 * 1024),
+        'max_batch_bytes' => (int) env('SENDING_ATTACHMENT_MAX_BATCH_BYTES', 50 * 1024 * 1024),
+        'retention_hours' => (int) env('SENDING_ATTACHMENT_RETENTION_HOURS', 48),
+    ],
+
     // Meddig őrizzük a beadott nyers levelet (golden rule 10). A plan-függő tier a C1
     // (ventPay `log_retention_tier`) dolga; ez a biztonságos alapérték.
     'raw_mime_retention_days' => (int) env('SENDING_RAW_MIME_RETENTION_DAYS', 30),

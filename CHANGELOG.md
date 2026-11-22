@@ -3,6 +3,18 @@
 Formátum: [Keep a Changelog](https://keepachangelog.com/hu/1.1.0/). Verziózás: a kiadás tagje `vMAJOR.MINOR.PATCH`.
 A részletes döntési nyomvonal: `docs/plans/v1.1.md` (D1–D300).
 
+## [Unreleased]
+
+### Added
+- **Kimenő csatolmány a `POST /v1/messages`-en** (Jersey Magic H123): új, additív `attachments` JSON-mező — `[{filename, content_type?, content (base64)}]`. Allowlist: JPEG, PNG, GIF, WebP, PDF; a deklarált típusnak a tartalom mágikus bájtjaival egyeznie kell. Korlátok: darabonként 5 MB, üzenetenként 10 MB és 10 darab, batch-ben csatolmány-bájt × címzett ≤ 50 MB (`SENDING_ATTACHMENT_*`). A fájlnév tisztítva megy ki. Tárolt sablonnal is működik; az idempotencia-lenyomat a csatolmányt is fedi (más csatolmány ugyanazzal a kulccsal `409`). Új hibakódok: `INVALID_ATTACHMENT`, `UNSUPPORTED_ATTACHMENT_TYPE`, `ATTACHMENT_TYPE_MISMATCH`, `ATTACHMENT_TOO_LARGE`, `TOO_MANY_ATTACHMENTS`. A multipart `attachment` / `inline` továbbra is `400 UNSUPPORTED_ATTACHMENT`.
+- A csatolmány-bájtok TITKOSÍTVA, a `message_attachments` táblában várják a kiküldést; a lezárt üzenet (delivered, sent, bounced, failed, rejected) bájtjai azonnal törlődnek, a felső határ a kiküldés + 48 óra (`SENDING_ATTACHMENT_RETENTION_HOURS`). Testmode-ban és kapu-elutasításnál nem is tárolódnak. Új parancs: `messages:purge-attachments` (óránként). Az Art. 17 törlés (`logs:redact-subject`) a csatolmányt is viszi. A `messages` soron csak a típus és a méret marad (trace).
+
+### Fixed
+- Egy `deferred` levél újrapróbálásánál a dispatcher a memóriabeli példányt nem állította `sending`-re: az újabb `deferred` kimenet nem íródott ki, a sor `sending`-ben ragadt, amit az ütemező nem vesz elő — a levél soha nem jutott `failed`-ig.
+
+### Telepítés
+- Migráció: `message_attachments` (új tábla, expand-only). Az env-be nem kell semmi (alapértékek a `config/sending.php`-ban).
+
 ## [1.5.0] — 2026-11-19 (kézbesítési-esemény webhookok)
 
 ### Added

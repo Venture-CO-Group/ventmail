@@ -60,6 +60,14 @@ final class OutboundMimeBuilder
             $email->html((string) $bodies['html']);
         }
 
+        // A CSATOLMÁNY (H123) a TÖRZS után, az aláírás ELŐTT kerül a levélbe — így a DKIM
+        // `bh=` a csatolmányt is fedi. A fájlnév és a típus már ellenőrzött (allowlist +
+        // tartalom-szippantás + tisztított név); a Symfony Mime a nevet RFC 2231 szerint
+        // kódolja, a tartalmat base64-gyel.
+        foreach ($message->outboundAttachments() as $attachment) {
+            $email->attach($attachment->content, $attachment->filename, $attachment->contentType);
+        }
+
         $headers = $email->getHeaders();
         $headers->addIdHeader('Message-ID', $message->uuid.'@'.$this->domainOf($message));
         $headers->addDateHeader('Date', now()->toDateTimeImmutable());

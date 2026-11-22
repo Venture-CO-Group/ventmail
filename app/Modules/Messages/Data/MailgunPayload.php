@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Messages\Data;
 
+use App\Modules\Sending\Data\OutboundAttachment;
 use App\Modules\Sending\Enums\Channel;
 use App\Modules\Sending\Services\UnsubscribeHeaderPolicy;
 use Illuminate\Support\Carbon;
@@ -52,6 +53,12 @@ final readonly class MailgunPayload
         public ?string $ipPool,
         public ?string $template,
         public string $channel,
+        /**
+         * Ellenőrzött kimenő csatolmányok (H123) — JSON `attachments`, base64.
+         *
+         * @var list<OutboundAttachment>
+         */
+        public array $attachments = [],
     ) {}
 
     /**
@@ -103,6 +110,7 @@ final readonly class MailgunPayload
             ipPool: self::scalarField($input, 'o:sending-ip-pool'),
             template: self::scalarField($input, 'template'),
             channel: self::parseChannel($input['o:channel'] ?? null),
+            attachments: AttachmentParser::parse($input['attachments'] ?? null, count($recipients)),
         );
     }
 
