@@ -875,3 +875,14 @@ it('a csatolmányos batch memóriája lineáris: 1 MB × 10 címzett DKIM-mel 48
     expect(FakeDriver::$sent[0]['attachments'])->toHaveCount(1)
         ->and($peak)->toBeLessThan(48 * 1024 * 1024, sprintf('csúcs: %.1f MB', $peak / 1048576));
 });
+
+// --- N2: a batch-szorzatot már a BECSÜLT méreten nézzük (a dekódolás előtt) ---------------
+
+it('a batch-szorzat a becsült méreten is: a túl nagy batch nem dekódolódik', function () {
+    config(['sending.attachments.max_batch_bytes' => 5000]);
+
+    // Érvénytelen base64 (`!`): ha a dekódolás elindulna, INVALID_ATTACHMENT lenne a válasz.
+    sendWith([['filename' => 'a.jpg', 'content' => str_repeat('!', 4000)]], ['to' => ['a@example.test', 'b@example.test']])
+        ->assertStatus(400)
+        ->assertJsonPath('error.code', 'ATTACHMENT_TOO_LARGE');
+});

@@ -114,6 +114,14 @@ final class AttachmentParser
             throw self::totalTooLarge($estimated, $maxTotal);
         }
 
+        // A batch-szorzat is már a BECSLÉSEN: egy ezer címzettes kérés 10 MB-ját ne dekódoljuk
+        // csak azért, hogy utána elutasítsuk.
+        $maxBatch = (int) config('sending.attachments.max_batch_bytes');
+
+        if ($estimated * max(1, $recipientCount) > (int) ceil($maxBatch * 1.03) + 3 * count($input) * max(1, $recipientCount)) {
+            throw self::batchTooLarge($estimated, $recipientCount, $maxBatch);
+        }
+
         $attachments = [];
         $total = 0;
 
@@ -183,16 +191,8 @@ final class AttachmentParser
         // A MIME címzettenként épül (és címzettenként kerül a driver elé): a csatolmány
         // bájtja annyiszor él a memóriában, ahány címzett van. Ezer címzett × 10 MB egy
         // worker-memória-DoS lenne, egyetlen kéréssel.
-        $maxBatch = (int) config('sending.attachments.max_batch_bytes');
-
         if ($total * max(1, $recipientCount) > $maxBatch) {
-            throw new InvalidArgumentException(sprintf(
-                'ATTACHMENT_TOO_LARGE|A csatolmányok mérete × a címzettek száma (%d × %d bájt) '
-                .'meghaladja a %d bájtos korlátot. Csatolmánnyal kevesebb címzettre küldj egy hívásban.',
-                max(1, $recipientCount),
-                $total,
-                $maxBatch
-            ));
+            throw self::batchTooLarge($total, $recipientCount, $maxBatch);
         }
 
         return $attachments;
@@ -321,6 +321,17 @@ final class AttachmentParser
     {
         return new InvalidArgumentException(sprintf(
             'ATTACHMENT_TOO_LARGE|A csatolmányok együttes mérete (~%d bájt) meghaladja az üzenetenkénti %d bájtos korlátot.',
+            $size,
+            $max
+        ));
+    }
+
+    private static function batchTooLarge(int $size, int $recipientCount, int $max): InvalidArgumentException
+    {
+        return new InvalidArgumentException(sprintf(
+            'ATTACHMENT_TOO_LARGE|A csatolmányok mérete × a címzettek száma (%d × ~%d bájt) '
+            .'meghaladja a %d bájtos korlátot. Csatolmánnyal kevesebb címzettre küldj egy hívásban.',
+            max(1, $recipientCount),
             $size,
             $max
         ));
