@@ -843,3 +843,35 @@ it('két dispatcher ugyanazon a levélen: a driver EGYSZER hívódik', function 
         ->and(Message::query()->first()->status)->toBe('delivered')
         ->and(MessageAttachment::query()->count())->toBe(0);
 });
+
+// --- S6: batch-korlát 25 MB és a memória-lábnyom --------------------------------------------
+
+it('a batch-korlát alapértéke 25 MB', function () {
+    expect(configFileWith('sending', ['SENDING_ATTACHMENT_MAX_BATCH_BYTES' => null])['attachments']['max_batch_bytes'])
+        ->toBe(25 * 1024 * 1024);
+});
+
+it('a csatolmányos batch memóriája lineáris: 1 MB × 10 címzett DKIM-mel 48 MB alatt marad', function () {
+    $this->domain->forceFill([
+        'dkim_selector' => 'vm202609',
+        'dkim_private_key' => file_get_contents(base_path('tests/Fixtures/dkim-test-key.pem')),
+        'dkim_public_key' => file_get_contents(base_path('tests/Fixtures/dkim-test-key.pub.pem')),
+    ])->save();
+
+    $recipients = array_map(fn (int $i) => "fan{$i}@example.test", range(1, 10));
+    // Véletlen (nem tömöríthető, nem internált) 1 MB-os JPEG-fejlécű tartalom.
+    $payload = [['filename' => 'kep.jpg', 'content_type' => 'image/jpeg', 'content' => base64_encode("\xFF\xD8\xFF".random_bytes(1024 * 1024))]];
+
+    gc_collect_cycles();
+    $base = memory_get_usage();
+    memory_reset_peak_usage();
+
+    sendWith($payload, ['to' => $recipients])->assertAccepted();
+
+    $peak = memory_get_peak_usage() - $base;
+
+    // Címzettenként egy aláírt MIME (~1,4 MB base64) él egyszerre — a négyzetes másolás
+    // (minden címzettnél a teljes, egyre nagyobb tömb) ennek a sokszorosa lenne.
+    expect(FakeDriver::$sent[0]['attachments'])->toHaveCount(1)
+        ->and($peak)->toBeLessThan(48 * 1024 * 1024, sprintf('csúcs: %.1f MB', $peak / 1048576));
+});

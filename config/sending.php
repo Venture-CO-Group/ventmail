@@ -67,7 +67,10 @@ return [
         'max_count' => (int) env('SENDING_ATTACHMENT_MAX_COUNT', 10),
         'max_file_bytes' => (int) env('SENDING_ATTACHMENT_MAX_FILE_BYTES', 5 * 1024 * 1024),
         'max_total_bytes' => (int) env('SENDING_ATTACHMENT_MAX_TOTAL_BYTES', 10 * 1024 * 1024),
-        'max_batch_bytes' => (int) env('SENDING_ATTACHMENT_MAX_BATCH_BYTES', 50 * 1024 * 1024),
+        // A MIME címzettenként épül és aláírva a memóriában él a kiküldésig: mérve ~2,5× a
+        // csatolmány-bájt × címzett szorzat (1 MB × 10 címzett ≈ 25 MB csúcs). 25 MB-tal egy
+        // küldés ~65 MB — a 2 GB-os `worker` több párhuzamos jobbal is belefér (S6).
+        'max_batch_bytes' => (int) env('SENDING_ATTACHMENT_MAX_BATCH_BYTES', 25 * 1024 * 1024),
         'retention_hours' => (int) env('SENDING_ATTACHMENT_RETENTION_HOURS', 48),
         // Workspace-enként a kiküldésre VÁRÓ (még tárolt) csatolmány-bájtok felső határa: egy
         // elakadt sor vagy egy elszabadult kliens ne tölthesse fel a DB-t fotókkal (S4).

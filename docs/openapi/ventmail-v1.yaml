@@ -80,7 +80,7 @@ paths:
 
         **Csatolmány** (`attachments`, csak JSON-ban, base64): képek (JPEG, PNG, GIF, WebP; a PDF
         alapból kikapcsolva); darabonként ≤ 5 MB, üzenetenként ≤ 10 MB és ≤ 10 darab, batch-ben a csatolmány-bájt
-        × címzett ≤ 50 MB. A kódolt kérés teljes mérete ≤ 16 MB. A bájtok titkosítva, csak a
+        × címzett ≤ 25 MB. A kódolt kérés teljes mérete ≤ 16 MB. A bájtok titkosítva, csak a
         kiküldésig / az újrapróbálás végéig (legfeljebb a kiküldés + 48 óráig) tárolódnak; az
         üzenet-naplóban csak a típus és a méret marad. A multipart `attachment` / `inline`
         fájlmező továbbra sem támogatott (`400 UNSUPPORTED_ATTACHMENT`).
