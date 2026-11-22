@@ -2660,6 +2660,8 @@
             "CHANNEL_DISABLED": "canale disattivato",
             "INVALID_REQUEST": "richiesta non valida",
             "GATE_ERROR": "errore di controllo",
+            "ATTACHMENT_STORE_FAILED": "allegato non salvabile",
+            "ATTACHMENT_PENDING_LIMIT": "limite allegati in attesa",
             "IN_PROGRESS": "in corso",
             "IDEMPOTENCY_KEY_REUSED": "chiave di idempotenza riutilizzata"
         },

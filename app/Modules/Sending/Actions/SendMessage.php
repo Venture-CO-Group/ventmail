@@ -24,6 +24,7 @@ use App\Modules\Sending\Models\MessageAttachment;
 use App\Modules\Sending\Models\RawMimeMessage;
 use App\Modules\Sending\Services\DomainNormalizer;
 use App\Modules\Sending\Services\MessageDispatcher;
+use App\Modules\Tenancy\Models\Workspace;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
@@ -590,10 +591,11 @@ final class SendMessage
             return;
         }
 
-        // A WORKSPACE függő bájtjai korlátosak (S4). A tranzakciós advisory lock a
-        // workspace-re szerializálja a párhuzamos írókat: két egyidejű kérés különben
-        // ugyanazt a „még belefér" összeget olvasná. A lock a tranzakció végén elenged.
-        DB::select('select pg_advisory_xact_lock(hashtext(?), ?)', ['message_attachments.pending', (int) $message->workspace_id]);
+        // A WORKSPACE függő bájtjai korlátosak (S4). A workspace-sor zárolása (`FOR UPDATE`,
+        // a tranzakció végéig) szerializálja a párhuzamos csatolmány-írókat: két egyidejű
+        // kérés különben ugyanazt a „még belefér" összeget olvasná. Eloquenten, nyers SQL
+        // nélkül — a tenant-izoláció őre (ScopeBypassGuardTest) így érvényes marad.
+        Workspace::query()->whereKey((int) $message->workspace_id)->lockForUpdate()->first();
 
         $incoming = array_sum(array_map(fn (OutboundAttachment $attachment) => $attachment->size(), $attachments));
         $pending = (int) MessageAttachment::query()->sum('size');

@@ -2660,6 +2660,8 @@
             "CHANNEL_DISABLED": "Kanal deaktiviert",
             "INVALID_REQUEST": "ungültige Anfrage",
             "GATE_ERROR": "Prüfungsfehler",
+            "ATTACHMENT_STORE_FAILED": "Anhang nicht speicherbar",
+            "ATTACHMENT_PENDING_LIMIT": "Limit ausstehender Anhänge",
             "IN_PROGRESS": "in Bearbeitung",
             "IDEMPOTENCY_KEY_REUSED": "Idempotency-Key wiederverwendet"
         },

@@ -2660,6 +2660,8 @@
             "CHANNEL_DISABLED": "canal désactivé",
             "INVALID_REQUEST": "requête invalide",
             "GATE_ERROR": "erreur de contrôle",
+            "ATTACHMENT_STORE_FAILED": "pièce jointe non enregistrable",
+            "ATTACHMENT_PENDING_LIMIT": "limite des pièces jointes en attente",
             "IN_PROGRESS": "en cours",
             "IDEMPOTENCY_KEY_REUSED": "clé d’idempotence réutilisée"
         },
