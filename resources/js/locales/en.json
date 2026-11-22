@@ -2660,6 +2660,8 @@
             "CHANNEL_DISABLED": "channel disabled",
             "INVALID_REQUEST": "invalid request",
             "GATE_ERROR": "gate error",
+            "ATTACHMENT_STORE_FAILED": "attachment could not be stored",
+            "ATTACHMENT_PENDING_LIMIT": "attachment pending limit",
             "IN_PROGRESS": "in progress",
             "IDEMPOTENCY_KEY_REUSED": "idempotency key reused"
         },

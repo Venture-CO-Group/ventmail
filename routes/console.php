@@ -123,6 +123,10 @@ Schedule::command('journeys:detect-dates')->dailyAt('07:00')->withoutOverlapping
 // A lejárt nyers MIME-levelek törlése (golden rule 10): a levéltest a legsűrűbb PII-tárolónk.
 Schedule::command('messages:purge-raw-mime')->dailyAt('03:20');
 
+// A kimenő csatolmány-bájtok (H123) hálója: a lezáráskor a modell-hook törli őket, ez a lejárt
+// és a hook elől elcsúszott sorokat viszi. Óránként: egy fan fotója ne várjon egy napot.
+Schedule::command('messages:purge-attachments')->hourly()->withoutOverlapping();
+
 /*
  | C1 · SZÁMLÁZÁS.
  |

@@ -2660,6 +2660,8 @@
             "CHANNEL_DISABLED": "csatorna kikapcsolva",
             "INVALID_REQUEST": "érvénytelen kérés",
             "GATE_ERROR": "kapu-hiba",
+            "ATTACHMENT_STORE_FAILED": "a csatolmány nem tárolható",
+            "ATTACHMENT_PENDING_LIMIT": "csatolmány-korlát (függő)",
             "IN_PROGRESS": "folyamatban",
             "IDEMPOTENCY_KEY_REUSED": "újrahasznált idempotency-kulcs"
         },

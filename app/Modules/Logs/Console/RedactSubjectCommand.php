@@ -18,6 +18,7 @@ use App\Modules\Logs\Models\SmtpTransaction;
 use App\Modules\Logs\Services\LogExport;
 use App\Modules\Sending\Models\DeliveryAttempt;
 use App\Modules\Sending\Models\Message;
+use App\Modules\Sending\Models\MessageAttachment;
 use App\Modules\Sending\Models\RawMimeMessage;
 use App\Modules\Sending\Services\DomainNormalizer;
 use App\Modules\Suppression\Models\Suppression;
@@ -79,7 +80,7 @@ final class RedactSubjectCommand extends Command
             return self::FAILURE;
         }
 
-        $redacted = ['messages' => 0, 'mime' => 0, 'events' => 0, 'smtp' => 0, 'attempts' => 0, 'webhooks' => 0, 'suppressions' => 0, 'inbound' => 0, 'validation' => 0, 'campaign_recipients' => 0, 'journey_runs' => 0, 'link_clicks' => 0];
+        $redacted = ['messages' => 0, 'mime' => 0, 'events' => 0, 'smtp' => 0, 'attempts' => 0, 'webhooks' => 0, 'suppressions' => 0, 'inbound' => 0, 'validation' => 0, 'campaign_recipients' => 0, 'journey_runs' => 0, 'link_clicks' => 0, 'attachments' => 0];
 
         // SZÁRAZ FUTÁS: egy visszavonhatatlan, tenanteken átnyúló művelet előtt látni kell,
         // mit érintene. A tranzakció a végén visszagördül — a számok viszont valódiak.
@@ -173,7 +174,8 @@ final class RedactSubjectCommand extends Command
             ($dryRun ? '[SZÁRAZ FUTÁS] ' : '')
                 .'Redaktálva — üzenet: %d, nyers MIME: %d, esemény: %d, SMTP-párbeszéd: %d, '
                 .'kísérlet: %d, webhook-sor: %d, suppression: %d, bejövő levél: %d, '
-                .'címellenőrzés: %d, kampány-címzett: %d, journey-futás: %d, klikk-sor: %d',
+                .'címellenőrzés: %d, kampány-címzett: %d, journey-futás: %d, klikk-sor: %d, '
+                .'csatolmány: %d',
             $redacted['messages'],
             $redacted['mime'],
             $redacted['events'],
@@ -190,6 +192,8 @@ final class RedactSubjectCommand extends Command
             $redacted['campaign_recipients'],
             $redacted['journey_runs'],
             $redacted['link_clicks'],
+            // H123: a kimenő csatolmány (a még ki nem ment levél fotója) is PII.
+            $redacted['attachments'],
         ));
 
         // RÉSZLEGES TÖRLÉS: az operátornak tudnia kell, hogy más workspace-eken a cím
@@ -283,6 +287,13 @@ final class RedactSubjectCommand extends Command
                 // és a szerkezet is ép maradjon. A megőrzés jogalapja pedig gyengébb, mint a
                 // törlési kötelezettség — a kézbesítés tényét a `messages` sor őrzi.
                 $redacted['mime'] += RawMimeMessage::query()
+                    ->where('message_uuid', $message->uuid)
+                    ->delete();
+
+                // A KIMENŐ CSATOLMÁNY (H123) ugyanígy: egy közös fájl, amit nem lehet
+                // címzettenként szétválasztani — és a bájtok PII-k (pl. az érintett fotója).
+                // Ha a levél még nem ment ki, a dispatcher fail-closed: csonkán nem küld.
+                $redacted['attachments'] += MessageAttachment::query()
                     ->where('message_uuid', $message->uuid)
                     ->delete();
 

@@ -38,6 +38,57 @@ return [
     // A beadott nyers MIME felső korlátja (a Mailgun 25 MB-ot enged csatolmányokkal).
     'max_mime_bytes' => (int) env('SENDING_MAX_MIME_BYTES', 26_214_400),
 
+    /*
+     | KIMENŐ CSATOLMÁNY a `POST /v1/messages`-en (JSON, base64; H123).
+     |
+     | - Allowlist: képek (JPEG, PNG, GIF, WebP); a PDF a katalógusban van, de alapból KI
+     |   (`SENDING_ATTACHMENT_TYPES`). A deklarált típusnak a tartalom mágikus bájtjaival
+     |   egyeznie kell (`ATTACHMENT_TYPE_MISMATCH`). SVG/HTML nincs: szkriptet hordozhat.
+     | - Méret: darabonként, üzenetenként, darabszám, batch-szorzat (csatolmány-bájt ×
+     |   címzett), és workspace-enként a kiküldésre VÁRÓ bájtok összege. A kódolt kérés a
+     |   `APP_MAX_BODY_MB` (16 MB) alá kell férjen: 10 MB bináris ≈ 13,4 MB base64.
+     |
+     | MEGŐRZÉS — minden példány, ahol a bájtok élnek:
+     | 1. `message_attachments` (ventMail DB), TITKOSÍTVA (APP_KEY): a lezárt üzenet
+     |    (delivered, sent, bounced, failed, rejected) sorai AZONNAL törlődnek. A felső határ
+     |    a kérés + 48 óra (`retention_hours`); ütemezett levélnél a `deliverytime` + 48 óra,
+     |    és csatolmánnyal legfeljebb 24 órával előre lehet ütemezni (`max_schedule_hours`) —
+     |    tehát a bájtok a kéréstől számítva legfeljebb ~72 óráig élnek. Testmode-ban és
+     |    kapu-elutasításnál nem is íródnak le. Háló: `messages:purge-attachments` óránként.
+     | 2. Mentések: a `message_attachments` SORAI nincsenek a napi `pg_dump`-ban
+     |    (venture-infra `backup-pg.sh`) és a deploy előtti dumpban (`deploy.sh`) sem.
+     | 3. MTA: a Postal a kiküldött nyers levelet (a csatolmánnyal együtt) a tranzakciós
+     |    szerveren 1 napig, a marketingen 3 napig őrzi (`raw_message_retention_days`,
+     |    venture-infra `provision.rb`), privacy módban.
+     | A `messages` soron csak a típus és a méret marad (trace), fájlnév nem; napló,
+     | esemény, webhook sem tartalmat, sem fájlnevet nem kap.
+     */
+    'attachments' => [
+        // Az ENGEDETT típusok — a `AttachmentParser::ALLOWED` katalógusát csak SZŰKÍTHETI
+        // (ismeretlen típushoz nincs tartalom-szippantás). A PDF ALAPBÓL KI: amíg a kimenő
+        // úton nincs fail-closed víruskereső (`VirusScanner`), egy kompromittált API-kulccsal
+        // a mi IP-inkről, a mi DKIM-ünkkel menne ki kártevő (S3, HUMAN-QUEUE).
+        'allowed_types' => array_values(array_filter(array_map(
+            static fn (string $type) => strtolower(trim($type)),
+            explode(',', (string) env('SENDING_ATTACHMENT_TYPES', 'image/jpeg,image/png,image/gif,image/webp'))
+        ))),
+        'max_count' => (int) env('SENDING_ATTACHMENT_MAX_COUNT', 10),
+        'max_file_bytes' => (int) env('SENDING_ATTACHMENT_MAX_FILE_BYTES', 5 * 1024 * 1024),
+        'max_total_bytes' => (int) env('SENDING_ATTACHMENT_MAX_TOTAL_BYTES', 10 * 1024 * 1024),
+        // A MIME címzettenként épül és aláírva a memóriában él a kiküldésig: mérve ~2,5× a
+        // csatolmány-bájt × címzett szorzat (1 MB × 10 címzett ≈ 25 MB csúcs). 25 MB-tal egy
+        // küldés ~65 MB — a 2 GB-os `worker` több párhuzamos jobbal is belefér (S6).
+        'max_batch_bytes' => (int) env('SENDING_ATTACHMENT_MAX_BATCH_BYTES', 25 * 1024 * 1024),
+        'retention_hours' => (int) env('SENDING_ATTACHMENT_RETENTION_HOURS', 48),
+        // Workspace-enként a kiküldésre VÁRÓ (még tárolt) csatolmány-bájtok felső határa: egy
+        // elakadt sor vagy egy elszabadult kliens ne tölthesse fel a DB-t fotókkal (S4).
+        // Fölötte átmeneti `ATTACHMENT_PENDING_LIMIT` (429), a kulcs felszabadul.
+        'max_pending_bytes' => (int) env('SENDING_ATTACHMENT_MAX_PENDING_BYTES', 200 * 1024 * 1024),
+        // Csatolmánnyal legfeljebb ennyi órával előre ütemezhető (a 7 napos általános helyett):
+        // a bájtok az ütemezett időpontig + `retention_hours`-ig élnek.
+        'max_schedule_hours' => (int) env('SENDING_ATTACHMENT_MAX_SCHEDULE_HOURS', 24),
+    ],
+
     // Meddig őrizzük a beadott nyers levelet (golden rule 10). A plan-függő tier a C1
     // (ventPay `log_retention_tier`) dolga; ez a biztonságos alapérték.
     'raw_mime_retention_days' => (int) env('SENDING_RAW_MIME_RETENTION_DAYS', 30),

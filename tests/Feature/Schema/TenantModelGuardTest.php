@@ -25,6 +25,7 @@ use App\Modules\Logs\Models\DomainDailyStat;
 use App\Modules\Logs\Models\SmtpTransaction;
 use App\Modules\Sending\Models\DeliveryAttempt;
 use App\Modules\Sending\Models\Message;
+use App\Modules\Sending\Models\MessageAttachment;
 use App\Modules\Sending\Models\PostalMessageRef;
 use App\Modules\Sending\Models\PostalWebhookReceipt;
 use App\Modules\Sending\Models\RawMimeMessage;
@@ -128,6 +129,9 @@ it('minden admin-felületű modell auditált', function () {
         MessageEvent::class,   // esemény-adat, nem admin-művelet
         Message::class,       // üzenet-adat; a küldést a gate auditálja
         RawMimeMessage::class, // a beadott levél MAGA (megváltoztathatatlan, nem admin-művelet)
+        // H123 · a kimenő csatolmány bájtjai: gépi, rövid életű adat (a kiküldésig), PII —
+        // soronkénti audit a fotó metaadatát a törölhetetlen audit-táblába írná.
+        MessageAttachment::class,
         DeliveryAttempt::class, // a fogadó válasza — gépi adat, nem admin-művelet
         SmtpTransaction::class, // az SMTP-párbeszéd — gépi adat, nem admin-művelet
         WebhookDelivery::class, // egy kimenő kézbesítés sorsa — gépi adat

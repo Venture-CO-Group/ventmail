@@ -160,7 +160,9 @@ teardown
 setup
 printf 'DB_DATABASE="ventmail"\nTRUSTED_HOSTS=app.ventmail.app,ventmail.app\n' >"$APP_DIR/.env"
 "$DEPLOY" v1.0.0 >/dev/null 2>&1
-expect "reads a quoted DB_DATABASE" 'called "pg_dump -U postgres -Fc ventmail$"'
+expect "reads a quoted DB_DATABASE" 'called "pg_dump -U postgres -Fc --exclude-table-data=message_attachments ventmail$"'
+# H123: the outbound attachment bytes (PII, ≤ 48 h) stay out of the pre-migration dump too.
+expect "the pre-migration dump leaves the message_attachments rows out" 'called "pg_dump .*--exclude-table-data=message_attachments"'
 teardown
 
 setup

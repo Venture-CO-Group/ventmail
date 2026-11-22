@@ -38,13 +38,15 @@ final class SendMessageController
         /** @var ApiKey|null $apiKey */
         $apiKey = $request->attributes->get('api_key');
 
-        // A csatolmányt ma nem támogatjuk — a NÉMA eldobás rosszabb szerződés, mint a hiba:
-        // a hívó 202-t kapna, és a levél csatolmány nélkül menne ki.
+        // A MULTIPART fájl-csatolmányt (Mailgun `attachment` / `inline`) ma nem támogatjuk —
+        // a NÉMA eldobás rosszabb szerződés, mint a hiba: a hívó 202-t kapna, és a levél
+        // csatolmány nélkül menne ki. A csatolmány útja a JSON `attachments` mező (base64,
+        // H123): típus-allowlist, tartalom-szippantás, méret- és darabkorlát.
         if ($request->hasFile('attachment') || $request->hasFile('inline')) {
             return ApiError::badRequest(
                 'UNSUPPORTED_ATTACHMENT',
-                'A csatolmány-küldés még nem támogatott (ventSec ClamAV-lánc: A4). '
-                .'Használj hivatkozást a tartalomra.'
+                'A multipart fájl-csatolmány (`attachment`, `inline`) nem támogatott. '
+                .'Csatolmányt az `attachments` mezőben küldj: [{filename, content_type, content (base64)}].'
             );
         }
 
@@ -156,6 +158,9 @@ final class SendMessageController
             'testmode' => $payload->testmode || $apiKey?->testmode === true,
             'ip_pool_id' => $ipPoolId,
             'idempotency_key' => (string) $request->attributes->get('idempotency_key'),
+            // Ellenőrzött csatolmányok (H123): a bájtokat a `SendMessage` titkosítva, a
+            // kiküldésig tárolja — a `messages` sorba csak a típus és a méret kerül.
+            'attachments' => $payload->attachments,
         ]);
 
         if (! $result->decision->allowed) {
@@ -180,6 +185,28 @@ final class SendMessageController
                     409,
                     ['id' => $result->message->uuid]
                 )->header('Retry-After', '1');
+            }
+
+            // A csatolmány leírása nem sikerült (H123): a mi hibánk, nem a kapu döntése —
+            // 503, újrapróbálható, a kulcs felszabadult.
+            if ($result->decision->reason === GateReason::AttachmentStoreFailed->value) {
+                return ApiError::response(
+                    GateReason::AttachmentStoreFailed->value,
+                    'A csatolmányt nem tudtuk eltárolni, a levél NEM ment ki. Próbáld újra ugyanazzal az Idempotency-Key-jel.',
+                    503,
+                    ['id' => $result->message->uuid]
+                )->header('Retry-After', '5');
+            }
+
+            // A workspace függő csatolmány-bájtjai elérték a korlátot (S4): átmeneti, 429.
+            if ($result->decision->reason === GateReason::AttachmentPendingLimit->value) {
+                return ApiError::response(
+                    GateReason::AttachmentPendingLimit->value,
+                    'A workspace kiküldésre váró csatolmányai elérték a felső korlátot, a levél NEM ment ki. '
+                    .'Próbáld újra később ugyanazzal az Idempotency-Key-jel.',
+                    429,
+                    ['id' => $result->message->uuid]
+                )->header('Retry-After', '60');
             }
 
             return ApiError::rejected(

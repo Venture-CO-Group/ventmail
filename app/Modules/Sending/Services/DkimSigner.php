@@ -26,7 +26,15 @@ use Symfony\Component\Mime\Email;
  */
 final class DkimSigner
 {
-    /** Ezek a fejlécek aláírva utaznak. A `From` a legfontosabb: az a feladó identitása. */
+    /**
+     * A MINIMUM, amit aláírva várunk. A `From` a legfontosabb: az a feladó identitása.
+     *
+     * FIGYELEM (security review N1, mérve): a Symfony aláírója ezt az opciót NEM használja —
+     * a levél MINDEN felső szintű fejlécét aláírja (a `headers_to_ignore` kivételével), tehát
+     * a `Reply-To` és a `MIME-Version` is a `h=`-ben van. A `Content-Type` viszont NEM: a
+     * Symfony a törzs-rész fejléceként kezeli, így se a `h=`, se a `bh=` nem fedi. Ehhez és a
+     * túlaláíráshoz (`from`/`subject` kétszer) saját aláíró kellene — külön döntés, nem itt.
+     */
     private const SIGNED_HEADERS = ['from', 'to', 'subject', 'date', 'message-id'];
 
     public function sign(Email $email, Domain $domain): string

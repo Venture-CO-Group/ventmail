@@ -2660,6 +2660,8 @@
             "CHANNEL_DISABLED": "канал отключён",
             "INVALID_REQUEST": "неверный запрос",
             "GATE_ERROR": "ошибка проверки",
+            "ATTACHMENT_STORE_FAILED": "вложение не сохранено",
+            "ATTACHMENT_PENDING_LIMIT": "лимит ожидающих вложений",
             "IN_PROGRESS": "в процессе",
             "IDEMPOTENCY_KEY_REUSED": "повтор ключа идемпотентности"
         },

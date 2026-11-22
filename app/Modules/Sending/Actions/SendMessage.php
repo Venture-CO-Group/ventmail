@@ -9,18 +9,22 @@ use App\Modules\Audit\Services\KeyedHash;
 use App\Modules\Billing\Enums\UsageDimension;
 use App\Modules\Billing\Services\Metering;
 use App\Modules\Events\Models\MessageEvent;
+use App\Modules\Sending\Data\OutboundAttachment;
 use App\Modules\Sending\Data\SendQueue;
 use App\Modules\Sending\Data\SendResult;
 use App\Modules\Sending\Enums\Channel;
+use App\Modules\Sending\Exceptions\AttachmentPendingLimitExceeded;
 use App\Modules\Sending\Gate\GateDecision;
 use App\Modules\Sending\Gate\GateReason;
 use App\Modules\Sending\Gate\GateResult;
 use App\Modules\Sending\Gate\PreSendGate;
 use App\Modules\Sending\Jobs\DeliverMessage;
 use App\Modules\Sending\Models\Message;
+use App\Modules\Sending\Models\MessageAttachment;
 use App\Modules\Sending\Models\RawMimeMessage;
 use App\Modules\Sending\Services\DomainNormalizer;
 use App\Modules\Sending\Services\MessageDispatcher;
+use App\Modules\Tenancy\Models\Workspace;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
@@ -136,15 +140,34 @@ final class SendMessage
         // A gate döntése az üzenetre kerül: a `gate_decided_at` teszi lehetővé, hogy egy
         // ütemezett küldésnél (deliverytime) a dispatcher újraértékeltethesse a gyorsan
         // változó kapukat — a közben érkezett leiratkozás különben nem számítana.
-        $message->forceFill([
-            'status' => 'accepted',
-            'gate_decided_at' => now(),
-            // A gate MINDEN kapujának eredménye az üzenetre kerül: az A3 trace-nek nem
-            // csak az elutasítás okára van szüksége, hanem arra is, hogy MIÉRT MENT KI.
-            // Az audit-sor erre nem alkalmas: az tenant-független és nem lekérdezhető
-            // üzenetenként.
-            'options' => [...$message->options, 'gate_trace' => $decision->trace()],
-        ])->save();
+        //
+        // A CSATOLMÁNY bájtjai (H123) UGYANABBAN a tranzakcióban íródnak, mint az `accepted`
+        // átmenet: vagy mindkettő megvan, vagy egyik sem. Különben egy félbeszakadt írás után
+        // a sor `accepted` maradna csatolmány nélkül — a kulcs lekötve, a levél pedig a
+        // kiküldéskor (fail-closed) csak `failed`-ig jutna, a hívó újrapróbálása replayt kapna.
+        // Csak az elfogadott, ténylegesen kiküldendő levélhez: testmode-ban nem íródik le.
+        $options = [...$message->options, 'gate_trace' => $decision->trace()];
+
+        try {
+            DB::transaction(function () use ($message, $options, $attributes): void {
+                $message->forceFill([
+                    'status' => 'accepted',
+                    'gate_decided_at' => now(),
+                    // A gate MINDEN kapujának eredménye az üzenetre kerül: az A3 trace-nek nem
+                    // csak az elutasítás okára van szüksége, hanem arra is, hogy MIÉRT MENT KI.
+                    // Az audit-sor erre nem alkalmas: az tenant-független és nem lekérdezhető
+                    // üzenetenként.
+                    'options' => $options,
+                ])->save();
+
+                if (! $message->testmode) {
+                    $this->storeAttachments($message, (array) Arr::get($attributes, 'attachments', []));
+                }
+            });
+        } catch (Throwable $e) {
+            return $this->rejectUnstored($message, $options, $e);
+        }
+
         $this->event($message, 'accepted');
 
         // Az ÜTEMEZETT üzenet nem megy ki azonnal: a `deliverytime` a Mailgun-paritás része
@@ -240,7 +263,8 @@ final class SendMessage
         // („unsupported Unicode escape sequence", „invalid byte sequence"), és mivel a sor
         // a kapuk ELŐTT íródik, a hívó `QueryException` → 500-at kapott az egységes
         // `error.code` alak helyett. A nyers MIME kivétel: az `bytea`-ba megy.
-        $unstorable = $this->firstUnstorableField(Arr::except($attributes, ['raw_mime']));
+        // A csatolmány is kivétel: bináris bájtsor, ami TITKOSÍTVA, külön táblába megy.
+        $unstorable = $this->firstUnstorableField(Arr::except($attributes, ['raw_mime', 'attachments']));
 
         if ($unstorable !== null) {
             // A MEZŐNÉV maga is tartalmazhatja a hibás bájtot (`v:"ne\0v"`), és ez a szöveg
@@ -410,6 +434,13 @@ final class SendMessage
                 array_filter([
                     'body_html' => Arr::get($attributes, 'rendered_html') ?? Arr::get($attributes, 'html'),
                     'body_text' => Arr::get($attributes, 'text'),
+                    // A csatolmány METAADATA a trace-hez (típus + méret), és a driver ebből
+                    // tudja, hány csatolmányt KELL találnia (fail-closed). Fájlnév nincs: az
+                    // PII lehet (`kiss-anna.jpg`), a `messages` pedig a napló főtáblája.
+                    'attachments' => array_map(
+                        fn (OutboundAttachment $attachment) => ['content_type' => $attachment->contentType, 'size' => $attachment->size()],
+                        $this->attachmentsOf($attributes)
+                    ) ?: null,
                 ], fn ($value) => $value !== null)
             ),
             'deliverytime' => Arr::get($attributes, 'deliverytime'),
@@ -454,6 +485,19 @@ final class SendMessage
             'options', 'ip_pool_id', 'raw_sha256',
         ]);
 
+        // A CSATOLMÁNY a tartalom része: ugyanaz a kulcs MÁS fotóval 409, nem csendes replay.
+        // Csak akkor kerül a lenyomatba, ha van — a csatolmány nélküli kérések lenyomata így
+        // változatlan (a már kiadott kulcsok replay-e nem törik el).
+        $attachments = $this->attachmentsOf($attributes);
+
+        if ($attachments !== []) {
+            $canonical['attachments'] = array_map(fn (OutboundAttachment $attachment) => [
+                $attachment->filename,
+                $attachment->contentType,
+                hash('sha256', $attachment->content),
+            ], $attachments);
+        }
+
         // SABLONOS kérésnél az ujjlenyomat azt fedi, amit a hívó KÜLDÖTT (sablon-név, változók,
         // címzettek…), nem a feloldott törzset/tárgyat: egy közben aktivált új verzió miatt a
         // válasz-vesztés utáni újrapróbálás ne kapjon 409-et. Sablon nélkül a viselkedés változatlan
@@ -475,6 +519,108 @@ final class SendMessage
         // KULCSOLT lenyomat: a `t:variables` (pl. egy 6 jegyű OTP) a kérés része, és a
         // többi mező ismert — kulcs nélküli SHA-256-ból offline visszafejthető lenne.
         return KeyedHash::of('request_fingerprint', json_encode($canonical, JSON_INVALID_UTF8_SUBSTITUTE) ?: serialize($canonical));
+    }
+
+    /**
+     * A csatolmány leírása nem sikerült — a tranzakció visszagördült, a sor `queued`.
+     *
+     * ÁTMENETI elutasítás: `rejected` + ok, a kulcs FELSZABADUL (az ismételt kérés újra
+     * lefut), a titkos render-változók törlődnek. A kivétel SZÖVEGE nem megy a sorba és a
+     * válaszba (titok/útvonal-szivárgás ellen), csak a szerver-logba — tartalom nélkül.
+     *
+     * @param  array<string, mixed>  $options
+     */
+    private function rejectUnstored(Message $message, array $options, Throwable $e): SendResult
+    {
+        $reason = $e instanceof AttachmentPendingLimitExceeded
+            ? GateReason::AttachmentPendingLimit
+            : GateReason::AttachmentStoreFailed;
+
+        if ($reason === GateReason::AttachmentStoreFailed) {
+            Log::error('A csatolmány leírása sikertelen — a levél nem került elfogadásra', [
+                'message_uuid' => (string) $message->uuid,
+                'workspace_id' => (int) $message->workspace_id,
+                'exception' => $e::class,
+            ]);
+        }
+
+        // A memóriabeli példány az elfogadott állapotot hiszi; az adatbázis a visszagördült
+        // `queued`-ot tartja. A kettőt előbb összehangoljuk, különben a mentés csak a
+        // „változott" mezőket írná ki.
+        $message->refresh();
+        $message->forceFill([
+            'status' => 'rejected',
+            'reason' => $reason->value,
+            'render_variables' => null,
+            'idempotency_key' => null,
+            'options' => $options,
+        ])->save();
+
+        $this->event($message, 'rejected', $reason->value);
+
+        return new SendResult($message, GateDecision::rejected($reason->value, []));
+    }
+
+    /**
+     * @param  array<string, mixed>  $attributes
+     * @return list<OutboundAttachment>
+     */
+    private function attachmentsOf(array $attributes): array
+    {
+        return array_values(array_filter(
+            (array) Arr::get($attributes, 'attachments', []),
+            fn ($attachment) => $attachment instanceof OutboundAttachment
+        ));
+    }
+
+    /**
+     * A csatolmány-bájtok — titkosítva, LEJÁRATTAL (H123).
+     *
+     * A lejárat a kiküldés várható időpontjától számít (ütemezett levélnél a
+     * `deliverytime`-tól): a bájtokra a kiküldésig és az újrapróbálás végéig van szükség,
+     * utána nincs jogalap a megőrzésükre. A lezárt üzenet sorait a `Message` hook törli
+     * azonnal; a lejárat a felső határ, amit a `messages:purge-attachments` érvényesít.
+     *
+     * @param  array<int, mixed>  $attachments
+     */
+    private function storeAttachments(Message $message, array $attachments): void
+    {
+        $attachments = $this->attachmentsOf(['attachments' => $attachments]);
+
+        if ($attachments === []) {
+            return;
+        }
+
+        // A WORKSPACE függő bájtjai korlátosak (S4). A workspace-sor zárolása (`FOR UPDATE`,
+        // a tranzakció végéig) szerializálja a párhuzamos csatolmány-írókat: két egyidejű
+        // kérés különben ugyanazt a „még belefér" összeget olvasná. Eloquenten, nyers SQL
+        // nélkül — a tenant-izoláció őre (ScopeBypassGuardTest) így érvényes marad.
+        Workspace::query()->whereKey((int) $message->workspace_id)->lockForUpdate()->first();
+
+        $incoming = array_sum(array_map(fn (OutboundAttachment $attachment) => $attachment->size(), $attachments));
+        $pending = (int) MessageAttachment::query()->sum('size');
+
+        if ($pending + $incoming > (int) config('sending.attachments.max_pending_bytes')) {
+            throw new AttachmentPendingLimitExceeded;
+        }
+
+        $from = $message->deliverytime !== null && $message->deliverytime->isFuture()
+            ? $message->deliverytime->copy()
+            : now();
+        $expiresAt = $from->addHours((int) config('sending.attachments.retention_hours'));
+
+        foreach ($attachments as $position => $attachment) {
+            MessageAttachment::query()->create([
+                'message_uuid' => $message->uuid,
+                'position' => $position,
+                'filename' => $attachment->filename,
+                'content_type' => $attachment->contentType,
+                'size' => $attachment->size(),
+                'sha256' => KeyedHash::of('attachment', $attachment->content),
+                'content' => $attachment->content,
+                'expires_at' => $expiresAt,
+            ]);
+        }
     }
 
     /**
