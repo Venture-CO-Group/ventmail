@@ -14,6 +14,7 @@ use App\Modules\Sending\Drivers\PostalDriver;
 use App\Modules\Sending\Models\Message;
 use App\Modules\Sending\Models\MessageAttachment;
 use App\Modules\Sending\Services\MessageDispatcher;
+use App\Modules\Sending\Services\RetryPolicy;
 use App\Modules\StoredTemplates\Models\StoredTemplate;
 use App\Modules\StoredTemplates\Models\StoredTemplateVersion;
 use App\Modules\Tenancy\Models\Workspace;
@@ -746,4 +747,99 @@ it('csatolmánnyal legfeljebb 24 órával előre ütemezhető', function () {
 
     // Csatolmány nélkül a 7 napos korlát változatlan.
     sendWith([], ['o:deliverytime' => now()->addDays(3)->toRfc2822String()])->assertAccepted();
+});
+
+// --- S5: a `claim()` javítás regressziós tesztjei -----------------------------------------
+
+it('az újra elbukó újrapróbálás deferred marad next_attempt_at-tel, a keret végén failed, a csatolmány törlődik', function () {
+    app()->instance(SendingDriver::class, stickyDriver());
+    app()->forgetInstance(MessageDispatcher::class);
+
+    sendWith([attachment(jpegBytes())])->assertAccepted();
+
+    $dispatcher = app(MessageDispatcher::class);
+
+    // A MÁSODIK kísérlet (egy `deferred` levél újrapróbálása) is elbukik: a sor NEM ragad
+    // `sending`-ben, hanem `deferred`, újabb `next_attempt_at`-tel.
+    $dispatcher->dispatch(Message::query()->first());
+    $message = Message::query()->first();
+
+    expect($message->status)->toBe('deferred')
+        ->and($message->attempts)->toBe(2)
+        ->and($message->next_attempt_at)->not->toBeNull()
+        ->and($message->next_attempt_at->isFuture())->toBeTrue()
+        ->and(MessageAttachment::query()->count())->toBe(1);
+
+    $guard = 0;
+
+    while (($message = Message::query()->first())->status === 'deferred' && $guard++ < 20) {
+        $dispatcher->dispatch($message);
+    }
+
+    $max = app(RetryPolicy::class)->maxAttempts();
+
+    expect($message->status)->toBe('failed')
+        ->and($message->attempts)->toBe($max + 1)
+        ->and($message->next_attempt_at)->toBeNull()
+        ->and(MessageAttachment::query()->count())->toBe(0)
+        ->and(MessageEvent::query()->where('type', 'failed')->count())->toBe(1);
+});
+
+it('két dispatcher ugyanazon a levélen: a driver EGYSZER hívódik', function () {
+    app()->instance(SendingDriver::class, stickyDriver());
+    app()->forgetInstance(MessageDispatcher::class);
+
+    sendWith([attachment(jpegBytes())])->assertAccepted();
+
+    $stale = Message::query()->first();   // a második futás saját, régi példánya
+    $first = Message::query()->first();
+
+    $driver = new class implements SendingDriver
+    {
+        public int $calls = 0;
+
+        /** @var (callable(): void)|null */
+        public $whileSending = null;
+
+        public function send(Message $message): DispatchResult
+        {
+            $this->calls++;
+
+            if ($this->whileSending !== null) {
+                ($this->whileSending)();
+            }
+
+            return DispatchResult::delivered('once-'.$message->uuid);
+        }
+
+        public function capabilities(): DriverCapabilities
+        {
+            return new DriverCapabilities(name: 'counting');
+        }
+
+        public function health(): DriverHealth
+        {
+            return new DriverHealth(healthy: true, detail: 'ok');
+        }
+    };
+
+    app()->instance(SendingDriver::class, $driver);
+    app()->forgetInstance(MessageDispatcher::class);
+    $a = app()->make(MessageDispatcher::class);
+    app()->forgetInstance(MessageDispatcher::class);
+    $b = app()->make(MessageDispatcher::class);
+
+    // A második dispatcher PONTOSAN akkor fut, amikor az első a drivernél tart.
+    $driver->whileSending = function () use ($b, $stale, $driver): void {
+        $driver->whileSending = null;
+        $b->dispatch($stale);
+    };
+
+    $a->dispatch($first);
+    // ...és utána még egyszer, a régi (még `deferred`-et hívő) példánnyal.
+    $b->dispatch($stale);
+
+    expect($driver->calls)->toBe(1)
+        ->and(Message::query()->first()->status)->toBe('delivered')
+        ->and(MessageAttachment::query()->count())->toBe(0);
 });
