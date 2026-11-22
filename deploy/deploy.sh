@@ -409,7 +409,10 @@ db="$(sed -n 's/^DB_DATABASE=//p' .env | tail -1 | tr -d "\"'")"
 umask 077
 mkdir -p "$BACKUP_DIR/$db"
 dump="$BACKUP_DIR/$db/$db-predeploy-$tag-$(date -u +%Y%m%dT%H%M%SZ).dump"
-if ! docker exec -u postgres "$PG_CONTAINER" pg_dump -U postgres -Fc "$db" >"$dump.partial"; then
+# H123: the outbound attachment bytes (a fan's photo, PII) live at most 48 h; their rows stay
+# out of the dump (the table is kept). A rollback restore leaves pending attachments missing,
+# and those messages fail closed instead of going out without them.
+if ! docker exec -u postgres "$PG_CONTAINER" pg_dump -U postgres -Fc --exclude-table-data=message_attachments "$db" >"$dump.partial"; then
     rm -f "$dump.partial"
     die "pre-migration dump of $db failed; nothing changed"
 fi

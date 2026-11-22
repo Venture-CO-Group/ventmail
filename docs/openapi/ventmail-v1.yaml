@@ -79,11 +79,17 @@ paths:
         bontott behelyettesítéssel.
 
         **Csatolmány** (`attachments`, csak JSON-ban, base64): képek (JPEG, PNG, GIF, WebP; a PDF
-        alapból kikapcsolva); darabonként ≤ 5 MB, üzenetenként ≤ 10 MB és ≤ 10 darab, batch-ben a csatolmány-bájt
-        × címzett ≤ 25 MB. A kódolt kérés teljes mérete ≤ 16 MB. A bájtok titkosítva, csak a
-        kiküldésig / az újrapróbálás végéig (legfeljebb a kiküldés + 48 óráig) tárolódnak; az
-        üzenet-naplóban csak a típus és a méret marad. A multipart `attachment` / `inline`
-        fájlmező továbbra sem támogatott (`400 UNSUPPORTED_ATTACHMENT`).
+        alapból kikapcsolva); darabonként ≤ 5 MB, üzenetenként ≤ 10 MB és ≤ 10 darab, batch-ben a
+        csatolmány-bájt × címzett ≤ 25 MB, workspace-enként a kiküldésre váró bájtok ≤ 200 MB
+        (fölötte `429 ATTACHMENT_PENDING_LIMIT`). Csatolmánnyal legfeljebb 24 órával előre
+        ütemezhető. A kódolt kérés teljes mérete ≤ 16 MB.
+
+        **Megőrzés:** a bájtok titkosítva csak a kiküldésig / az újrapróbálás végéig tárolódnak; a
+        lezárt üzenetéi azonnal törlődnek, a felső határ a kérés + 48 óra (ütemezett levélnél a
+        `deliverytime` + 48 óra). A mentésekben nincsenek benne. Az MTA (Postal) a kiküldött nyers
+        levelet a tranzakciós szerveren 1 napig őrzi. Az üzenet-naplóban csak a típus és a méret
+        marad. A multipart `attachment` / `inline` fájlmező továbbra sem támogatott
+        (`400 UNSUPPORTED_ATTACHMENT`).
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:

@@ -42,18 +42,26 @@ return [
      | KIMENŐ CSATOLMÁNY a `POST /v1/messages`-en (JSON, base64; H123).
      |
      | - Allowlist: képek (JPEG, PNG, GIF, WebP); a PDF a katalógusban van, de alapból KI
- |   (`SENDING_ATTACHMENT_TYPES`). A deklarált típusnak a tartalom
-     |   mágikus bájtjaival egyeznie kell (`ATTACHMENT_TYPE_MISMATCH`). SVG/HTML nincs:
-     |   szkriptet hordozhat, és a levélkliensek egy része megnyitja.
-     | - Méret: darabonként és üzenetenként; a `max_batch_bytes` a csatolmány-bájt × címzett
-     |   szorzat felső korlátja — a MIME címzettenként épül, és a worker memóriája véges.
-     |   A kódolt kérés a `APP_MAX_BODY_MB` (16 MB) alá kell férjen: 10 MB bináris ≈ 13,4 MB
-     |   base64.
-     | - Megőrzés: a bájtok TITKOSÍTVA (APP_KEY) a `message_attachments` táblában, és csak a
-     |   kiküldésig / az újrapróbálás végéig élnek. A lezárt üzenet (delivered, sent, bounced,
-     |   failed, rejected) bájtjai azonnal törlődnek; a `retention_hours` a felső határ
-     |   (ütemezett levélnél a kiküldés időpontjától számítva). A `messages` soron csak a
-     |   típus és a méret marad (trace), fájlnév nem.
+     |   (`SENDING_ATTACHMENT_TYPES`). A deklarált típusnak a tartalom mágikus bájtjaival
+     |   egyeznie kell (`ATTACHMENT_TYPE_MISMATCH`). SVG/HTML nincs: szkriptet hordozhat.
+     | - Méret: darabonként, üzenetenként, darabszám, batch-szorzat (csatolmány-bájt ×
+     |   címzett), és workspace-enként a kiküldésre VÁRÓ bájtok összege. A kódolt kérés a
+     |   `APP_MAX_BODY_MB` (16 MB) alá kell férjen: 10 MB bináris ≈ 13,4 MB base64.
+     |
+     | MEGŐRZÉS — minden példány, ahol a bájtok élnek:
+     | 1. `message_attachments` (ventMail DB), TITKOSÍTVA (APP_KEY): a lezárt üzenet
+     |    (delivered, sent, bounced, failed, rejected) sorai AZONNAL törlődnek. A felső határ
+     |    a kérés + 48 óra (`retention_hours`); ütemezett levélnél a `deliverytime` + 48 óra,
+     |    és csatolmánnyal legfeljebb 24 órával előre lehet ütemezni (`max_schedule_hours`) —
+     |    tehát a bájtok a kéréstől számítva legfeljebb ~72 óráig élnek. Testmode-ban és
+     |    kapu-elutasításnál nem is íródnak le. Háló: `messages:purge-attachments` óránként.
+     | 2. Mentések: a `message_attachments` SORAI nincsenek a napi `pg_dump`-ban
+     |    (venture-infra `backup-pg.sh`) és a deploy előtti dumpban (`deploy.sh`) sem.
+     | 3. MTA: a Postal a kiküldött nyers levelet (a csatolmánnyal együtt) a tranzakciós
+     |    szerveren 1 napig, a marketingen 3 napig őrzi (`raw_message_retention_days`,
+     |    venture-infra `provision.rb`), privacy módban.
+     | A `messages` soron csak a típus és a méret marad (trace), fájlnév nem; napló,
+     | esemény, webhook sem tartalmat, sem fájlnevet nem kap.
      */
     'attachments' => [
         // Az ENGEDETT típusok — a `AttachmentParser::ALLOWED` katalógusát csak SZŰKÍTHETI

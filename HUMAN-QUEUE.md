@@ -173,7 +173,10 @@
       (a dispatcherben, `deferred` a szkenner kiesésekor, `failed`/elutasítás fertőzöttre). Ma a
       kimenő csatolmány csak típus-allowlistet + mágikus bájtot + méretet kap. A PDF bekapcsolása
       e nélkül tilos; (d) kiadás + migráció
-      (`message_attachments`), a `messages:purge-attachments` óránként fut (scheduler).
+      (`message_attachments`), a `messages:purge-attachments` óránként fut (scheduler); (e) venture-infra
+      PR (security review S1): `backup-pg.sh` `--exclude-table-data=message_attachments` és a Postal tx
+      szerver `raw_message_retention_days: 1` — a boxon `git pull` + `init-postal.sh` (a `provision.rb`
+      másolása) + a provisioning `EMIT` nélküli újrafuttatása (RUNBOOK-mail 2.).
 - [ ] **API-referencia csak magyarul:** az in-app fejlesztői doksi (D177) az OpenAPI szövegeiből épül, amelyek
       magyarok. Döntés: angol OpenAPI-leírások (fordítás) vagy külön nyelvi réteg.
 - [ ] **ventSSO `picture` claim** tárolása + CSP `img-src` az avatar-képhez (D22; ma monogram).
