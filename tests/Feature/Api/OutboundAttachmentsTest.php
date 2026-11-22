@@ -600,7 +600,10 @@ it('az Art. 17 törlés a csatolmányt is viszi', function () {
     sendWith([attachment(jpegBytes())])->assertAccepted();
     expect(MessageAttachment::query()->count())->toBe(1);
 
-    $this->artisan('logs:redact-subject', ['email' => 'fan@example.test']);
+    // N5: a riport a csatolmányt is megszámolja (az operátornak látnia kell, mi történt).
+    $this->artisan('logs:redact-subject', ['email' => 'fan@example.test'])
+        ->expectsOutputToContain('csatolmány: 1')
+        ->assertSuccessful();
     app(WorkspaceContext::class)->set($this->workspace);
 
     expect(MessageAttachment::query()->count())->toBe(0);
