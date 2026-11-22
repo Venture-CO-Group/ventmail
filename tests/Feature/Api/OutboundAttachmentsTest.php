@@ -889,3 +889,41 @@ it('a batch-szorzat a becsült méreten is: a túl nagy batch nem dekódolódik'
         ->assertStatus(400)
         ->assertJsonPath('error.code', 'ATTACHMENT_TOO_LARGE');
 });
+
+// --- N6: tenant-izoláció ------------------------------------------------------------------
+
+it('a csatolmány-sorok, a függő-korlát és a takarítás workspace-enként elszigetelt', function () {
+    config(['sending.attachments.max_pending_bytes' => 3000]);
+    app()->instance(SendingDriver::class, stickyDriver());
+
+    // A workspace: egy függő, 2000 bájtos csatolmány.
+    sendWith([attachment(jpegBytes(2000))])->assertAccepted();
+    $a = Message::query()->sole();
+
+    // B workspace, saját kulccsal és domainnel.
+    $other = Workspace::factory()->create();
+    app(WorkspaceContext::class)->set($other);
+    Domain::create(['name' => 'pelda.hu', 'status' => 'verified', 'verified_at' => now()]);
+    ['plain' => $plainB] = ApiKey::issue('B', ['messages:send']);
+    $this->plain = $plainB;
+
+    // A korlát a SAJÁT függő bájtjait nézi: A 2000 bájtja B-t nem fogja meg.
+    sendWith([attachment(jpegBytes(2000))])->assertAccepted();
+
+    app(WorkspaceContext::class)->set($other);
+    $b = Message::query()->sole();
+
+    expect(MessageAttachment::query()->pluck('message_uuid')->all())->toBe([$b->uuid])
+        ->and(Message::query()->where('uuid', $a->uuid)->exists())->toBeFalse()
+        ->and(count($b->outboundAttachments()))->toBe(1);
+
+    // B levele lezárul a hookot megkerülve; a takarítás csak B sorát viszi.
+    DB::table('messages')->where('id', $b->id)->update(['status' => 'delivered']);
+    $this->artisan('messages:purge-attachments')->assertSuccessful();
+
+    app(WorkspaceContext::class)->set($this->workspace);
+    expect(MessageAttachment::query()->pluck('message_uuid')->all())->toBe([$a->uuid]);
+
+    app(WorkspaceContext::class)->set($other);
+    expect(MessageAttachment::query()->count())->toBe(0);
+});
