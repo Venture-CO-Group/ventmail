@@ -126,7 +126,10 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
         '429':
-          description: Rate-limit
+          description: |
+            Rate-limit, vagy `ATTACHMENT_PENDING_LIMIT`: a workspace kiküldésre váró
+            csatolmány-bájtjai elérték a felső korlátot (alap 200 MB). Átmeneti, a levél NEM ment ki,
+            az `Idempotency-Key` felszabadult (`Retry-After`).
         '503':
           description: |
             `ATTACHMENT_STORE_FAILED` — a csatolmányt nem tudtuk eltárolni; a levél NEM ment ki, az
@@ -1652,6 +1655,8 @@ components:
         - TOO_MANY_ATTACHMENTS
         # A csatolmány leírása nem sikerült (503, Retry-After; a kulcs felszabadul).
         - ATTACHMENT_STORE_FAILED
+        # A workspace kiküldésre váró csatolmány-bájtjai elérték a korlátot (429, Retry-After).
+        - ATTACHMENT_PENDING_LIMIT
         - MIME_TOO_LARGE
         - MIME_MALFORMED
         - MIME_DUPLICATE_HEADER

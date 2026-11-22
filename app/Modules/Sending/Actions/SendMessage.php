@@ -13,6 +13,7 @@ use App\Modules\Sending\Data\OutboundAttachment;
 use App\Modules\Sending\Data\SendQueue;
 use App\Modules\Sending\Data\SendResult;
 use App\Modules\Sending\Enums\Channel;
+use App\Modules\Sending\Exceptions\AttachmentPendingLimitExceeded;
 use App\Modules\Sending\Gate\GateDecision;
 use App\Modules\Sending\Gate\GateReason;
 use App\Modules\Sending\Gate\GateResult;
@@ -530,7 +531,9 @@ final class SendMessage
      */
     private function rejectUnstored(Message $message, array $options, Throwable $e): SendResult
     {
-        $reason = GateReason::AttachmentStoreFailed;
+        $reason = $e instanceof AttachmentPendingLimitExceeded
+            ? GateReason::AttachmentPendingLimit
+            : GateReason::AttachmentStoreFailed;
 
         if ($reason === GateReason::AttachmentStoreFailed) {
             Log::error('A csatolmány leírása sikertelen — a levél nem került elfogadásra', [
@@ -585,6 +588,18 @@ final class SendMessage
 
         if ($attachments === []) {
             return;
+        }
+
+        // A WORKSPACE függő bájtjai korlátosak (S4). A tranzakciós advisory lock a
+        // workspace-re szerializálja a párhuzamos írókat: két egyidejű kérés különben
+        // ugyanazt a „még belefér" összeget olvasná. A lock a tranzakció végén elenged.
+        DB::select('select pg_advisory_xact_lock(hashtext(?), ?)', ['message_attachments.pending', (int) $message->workspace_id]);
+
+        $incoming = array_sum(array_map(fn (OutboundAttachment $attachment) => $attachment->size(), $attachments));
+        $pending = (int) MessageAttachment::query()->sum('size');
+
+        if ($pending + $incoming > (int) config('sending.attachments.max_pending_bytes')) {
+            throw new AttachmentPendingLimitExceeded;
         }
 
         $from = $message->deliverytime !== null && $message->deliverytime->isFuture()

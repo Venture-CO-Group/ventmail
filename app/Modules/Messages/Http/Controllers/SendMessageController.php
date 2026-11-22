@@ -198,6 +198,17 @@ final class SendMessageController
                 )->header('Retry-After', '5');
             }
 
+            // A workspace függő csatolmány-bájtjai elérték a korlátot (S4): átmeneti, 429.
+            if ($result->decision->reason === GateReason::AttachmentPendingLimit->value) {
+                return ApiError::response(
+                    GateReason::AttachmentPendingLimit->value,
+                    'A workspace kiküldésre váró csatolmányai elérték a felső korlátot, a levél NEM ment ki. '
+                    .'Próbáld újra később ugyanazzal az Idempotency-Key-jel.',
+                    429,
+                    ['id' => $result->message->uuid]
+                )->header('Retry-After', '60');
+            }
+
             return ApiError::rejected(
                 (string) $result->decision->reason,
                 $this->explain($result->decision->reason),

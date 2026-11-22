@@ -69,6 +69,13 @@ return [
         'max_total_bytes' => (int) env('SENDING_ATTACHMENT_MAX_TOTAL_BYTES', 10 * 1024 * 1024),
         'max_batch_bytes' => (int) env('SENDING_ATTACHMENT_MAX_BATCH_BYTES', 50 * 1024 * 1024),
         'retention_hours' => (int) env('SENDING_ATTACHMENT_RETENTION_HOURS', 48),
+        // Workspace-enként a kiküldésre VÁRÓ (még tárolt) csatolmány-bájtok felső határa: egy
+        // elakadt sor vagy egy elszabadult kliens ne tölthesse fel a DB-t fotókkal (S4).
+        // Fölötte átmeneti `ATTACHMENT_PENDING_LIMIT` (429), a kulcs felszabadul.
+        'max_pending_bytes' => (int) env('SENDING_ATTACHMENT_MAX_PENDING_BYTES', 200 * 1024 * 1024),
+        // Csatolmánnyal legfeljebb ennyi órával előre ütemezhető (a 7 napos általános helyett):
+        // a bájtok az ütemezett időpontig + `retention_hours`-ig élnek.
+        'max_schedule_hours' => (int) env('SENDING_ATTACHMENT_MAX_SCHEDULE_HOURS', 24),
     ],
 
     // Meddig őrizzük a beadott nyers levelet (golden rule 10). A plan-függő tier a C1

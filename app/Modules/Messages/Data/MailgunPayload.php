@@ -93,6 +93,19 @@ final readonly class MailgunPayload
             ));
         }
 
+        $attachments = AttachmentParser::parse($input['attachments'] ?? null, count($recipients));
+        $deliverytime = self::parseDeliverytime($input['o:deliverytime'] ?? null);
+        $maxScheduleHours = (int) config('sending.attachments.max_schedule_hours');
+
+        // Csatolmánnyal rövidebb az ütemezési ablak (S4): a fotó az ütemezett időpontig a
+        // DB-ben vár, és egy hétig ott ülő PII nem indokolható.
+        if ($attachments !== [] && $deliverytime !== null && $deliverytime->gt(now()->addHours($maxScheduleHours))) {
+            throw new InvalidArgumentException(sprintf(
+                'DELIVERYTIME_TOO_FAR|Csatolmánnyal az ütemezés legfeljebb %d órával előre lehet.',
+                $maxScheduleHours
+            ));
+        }
+
         return new self(
             fromEmail: $fromEmail,
             fromName: $fromName,
@@ -105,12 +118,12 @@ final readonly class MailgunPayload
             renderVariables: self::parseRenderVariables($input),
             headers: self::parsePrefixed($input, 'h:'),
             options: self::parseOptions($input),
-            deliverytime: self::parseDeliverytime($input['o:deliverytime'] ?? null),
+            deliverytime: $deliverytime,
             testmode: self::truthy($input['o:testmode'] ?? false),
             ipPool: self::scalarField($input, 'o:sending-ip-pool'),
             template: self::scalarField($input, 'template'),
             channel: self::parseChannel($input['o:channel'] ?? null),
-            attachments: AttachmentParser::parse($input['attachments'] ?? null, count($recipients)),
+            attachments: $attachments,
         );
     }
 

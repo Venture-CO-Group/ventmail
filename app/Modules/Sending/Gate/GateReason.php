@@ -46,6 +46,12 @@ enum GateReason: string
      */
     case AttachmentStoreFailed = 'ATTACHMENT_STORE_FAILED';
 
+    /**
+     * H123 · a workspace kiküldésre váró csatolmány-bájtjai elérték a felső korlátot
+     * (`SENDING_ATTACHMENT_MAX_PENDING_BYTES`). Átmeneti: a sor kiürülésével újra mehet.
+     */
+    case AttachmentPendingLimit = 'ATTACHMENT_PENDING_LIMIT';
+
     /** Ugyanaz az Idempotency-Key MÁS kérés-tartalommal. */
     case IdempotencyKeyReused = 'IDEMPOTENCY_KEY_REUSED';
 
@@ -61,7 +67,7 @@ enum GateReason: string
         return in_array($this, [
             self::DomainUnverified, self::QuotaExceeded, self::RateLimited,
             self::SendingRestricted, self::ChannelDisabled, self::GateError,
-            self::AttachmentStoreFailed,
+            self::AttachmentStoreFailed, self::AttachmentPendingLimit,
         ], true);
     }
 }

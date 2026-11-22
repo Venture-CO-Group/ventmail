@@ -447,7 +447,7 @@ it('testmode-ban a bájtok el sem tárolódnak', function () {
 
 it('ütemezett küldésnél a bájtok titkosítva várnak, a lejárat az időpont + a retenció', function () {
     config(['sending.attachments.retention_hours' => 48]);
-    $when = now()->addDays(2)->startOfMinute();
+    $when = now()->addHours(20)->startOfMinute();
 
     $bytes = jpegBytes();
     sendWith([attachment($bytes)], ['o:deliverytime' => $when->toRfc2822String()])
@@ -679,4 +679,71 @@ it('az alapértelmezett allowlist a config-fájlból: képek, PDF nélkül', fun
         ->toBe(['image/jpeg', 'image/png', 'image/gif', 'image/webp'])
         ->and(configFileWith('sending', ['SENDING_ATTACHMENT_TYPES' => 'image/jpeg, Application/PDF'])['attachments']['allowed_types'])
         ->toBe(['image/jpeg', 'application/pdf']);
+});
+
+// --- S4: workspace-enkénti függő-bájt korlát, ütemezés ≤ 24 óra csatolmánnyal --------------
+
+/** Driver, ami mindig átmeneti hibát ad — a csatolmány így FÜGGŐBEN marad. */
+function stickyDriver(): SendingDriver
+{
+    return new class implements SendingDriver
+    {
+        public function send(Message $message): DispatchResult
+        {
+            return DispatchResult::failed('Postal hiba: 503', 451, 'try later');
+        }
+
+        public function capabilities(): DriverCapabilities
+        {
+            return new DriverCapabilities(name: 'sticky');
+        }
+
+        public function health(): DriverHealth
+        {
+            return new DriverHealth(healthy: true, detail: 'ok');
+        }
+    };
+}
+
+it('a workspace függő csatolmány-bájtjai korlátosak: átmeneti ATTACHMENT_PENDING_LIMIT', function () {
+    config(['sending.attachments.max_pending_bytes' => 5000]);
+    app()->instance(SendingDriver::class, stickyDriver());
+
+    sendWith([attachment(jpegBytes(2000))])->assertAccepted();
+    sendWith([attachment(jpegBytes(2000))])->assertAccepted();
+
+    sendWith([attachment(jpegBytes(2000))], [], 'jm-pending-3')
+        ->assertStatus(429)
+        ->assertJsonPath('error.code', 'ATTACHMENT_PENDING_LIMIT')
+        ->assertHeader('Retry-After');
+
+    $rejected = Message::query()->where('reason', 'ATTACHMENT_PENDING_LIMIT')->sole();
+
+    expect($rejected->status)->toBe('rejected')
+        ->and($rejected->idempotency_key)->toBeNull()
+        ->and(MessageAttachment::query()->sum('size'))->toBe(4000);
+
+    // Az egyik függő levél lezárul → a bájtjai törlődnek → ugyanaz a kulcs most átmegy.
+    Message::query()->where('status', 'deferred')->first()->forceFill(['status' => 'failed'])->save();
+
+    sendWith([attachment(jpegBytes(2000))], [], 'jm-pending-3')->assertAccepted();
+});
+
+it('a függő-bájt korlát a config-fájlból: 200 MB alapérték', function () {
+    expect(configFileWith('sending', ['SENDING_ATTACHMENT_MAX_PENDING_BYTES' => null])['attachments']['max_pending_bytes'])
+        ->toBe(200 * 1024 * 1024)
+        ->and(configFileWith('sending', ['SENDING_ATTACHMENT_MAX_SCHEDULE_HOURS' => null])['attachments']['max_schedule_hours'])
+        ->toBe(24);
+});
+
+it('csatolmánnyal legfeljebb 24 órával előre ütemezhető', function () {
+    sendWith([attachment(jpegBytes())], ['o:deliverytime' => now()->addHours(25)->toRfc2822String()])
+        ->assertStatus(400)
+        ->assertJsonPath('error.code', 'DELIVERYTIME_TOO_FAR');
+
+    sendWith([attachment(jpegBytes())], ['o:deliverytime' => now()->addHours(23)->toRfc2822String()])
+        ->assertAccepted();
+
+    // Csatolmány nélkül a 7 napos korlát változatlan.
+    sendWith([], ['o:deliverytime' => now()->addDays(3)->toRfc2822String()])->assertAccepted();
 });
