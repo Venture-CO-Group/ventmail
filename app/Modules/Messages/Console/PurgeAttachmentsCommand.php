@@ -37,12 +37,19 @@ final class PurgeAttachmentsCommand extends Command
                 foreach ($workspaces as $workspace) {
                     $context->set($workspace);
 
+                    // `whereExists` (korrelált, a `messages.uuid` indexén) a `whereIn` allekérdezés
+                    // helyett: a lezárt üzenetek halmaza a napló teljes mérete, a függő
+                    // csatolmányoké pár sor — a tervező így a kicsiből indul. A korreláció a
+                    // workspace-re is köt, tehát idegen tenant azonos uuid-ja sem számít.
                     $deleted += MessageAttachment::query()
                         ->where(fn ($query) => $query
                             ->where('expires_at', '<=', now())
-                            ->orWhereIn('message_uuid', Message::query()
-                                ->select('uuid')
-                                ->whereIn('status', Message::ATTACHMENT_RELEASING_STATUSES)))
+                            ->orWhereExists(fn ($closed) => $closed
+                                ->selectRaw('1')
+                                ->from('messages')
+                                ->whereColumn('messages.uuid', 'message_attachments.message_uuid')
+                                ->whereColumn('messages.workspace_id', 'message_attachments.workspace_id')
+                                ->whereIn('messages.status', Message::ATTACHMENT_RELEASING_STATUSES)))
                         ->delete();
                 }
             });
