@@ -131,3 +131,26 @@ it('a From fejléc ALÁ VAN ÍRVA — különben a levél átírható', function
             ->toBeTrue("a(z) {$header} fejléc nincs aláírva — a levél útközben átírható");
     }
 });
+
+it('N1: a Reply-To és a MIME-Version is aláírva utazik, és az aláírás érvényes', function () {
+    $this->message->forceFill(['headers' => ['Reply-To' => 'ugyfel@pelda.hu']])->save();
+
+    $mime = app(DkimSigner::class)->sign(
+        app(OutboundMimeBuilder::class)->build($this->message, 'cimzett@example.test'),
+        $this->domain
+    );
+
+    preg_match('/DKIM-Signature:.*?\bh=([^;]+);/is', $mime, $match);
+    $signed = array_map(fn ($name) => strtolower(trim($name)), explode(':', (string) preg_replace('/\s+/', '', $match[1] ?? '')));
+
+    // A Reply-To nélkül a válaszok eltéríthetők lennének az aláírás sérülése nélkül.
+    expect($signed)->toContain('from')
+        ->and($signed)->toContain('subject')
+        ->and($signed)->toContain('reply-to')
+        ->and($signed)->toContain('mime-version')
+        // Ismert korlát (a Symfony a Content-Type-ot a törzs-rész fejléceként kezeli): ha ez
+        // egyszer megváltozik, a teszt jelez, és a DkimSigner megjegyzése frissítendő.
+        ->and($signed)->not->toContain('content-type')
+        ->and(DkimVerifier::verify($mime, file_get_contents(base_path('tests/Fixtures/dkim-test-key.pub.pem'))))
+        ->toBeTrue();
+});
