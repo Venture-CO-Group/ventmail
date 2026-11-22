@@ -927,3 +927,18 @@ it('a csatolmány-sorok, a függő-korlát és a takarítás workspace-enként e
     app(WorkspaceContext::class)->set($other);
     expect(MessageAttachment::query()->count())->toBe(0);
 });
+
+// --- N9: a visszhangzott content_type rövidítve és tisztítva ------------------------------
+
+it('a hibaüzenet a hívó content_type-ját legfeljebb 64 karakterig, vezérlőkarakter nélkül visszhangozza', function () {
+    $type = 'application/x-'.str_repeat('a', 500)."\u{202E}";
+
+    $message = (string) sendWith([attachment(jpegBytes(), 'kep.jpg', $type)])
+        ->assertStatus(400)
+        ->assertJsonPath('error.code', 'UNSUPPORTED_ATTACHMENT_TYPE')
+        ->json('error.message');
+
+    expect($message)->toContain(mb_substr($type, 0, 64))
+        ->and($message)->not->toContain(mb_substr($type, 0, 65))
+        ->and($message)->not->toContain("\u{202E}");
+});

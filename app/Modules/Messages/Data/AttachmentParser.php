@@ -175,8 +175,8 @@ final class AttachmentParser
                 throw new InvalidArgumentException(sprintf(
                     'ATTACHMENT_TYPE_MISMATCH|A(z) %d. csatolmány deklarált típusa %s, a tartalma viszont %s.',
                     $index + 1,
-                    $declared,
-                    $sniffed
+                    self::echoed((string) $declared),
+                    $sniffed ?? 'nem engedett / ismeretlen'
                 ));
             }
 
@@ -337,8 +337,22 @@ final class AttachmentParser
         ));
     }
 
+    /**
+     * A hívó által adott típus a hibaüzenetben: legfeljebb 64 karakter, vezérlő- és
+     * formázókarakter nélkül (N9) — a válasz és a napló ne visszhangozzon korlátlan,
+     * kliens által írt szöveget.
+     */
+    private static function echoed(string $type): string
+    {
+        $clean = mb_check_encoding($type, 'UTF-8') ? $type : mb_convert_encoding($type, 'UTF-8', 'UTF-8');
+
+        return mb_substr((string) preg_replace('/[\p{Cc}\p{Cf}]/u', '', $clean), 0, 64);
+    }
+
     private static function unsupported(int $index, string $type): InvalidArgumentException
     {
+        $type = self::echoed($type);
+
         return new InvalidArgumentException(sprintf(
             'UNSUPPORTED_ATTACHMENT_TYPE|A(z) %d. csatolmány típusa (%s) nem engedett. Engedett: %s.',
             $index + 1,
